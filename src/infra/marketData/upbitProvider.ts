@@ -10,6 +10,7 @@ import type {
 // (docs/market-data.md §3). 티커는 업비트 마켓코드(KRW-BTC) 표기.
 
 const BASE_URL = 'https://api.upbit.com/v1/candles/days';
+const TICKER_URL = 'https://api.upbit.com/v1/ticker';
 const MAX_COUNT_PER_CALL = 200;
 
 /** 업비트 일봉 응답 항목 (사용 필드만) */
@@ -82,6 +83,20 @@ export class UpbitMarketDataProvider implements MarketDataProvider {
 
   getSecurityStatus(ticker: string, asOf: string): Promise<SecurityStatus> {
     return this.statusResolver(ticker, asOf);
+  }
+
+  /** 실시간 현재가 — 코인 게시 시점 기준가 확정용 (단타 예측의 조작 방지 핵심) */
+  async getCurrentPrice(ticker: string): Promise<number> {
+    const res = await this.fetchImpl(`${TICKER_URL}?markets=${encodeURIComponent(ticker)}`);
+    if (!res.ok) {
+      throw new Error(`업비트 현재가 API HTTP ${res.status}`);
+    }
+    const body = (await res.json()) as Array<{ trade_price: number }>;
+    const price = body[0]?.trade_price;
+    if (!Number.isFinite(price) || price <= 0) {
+      throw new Error(`업비트 현재가 응답이 유효하지 않습니다: ${ticker}`);
+    }
+    return price;
   }
 }
 

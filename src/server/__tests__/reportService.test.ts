@@ -132,7 +132,25 @@ describe('리포트 게시 플로우', () => {
     const draft = await createDraftReport(prisma, draftInput());
     const emptyRegistry: ProviderRegistry = { CRYPTO: new FixtureMarketDataProvider() };
     await expect(publishReport(prisma, emptyRegistry, draft.id, researcherId, NOW)).rejects.toThrow(
-      /기준가를 확정할 수 없습니다/,
+      /기준가 확정 불가/,
     );
+  });
+
+  it('코인은 게시 시점 실시간 현재가가 기준가가 된다 (직전 종가 아님)', async () => {
+    const draft = await createDraftReport(prisma, draftInput());
+    const provider = new FixtureMarketDataProvider()
+      .setQuotes('KRW-BTC', [
+        { date: '2026-07-11', open: 1, high: 1, low: 1, close: 150_000_000, volume: 1 },
+      ])
+      .setCurrentPrice('KRW-BTC', 158_500_000); // 게시 순간의 실시간가
+    const published = await publishReport(prisma, { CRYPTO: provider }, draft.id, researcherId, NOW);
+    expect(published.basePrice).toBe(158_500_000);
+  });
+
+  it('코인 단타(1일 시한) 초안 허용', async () => {
+    const input = draftInput();
+    input.card.deadline = new Date('2026-07-14T00:00:00Z'); // 약 +1.5일 (코인 최소 1일)
+    const draft = await createDraftReport(prisma, input);
+    expect(draft.status).toBe('DRAFT');
   });
 });

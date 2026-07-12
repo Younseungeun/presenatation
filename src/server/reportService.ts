@@ -186,6 +186,14 @@ async function fetchBasePrice(
   now: Date,
 ): Promise<number> {
   const provider = resolveProvider(registry, card.assetClass);
+
+  // 실시간 현재가를 주는 소스(코인=업비트)는 게시 순간의 가격을 기준가로 쓴다.
+  // 이것이 단기(1일) 예측을 허용해도 "이미 실현된 등락 가로채기"가 불가능한 이유다.
+  if (provider.getCurrentPrice) {
+    return provider.getCurrentPrice(card.ticker);
+  }
+
+  // EOD 소스는 직전 거래일 종가 — 이 경우 최소 시한 규칙(주식 7일)이 조작을 막는다
   const to = toMarketDateString(now, card.assetClass);
   const from = toMarketDateString(
     new Date(now.getTime() - BASE_PRICE_LOOKBACK_DAYS * 86_400_000),

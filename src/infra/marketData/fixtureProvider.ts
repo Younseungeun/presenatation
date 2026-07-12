@@ -11,6 +11,7 @@ export class FixtureMarketDataProvider implements MarketDataProvider {
 
   private quotes = new Map<string, DailyQuote[]>();
   private statuses = new Map<string, SecurityStatus>();
+  private currentPrices = new Map<string, number>();
 
   setQuotes(ticker: string, quotes: DailyQuote[]): this {
     this.quotes.set(ticker, quotes);
@@ -28,5 +29,20 @@ export class FixtureMarketDataProvider implements MarketDataProvider {
 
   async getSecurityStatus(ticker: string): Promise<SecurityStatus> {
     return this.statuses.get(ticker) ?? { delisted: false, halted: false };
+  }
+
+  setCurrentPrice(ticker: string, price: number): this {
+    this.currentPrices.set(ticker, price);
+    return this;
+  }
+
+  /** 명시된 현재가 → 없으면 마지막 일봉 종가 (업비트 현재가 동작 흉내) */
+  async getCurrentPrice(ticker: string): Promise<number> {
+    const explicit = this.currentPrices.get(ticker);
+    if (explicit !== undefined) return explicit;
+    const quotes = this.quotes.get(ticker) ?? [];
+    const last = [...quotes].sort((a, b) => a.date.localeCompare(b.date)).at(-1);
+    if (!last) throw new Error(`현재가 픽스처 없음: ${ticker} (기준가 확정 불가)`);
+    return last.close;
   }
 }

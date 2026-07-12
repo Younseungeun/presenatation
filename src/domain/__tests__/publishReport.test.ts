@@ -48,12 +48,26 @@ describe('validateCardDraft', () => {
     ).not.toEqual([]);
   });
 
-  it('검증 시한 최소 7일, 최대 365일', () => {
+  it('주식은 검증 시한 최소 7일 (EOD 기준가 조작 방지), 최대 365일', () => {
     expect(
       validateCardDraft({ ...validCard, deadline: new Date('2026-07-15') }, NOW),
     ).not.toEqual([]);
     expect(
       validateCardDraft({ ...validCard, deadline: new Date('2027-08-01') }, NOW),
+    ).not.toEqual([]);
+  });
+
+  it('코인은 실시간 기준가 덕분에 1일 단타 예측 허용', () => {
+    const crypto = {
+      ...validCard,
+      assetClass: 'CRYPTO' as const,
+      ticker: 'KRW-BTC',
+      deadline: new Date('2026-07-13T06:00:00Z'), // NOW + 1.25일
+    };
+    expect(validateCardDraft(crypto, NOW)).toEqual([]);
+    // 1일 미만은 코인도 거부
+    expect(
+      validateCardDraft({ ...crypto, deadline: new Date('2026-07-12T12:00:00Z') }, NOW),
     ).not.toEqual([]);
   });
 

@@ -56,3 +56,25 @@ describe('UpbitMarketDataProvider.getDailyQuotes', () => {
     );
   });
 });
+
+describe('UpbitMarketDataProvider.getCurrentPrice', () => {
+  it('ticker 엔드포인트에서 실시간 체결가 반환', async () => {
+    let requested = '';
+    const fetchImpl = (async (url: string | URL | Request) => {
+      requested = String(url);
+      return new Response(JSON.stringify([{ market: 'KRW-BTC', trade_price: 158_500_000 }]), {
+        status: 200,
+      });
+    }) as typeof fetch;
+
+    const provider = new UpbitMarketDataProvider(undefined, fetchImpl);
+    await expect(provider.getCurrentPrice('KRW-BTC')).resolves.toBe(158_500_000);
+    expect(requested).toContain('/v1/ticker?markets=KRW-BTC');
+  });
+
+  it('빈 응답·0원 가격은 예외 (기준가 오염 방지)', async () => {
+    const fetchImpl = (async () => new Response('[]', { status: 200 })) as typeof fetch;
+    const provider = new UpbitMarketDataProvider(undefined, fetchImpl);
+    await expect(provider.getCurrentPrice('KRW-XXX')).rejects.toThrow(/유효하지 않습니다/);
+  });
+});

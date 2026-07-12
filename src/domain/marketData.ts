@@ -24,10 +24,15 @@ export interface SecurityStatus {
 export interface MarketDataProvider {
   /** 소스 식별자 — 감사 스냅샷에 기록 */
   readonly sourceId: string;
-  /** [from, to] 구간(KST, YYYY-MM-DD)의 일별 시세. 거래일만 반환한다. */
+  /** [from, to] 구간(YYYY-MM-DD, 자산군 시간대)의 일별 시세. 거래일만 반환한다. */
   getDailyQuotes(ticker: string, from: string, to: string): Promise<DailyQuote[]>;
   /** 기준일 시점의 종목 상태 */
   getSecurityStatus(ticker: string, asOf: string): Promise<SecurityStatus>;
+  /**
+   * 실시간 현재가 (지원 소스만). 게시 시점 기준가 확정에 사용 —
+   * 실시간 기준가가 있는 자산군은 단기(1일~) 예측을 허용할 수 있다 (publishReport.ts).
+   */
+  getCurrentPrice?(ticker: string): Promise<number>;
 }
 
 // 자산군별 거래일 기준 시간대. 판정 날짜 환산의 단일 기준 (docs/market-data.md §1)

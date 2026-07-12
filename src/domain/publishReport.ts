@@ -8,8 +8,19 @@ import { calcFeeRateBp } from './fees';
 /** 플랫폼 가격 가이드 (CLAUDE.md 3.4절: 건당 5천~5만원) */
 export const PRICE_GUIDE_KRW = { min: 5_000, max: 50_000 } as const;
 
-/** 검증 시한 최소·최대 (판정 가능성 확보: 너무 짧으면 데이터 D+1 지연과 충돌) */
-export const DEADLINE_RANGE_DAYS = { min: 7, max: 365 } as const;
+/**
+ * 검증 시한 최소(자산군별)·최대.
+ * 주식의 최소 7일은 기술 제약이 아니라 조작 방지 장치다: 기준가가 "직전 거래일 종가"(EOD)라서
+ * 초단기 예측은 게시 시점에 이미 실현된 당일 등락을 공짜로 가져갈 수 있다.
+ * 코인은 게시 시점 실시간 현재가(업비트 ticker)를 기준가로 쓰므로 1일 단타 예측을 허용한다.
+ * 주식도 실시간 기준가 소스(KIS/Alpaca) 도입 시 단축한다 (docs/market-data.md §7).
+ */
+export const DEADLINE_MIN_DAYS: Record<AssetClass, number> = {
+  KR_EQUITY: 7,
+  US_EQUITY: 7,
+  CRYPTO: 1,
+};
+export const DEADLINE_MAX_DAYS = 365;
 
 const TICKER_PATTERNS: Record<AssetClass, RegExp> = {
   KR_EQUITY: /^\d{6}$/, // 6자리 단축코드
@@ -59,11 +70,12 @@ export function validateCardDraft(card: CardDraft, now = new Date()): string[] {
   }
 
   const daysToDeadline = (card.deadline.getTime() - now.getTime()) / 86_400_000;
-  if (daysToDeadline < DEADLINE_RANGE_DAYS.min) {
-    issues.push(`검증 시한은 최소 ${DEADLINE_RANGE_DAYS.min}일 이후여야 합니다`);
+  const minDays = DEADLINE_MIN_DAYS[card.assetClass];
+  if (daysToDeadline < minDays) {
+    issues.push(`${card.assetClass} 검증 시한은 최소 ${minDays}일 이후여야 합니다`);
   }
-  if (daysToDeadline > DEADLINE_RANGE_DAYS.max) {
-    issues.push(`검증 시한은 최대 ${DEADLINE_RANGE_DAYS.max}일 이내여야 합니다`);
+  if (daysToDeadline > DEADLINE_MAX_DAYS) {
+    issues.push(`검증 시한은 최대 ${DEADLINE_MAX_DAYS}일 이내여야 합니다`);
   }
 
   return issues;
