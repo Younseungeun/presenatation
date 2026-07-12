@@ -1,0 +1,143 @@
+// 리서치 마켓플레이스 MVP 데이터 모델
+// CLAUDE.md 기획 문서 기반. 개발용 SQLite — 운영 전환 시 provider만 postgresql로 변경.
+// SQLite는 enum 미지원 → 상태값 문자열은 src/domain/constants.ts 의 상수를 단일 기준으로 사용.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 본인 인증 필수(1인 1계정), 필명 활동 허용
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  penName          String? // 필명 (공개 표시명)
+  identityVerified Boolean  @default(false) // 본인 인증 완료 여부
+  identityHash     String?  @unique // 실명 인증 CI 해시 — 계정 재생성 세탁 차단
+  createdAt        DateTime @default(now())
+
+  researcherProfile ResearcherProfile?
+  purchases         Purchase[]
+  credits           Credit[]
+}
+
+// 리서처 프로필: 등급·경력 배지·신고 여부
+model ResearcherProfile {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id])
+  tier               String   @default("BRONZE") // BRONZE | SILVER | GOLD | PLATINUM | CHALLENGER
+  careerBadge        String? // ANALYST | CFA | CPA | INDUSTRY_EXPERT (수동 심사 후 부여)
+  advisoryRegistered Boolean  @default(false) // 유사투자자문업 신고 여부 표시
+  promoFeeUntil      DateTime? // 초기 입점 프로모션(수수료 10%) 만료일
+  createdAt          DateTime @default(now())
+
+  reports       Report[]
+  tierHistories TierHistory[]
+}
+
+// 리포트: 건별 판매 단위. 리포트 1건 = 예측 카드 1건 = 판정 1건
+model Report {
+  id              String   @id @default(cuid())
+  researcherId    String
+  researcher      ResearcherProfile @relation(fields: [researcherId], references: [id])
+  title           String
+  summary         String // 구매 전 공개 미리보기
+  content         String // 유료 본문
+  priceKrw        Int // 건당 가격 (플랫폼 가이드: 5천~5만원)
+  prepaymentRatio Int      @default(0) // 0 | 10 | 20 | 30 (%) — 게시 시점 고정, 변경 불가
+  feeRateBp       Int // 게시 시점 확정 총 수수료 (basis point, 예: 2000 = 20%)
+  status          String   @default("DRAFT") // DRAFT | PUBLISHED | CLOSED
+  publishedAt     DateTime?
+  createdAt       DateTime @default(now())
+
+  predictionCard PredictionCard?
+  purchases      Purchase[]
+}
+
+// 예측 카드: 게시 후 수정·삭제 불가. 철회는 가능하되 기록에 남김.
+model PredictionCard {
+  id            String    @id @default(cuid())
+  reportId      String    @unique
+  report        Report    @relation(fields: [reportId], references: [id])
+  ticker        String // 종목/자산 코드
+  assetName     String
+  direction     String // UP | DOWN
+  targetType    String // TARGET_PRICE(목표가 도달) | RETURN_PCT(기준가 대비 수익률)
+  targetValue   Float // 목표가(원) 또는 목표 수익률(%)
+  basePrice     Float // 게시 시점 기준가 (판정 기준)
+  deadline      DateTime // 검증 시한
+  confidence    Int? // 확신도 1~5 (선택 배팅 가중치)
+  withdrawnAt   DateTime? // 철회 시각 (철회해도 기록 유지)
+  createdAt     DateTime  @default(now())
+
+  judgment Judgment?
+}
+
+// 판정: 시장 데이터 자동 판정 결과. 판정 불가 시 무효 처리 + 전액 환불.
+model Judgment {
+  id               String   @id @default(cuid())
+  predictionCardId String   @unique
+  predictionCard   PredictionCard @relation(fields: [predictionCardId], references: [id])
+  outcome          String // HIT | MISS | UNDECIDABLE
+  undecidableReason String? // TRADING_HALT | DELISTED | AMBIGUOUS | WITHDRAWN
+  settledPrice     Float? // 판정에 사용된 시장가
+  judgedAt         DateTime @default(now())
+}
+
+// 구매: PG 웹 결제 → 에스크로 보관 → 판정 후 정산
+model Purchase {
+  id         String   @id @default(cuid())
+  reportId   String
+  report     Report   @relation(fields: [reportId], references: [id])
+  buyerId    String
+  buyer      User     @relation(fields: [buyerId], references: [id])
+  amountKrw  Int // 결제 총액
+  escrowStatus String @default("HELD") // HELD | SETTLED | REFUNDED
+  paidAt     DateTime @default(now())
+
+  settlement Settlement?
+
+  @@unique([reportId, buyerId]) // 자기 구매 중복 방지 및 1인 1구매
+}
+
+// 정산: 적중/실패/판정불가 3분기 결과 기록
+model Settlement {
+  id                 String   @id @default(cuid())
+  purchaseId         String   @unique
+  purchase           Purchase @relation(fields: [purchaseId], references: [id])
+  outcome            String // HIT | MISS | UNDECIDABLE
+  researcherPayoutKrw Int // 리서처 정산액
+  platformFeeKrw     Int // 플랫폼 수수료 (판정 불가 시 0)
+  buyerRefundKrw     Int // 구매자 환급액 (크레딧 또는 전액 환불)
+  refundType         String? // CREDIT(실패→앱 내 크레딧) | FULL_REFUND(판정불가→전액)
+  settledAt          DateTime @default(now())
+}
+
+// 환급 크레딧: 앱 내 재사용 전용, 유효기간 명시, 직접 충전·현금화 불가
+model Credit {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amountKrw Int
+  reason    String // MISS_REFUND 등
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+}
+
+// 등급 이력: 분기 시즌제 재산정·강등 기록
+model TierHistory {
+  id           String   @id @default(cuid())
+  researcherId String
+  researcher   ResearcherProfile @relation(fields: [researcherId], references: [id])
+  season       String // 예: "2026-Q3"
+  fromTier     String
+  toTier       String
+  reason       String // PROMOTION | DEMOTION | SEASON_RESET
+  createdAt    DateTime @default(now())
+}
