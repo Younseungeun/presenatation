@@ -86,6 +86,8 @@ model Judgment {
   outcome          String // HIT | MISS | UNDECIDABLE
   undecidableReason String? // TRADING_HALT | DELISTED | AMBIGUOUS | WITHDRAWN
   settledPrice     Float? // 판정에 사용된 시장가
+  dataSource       String? // 판정 데이터 소스 식별자 (예: fsc-data.go.kr, manual)
+  marketSnapshotJson String? // 판정에 사용한 원천 시세 스냅샷 (감사·분쟁 재현용, JudgmentAudit 직렬화)
   judgedAt         DateTime @default(now())
 }
 
