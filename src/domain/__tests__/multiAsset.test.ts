@@ -31,6 +31,7 @@ describe('runJudgmentFromRegistry — 코인 카드 종단 판정', () => {
 
   const btcCard: JudgeableCard = {
     assetClass: 'CRYPTO',
+    baseMode: 'FIXED_AT_PUBLISH',
     ticker: 'KRW-BTC',
     direction: 'DOWN',
     targetType: 'RETURN_PCT',

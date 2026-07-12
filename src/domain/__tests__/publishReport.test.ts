@@ -48,13 +48,16 @@ describe('validateCardDraft', () => {
     ).not.toEqual([]);
   });
 
-  it('주식은 검증 시한 최소 7일 (EOD 기준가 조작 방지), 최대 365일', () => {
+  it('미국주식은 검증 시한 최소 7일 (EOD 기준가 조작 방지), 최대 365일', () => {
+    const us = { ...validCard, assetClass: 'US_EQUITY' as const, ticker: 'AAPL' };
+    expect(validateCardDraft({ ...us, deadline: new Date('2026-07-15') }, NOW)).not.toEqual([]);
+    expect(validateCardDraft({ ...us, deadline: new Date('2027-08-01') }, NOW)).not.toEqual([]);
+  });
+
+  it('국내주식은 단기(당일 포함) 초안 허용 — 게시 시점 컷오프 규칙은 별도', () => {
     expect(
-      validateCardDraft({ ...validCard, deadline: new Date('2026-07-15') }, NOW),
-    ).not.toEqual([]);
-    expect(
-      validateCardDraft({ ...validCard, deadline: new Date('2027-08-01') }, NOW),
-    ).not.toEqual([]);
+      validateCardDraft({ ...validCard, deadline: new Date('2026-07-13T06:30:00Z') }, NOW),
+    ).toEqual([]);
   });
 
   it('코인은 실시간 기준가 덕분에 1일 단타 예측 허용', () => {
@@ -95,7 +98,12 @@ describe('validateConditions', () => {
 describe('preparePublish', () => {
   it('게시 스냅샷: 수수료·기준가·게시 시각 고정', () => {
     const snap = preparePublish(validCard, validCond, 70_000, NOW);
-    expect(snap).toEqual({ feeRateBp: 2000, basePrice: 70_000, publishedAt: NOW });
+    expect(snap).toEqual({
+      feeRateBp: 2000,
+      baseMode: 'FIXED_AT_PUBLISH',
+      basePrice: 70_000,
+      publishedAt: NOW,
+    });
   });
 
   it('프로모션 수수료 반영', () => {
@@ -121,6 +129,35 @@ describe('preparePublish', () => {
       targetValue: 75_000,
     };
     expect(() => preparePublish(card, validCond, 70_000, NOW)).toThrow(/목표가/);
+  });
+
+  it('KR 단기 카드: 평일 개장 전 게시 → 기준가 소급 확정 모드로 게시 성공', () => {
+    // KST 2026-07-13(월) 07:00 — 동시호가(08:30) 전
+    const monPreOpen = new Date('2026-07-12T22:00:00Z');
+    const card: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') }; // 당일 15:30 KST
+    const snap = preparePublish(card, validCond, null, monPreOpen);
+    expect(snap.baseMode).toBe('PREV_CLOSE_AT_JUDGMENT');
+    expect(snap.basePrice).toBeNull();
+  });
+
+  it('KR 단기 카드: 개장 후(08:30 KST 이후) 게시 거부', () => {
+    // KST 2026-07-13(월) 09:00 — 장중
+    const monOpen = new Date('2026-07-13T00:00:00Z');
+    const card: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') };
+    expect(() => preparePublish(card, validCond, null, monOpen)).toThrow(/개장 전/);
+  });
+
+  it('KR 단기 카드: 주말 게시 거부', () => {
+    // KST 2026-07-12(일) 07:00
+    const sunPreOpen = new Date('2026-07-11T22:00:00Z');
+    const card: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') };
+    expect(() => preparePublish(card, validCond, null, sunPreOpen)).toThrow(/거래일/);
+  });
+
+  it('KR 장기 카드(7일 이상)는 기존대로 게시 시점 기준가 확정', () => {
+    const snap = preparePublish(validCard, validCond, 70_000, NOW);
+    expect(snap.baseMode).toBe('FIXED_AT_PUBLISH');
+    expect(snap.basePrice).toBe(70_000);
   });
 
   it('검증 이슈는 한 번에 모아서 보고', () => {

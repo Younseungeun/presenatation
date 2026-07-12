@@ -23,6 +23,7 @@ async function smokeUsEquity() {
   const { result, audit } = await runJudgmentFromRegistry(
     {
       assetClass: 'US_EQUITY',
+      baseMode: 'FIXED_AT_PUBLISH',
       ticker: 'AAPL',
       direction: 'UP',
       targetType: 'RETURN_PCT',
@@ -46,6 +47,7 @@ async function smokeCrypto() {
   const { result, audit } = await runJudgmentFromRegistry(
     {
       assetClass: 'CRYPTO',
+      baseMode: 'FIXED_AT_PUBLISH',
       ticker: 'KRW-BTC',
       direction: 'UP',
       targetType: 'RETURN_PCT',

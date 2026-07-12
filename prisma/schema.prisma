@@ -71,7 +71,8 @@ model PredictionCard {
   direction     String // UP | DOWN
   targetType    String // TARGET_PRICE(목표가 도달) | RETURN_PCT(기준가 대비 수익률)
   targetValue   Float // 목표가 또는 목표 등락률 크기(%)
-  basePrice     Float? // 게시 시점 직전 거래일 종가로 확정 (판정 기준). 초안 단계엔 null
+  baseMode      String    @default("FIXED_AT_PUBLISH") // FIXED_AT_PUBLISH | PREV_CLOSE_AT_JUDGMENT (KR 단기: 개장 전 게시, 전일 종가를 판정 시 소급 확정)
+  basePrice     Float? // 기준가. FIXED_AT_PUBLISH는 게시 시 확정, AT_JUDGMENT는 판정 시 소급 기록
   deadline      DateTime // 검증 시한
   confidence    Int? // 확신도 1~5 (선택 배팅 가중치)
   withdrawnAt   DateTime? // 철회 시각 (철회해도 기록 유지)

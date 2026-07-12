@@ -147,6 +147,50 @@ describe('리포트 게시 플로우', () => {
     expect(published.basePrice).toBe(158_500_000);
   });
 
+  it('KR 당일 예측: 평일 개장 전 게시 → 기준가 소급 확정 모드', async () => {
+    const input = draftInput();
+    input.card = {
+      assetClass: 'KR_EQUITY',
+      ticker: '005930',
+      assetName: '삼성전자',
+      direction: 'UP',
+      targetType: 'RETURN_PCT',
+      targetValue: 2,
+      deadline: new Date('2026-07-13T06:30:00Z'), // KST 월 15:30 (당일 종가)
+    };
+    const draft = await createDraftReport(prisma, input);
+
+    // KST 2026-07-13(월) 07:00 — 개장 전. 시세 조회 없이 게시된다 (빈 레지스트리)
+    const monPreOpen = new Date('2026-07-12T22:00:00Z');
+    const published = await publishReport(prisma, {}, draft.id, researcherId, monPreOpen);
+    expect(published.status).toBe('PUBLISHED');
+    expect(published.basePrice).toBeNull();
+
+    const card = await prisma.predictionCard.findUniqueOrThrow({
+      where: { reportId: draft.id },
+    });
+    expect(card.baseMode).toBe('PREV_CLOSE_AT_JUDGMENT');
+    expect(card.basePrice).toBeNull();
+  });
+
+  it('KR 당일 예측: 장 시작 후 게시 거부', async () => {
+    const input = draftInput();
+    input.card = {
+      assetClass: 'KR_EQUITY',
+      ticker: '005930',
+      assetName: '삼성전자',
+      direction: 'UP',
+      targetType: 'RETURN_PCT',
+      targetValue: 2,
+      deadline: new Date('2026-07-13T06:30:00Z'),
+    };
+    const draft = await createDraftReport(prisma, input);
+    const monIntraday = new Date('2026-07-13T01:00:00Z'); // KST 월 10:00 — 장중
+    await expect(
+      publishReport(prisma, {}, draft.id, researcherId, monIntraday),
+    ).rejects.toThrow(/개장 전/);
+  });
+
   it('코인 단타(1일 시한) 초안 허용', async () => {
     const input = draftInput();
     input.card.deadline = new Date('2026-07-14T00:00:00Z'); // 약 +1.5일 (코인 최소 1일)

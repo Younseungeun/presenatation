@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { PrepaymentRatio, Tier } from '@/domain/constants';
 import { resolveProvider, toMarketDateString, type ProviderRegistry } from '@/domain/marketData';
 import {
+  isKrShortDated,
   preparePublish,
   PublishValidationError,
   validateCardDraft,
@@ -110,8 +111,11 @@ export async function publishReport(
     confidence: card.confidence ?? undefined,
   };
 
-  // 외부 시세 조회는 트랜잭션 밖에서 — 직전 거래일 종가를 기준가로 확정
-  const basePrice = await fetchBasePrice(registry, cardDraft, now);
+  // KR 단기 카드는 기준가를 판정 시 소급 확정 — 시세 조회 없이 컷오프 규칙만 검증된다.
+  // 그 외에는 외부 시세 조회(트랜잭션 밖)로 기준가를 게시 시점에 확정한다.
+  const basePrice = isKrShortDated(cardDraft.assetClass, cardDraft.deadline, now)
+    ? null
+    : await fetchBasePrice(registry, cardDraft, now);
 
   const snapshot = preparePublish(
     cardDraft,
@@ -137,7 +141,7 @@ export async function publishReport(
     }),
     prisma.predictionCard.update({
       where: { id: card.id },
-      data: { basePrice: snapshot.basePrice },
+      data: { basePrice: snapshot.basePrice, baseMode: snapshot.baseMode },
     }),
   ]);
 
