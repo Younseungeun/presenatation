@@ -1,6 +1,7 @@
+import type { AssetClass } from './constants';
 import type { MarketSnapshot } from './judgment';
 
-// 시세 데이터 공급자 추상화. 소스(공공데이터포털/KIS/코스콤)를 갈아끼울 수 있도록
+// 시세 데이터 공급자 추상화. 자산군별 소스(금융위/Twelve Data/업비트)를 갈아끼울 수 있도록
 // 판정 파이프라인은 이 인터페이스에만 의존한다. 설계: docs/market-data.md
 
 /** 일별 시세 1건. date는 KST 기준 YYYY-MM-DD */
@@ -29,9 +30,36 @@ export interface MarketDataProvider {
   getSecurityStatus(ticker: string, asOf: string): Promise<SecurityStatus>;
 }
 
+// 자산군별 거래일 기준 시간대. 판정 날짜 환산의 단일 기준 (docs/market-data.md §1)
+// 크립토는 24/7이지만 업비트 KST 일봉을 판정 기준으로 약관에 명시한다.
+export const MARKET_TIMEZONE: Record<AssetClass, string> = {
+  KR_EQUITY: 'Asia/Seoul',
+  US_EQUITY: 'America/New_York',
+  CRYPTO: 'Asia/Seoul',
+};
+
+/** Date → 해당 자산군 거래일 기준 YYYY-MM-DD */
+export function toMarketDateString(d: Date, assetClass: AssetClass): string {
+  return new Intl.DateTimeFormat('sv-SE', { timeZone: MARKET_TIMEZONE[assetClass] }).format(d);
+}
+
 /** Date → KST YYYY-MM-DD */
 export function toKstDateString(d: Date): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(d);
+}
+
+/** 자산군 → 공급자 매핑. 배치 잡이 구성해 파이프라인에 넘긴다. */
+export type ProviderRegistry = Partial<Record<AssetClass, MarketDataProvider>>;
+
+export function resolveProvider(
+  registry: ProviderRegistry,
+  assetClass: AssetClass,
+): MarketDataProvider {
+  const provider = registry[assetClass];
+  if (!provider) {
+    throw new Error(`${assetClass} 자산군의 시세 공급자가 등록되지 않았습니다`);
+  }
+  return provider;
 }
 
 /**

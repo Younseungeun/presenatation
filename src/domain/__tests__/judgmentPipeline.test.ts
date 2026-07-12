@@ -6,6 +6,7 @@ import { settle } from '../settlement';
 const NOW = new Date('2026-07-12T05:00:00Z'); // KST 2026-07-12 14:00 (배치 시각)
 
 const baseCard: JudgeableCard = {
+  assetClass: 'KR_EQUITY',
   ticker: '005930',
   direction: 'UP',
   targetType: 'TARGET_PRICE',

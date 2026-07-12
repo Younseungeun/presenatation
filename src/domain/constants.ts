@@ -1,6 +1,9 @@
 // 도메인 상수·타입 단일 기준.
 // SQLite가 enum을 지원하지 않아 DB에는 문자열로 저장하고, 코드에서는 이 모듈만 참조한다.
 
+export const ASSET_CLASSES = ['KR_EQUITY', 'US_EQUITY', 'CRYPTO'] as const;
+export type AssetClass = (typeof ASSET_CLASSES)[number];
+
 export const TIERS = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'CHALLENGER'] as const;
 export type Tier = (typeof TIERS)[number];
 

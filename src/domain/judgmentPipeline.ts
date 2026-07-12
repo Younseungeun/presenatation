@@ -1,9 +1,12 @@
+import type { AssetClass } from './constants';
 import { judge, type JudgmentResult, type PredictionInput } from './judgment';
 import {
   buildMarketSnapshot,
-  toKstDateString,
+  resolveProvider,
+  toMarketDateString,
   type DailyQuote,
   type MarketDataProvider,
+  type ProviderRegistry,
   type SecurityStatus,
 } from './marketData';
 
@@ -23,6 +26,8 @@ export class JudgmentDeferredError extends Error {
 }
 
 export interface JudgeableCard extends PredictionInput {
+  assetClass: AssetClass;
+  /** 자산군별 표기: KR 6자리 코드 | US 심볼 | 업비트 마켓코드(KRW-BTC) */
   ticker: string;
   /** 게시 시각 */
   publishedAt: Date;
@@ -59,8 +64,9 @@ export async function runJudgment(
     );
   }
 
-  const from = toKstDateString(card.publishedAt);
-  const deadlineDate = toKstDateString(card.deadline);
+  // 거래일 날짜는 자산군의 시간대 기준 (미국주식 시한이 KST 새벽이면 ET 전일로 환산)
+  const from = toMarketDateString(card.publishedAt, card.assetClass);
+  const deadlineDate = toMarketDateString(card.deadline, card.assetClass);
 
   const [quotes, securityStatus] = await Promise.all([
     provider.getDailyQuotes(card.ticker, from, deadlineDate),
@@ -85,4 +91,13 @@ export async function runJudgment(
       securityStatus,
     },
   };
+}
+
+/** 배치 잡 진입점: 자산군에 맞는 공급자를 레지스트리에서 선택해 판정 */
+export async function runJudgmentFromRegistry(
+  card: JudgeableCard,
+  registry: ProviderRegistry,
+  now = new Date(),
+): Promise<PipelineResult> {
+  return runJudgment(card, resolveProvider(registry, card.assetClass), now);
 }

@@ -64,7 +64,9 @@ model PredictionCard {
   id            String    @id @default(cuid())
   reportId      String    @unique
   report        Report    @relation(fields: [reportId], references: [id])
-  ticker        String // 종목/자산 코드
+  assetClass    String    @default("KR_EQUITY") // KR_EQUITY | US_EQUITY | CRYPTO
+  ticker        String // 자산군별 표기: KR 6자리 코드 | US 심볼 | 업비트 마켓코드(KRW-BTC)
+  currency      String    @default("KRW") // 목표가·기준가·판정가의 통화 (KRW | USD)
   assetName     String
   direction     String // UP | DOWN
   targetType    String // TARGET_PRICE(목표가 도달) | RETURN_PCT(기준가 대비 수익률)
