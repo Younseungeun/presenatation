@@ -53,15 +53,29 @@
 
 ### 해외주식 (US_EQUITY)
 
-| 후보 | 비용 | 갱신 | 인증 | 비고 |
-|---|---|---|---|---|
-| **Twelve Data** ✅ 주 소스 | 무료 티어 800콜/일, 8콜/분 | EOD 무지연, 실시간은 지연 | API 키 | 주식+크립토 단일 API. 판정용 EOD에 충분 |
-| Alpha Vantage | 무료 티어 25콜/일 | EOD | API 키 | 무료 한도 너무 작음 |
-| Polygon.io | 유료(개인 무료는 EOD 5콜/분) | 실시간 | API 키 | 스케일 단계 유력 (정식 라이선스) |
-| KIS 해외주식 시세 | 무료 | 실시간 | 증권사 계좌 | 2단계 교차 검증 |
+미국 거래소 시세는 거래소가 라이선스로 판매하는 상품이라
+**"완전 무료 + 상업 이용 + 안정성"을 다 만족하는 소스는 없다.** 단계별로 나눠 간다:
 
-- Twelve Data 무료 티어는 초기 판정량(일 수백 건 이하)에 충분. 초과 시 유료 전환($29/월~)
-- 미국 외 시장(유럽·일본 등)도 Twelve Data가 커버하므로 자산군 추가 시 재사용
+| 단계 | 소스 | 비용 | 비고 |
+|---|---|---|---|
+| 개발·검증 (현재) | **Stooq** ✅ 구현됨 | 무료, 키 불필요 | EOD CSV. 하비용 — 상용 불가, SLA 없음 |
+| MVP 운영 | **Alpaca** 또는 Twelve Data 유료 최저 | 무료(계좌) / $29월~ | Alpaca는 분당 200콜, IEX 거래소 시세(EOD 판정엔 충분) |
+| 스케일 | Polygon.io 등 정식 라이선스 | 유료 | 시세 재표시·데이터 상품화 시 |
+
+기타 후보 (탈락 사유):
+
+| 후보 | 사유 |
+|---|---|
+| 야후 파이낸스(yfinance) | 비공식 스크래핑 — 약관 위반, 예고 없는 차단 리스크 |
+| Alpha Vantage 무료 | 일 25콜 — 한도 부족 |
+| Marketstack 무료 | 월 100콜 — 한도 부족 |
+| EODHD 무료 | 일 20콜 — 한도 부족 |
+| Twelve Data 무료 | 일 800콜로 여유 있으나 무료 티어 상업 이용 약관 확인 필요 |
+| KIS 해외주식 시세 | 계좌 무료. 법인·상업 이용은 별도 협의 — 2단계 교차 검증용 |
+
+- 판정 데이터 비용은 월 수만 원 수준인 반면, 데이터 중단·오염은 "판정 무분쟁 기록"
+  자산을 직접 훼손한다 → **실서비스는 약관이 깨끗한 소스로** (무료 집착하지 않음)
+- 국내주식(공공데이터포털)·코인(업비트)은 진짜 무료 — 비용 이슈는 미국주식만 존재
 
 ### 암호화폐 (CRYPTO)
 
@@ -112,7 +126,8 @@ src/domain/judgmentPipeline.ts  카드 1건: 데이터 조회 → 판정 → 감
 src/infra/marketData/
   fixtureProvider.ts            개발·테스트용 인메모리 공급자
   fscProvider.ts                공공데이터포털(금융위) — KR_EQUITY
-  twelveDataProvider.ts         Twelve Data — US_EQUITY
+  twelveDataProvider.ts         Twelve Data — US_EQUITY (운영 후보)
+  stooqProvider.ts              Stooq — US_EQUITY (개발·검증 전용, 상용 금지)
   upbitProvider.ts              업비트 공개 API — CRYPTO
 ```
 
