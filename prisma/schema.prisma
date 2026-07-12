@@ -50,7 +50,7 @@ model Report {
   content         String // 유료 본문
   priceKrw        Int // 건당 가격 (플랫폼 가이드: 5천~5만원)
   prepaymentRatio Int      @default(0) // 0 | 10 | 20 | 30 (%) — 게시 시점 고정, 변경 불가
-  feeRateBp       Int // 게시 시점 확정 총 수수료 (basis point, 예: 2000 = 20%)
+  feeRateBp       Int? // 게시 시점 확정 총 수수료 (bp, 예: 2000 = 20%). 초안 단계엔 null
   status          String   @default("DRAFT") // DRAFT | PUBLISHED | CLOSED
   publishedAt     DateTime?
   createdAt       DateTime @default(now())
@@ -70,8 +70,8 @@ model PredictionCard {
   assetName     String
   direction     String // UP | DOWN
   targetType    String // TARGET_PRICE(목표가 도달) | RETURN_PCT(기준가 대비 수익률)
-  targetValue   Float // 목표가(원) 또는 목표 수익률(%)
-  basePrice     Float // 게시 시점 기준가 (판정 기준)
+  targetValue   Float // 목표가 또는 목표 등락률 크기(%)
+  basePrice     Float? // 게시 시점 직전 거래일 종가로 확정 (판정 기준). 초안 단계엔 null
   deadline      DateTime // 검증 시한
   confidence    Int? // 확신도 1~5 (선택 배팅 가중치)
   withdrawnAt   DateTime? // 철회 시각 (철회해도 기록 유지)
