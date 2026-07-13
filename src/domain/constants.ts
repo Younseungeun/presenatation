@@ -19,8 +19,16 @@ export type TargetType = (typeof TARGET_TYPES)[number];
 export const UNDECIDABLE_REASONS = ['TRADING_HALT', 'DELISTED', 'AMBIGUOUS', 'WITHDRAWN'] as const;
 export type UndecidableReason = (typeof UNDECIDABLE_REASONS)[number];
 
-// 기준가 확정 방식: 게시 시 확정(실시간가 또는 직전 종가) / 판정 시 소급 확정(KR 개장 전 단기 카드)
-export const BASE_MODES = ['FIXED_AT_PUBLISH', 'PREV_CLOSE_AT_JUDGMENT'] as const;
+// 기준가 확정 방식 (publishReport.ts의 컷오프 규칙과 연동):
+// - FIXED_AT_PUBLISH: 게시 시 확정 (실시간가 또는 직전 종가) — 코인·장기 카드
+// - PREV_CLOSE_AT_JUDGMENT: 직전 거래일 종가를 판정 시 소급 확정 — 개장 전 게시 단기 카드
+// - DAY_CLOSE_AT_JUDGMENT: 게시일(이후 첫 거래일) 종가를 판정 시 소급 확정 — 장중·장후·주말 게시
+//   단기 카드. 당일 실현 등락이 기준가에 흡수되므로 장중 게시여도 정보 이점이 없다
+export const BASE_MODES = [
+  'FIXED_AT_PUBLISH',
+  'PREV_CLOSE_AT_JUDGMENT',
+  'DAY_CLOSE_AT_JUDGMENT',
+] as const;
 export type BaseMode = (typeof BASE_MODES)[number];
 
 export const PREPAYMENT_RATIOS = [0, 10, 20, 30] as const;

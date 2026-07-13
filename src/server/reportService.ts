@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { PrepaymentRatio, Tier } from '@/domain/constants';
 import { resolveProvider, toMarketDateString, type ProviderRegistry } from '@/domain/marketData';
 import {
-  isKrShortDated,
+  planBaseMode,
   preparePublish,
   PublishValidationError,
   validateCardDraft,
@@ -27,14 +27,18 @@ export interface CreateDraftInput {
   card: CardDraft;
 }
 
-export async function createDraftReport(prisma: PrismaClient, input: CreateDraftInput) {
+export async function createDraftReport(
+  prisma: PrismaClient,
+  input: CreateDraftInput,
+  now = new Date(),
+) {
   const researcher = await prisma.researcherProfile.findUniqueOrThrow({
     where: { id: input.researcherId },
   });
 
   // 초안 단계에서도 형식 오류는 즉시 돌려준다 (게시 시점 재검증은 별도)
   const issues = [
-    ...validateCardDraft(input.card),
+    ...validateCardDraft(input.card, now),
     ...validateConditions({
       priceKrw: input.priceKrw,
       prepaymentRatio: input.prepaymentRatio,
@@ -111,11 +115,11 @@ export async function publishReport(
     confidence: card.confidence ?? undefined,
   };
 
-  // KR 단기 카드는 기준가를 판정 시 소급 확정 — 시세 조회 없이 컷오프 규칙만 검증된다.
+  // 소급 확정 모드(주식 단기 카드)는 시세 조회 없이 컷오프 규칙만 검증된다.
   // 그 외에는 외부 시세 조회(트랜잭션 밖)로 기준가를 게시 시점에 확정한다.
-  const basePrice = isKrShortDated(cardDraft.assetClass, cardDraft.deadline, now)
-    ? null
-    : await fetchBasePrice(registry, cardDraft, now);
+  const plan = planBaseMode(cardDraft.assetClass, cardDraft.deadline, now);
+  const basePrice =
+    plan.baseMode === 'FIXED_AT_PUBLISH' ? await fetchBasePrice(registry, cardDraft, now) : null;
 
   const snapshot = preparePublish(
     cardDraft,

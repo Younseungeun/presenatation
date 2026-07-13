@@ -44,10 +44,14 @@ function draftInput() {
       direction: 'UP' as const,
       targetType: 'RETURN_PCT' as const,
       targetValue: 10,
-      deadline: new Date('2026-10-12T00:00:00Z'),
+      // 실행 시점 의존을 피하기 위해 상대 시한 (3개월)
+      deadline: new Date(Date.now() + 90 * 86_400_000),
     },
   };
 }
+
+/** 시간 고정이 필요한 테스트용 초안 생성 시각 (게시 시각들보다 앞) */
+const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 
 beforeAll(() => {
   const dir = mkdtempSync(path.join(tmpdir(), 'report-service-'));
@@ -158,7 +162,7 @@ describe('리포트 게시 플로우', () => {
       targetValue: 2,
       deadline: new Date('2026-07-13T06:30:00Z'), // KST 월 15:30 (당일 종가)
     };
-    const draft = await createDraftReport(prisma, input);
+    const draft = await createDraftReport(prisma, input, DRAFT_NOW);
 
     // KST 2026-07-13(월) 07:00 — 개장 전. 시세 조회 없이 게시된다 (빈 레지스트리)
     const monPreOpen = new Date('2026-07-12T22:00:00Z');
@@ -173,7 +177,7 @@ describe('리포트 게시 플로우', () => {
     expect(card.basePrice).toBeNull();
   });
 
-  it('KR 당일 예측: 장 시작 후 게시 거부', async () => {
+  it('KR 당일 예측: 장 시작 후에는 당일 시한 거부(+2일부터)', async () => {
     const input = draftInput();
     input.card = {
       assetClass: 'KR_EQUITY',
@@ -184,17 +188,38 @@ describe('리포트 게시 플로우', () => {
       targetValue: 2,
       deadline: new Date('2026-07-13T06:30:00Z'),
     };
-    const draft = await createDraftReport(prisma, input);
+    const draft = await createDraftReport(prisma, input, DRAFT_NOW);
     const monIntraday = new Date('2026-07-13T01:00:00Z'); // KST 월 10:00 — 장중
     await expect(
       publishReport(prisma, {}, draft.id, researcherId, monIntraday),
-    ).rejects.toThrow(/개장 전/);
+    ).rejects.toThrow(/2일/);
+  });
+
+  it('KR 장중 게시 +2일 카드: 게시일 종가 소급 모드로 게시', async () => {
+    const input = draftInput();
+    input.card = {
+      assetClass: 'KR_EQUITY',
+      ticker: '005930',
+      assetName: '삼성전자',
+      direction: 'UP',
+      targetType: 'RETURN_PCT',
+      targetValue: 2,
+      deadline: new Date('2026-07-15T06:30:00Z'), // 수요일 15:30 KST
+    };
+    const draft = await createDraftReport(prisma, input, DRAFT_NOW);
+    const monIntraday = new Date('2026-07-13T01:00:00Z'); // KST 월 10:00 — 장중
+    const published = await publishReport(prisma, {}, draft.id, researcherId, monIntraday);
+    expect(published.status).toBe('PUBLISHED');
+
+    const card = await prisma.predictionCard.findUniqueOrThrow({ where: { reportId: draft.id } });
+    expect(card.baseMode).toBe('DAY_CLOSE_AT_JUDGMENT');
+    expect(card.basePrice).toBeNull();
   });
 
   it('코인 단타(1일 시한) 초안 허용', async () => {
     const input = draftInput();
-    input.card.deadline = new Date('2026-07-14T00:00:00Z'); // 약 +1.5일 (코인 최소 1일)
-    const draft = await createDraftReport(prisma, input);
+    input.card.deadline = new Date('2026-07-12T12:00:00Z'); // DRAFT_NOW + 1.5일 (코인 최소 1일)
+    const draft = await createDraftReport(prisma, input, DRAFT_NOW);
     expect(draft.status).toBe('DRAFT');
   });
 });

@@ -73,44 +73,59 @@ export async function runJudgment(
     );
   }
 
-  const retroactiveBase = card.baseMode === 'PREV_CLOSE_AT_JUDGMENT';
+  const retroactive = card.baseMode !== 'FIXED_AT_PUBLISH';
   // 거래일 날짜는 자산군의 시간대 기준 (미국주식 시한이 KST 새벽이면 ET 전일로 환산)
   const publishDate = toMarketDateString(card.publishedAt, card.assetClass);
   const deadlineDate = toMarketDateString(card.deadline, card.assetClass);
-  // 소급 확정 카드는 게시일 직전 종가도 필요하므로 조회 범위를 과거로 넓힌다
-  const from = retroactiveBase
-    ? toMarketDateString(
-        new Date(card.publishedAt.getTime() - BASE_LOOKBACK_DAYS * 86_400_000),
-        card.assetClass,
-      )
-    : publishDate;
+  // 직전 종가 소급 카드는 게시일 이전 종가도 필요하므로 조회 범위를 과거로 넓힌다
+  const from =
+    card.baseMode === 'PREV_CLOSE_AT_JUDGMENT'
+      ? toMarketDateString(
+          new Date(card.publishedAt.getTime() - BASE_LOOKBACK_DAYS * 86_400_000),
+          card.assetClass,
+        )
+      : publishDate;
 
   const [quotes, securityStatus] = await Promise.all([
     provider.getDailyQuotes(card.ticker, from, deadlineDate),
     provider.getSecurityStatus(card.ticker, deadlineDate),
   ]);
 
-  // 판정 대상 구간은 게시일~시한. 소급 조회분(게시일 이전)은 기준가 계산에만 쓴다.
-  const windowQuotes = quotes.filter((q) => q.date >= publishDate);
   const normalStatus = !securityStatus.delisted && !securityStatus.halted;
-
-  // 정상 종목인데 판정 구간 시세가 전무하면 소스 지연(D+1) 가능성 — 판정하지 않고 이월.
-  // KR 당일 카드가 공휴일에 게시된 경우도 여기로 오며, 이월 한도 초과 시 수동 보류 큐로 간다.
-  if (normalStatus && windowQuotes.length === 0) {
-    throw new JudgmentDeferredError(
-      `${card.ticker}: ${publishDate}~${deadlineDate} 시세 데이터 없음 (소스 지연 가능)`,
-      'DATA_NOT_AVAILABLE',
-    );
-  }
-
-  // 기준가 확정: 소급 카드는 게시일 직전 거래일 종가 (게시 시점엔 D+1 지연으로 알 수 없던 값)
+  // 판정 대상 구간은 게시일~시한. 소급 조회분(게시일 이전)은 기준가 계산에만 쓴다.
+  let windowQuotes = quotes.filter((q) => q.date >= publishDate);
   let basePrice = card.basePrice;
-  if (retroactiveBase && normalStatus) {
-    const before = quotes.filter((q) => q.date < publishDate);
-    basePrice = before.length > 0 ? before[before.length - 1].close : null;
-    if (basePrice === null) {
+
+  if (normalStatus) {
+    if (card.baseMode === 'PREV_CLOSE_AT_JUDGMENT') {
+      // 개장 전 게시 카드: 기준가 = 게시일 직전 거래일 종가 (게시 시점엔 D+1 지연으로 알 수 없던 값)
+      const before = quotes.filter((q) => q.date < publishDate);
+      basePrice = before.length > 0 ? before[before.length - 1].close : null;
+      if (basePrice === null) {
+        throw new JudgmentDeferredError(
+          `${card.ticker}: 게시일(${publishDate}) 직전 종가를 찾지 못해 기준가 소급 확정 불가`,
+          'DATA_NOT_AVAILABLE',
+        );
+      }
+    } else if (card.baseMode === 'DAY_CLOSE_AT_JUDGMENT') {
+      // 장중·장후·주말 게시 카드: 기준가 = 게시일(이후 첫 거래일) 종가.
+      // 기준가가 확정되는 날까지의 등락은 예측 대상이 아니므로 판정 구간에서도 제외한다
+      const baseCandle = windowQuotes[0];
+      if (!baseCandle) {
+        throw new JudgmentDeferredError(
+          `${card.ticker}: 게시일(${publishDate}) 종가를 찾지 못해 기준가 소급 확정 불가`,
+          'DATA_NOT_AVAILABLE',
+        );
+      }
+      basePrice = baseCandle.close;
+      windowQuotes = windowQuotes.filter((q) => q.date > baseCandle.date);
+    }
+
+    // 정상 종목인데 판정 구간 시세가 전무하면 소스 지연(D+1) 가능성 — 판정하지 않고 이월.
+    // 공휴일에 게시된 당일 카드도 여기로 오며, 이월 한도 초과 시 수동 보류 큐로 간다.
+    if (windowQuotes.length === 0) {
       throw new JudgmentDeferredError(
-        `${card.ticker}: 게시일(${publishDate}) 직전 종가를 찾지 못해 기준가 소급 확정 불가`,
+        `${card.ticker}: ${publishDate}~${deadlineDate} 판정 구간 시세 없음 (소스 지연 가능)`,
         'DATA_NOT_AVAILABLE',
       );
     }
@@ -121,7 +136,7 @@ export async function runJudgment(
   const result = judge({ ...card, basePrice: basePrice ?? 0 }, snapshot);
   return {
     result,
-    resolvedBasePrice: retroactiveBase ? basePrice : null,
+    resolvedBasePrice: retroactive ? basePrice : null,
     audit: {
       dataSource: provider.sourceId,
       fetchedAt: now.toISOString(),

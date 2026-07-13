@@ -126,6 +126,51 @@ describe('runJudgment', () => {
     ).rejects.toMatchObject({ name: 'JudgmentDeferredError', reason: 'DATA_NOT_AVAILABLE' });
   });
 
+  it('게시일 종가 소급(장중 게시 카드): 게시일 등락은 기준가에 흡수되고 판정 구간에서 제외', async () => {
+    // 월요일 장중 게시, 수요일 시한, 목표가 103,000 도달 예측
+    const card: JudgeableCard = {
+      assetClass: 'KR_EQUITY',
+      baseMode: 'DAY_CLOSE_AT_JUDGMENT',
+      ticker: '005930',
+      direction: 'UP',
+      targetType: 'TARGET_PRICE',
+      targetValue: 103_000,
+      basePrice: null,
+      publishedAt: new Date('2026-07-13T01:00:00Z'), // KST 월 10:00 장중
+      deadline: new Date('2026-07-15T06:30:00Z'), // KST 수 15:30
+    };
+    const provider = new FixtureMarketDataProvider().setQuotes('005930', [
+      // 게시일(월) 고가가 목표가를 넘지만 — 게시 전에 본 등락일 수 있으므로 판정에서 제외
+      { date: '2026-07-13', open: 100_000, high: 104_000, low: 99_000, close: 101_000, volume: 1 },
+      { date: '2026-07-14', open: 101_000, high: 102_000, low: 100_500, close: 101_500, volume: 1 },
+      { date: '2026-07-15', open: 101_500, high: 102_500, low: 101_000, close: 102_000, volume: 1 },
+    ]);
+    const judgeTime = new Date('2026-07-16T04:30:00Z');
+    const { result, resolvedBasePrice } = await runJudgment(card, provider, judgeTime);
+    expect(resolvedBasePrice).toBe(101_000); // 게시일(월) 종가
+    expect(result.outcome).toBe('MISS'); // 월요일 고가 104,000은 무시 — 화·수 고가만 판정
+  });
+
+  it('게시일 종가 소급: 화·수에 목표가 도달하면 HIT', async () => {
+    const card: JudgeableCard = {
+      assetClass: 'KR_EQUITY',
+      baseMode: 'DAY_CLOSE_AT_JUDGMENT',
+      ticker: '005930',
+      direction: 'UP',
+      targetType: 'TARGET_PRICE',
+      targetValue: 103_000,
+      basePrice: null,
+      publishedAt: new Date('2026-07-13T01:00:00Z'),
+      deadline: new Date('2026-07-15T06:30:00Z'),
+    };
+    const provider = new FixtureMarketDataProvider().setQuotes('005930', [
+      { date: '2026-07-13', open: 100_000, high: 101_000, low: 99_000, close: 101_000, volume: 1 },
+      { date: '2026-07-14', open: 101_000, high: 103_500, low: 100_500, close: 103_000, volume: 1 },
+    ]);
+    const { result } = await runJudgment(card, provider, new Date('2026-07-16T04:30:00Z'));
+    expect(result.outcome).toBe('HIT');
+  });
+
   it('시한 이후 시세는 조회 범위에서 제외되어 판정에 영향 없음', async () => {
     const provider = providerWithQuotes([
       ['2026-07-01', 110000],

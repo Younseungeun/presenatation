@@ -48,9 +48,9 @@ describe('validateCardDraft', () => {
     ).not.toEqual([]);
   });
 
-  it('미국주식은 검증 시한 최소 7일 (EOD 기준가 조작 방지), 최대 365일', () => {
+  it('주식은 단기(당일 포함) 초안 허용 — 컷오프 규칙은 게시 시점에 검증. 최대 365일', () => {
     const us = { ...validCard, assetClass: 'US_EQUITY' as const, ticker: 'AAPL' };
-    expect(validateCardDraft({ ...us, deadline: new Date('2026-07-15') }, NOW)).not.toEqual([]);
+    expect(validateCardDraft({ ...us, deadline: new Date('2026-07-15') }, NOW)).toEqual([]);
     expect(validateCardDraft({ ...us, deadline: new Date('2027-08-01') }, NOW)).not.toEqual([]);
   });
 
@@ -140,18 +140,62 @@ describe('preparePublish', () => {
     expect(snap.basePrice).toBeNull();
   });
 
-  it('KR 단기 카드: 개장 후(08:30 KST 이후) 게시 거부', () => {
+  it('KR 단기 카드: 장 시작 후 게시는 당일·익일 시한 거부, +2일부터 허용 (기준가 = 게시일 종가)', () => {
     // KST 2026-07-13(월) 09:00 — 장중
     const monOpen = new Date('2026-07-13T00:00:00Z');
-    const card: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') };
-    expect(() => preparePublish(card, validCond, null, monOpen)).toThrow(/개장 전/);
+    const sameDay: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') };
+    expect(() => preparePublish(sameDay, validCond, null, monOpen)).toThrow(/2일/);
+
+    const nextDay: CardDraft = { ...validCard, deadline: new Date('2026-07-14T06:30:00Z') };
+    expect(() => preparePublish(nextDay, validCond, null, monOpen)).toThrow(/2일/);
+
+    const twoDays: CardDraft = { ...validCard, deadline: new Date('2026-07-15T06:30:00Z') };
+    const snap = preparePublish(twoDays, validCond, null, monOpen);
+    expect(snap.baseMode).toBe('DAY_CLOSE_AT_JUDGMENT');
+    expect(snap.basePrice).toBeNull();
   });
 
-  it('KR 단기 카드: 주말 게시 거부', () => {
+  it('KR 단기 카드: 주말 게시도 +2일부터 허용 (기준가 = 다음 거래일 종가)', () => {
     // KST 2026-07-12(일) 07:00
     const sunPreOpen = new Date('2026-07-11T22:00:00Z');
-    const card: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') };
-    expect(() => preparePublish(card, validCond, null, sunPreOpen)).toThrow(/거래일/);
+    const monDeadline: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') };
+    expect(() => preparePublish(monDeadline, validCond, null, sunPreOpen)).toThrow(/2일/);
+
+    const tueDeadline: CardDraft = { ...validCard, deadline: new Date('2026-07-14T06:30:00Z') };
+    expect(preparePublish(tueDeadline, validCond, null, sunPreOpen).baseMode).toBe(
+      'DAY_CLOSE_AT_JUDGMENT',
+    );
+  });
+
+  it('US 단기 카드: 프리마켓 전(04:00 ET) 게시는 당일 종가 예측 허용', () => {
+    // ET 2026-07-13(월) 03:00 = UTC 07:00
+    const monPrePremarket = new Date('2026-07-13T07:00:00Z');
+    const card: CardDraft = {
+      ...validCard,
+      assetClass: 'US_EQUITY',
+      ticker: 'AAPL',
+      deadline: new Date('2026-07-13T20:00:00Z'), // 당일 16:00 ET
+    };
+    const snap = preparePublish(card, validCond, null, monPrePremarket);
+    expect(snap.baseMode).toBe('PREV_CLOSE_AT_JUDGMENT');
+  });
+
+  it('US 단기 카드: 프리마켓·데이마켓 중 게시는 +2일부터 (기준가 = 게시일 종가)', () => {
+    // ET 2026-07-13(월) 14:00 = UTC 18:00 — 데이마켓 장중
+    const monDayMarket = new Date('2026-07-13T18:00:00Z');
+    const us = { ...validCard, assetClass: 'US_EQUITY' as const, ticker: 'AAPL' };
+
+    expect(() =>
+      preparePublish({ ...us, deadline: new Date('2026-07-14T20:00:00Z') }, validCond, null, monDayMarket),
+    ).toThrow(/2일/);
+
+    const snap = preparePublish(
+      { ...us, deadline: new Date('2026-07-15T20:00:00Z') },
+      validCond,
+      null,
+      monDayMarket,
+    );
+    expect(snap.baseMode).toBe('DAY_CLOSE_AT_JUDGMENT');
   });
 
   it('KR 장기 카드(7일 이상)는 기존대로 게시 시점 기준가 확정', () => {

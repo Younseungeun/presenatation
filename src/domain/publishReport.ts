@@ -16,25 +16,43 @@ import { calcFeeRateBp } from './fees';
 export const PRICE_GUIDE_KRW = { min: 5_000, max: 50_000 } as const;
 
 /**
- * 검증 시한 최소(자산군별)·최대.
+ * 검증 시한 최소(자산군별, 초안 단계)·최대.
  * 최소 시한은 기술 제약이 아니라 조작 방지 장치다: EOD 기준가로 초단기 예측을 허용하면
- * 게시 시점에 이미 실현된 당일 등락을 공짜로 가져갈 수 있다. 자산군별 해법:
+ * 게시 시점에 이미 실현된 등락을 공짜로 가져갈 수 있다. 자산군별 해법:
  * - CRYPTO 1일: 게시 순간 실시간 현재가(업비트 ticker)가 기준가
- * - KR_EQUITY 0일(당일 종가): 단, 개장 전 컷오프(08:30 KST) 게시만 허용 —
- *   아직 당일 시장 정보가 존재하지 않으므로 정보 이점이 없다 (krShortDatedIssues)
- * - US_EQUITY 7일: 실시간 기준가 소스(KIS/Alpaca) 또는 ET 컷오프 스킴 도입 시 단축
+ * - KR/US EQUITY 0일(당일 종가)~: 게시 시각별 컷오프 규칙을 따른다 (planBaseMode)
  */
 export const DEADLINE_MIN_DAYS: Record<AssetClass, number> = {
   KR_EQUITY: 0,
-  US_EQUITY: 7,
+  US_EQUITY: 0,
   CRYPTO: 1,
 };
 export const DEADLINE_MAX_DAYS = 365;
 
-/** KR 단기 카드(시한 7일 미만)가 따르는 게시 규칙의 경계 */
-export const KR_SHORT_DATED_HORIZON_DAYS = 7;
-/** 동시호가(예상체결가 공개) 시작 전 — 이후 게시는 당일 시장 정보를 이미 본 것 */
-export const KR_PUBLISH_CUTOFF_KST = '08:30';
+/** 이 시한(일) 미만의 주식 카드는 컷오프 규칙(planBaseMode)을 따른다 */
+export const EQUITY_SHORT_HORIZON_DAYS = 7;
+
+/** 장 시작 후·주말 게시 단기 카드의 최소 시한: 게시일로부터 N일 (시장 시간대 날짜 기준) */
+export const AFTER_CUTOFF_MIN_DEADLINE_DAYS = 2;
+
+/**
+ * "당일 시장 정보가 아직 없다"고 볼 수 있는 컷오프.
+ * - KR: 동시호가 시작(08:30 KST) — 이때부터 예상체결가가 공개된다
+ * - US: 프리마켓 시작(04:00 ET) — 정규장(데이마켓) 개장 기준으로 하면 프리마켓에서
+ *   이미 형성된 갭이 정규장 시가에 반영되는데, 일봉 판정은 정규장 기준이라
+ *   그 갭을 공짜로 가져갈 수 있다. 그래서 컷오프는 체결 정보가 처음 생기는 프리마켓 전
+ */
+export const EQUITY_PUBLISH_CUTOFF: Record<
+  Exclude<AssetClass, 'CRYPTO'>,
+  { timeZone: string; cutoff: string; label: string }
+> = {
+  KR_EQUITY: { timeZone: 'Asia/Seoul', cutoff: '08:30', label: '동시호가 시작 전(08:30 KST)' },
+  US_EQUITY: {
+    timeZone: 'America/New_York',
+    cutoff: '04:00',
+    label: '프리마켓 시작 전(04:00 ET)',
+  },
+};
 
 const TICKER_PATTERNS: Record<AssetClass, RegExp> = {
   KR_EQUITY: /^\d{6}$/, // 6자리 단축코드
@@ -67,9 +85,9 @@ export class PublishValidationError extends Error {
   }
 }
 
-function kstParts(d: Date): { time: string; weekday: string; date: string } {
+function marketClock(d: Date, timeZone: string): { time: string; weekday: string; date: string } {
   const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Seoul',
+    timeZone,
     weekday: 'short',
     hour: '2-digit',
     minute: '2-digit',
@@ -79,38 +97,62 @@ function kstParts(d: Date): { time: string; weekday: string; date: string } {
   return {
     time: `${parts.hour === '24' ? '00' : parts.hour}:${parts.minute}`,
     weekday: parts.weekday,
-    date: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(d),
+    date: new Intl.DateTimeFormat('sv-SE', { timeZone }).format(d),
   };
 }
 
-/** KR 단기 카드(시한 7일 미만) 여부 */
-export function isKrShortDated(assetClass: AssetClass, deadline: Date, now: Date): boolean {
-  return (
-    assetClass === 'KR_EQUITY' &&
-    (deadline.getTime() - now.getTime()) / 86_400_000 < KR_SHORT_DATED_HORIZON_DAYS
-  );
+/** 'YYYY-MM-DD' 두 날짜의 차이(일) */
+function dateDiffDays(a: string, b: string): number {
+  return (Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000;
+}
+
+export interface BaseModePlan {
+  baseMode: BaseMode;
+  issues: string[];
 }
 
 /**
- * KR 단기 카드의 게시 시점 규칙:
- * - 평일 개장 전(08:30 KST 미만) 게시만 허용 — 당일 시장 정보 부재가 조작 방지의 근거
- * - 기준가(직전 거래일 종가)는 금융위 데이터 D+1 지연 때문에 게시 시점엔 알 수 없고,
- *   판정 배치가 소급 확정한다 (baseMode = PREV_CLOSE_AT_JUDGMENT)
+ * 게시 시각과 시한으로 기준가 확정 방식을 결정한다 (조작 방지 규칙의 심장부).
+ *
+ * 주식 단기 카드(시한 7일 미만):
+ * - 평일 컷오프 전(당일 체결 정보가 아직 없음): 당일 종가 예측부터 허용.
+ *   기준가 = 직전 거래일 종가, 판정 시 소급 확정 (데이터 D+1 지연 때문)
+ * - 장 시작 후·주말: 시한은 게시일로부터 2일 이상.
+ *   기준가 = 게시일(이후 첫 거래일) 종가 소급 확정 — 게시 시점까지 실현된 등락이
+ *   전부 기준가에 흡수되므로 장중 정보 이점이 사라진다
+ * 그 외(코인·장기 카드): 게시 시점 확정 (실시간가 또는 직전 종가)
+ *
  * 공휴일 게시는 달력 없이 걸러낼 수 없다 — 그날 시세가 없으면 판정이 이월 후
  * 수동 보류 큐로 가므로 오판정으로 이어지지 않는다.
  */
-export function krShortDatedIssues(now: Date): string[] {
-  const issues: string[] = [];
-  const { time, weekday } = kstParts(now);
-  if (weekday === 'Sat' || weekday === 'Sun') {
-    issues.push('국내주식 단기 예측은 거래일에만 게시할 수 있습니다');
+export function planBaseMode(
+  assetClass: AssetClass,
+  deadline: Date,
+  now: Date,
+): BaseModePlan {
+  const horizonDays = (deadline.getTime() - now.getTime()) / 86_400_000;
+  if (assetClass === 'CRYPTO' || horizonDays >= EQUITY_SHORT_HORIZON_DAYS) {
+    return { baseMode: 'FIXED_AT_PUBLISH', issues: [] };
   }
-  if (time >= KR_PUBLISH_CUTOFF_KST) {
-    issues.push(
-      `국내주식 단기 예측은 개장 전(${KR_PUBLISH_CUTOFF_KST} KST 이전)에만 게시할 수 있습니다 (현재 ${time} KST) — 장 시작 후에는 당일 정보 이점이 생기기 때문입니다`,
-    );
+
+  const { timeZone, cutoff, label } = EQUITY_PUBLISH_CUTOFF[assetClass];
+  const clock = marketClock(now, timeZone);
+  const weekend = clock.weekday === 'Sat' || clock.weekday === 'Sun';
+
+  if (!weekend && clock.time < cutoff) {
+    return { baseMode: 'PREV_CLOSE_AT_JUDGMENT', issues: [] };
   }
-  return issues;
+
+  // 장 시작 후(또는 주말): 게시일 종가가 기준가가 되므로, 시한은 그 이후 거래일이어야 의미가 있다
+  const deadlineDate = new Intl.DateTimeFormat('sv-SE', { timeZone }).format(deadline);
+  const diff = dateDiffDays(deadlineDate, clock.date);
+  const issues =
+    diff < AFTER_CUTOFF_MIN_DEADLINE_DAYS
+      ? [
+          `${assetClass} 단기 예측: ${label} 이후 게시는 시한이 게시일로부터 ${AFTER_CUTOFF_MIN_DEADLINE_DAYS}일 이상이어야 합니다 (요청: ${diff}일). 당일·익일 예측은 ${label}에만 게시할 수 있습니다`,
+        ]
+      : [];
+  return { baseMode: 'DAY_CLOSE_AT_JUDGMENT', issues };
 }
 
 export function validateCardDraft(card: CardDraft, now = new Date()): string[] {
@@ -183,11 +225,11 @@ export function preparePublish(
   now = new Date(),
 ): PublishSnapshot {
   const issues = [...validateCardDraft(card, now), ...validateConditions(cond)];
-  const shortDated = isKrShortDated(card.assetClass, card.deadline, now);
-  const baseMode: BaseMode = shortDated ? 'PREV_CLOSE_AT_JUDGMENT' : 'FIXED_AT_PUBLISH';
+  const plan = planBaseMode(card.assetClass, card.deadline, now);
+  const retroactive = plan.baseMode !== 'FIXED_AT_PUBLISH';
 
-  if (shortDated) {
-    issues.push(...krShortDatedIssues(now));
+  if (retroactive) {
+    issues.push(...plan.issues);
   } else {
     if (basePrice === null || !Number.isFinite(basePrice) || basePrice <= 0) {
       issues.push(`기준가를 확정할 수 없습니다 (시세 조회 결과: ${basePrice})`);
@@ -209,8 +251,8 @@ export function preparePublish(
 
   return {
     feeRateBp: calcFeeRateBp(cond),
-    baseMode,
-    basePrice: shortDated ? null : basePrice,
+    baseMode: plan.baseMode,
+    basePrice: retroactive ? null : basePrice,
     publishedAt: now,
   };
 }
