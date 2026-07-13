@@ -54,6 +54,41 @@ export function optimalWinRateFor(confidence: number): number {
   return (confidence + 0.5) / (confidence + 1.5);
 }
 
+// ── 마이너스 점수 규율 (자산군별 적용) ─────────────────────────────────
+// 누적 점수가 깊은 마이너스로 갈수록 작성 가능한 최소 신뢰도가 올라간다.
+// proper scoring 구조에서 이 하한은 선별적으로 작동한다:
+// - 실력자(승률 78%+)는 최적 신뢰도가 이미 3 이상이라 영향 없음
+// - 승률 50~60% 저품질 대량 게시자는 신뢰도 1의 "기대 점수 ≈ 0" 은신처를 잃고
+//   기대 점수가 확실한 마이너스로 뒤집혀, 시행을 늘릴수록 다음 단계에 더 빨리 도달
+// 최하단은 강제 탈퇴 대신 해당 자산군 신규 게시 정지(시즌 종료까지) —
+// 진행 중인 에스크로·판정은 정상 처리하고, 시즌 리셋으로 부활 기회를 준다.
+// 점수가 회복되면 하한은 자동으로 완화된다 (현재 점수의 함수).
+
+export interface Discipline {
+  /** 작성 가능한 최소 신뢰도 (1이면 제약 없음) */
+  minConfidence: number;
+  /** 해당 자산군 신규 게시 정지 여부 */
+  publishSuspended: boolean;
+}
+
+/** 규율 래더 — 수치는 초안, 시뮬레이션으로 확정 예정. scoreBelow 이하일 때 적용 */
+export const DISCIPLINE_LADDER: ReadonlyArray<{ scoreBelow: number } & Discipline> = [
+  { scoreBelow: -10_000, minConfidence: 10, publishSuspended: true },
+  { scoreBelow: -6_000, minConfidence: 7, publishSuspended: false },
+  { scoreBelow: -3_000, minConfidence: 5, publishSuspended: false },
+  { scoreBelow: -1_000, minConfidence: 3, publishSuspended: false },
+];
+
+/** 자산군별 누적 점수 → 현재 적용되는 규율 */
+export function disciplineFor(assetClassScore: number): Discipline {
+  for (const rung of DISCIPLINE_LADDER) {
+    if (assetClassScore <= rung.scoreBelow) {
+      return { minConfidence: rung.minConfidence, publishSuspended: rung.publishSuspended };
+    }
+  }
+  return { minConfidence: CONFIDENCE_RANGE.min, publishSuspended: false };
+}
+
 export interface ScorableCard {
   direction: Direction;
   /** 예측 크기(%): 양수. RETURN_PCT는 targetValue 그대로, TARGET_PRICE는 기준가 대비 환산 */

@@ -8,7 +8,7 @@ import type {
 } from './constants';
 import { calcFeeRateBp } from './fees';
 import { marketClock } from './marketData';
-import { MIN_MAGNITUDE_PCT, targetPriceToMagnitudePct } from './scoring';
+import { disciplineFor, MIN_MAGNITUDE_PCT, targetPriceToMagnitudePct } from './scoring';
 
 // 리포트 게시 검증 규칙 (순수 로직).
 // 게시는 되돌릴 수 없는 행위다: 수수료·선결제 비율·기준가가 고정되고 예측 카드가 잠긴다.
@@ -89,6 +89,11 @@ export interface PublishConditions {
   prepaymentRatio: PrepaymentRatio;
   tier: Tier;
   promoActive: boolean;
+  /**
+   * 해당 자산군의 리서처 누적 점수 — 마이너스 규율(최소 신뢰도 상승·게시 정지) 판단용.
+   * 점수 집계 배치가 붙기 전까지는 0 (규율 미발동).
+   */
+  assetClassScore?: number;
 }
 
 export class PublishValidationError extends Error {
@@ -243,6 +248,18 @@ export function preparePublish(
   const issues = [...validateCardDraft(card, now), ...validateConditions(cond)];
   const plan = planBaseMode(card.assetClass, card.deadline, now);
   const retroactive = plan.baseMode !== 'FIXED_AT_PUBLISH';
+
+  // 마이너스 점수 규율: 게시 정지 또는 최소 신뢰도 상승 (자산군별)
+  const discipline = disciplineFor(cond.assetClassScore ?? 0);
+  if (discipline.publishSuspended) {
+    issues.push(
+      `${card.assetClass} 누적 점수 미달로 신규 게시가 정지되었습니다 (시즌 종료까지). 진행 중인 카드는 정상 판정·정산됩니다`,
+    );
+  } else if (card.confidence < discipline.minConfidence) {
+    issues.push(
+      `현재 ${card.assetClass} 누적 점수에서는 신뢰도 ${discipline.minConfidence} 이상만 게시할 수 있습니다 (입력: ${card.confidence}) — 낮은 신뢰도로 시행 횟수를 늘리는 것을 막기 위한 규율입니다`,
+    );
+  }
 
   if (retroactive) {
     issues.push(...plan.issues);
