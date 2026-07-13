@@ -7,6 +7,7 @@ import type {
   Tier,
 } from './constants';
 import { calcFeeRateBp } from './fees';
+import { marketClock } from './marketData';
 
 // 리포트 게시 검증 규칙 (순수 로직).
 // 게시는 되돌릴 수 없는 행위다: 수수료·선결제 비율·기준가가 고정되고 예측 카드가 잠긴다.
@@ -36,22 +37,25 @@ export const EQUITY_SHORT_HORIZON_DAYS = 7;
 export const AFTER_CUTOFF_MIN_DEADLINE_DAYS = 2;
 
 /**
- * "당일 시장 정보가 아직 없다"고 볼 수 있는 컷오프.
- * - KR: 동시호가 시작(08:30 KST) — 이때부터 예상체결가가 공개된다
- * - US: 프리마켓 시작(04:00 ET) — 정규장(데이마켓) 개장 기준으로 하면 프리마켓에서
- *   이미 형성된 갭이 정규장 시가에 반영되는데, 일봉 판정은 정규장 기준이라
- *   그 갭을 공짜로 가져갈 수 있다. 그래서 컷오프는 체결 정보가 처음 생기는 프리마켓 전
+ * "당일 체결 정보가 아직 없다"고 볼 수 있는 개장 전 컷오프 — 국내주식만 존재한다.
+ * - KR 08:00 KST: 대체거래소 NXT 프리마켓(08:00~)과 KRX 장전 시간외(08:00~)가 시작되어
+ *   가격 발견이 일어나는 시점. 그 전(전일 20:00 NXT 마감 ~ 당일 08:00)은 거래 공백이라
+ *   직전 종가 기준의 당일 예측이 깨끗하다
+ * - US: 이런 창구가 없다. 애프터마켓(전일 16~20시 ET) → 주간거래·오버나이트 ATS
+ *   (20~04시 ET, 국내 증권사 '주간거래' = 한국 낮 시간) → 프리마켓(04~09:30 ET)이
+ *   사실상 연속이라 정보 공백 시점이 존재하지 않는다 → 당일 카드 불가,
+ *   단기 카드는 항상 게시일+2일(기준가 = 게시 이후 첫 정규장 종가)
  */
-export const EQUITY_PUBLISH_CUTOFF: Record<
-  Exclude<AssetClass, 'CRYPTO'>,
-  { timeZone: string; cutoff: string; label: string }
-> = {
-  KR_EQUITY: { timeZone: 'Asia/Seoul', cutoff: '08:30', label: '동시호가 시작 전(08:30 KST)' },
-  US_EQUITY: {
-    timeZone: 'America/New_York',
-    cutoff: '04:00',
-    label: '프리마켓 시작 전(04:00 ET)',
-  },
+export const KR_PUBLISH_CUTOFF = {
+  timeZone: 'Asia/Seoul',
+  cutoff: '08:00',
+  label: 'NXT 프리마켓·장전 시간외 시작 전(08:00 KST)',
+} as const;
+
+/** 정규장 마감 시각 — 이후 게시는 그날 종가가 이미 공개된 뒤라 기준일을 다음 거래일로 굴린다 */
+export const EQUITY_REGULAR_CLOSE: Record<Exclude<AssetClass, 'CRYPTO'>, string> = {
+  KR_EQUITY: '15:30',
+  US_EQUITY: '16:00',
 };
 
 const TICKER_PATTERNS: Record<AssetClass, RegExp> = {
@@ -85,22 +89,6 @@ export class PublishValidationError extends Error {
   }
 }
 
-function marketClock(d: Date, timeZone: string): { time: string; weekday: string; date: string } {
-  const fmt = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  });
-  const parts = Object.fromEntries(fmt.formatToParts(d).map((p) => [p.type, p.value]));
-  return {
-    time: `${parts.hour === '24' ? '00' : parts.hour}:${parts.minute}`,
-    weekday: parts.weekday,
-    date: new Intl.DateTimeFormat('sv-SE', { timeZone }).format(d),
-  };
-}
-
 /** 'YYYY-MM-DD' 두 날짜의 차이(일) */
 function dateDiffDays(a: string, b: string): number {
   return (Date.parse(`${a}T00:00:00Z`) - Date.parse(`${b}T00:00:00Z`)) / 86_400_000;
@@ -115,11 +103,12 @@ export interface BaseModePlan {
  * 게시 시각과 시한으로 기준가 확정 방식을 결정한다 (조작 방지 규칙의 심장부).
  *
  * 주식 단기 카드(시한 7일 미만):
- * - 평일 컷오프 전(당일 체결 정보가 아직 없음): 당일 종가 예측부터 허용.
+ * - KR, 평일 08:00 KST 전(당일 체결 정보가 아직 없음): 당일 종가 예측부터 허용.
  *   기준가 = 직전 거래일 종가, 판정 시 소급 확정 (데이터 D+1 지연 때문)
- * - 장 시작 후·주말: 시한은 게시일로부터 2일 이상.
- *   기준가 = 게시일(이후 첫 거래일) 종가 소급 확정 — 게시 시점까지 실현된 등락이
- *   전부 기준가에 흡수되므로 장중 정보 이점이 사라진다
+ * - KR 그 외 시각·주말, US 상시: 시한은 게시일로부터 2일 이상.
+ *   기준가 = 게시 이후 첫 정규장 종가 소급 확정 — 게시 시점까지 실현된 등락이
+ *   전부 기준가에 흡수되므로 게시 시각과 무관하게 정보 이점이 없다.
+ *   (US는 애프터마켓·주간거래·프리마켓이 연속이라 '개장 전' 창구 자체가 없음)
  * 그 외(코인·장기 카드): 게시 시점 확정 (실시간가 또는 직전 종가)
  *
  * 공휴일 게시는 달력 없이 걸러낼 수 없다 — 그날 시세가 없으면 판정이 이월 후
@@ -135,21 +124,27 @@ export function planBaseMode(
     return { baseMode: 'FIXED_AT_PUBLISH', issues: [] };
   }
 
-  const { timeZone, cutoff, label } = EQUITY_PUBLISH_CUTOFF[assetClass];
+  const timeZone = assetClass === 'KR_EQUITY' ? KR_PUBLISH_CUTOFF.timeZone : 'America/New_York';
   const clock = marketClock(now, timeZone);
-  const weekend = clock.weekday === 'Sat' || clock.weekday === 'Sun';
 
-  if (!weekend && clock.time < cutoff) {
-    return { baseMode: 'PREV_CLOSE_AT_JUDGMENT', issues: [] };
+  if (assetClass === 'KR_EQUITY') {
+    const weekend = clock.weekday === 'Sat' || clock.weekday === 'Sun';
+    if (!weekend && clock.time < KR_PUBLISH_CUTOFF.cutoff) {
+      return { baseMode: 'PREV_CLOSE_AT_JUDGMENT', issues: [] };
+    }
   }
 
-  // 장 시작 후(또는 주말): 게시일 종가가 기준가가 되므로, 시한은 그 이후 거래일이어야 의미가 있다
+  // 기준가 = 게시 이후 첫 종가이므로, 시한은 그 이후 거래일이어야 의미가 있다
   const deadlineDate = new Intl.DateTimeFormat('sv-SE', { timeZone }).format(deadline);
   const diff = dateDiffDays(deadlineDate, clock.date);
+  const guide =
+    assetClass === 'KR_EQUITY'
+      ? `당일·익일 예측은 ${KR_PUBLISH_CUTOFF.label}에만 게시할 수 있습니다`
+      : '미국주식은 애프터마켓·주간거래·프리마켓이 연속이라 당일·익일 예측 창구가 없습니다';
   const issues =
     diff < AFTER_CUTOFF_MIN_DEADLINE_DAYS
       ? [
-          `${assetClass} 단기 예측: ${label} 이후 게시는 시한이 게시일로부터 ${AFTER_CUTOFF_MIN_DEADLINE_DAYS}일 이상이어야 합니다 (요청: ${diff}일). 당일·익일 예측은 ${label}에만 게시할 수 있습니다`,
+          `${assetClass} 단기 예측: 시한이 게시일로부터 ${AFTER_CUTOFF_MIN_DEADLINE_DAYS}일 이상이어야 합니다 (요청: ${diff}일). ${guide}`,
         ]
       : [];
   return { baseMode: 'DAY_CLOSE_AT_JUDGMENT', issues };

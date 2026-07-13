@@ -2,6 +2,9 @@ import type { AssetClass, BaseMode } from './constants';
 import { judge, type JudgmentResult, type PredictionInput } from './judgment';
 import {
   buildMarketSnapshot,
+  marketClock,
+  MARKET_TIMEZONE,
+  nextDateString,
   resolveProvider,
   toMarketDateString,
   type DailyQuote,
@@ -9,6 +12,7 @@ import {
   type ProviderRegistry,
   type SecurityStatus,
 } from './marketData';
+import { EQUITY_REGULAR_CLOSE } from './publishReport';
 
 // 예측 카드 1건의 판정 파이프라인: 데이터 조회 → 스냅샷 조립 → 판정.
 // DB 저장·정산 실행은 호출자(배치 잡) 책임 — 이 모듈은 부수효과 없이 결과만 만든다.
@@ -108,12 +112,16 @@ export async function runJudgment(
         );
       }
     } else if (card.baseMode === 'DAY_CLOSE_AT_JUDGMENT') {
-      // 장중·장후·주말 게시 카드: 기준가 = 게시일(이후 첫 거래일) 종가.
-      // 기준가가 확정되는 날까지의 등락은 예측 대상이 아니므로 판정 구간에서도 제외한다
-      const baseCandle = windowQuotes[0];
+      // 장중·장후·주말 게시 카드: 기준가 = 게시 이후 첫 정규장 종가.
+      // 정규장 마감 후 게시라면 그날 종가는 이미 공개된 과거이므로(애프터마켓·시간외
+      // 정보 가로채기 가능) 기준일을 다음 거래일로 굴린다.
+      const closeTime = EQUITY_REGULAR_CLOSE[card.assetClass as 'KR_EQUITY' | 'US_EQUITY'];
+      const clock = marketClock(card.publishedAt, MARKET_TIMEZONE[card.assetClass]);
+      const baseFromDate = clock.time <= closeTime ? publishDate : nextDateString(publishDate);
+      const baseCandle = windowQuotes.find((q) => q.date >= baseFromDate);
       if (!baseCandle) {
         throw new JudgmentDeferredError(
-          `${card.ticker}: 게시일(${publishDate}) 종가를 찾지 못해 기준가 소급 확정 불가`,
+          `${card.ticker}: ${baseFromDate} 이후 첫 종가를 찾지 못해 기준가 소급 확정 불가`,
           'DATA_NOT_AVAILABLE',
         );
       }

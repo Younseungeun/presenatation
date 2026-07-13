@@ -151,6 +151,34 @@ describe('runJudgment', () => {
     expect(result.outcome).toBe('MISS'); // 월요일 고가 104,000은 무시 — 화·수 고가만 판정
   });
 
+  it('게시일 종가 소급: 정규장 마감 후 게시면 기준일이 다음 거래일로 굴러간다', async () => {
+    // 월요일 19:00 KST(장 마감 후) 게시 — 월요일 종가는 이미 공개된 과거이므로
+    // 기준가 = 화요일 종가, 판정 구간은 수요일부터
+    const card: JudgeableCard = {
+      assetClass: 'KR_EQUITY',
+      baseMode: 'DAY_CLOSE_AT_JUDGMENT',
+      ticker: '005930',
+      direction: 'UP',
+      targetType: 'RETURN_PCT',
+      targetValue: 1,
+      basePrice: null,
+      publishedAt: new Date('2026-07-13T10:00:00Z'), // KST 월 19:00
+      deadline: new Date('2026-07-15T06:30:00Z'), // KST 수 15:30
+    };
+    const provider = new FixtureMarketDataProvider().setQuotes('005930', [
+      { date: '2026-07-13', open: 100_000, high: 101_000, low: 99_000, close: 100_000, volume: 1 },
+      { date: '2026-07-14', open: 100_000, high: 102_000, low: 99_500, close: 101_000, volume: 1 },
+      { date: '2026-07-15', open: 101_000, high: 102_500, low: 100_500, close: 102_100, volume: 1 },
+    ]);
+    const { result, resolvedBasePrice } = await runJudgment(
+      card,
+      provider,
+      new Date('2026-07-16T04:30:00Z'),
+    );
+    expect(resolvedBasePrice).toBe(101_000); // 화요일 종가 (월요일 아님)
+    expect(result.outcome).toBe('HIT'); // 수 102,100 vs 화 101,000 = +1.09%
+  });
+
   it('게시일 종가 소급: 화·수에 목표가 도달하면 HIT', async () => {
     const card: JudgeableCard = {
       assetClass: 'KR_EQUITY',

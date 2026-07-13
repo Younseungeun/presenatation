@@ -167,21 +167,22 @@ describe('preparePublish', () => {
     );
   });
 
-  it('US 단기 카드: 프리마켓 전(04:00 ET) 게시는 당일 종가 예측 허용', () => {
-    // ET 2026-07-13(월) 03:00 = UTC 07:00
+  it('US 단기 카드: 당일 창구 없음 — 새벽(프리마켓 전)에도 당일·익일 시한 거부', () => {
+    // ET 2026-07-13(월) 03:00 = UTC 07:00 — 주간거래(오버나이트 ATS)가 진행 중인 시각
     const monPrePremarket = new Date('2026-07-13T07:00:00Z');
-    const card: CardDraft = {
-      ...validCard,
-      assetClass: 'US_EQUITY',
-      ticker: 'AAPL',
-      deadline: new Date('2026-07-13T20:00:00Z'), // 당일 16:00 ET
-    };
-    const snap = preparePublish(card, validCond, null, monPrePremarket);
-    expect(snap.baseMode).toBe('PREV_CLOSE_AT_JUDGMENT');
+    const us = { ...validCard, assetClass: 'US_EQUITY' as const, ticker: 'AAPL' };
+    expect(() =>
+      preparePublish(
+        { ...us, deadline: new Date('2026-07-13T20:00:00Z') }, // 당일 16:00 ET
+        validCond,
+        null,
+        monPrePremarket,
+      ),
+    ).toThrow(/주간거래/);
   });
 
-  it('US 단기 카드: 프리마켓·데이마켓 중 게시는 +2일부터 (기준가 = 게시일 종가)', () => {
-    // ET 2026-07-13(월) 14:00 = UTC 18:00 — 데이마켓 장중
+  it('US 단기 카드: 언제 게시하든 +2일부터, 기준가 = 게시 이후 첫 종가', () => {
+    // ET 2026-07-13(월) 14:00 = UTC 18:00 — 정규장 장중
     const monDayMarket = new Date('2026-07-13T18:00:00Z');
     const us = { ...validCard, assetClass: 'US_EQUITY' as const, ticker: 'AAPL' };
 

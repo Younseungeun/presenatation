@@ -53,6 +53,33 @@ export function toKstDateString(d: Date): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(d);
 }
 
+/** 특정 시장 시간대의 시각·요일·날짜 (컷오프·기준일 판단용) */
+export function marketClock(
+  d: Date,
+  timeZone: string,
+): { time: string; weekday: string; date: string } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(d).map((p) => [p.type, p.value]));
+  return {
+    time: `${parts.hour === '24' ? '00' : parts.hour}:${parts.minute}`,
+    weekday: parts.weekday,
+    date: new Intl.DateTimeFormat('sv-SE', { timeZone }).format(d),
+  };
+}
+
+/** 'YYYY-MM-DD' → 다음 날 'YYYY-MM-DD' */
+export function nextDateString(date: string): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
 /** 자산군 → 공급자 매핑. 배치 잡이 구성해 파이프라인에 넘긴다. */
 export type ProviderRegistry = Partial<Record<AssetClass, MarketDataProvider>>;
 
