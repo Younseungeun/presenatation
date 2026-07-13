@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { computeCardScore, sumScores, targetPriceToMagnitudePct } from '../scoring';
+import {
+  computeCardScore,
+  lossAmplifier,
+  optimalWinRateFor,
+  sumScores,
+  targetPriceToMagnitudePct,
+  winAmplifier,
+} from '../scoring';
 
 describe('computeCardScore — 기본 점수 (크기 적중 비율)', () => {
   it('기획 예시: +30% 예측에 +3% 실현 = 기본 10점', () => {
@@ -58,8 +65,8 @@ describe('computeCardScore — 방향과 부호', () => {
   });
 });
 
-describe('computeCardScore — 신뢰도 증폭', () => {
-  it('신뢰도 1당 증폭 1: 같은 결과라도 신뢰도 10이면 10배', () => {
+describe('computeCardScore — 신뢰도 증폭 (proper scoring rule)', () => {
+  it('적중 시 증폭은 신뢰도 그대로 (기획 원안): 신뢰도 10이면 10배', () => {
     const low = computeCardScore(
       { direction: 'UP', predictedMagnitudePct: 30, confidence: 1 },
       3,
@@ -69,14 +76,46 @@ describe('computeCardScore — 신뢰도 증폭', () => {
       3,
     );
     expect(high.score).toBeCloseTo(low.score * 10);
+    expect(high.amplifier).toBe(10);
   });
 
-  it('틀렸을 때도 신뢰도만큼 증폭 (고신뢰 실패의 벌점이 큼)', () => {
+  it('실패 시 증폭은 c(c+1)/2 — 고신뢰 실패의 벌점이 초선형으로 큼', () => {
+    expect(lossAmplifier(1)).toBe(1);
+    expect(lossAmplifier(5)).toBe(15);
+    expect(lossAmplifier(10)).toBe(55);
+
     const r = computeCardScore(
       { direction: 'UP', predictedMagnitudePct: 10, confidence: 10 },
       -10,
     );
-    expect(r.score).toBe(-1000);
+    expect(r.amplifier).toBe(55);
+    expect(r.score).toBe(-5500); // 기본 100 × 55
+  });
+
+  it('승률 50%(동전 던지기)는 어떤 신뢰도를 골라도 기대 점수 ≤ 0 (그라인딩 차단)', () => {
+    for (let c = 1; c <= 10; c++) {
+      const ev = 0.5 * winAmplifier(c) - 0.5 * lossAmplifier(c);
+      expect(ev).toBeLessThanOrEqual(0);
+    }
+  });
+
+  it('신뢰도별 최적 승률이 단조 증가 (정직한 확률 신호)', () => {
+    expect(optimalWinRateFor(1)).toBeCloseTo(0.6);
+    expect(optimalWinRateFor(5)).toBeCloseTo(0.846, 2);
+    expect(optimalWinRateFor(10)).toBeCloseTo(0.913, 2);
+    for (let c = 1; c < 10; c++) {
+      expect(optimalWinRateFor(c + 1)).toBeGreaterThan(optimalWinRateFor(c));
+    }
+  });
+
+  it('실제로 최적 신뢰도가 승률을 따라간다: 승률 85% 리서처는 c=5 부근이 최적', () => {
+    const p = 0.85;
+    const evAt = (c: number) => p * winAmplifier(c) - (1 - p) * lossAmplifier(c);
+    const best = Array.from({ length: 10 }, (_, i) => i + 1).reduce((a, b) =>
+      evAt(a) >= evAt(b) ? a : b,
+    );
+    expect(best).toBeGreaterThanOrEqual(5);
+    expect(best).toBeLessThanOrEqual(6);
   });
 
   it('신뢰도 범위(1~10)·크기 양수 검증', () => {

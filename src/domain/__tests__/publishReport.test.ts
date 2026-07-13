@@ -76,6 +76,14 @@ describe('validateCardDraft', () => {
     ).not.toEqual([]);
   });
 
+  it('자산군별 크기 하한: 주식 5%, 코인 10% 미만의 수익률형 예측 거부', () => {
+    expect(validateCardDraft({ ...validCard, targetValue: 4.9 }, NOW)).not.toEqual([]);
+    expect(validateCardDraft({ ...validCard, targetValue: 5 }, NOW)).toEqual([]);
+    const crypto = { ...validCard, assetClass: 'CRYPTO' as const, ticker: 'KRW-BTC' };
+    expect(validateCardDraft({ ...crypto, targetValue: 9 }, NOW)).not.toEqual([]);
+    expect(validateCardDraft({ ...crypto, targetValue: 10 }, NOW)).toEqual([]);
+  });
+
   it('신뢰도·안정성·수익성 자기 평가는 1~10 정수', () => {
     expect(validateCardDraft({ ...validCard, confidence: 11 }, NOW)).not.toEqual([]);
     expect(validateCardDraft({ ...validCard, confidence: 10 }, NOW)).toEqual([]);
@@ -207,6 +215,23 @@ describe('preparePublish', () => {
     const snap = preparePublish(validCard, validCond, 70_000, NOW);
     expect(snap.baseMode).toBe('FIXED_AT_PUBLISH');
     expect(snap.basePrice).toBe(70_000);
+  });
+
+  it('목표가형: 기준가 대비 크기가 하한 미만이면 게시 거부', () => {
+    // 기준가 70,000 → 목표가 71,000 = 1.4% (< KR 5%)
+    const card: CardDraft = { ...validCard, targetType: 'TARGET_PRICE', targetValue: 71_000 };
+    expect(() => preparePublish(card, validCond, 70_000, NOW)).toThrow(/최소 5%/);
+  });
+
+  it('기준가 소급 확정 단기 카드는 수익률형만 허용 (목표가형 거부)', () => {
+    const monPreOpen = new Date('2026-07-12T22:00:00Z'); // KST 월 07:00
+    const card: CardDraft = {
+      ...validCard,
+      targetType: 'TARGET_PRICE',
+      targetValue: 80_000,
+      deadline: new Date('2026-07-13T06:30:00Z'),
+    };
+    expect(() => preparePublish(card, validCond, null, monPreOpen)).toThrow(/수익률형/);
   });
 
   it('검증 이슈는 한 번에 모아서 보고', () => {

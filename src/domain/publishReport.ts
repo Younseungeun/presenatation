@@ -8,6 +8,7 @@ import type {
 } from './constants';
 import { calcFeeRateBp } from './fees';
 import { marketClock } from './marketData';
+import { MIN_MAGNITUDE_PCT, targetPriceToMagnitudePct } from './scoring';
 
 // 리포트 게시 검증 규칙 (순수 로직).
 // 게시는 되돌릴 수 없는 행위다: 수수료·선결제 비율·기준가가 고정되고 예측 카드가 잠긴다.
@@ -170,6 +171,12 @@ export function validateCardDraft(card: CardDraft, now = new Date()): string[] {
   if (!Number.isFinite(card.targetValue) || card.targetValue <= 0) {
     issues.push(`목표 수치는 양수여야 합니다 (RETURN_PCT는 등락률 크기): ${card.targetValue}`);
   }
+  // 초소형 크기 예측 방지: 수익률형은 초안 단계에서 즉시 검증 (목표가형은 기준가 확정 시)
+  if (card.targetType === 'RETURN_PCT' && card.targetValue < MIN_MAGNITUDE_PCT[card.assetClass]) {
+    issues.push(
+      `${card.assetClass} 예측 크기는 최소 ${MIN_MAGNITUDE_PCT[card.assetClass]}% 이상이어야 합니다: ${card.targetValue}% — 작은 크기는 사실상 방향 맞히기로 만점이 되기 때문입니다`,
+    );
+  }
   for (const [label, value] of [
     ['신뢰도', card.confidence],
     ['안정성', card.selfStability],
@@ -239,17 +246,30 @@ export function preparePublish(
 
   if (retroactive) {
     issues.push(...plan.issues);
+    // 소급 확정 카드는 게시 시점에 기준가가 없어 목표가의 방향 정합성·크기 하한을
+    // 검증할 수 없다 → 수익률형만 허용 (크기 하한은 초안 검증에서 이미 처리됨)
+    if (card.targetType === 'TARGET_PRICE') {
+      issues.push(
+        '기준가를 판정 시 소급 확정하는 단기 카드는 수익률형(RETURN_PCT)만 허용됩니다',
+      );
+    }
   } else {
     if (basePrice === null || !Number.isFinite(basePrice) || basePrice <= 0) {
       issues.push(`기준가를 확정할 수 없습니다 (시세 조회 결과: ${basePrice})`);
     }
-    // 목표가형은 방향과 목표가의 정합성 검증 (상승 예측인데 목표가가 기준가 이하 등)
+    // 목표가형은 방향·크기의 정합성 검증 (상승 예측인데 목표가가 기준가 이하 등)
     if (card.targetType === 'TARGET_PRICE' && basePrice !== null && basePrice > 0) {
       if (card.direction === 'UP' && card.targetValue <= basePrice) {
         issues.push(`상승 예측의 목표가(${card.targetValue})가 기준가(${basePrice}) 이하입니다`);
       }
       if (card.direction === 'DOWN' && card.targetValue >= basePrice) {
         issues.push(`하락 예측의 목표가(${card.targetValue})가 기준가(${basePrice}) 이상입니다`);
+      }
+      const magnitude = targetPriceToMagnitudePct(card.targetValue, basePrice);
+      if (magnitude < MIN_MAGNITUDE_PCT[card.assetClass]) {
+        issues.push(
+          `${card.assetClass} 예측 크기는 최소 ${MIN_MAGNITUDE_PCT[card.assetClass]}% 이상이어야 합니다 (목표가 기준 ${magnitude.toFixed(1)}%)`,
+        );
       }
     }
   }

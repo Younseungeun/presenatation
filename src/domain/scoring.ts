@@ -1,21 +1,58 @@
-import type { Direction } from './constants';
+import type { AssetClass, Direction } from './constants';
 
 // 점수 산정 (등급의 유일한 기준 — 경쟁적 요소).
 //
 // 규칙 (기획 확정):
 // - 기본 점수: 크기(%) 적중 비율. 예측 +30%에 실현 +3%면 3/30×100 = 10점
 // - 부호: 방향(buy/sell)을 맞추면 +, 틀리면 −
-// - 증폭: 리서처가 자기 주장한 신뢰도(1~10단계)를 그대로 곱한다 (신뢰도 1당 증폭 1)
+// - 증폭 (proper scoring rule — 비대칭):
+//     맞으면 × c (신뢰도 1당 증폭 1, 기획 원안 유지)
+//     틀리면 × c(c+1)/2 (벌점은 신뢰도에 대해 초선형)
+//   이렇게 하면 신뢰도 c를 거는 것이 최적이 되는 승률이 p*(c) = (c+0.5)/(c+1.5)로
+//   유일하게 결정된다: c=1 ⇔ 60%, c=3 ⇔ 78%, c=5 ⇔ 85%, c=10 ⇔ 91%.
+//   → 신뢰도가 정직한 확률 신호가 되고, 승률 50%(동전 던지기)는 어떤 신뢰도를
+//   골라도 기대 점수 ≤ 0이라 물량 그라인딩이 차단된다.
+//   (대칭 ×c 증폭의 문제: EV+면 무조건 10이 최적 → 10단계가 2단계로 붕괴)
+//
+// - 초소형 크기 예측 방지: 자산군별 크기 하한 (MIN_MAGNITUDE_PCT).
+//   상한 100 컷 아래에서 "+1% 예측"은 사실상 방향 맞히기로 만점이 되므로,
+//   예측 크기가 자산군 변동성 대비 유의미하도록 강제한다
 //
 // 스펙에 없어 이 구현이 정한 것 (CLAUDE.md §2.2에 확정 필요로 표기):
 // - 초과 달성 상한: 실현이 예측 크기를 넘어도 기본 점수는 100점에서 자른다
-//   (상한이 없으면 +1% 예측에 +10% 실현 = 1,000점 같은 왜곡 발생)
-// - 마이너스 크기: 플러스와 대칭 — 틀린 방향으로 실현된 크기의 비율(상한 100) × 신뢰도
+// - 마이너스 기본 점수: 플러스와 같은 비율 공식 (틀린 방향 실현 크기 / 예측 크기, 상한 100)
 // - 실현 0% 또는 판정 불가·철회: 0점 (표본 제외)
 
 export const CONFIDENCE_RANGE = { min: 1, max: 10 } as const;
 export const SELF_RATING_RANGE = { min: 1, max: 10 } as const;
 export const BASE_SCORE_CAP = 100;
+
+/**
+ * 자산군별 예측 크기(%) 하한 — 초안, 시뮬레이션으로 확정 예정.
+ * 자산군 변동성 기준: 주식은 일 ±2~3%가 흔하므로 5%, 코인은 ±10%가 흔하므로 10%.
+ * 주의: 단기(당일~2일) 카드에는 이 하한이 사실상 "달성 어려운 크기"라 기본 점수가
+ * 낮게 나온다 — 단타는 저점수 다건, 장기는 고점수 소건으로 자연 균형 (검증 필요)
+ */
+export const MIN_MAGNITUDE_PCT: Record<AssetClass, number> = {
+  KR_EQUITY: 5,
+  US_EQUITY: 5,
+  CRYPTO: 10,
+};
+
+/** 방향 적중 시 증폭 배율 */
+export function winAmplifier(confidence: number): number {
+  return confidence;
+}
+
+/** 방향 실패 시 증폭 배율 — 신뢰도에 초선형 (proper scoring) */
+export function lossAmplifier(confidence: number): number {
+  return (confidence * (confidence + 1)) / 2;
+}
+
+/** 신뢰도 c가 최적 선택이 되는 승률 (프로필·작성 화면 안내용) */
+export function optimalWinRateFor(confidence: number): number {
+  return (confidence + 0.5) / (confidence + 1.5);
+}
 
 export interface ScorableCard {
   direction: Direction;
@@ -30,7 +67,7 @@ export interface CardScore {
   directionHit: boolean | null;
   /** 크기 적중 비율 점수 0~100 */
   baseScore: number;
-  /** 신뢰도 증폭 배율 */
+  /** 적용된 증폭 배율 (적중: c / 실패: c(c+1)/2) */
   amplifier: number;
   /** 최종 점수 = ±기본 점수 × 증폭 */
   score: number;
@@ -49,7 +86,7 @@ export function computeCardScore(card: ScorableCard, realizedReturnPct: number):
   }
 
   if (realizedReturnPct === 0) {
-    return { directionHit: null, baseScore: 0, amplifier: card.confidence, score: 0 };
+    return { directionHit: null, baseScore: 0, amplifier: 0, score: 0 };
   }
 
   const directionHit =
@@ -58,8 +95,9 @@ export function computeCardScore(card: ScorableCard, realizedReturnPct: number):
     (Math.abs(realizedReturnPct) / card.predictedMagnitudePct) * 100,
     BASE_SCORE_CAP,
   );
-  const score = (directionHit ? 1 : -1) * baseScore * card.confidence;
-  return { directionHit, baseScore, amplifier: card.confidence, score };
+  const amplifier = directionHit ? winAmplifier(card.confidence) : lossAmplifier(card.confidence);
+  const score = (directionHit ? 1 : -1) * baseScore * amplifier;
+  return { directionHit, baseScore, amplifier, score };
 }
 
 /** 목표가형 카드의 예측 크기(%) 환산: 기준가 대비 목표가 거리 */
