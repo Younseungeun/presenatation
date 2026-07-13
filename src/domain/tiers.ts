@@ -1,4 +1,4 @@
-import type { Tier } from './constants';
+import type { AssetClass, Tier } from './constants';
 
 // 등급 산정 — 전적으로 '점수'에 의해 결정된다 (경쟁적 요소).
 // 점수 산정 규칙은 scoring.ts. 시즌제 재산정 시 같은 임계값으로 전면 재평가(강등 포함).
@@ -25,4 +25,18 @@ export function evaluateTier(
   if (totalScore >= thresholds.GOLD) return 'GOLD';
   if (totalScore >= thresholds.SILVER) return 'SILVER';
   return 'BRONZE';
+}
+
+/**
+ * 자산군별 분리 집계에서의 등급 (확정 규칙, CLAUDE.md §2.2):
+ * 점수·리더보드는 자산군별로 경쟁하고, 등급은 자산군별 누적 점수 중 최고값 하나로 정한다.
+ * (자산군 간 변동성 격차 때문에 합산하면 코인 점수가 주식 점수를 지배하는 왜곡 발생)
+ */
+export function evaluateTierAcrossAssetClasses(
+  scoresByAssetClass: Partial<Record<AssetClass, number>>,
+  thresholds: TierThresholds = DEFAULT_TIER_THRESHOLDS,
+): Exclude<Tier, 'CHALLENGER'> {
+  const scores = Object.values(scoresByAssetClass);
+  const best = scores.length > 0 ? Math.max(...scores) : 0;
+  return evaluateTier(best, thresholds);
 }

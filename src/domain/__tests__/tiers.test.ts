@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateTier } from '../tiers';
+import { evaluateTier, evaluateTierAcrossAssetClasses } from '../tiers';
 
 describe('evaluateTier — 등급은 전적으로 점수로 산정 (경쟁적 요소)', () => {
   it('시작 등급: 점수 없으면 브론즈', () => {
@@ -24,5 +24,22 @@ describe('evaluateTier — 등급은 전적으로 점수로 산정 (경쟁적 �
 
   it('임계값은 주입 가능 (시뮬레이션으로 확정 예정)', () => {
     expect(evaluateTier(500, { SILVER: 300, GOLD: 600, PLATINUM: 900 })).toBe('SILVER');
+  });
+});
+
+describe('evaluateTierAcrossAssetClasses — 자산군별 분리 집계 (확정 규칙)', () => {
+  it('등급은 자산군별 점수 중 최고값으로 결정 (합산하지 않음)', () => {
+    // 합산이면 4,000(골드)이지만, 분리 원칙상 최고값 3,500(골드 임계 3,000)으로 판정
+    expect(
+      evaluateTierAcrossAssetClasses({ KR_EQUITY: 3_500, CRYPTO: 500 }),
+    ).toBe('GOLD');
+    // 코인 점수가 마이너스여도 주식 점수를 깎지 않는다
+    expect(
+      evaluateTierAcrossAssetClasses({ KR_EQUITY: 1_200, CRYPTO: -2_000 }),
+    ).toBe('SILVER');
+  });
+
+  it('기록이 없으면 브론즈', () => {
+    expect(evaluateTierAcrossAssetClasses({})).toBe('BRONZE');
   });
 });
