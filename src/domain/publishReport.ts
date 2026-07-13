@@ -68,11 +68,19 @@ export interface CardDraft {
   assetClass: AssetClass;
   ticker: string;
   assetName: string;
+  /** 방향: UP = buy, DOWN = sell */
   direction: Direction;
   targetType: TargetType;
+  /** 크기: 목표가 또는 목표 등락률(%) */
   targetValue: number;
+  /** 기간(검증 시한) */
   deadline: Date;
-  confidence?: number;
+  /** 신뢰도 1~10 (필수) — 점수 증폭 배율 */
+  confidence: number;
+  /** 자기 평가 안정성 1~10 (필수, 표시용) */
+  selfStability: number;
+  /** 자기 평가 수익성 1~10 (필수, 표시용) */
+  selfProfitability: number;
 }
 
 export interface PublishConditions {
@@ -162,8 +170,14 @@ export function validateCardDraft(card: CardDraft, now = new Date()): string[] {
   if (!Number.isFinite(card.targetValue) || card.targetValue <= 0) {
     issues.push(`목표 수치는 양수여야 합니다 (RETURN_PCT는 등락률 크기): ${card.targetValue}`);
   }
-  if (card.confidence !== undefined && (card.confidence < 1 || card.confidence > 5)) {
-    issues.push(`확신도는 1~5 범위여야 합니다: ${card.confidence}`);
+  for (const [label, value] of [
+    ['신뢰도', card.confidence],
+    ['안정성', card.selfStability],
+    ['수익성', card.selfProfitability],
+  ] as const) {
+    if (!Number.isInteger(value) || value < 1 || value > 10) {
+      issues.push(`${label}(자기 평가)은 1~10 정수여야 합니다: ${value}`);
+    }
   }
 
   const daysToDeadline = (card.deadline.getTime() - now.getTime()) / 86_400_000;

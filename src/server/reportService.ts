@@ -69,7 +69,9 @@ export async function createDraftReport(
           targetType: input.card.targetType,
           targetValue: input.card.targetValue,
           deadline: input.card.deadline,
-          confidence: input.card.confidence ?? null,
+          confidence: input.card.confidence,
+          selfStability: input.card.selfStability,
+          selfProfitability: input.card.selfProfitability,
         },
       },
     },
@@ -112,7 +114,9 @@ export async function publishReport(
     targetType: card.targetType as CardDraft['targetType'],
     targetValue: card.targetValue,
     deadline: card.deadline,
-    confidence: card.confidence ?? undefined,
+    confidence: card.confidence,
+    selfStability: card.selfStability,
+    selfProfitability: card.selfProfitability,
   };
 
   // 소급 확정 모드(주식 단기 카드)는 시세 조회 없이 컷오프 규칙만 검증된다.

@@ -1,3 +1,4 @@
+import { computeCardScore, sumScores } from "@/domain/scoring";
 import { computeTrackRecord, type JudgedPrediction } from "@/domain/trackRecord";
 import { evaluateTier } from "@/domain/tiers";
 
@@ -39,16 +40,26 @@ const MOCK_RESEARCHERS: MockResearcher[] = [
   { penName: "신입리서처K", hasCareerBadge: false, predictions: mockPredictions(3, 1) },
 ];
 
+// 목데이터 카드 조건 (예측 크기 12%, 신뢰도 5로 가정)
+const MOCK_CARD = { predictedMagnitudePct: 12, confidence: 5 } as const;
+
+function mockTotalScore(predictions: JudgedPrediction[]): number {
+  return sumScores(
+    predictions.map((p) => {
+      const realized =
+        ((p.settledPrice! - p.basePrice) / p.basePrice) * 100;
+      return computeCardScore({ direction: p.direction, ...MOCK_CARD }, realized);
+    }),
+  );
+}
+
 export default function LeaderboardPage() {
   const rows = MOCK_RESEARCHERS.map((r) => {
     const record = computeTrackRecord(r.predictions);
-    const tier = evaluateTier({
-      judgedCount: record.sampleSize,
-      hitRate: record.hitRate ?? 0,
-      hasCareerBadge: r.hasCareerBadge,
-    });
-    return { ...r, record, tier };
-  }).sort((a, b) => (b.record.hitRate ?? 0) - (a.record.hitRate ?? 0));
+    const totalScore = mockTotalScore(r.predictions);
+    const tier = evaluateTier(totalScore);
+    return { ...r, record, tier, totalScore };
+  }).sort((a, b) => b.totalScore - a.totalScore);
 
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "48px 24px" }}>
@@ -59,6 +70,7 @@ export default function LeaderboardPage() {
           <tr style={{ textAlign: "left", borderBottom: "1px solid currentColor" }}>
             <th style={{ padding: 8 }}>리서처</th>
             <th style={{ padding: 8 }}>등급</th>
+            <th style={{ padding: 8 }}>점수</th>
             <th style={{ padding: 8 }}>판정 건수</th>
             <th style={{ padding: 8 }}>적중률</th>
             <th style={{ padding: 8 }}>가상 수익률</th>
@@ -75,6 +87,7 @@ export default function LeaderboardPage() {
                 )}
               </td>
               <td style={{ padding: 8 }}>{r.tier}</td>
+              <td style={{ padding: 8 }}>{Math.round(r.totalScore).toLocaleString()}</td>
               <td style={{ padding: 8 }}>{r.record.sampleSize}</td>
               <td style={{ padding: 8 }}>
                 {r.record.hitRate === null ? "—" : `${(r.record.hitRate * 100).toFixed(1)}%`}
