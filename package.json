@@ -10,7 +10,8 @@
     "test": "vitest run",
     "db:migrate": "prisma migrate dev",
     "smoke:market": "tsx scripts/smokeMarketData.ts",
-    "seed:dev": "tsx scripts/seedDev.ts"
+    "seed:dev": "tsx scripts/seedDev.ts",
+    "batch:judge": "tsx scripts/runJudgmentBatch.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

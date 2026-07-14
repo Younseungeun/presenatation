@@ -264,7 +264,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 105건, 브랜치 `claude/session-start-59rfim`.
+테스트 139건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -276,10 +276,14 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 - 정산 로직: 적중/실패/판정불가 3분기, 금액 보존 불변식 (§3.3)
 - 등급 평가: 건수+적중률 복합, 경력 배지 완화, 시즌 재평가 함수 (§3.1)
 - 트랙레코드: 적중률·최근 12개월·검증 중 배지·가상 수익률 (§2.2)
-- 리포트 게시 플로우: 초안→게시(수수료·기준가 고정, 카드 잠금)→철회(기록 유지), API 3종 (§6.2)
+- 리포트 게시 플로우: 초안→게시(수수료·기준가 고정, 카드 잠금)→철회(기록 유지), API 4종 (§6.2)
+- 구매·에스크로: 자기 구매·중복·미인증·시한 경과 차단, HELD 보관 (PG는 스텁) (§3.3)
+- 판정 배치: 시한 도래 카드 판정→점수 산정→3분기 정산→크레딧 지급을 단일 트랜잭션으로,
+  멱등 재실행·이월·보류 큐 보고 (npm run batch:judge)
+- 점수 집계: Judgment.score를 시즌(분기)·자산군별 합산 → 마이너스 규율·등급 평가에 연동
 
 **미구현 (다음 단계)**
-- 구매·에스크로 API, 판정 배치 잡(크론), 정산 실행·크레딧 지급
 - 시즌 재산정 배치 + TierHistory 기록 + 강등 시 신규 판매 제한
+- 크레딧 사용(재구매 결제 수단), 리서처 정산금 출금
 - 본인 인증(현재 헤더 스텁), 웹 결제(PG) 연동, 화면(리더보드 스텁만 존재)
 - 챌린저 상대평가, 난이도 가중 점수(영업비밀 — 설계 자체를 비공개 유지)

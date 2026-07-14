@@ -9,6 +9,7 @@ import {
   validateConditions,
   type CardDraft,
 } from '@/domain/publishReport';
+import { researcherSeasonScores } from './scoreService';
 
 // 리포트 생명주기: DRAFT → PUBLISHED → (철회 시) CLOSED
 // 게시 시점에 수수료·기준가가 고정되고 예측 카드가 잠긴다.
@@ -125,6 +126,9 @@ export async function publishReport(
   const basePrice =
     plan.baseMode === 'FIXED_AT_PUBLISH' ? await fetchBasePrice(registry, cardDraft, now) : null;
 
+  // 마이너스 규율(§2.2) 입력: 해당 자산군의 현재 시즌 누적 점수
+  const seasonScores = await researcherSeasonScores(prisma, report.researcherId, now);
+
   const snapshot = preparePublish(
     cardDraft,
     {
@@ -132,6 +136,7 @@ export async function publishReport(
       prepaymentRatio: report.prepaymentRatio as PrepaymentRatio,
       tier: report.researcher.tier as Tier,
       promoActive: isPromoActive(report.researcher.promoFeeUntil, now),
+      assetClassScore: seasonScores[cardDraft.assetClass],
     },
     basePrice,
     now,
