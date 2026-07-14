@@ -7,10 +7,14 @@ import type { AssetClass, Tier } from './constants';
 
 export type TierThresholds = Record<Exclude<Tier, 'BRONZE' | 'CHALLENGER'>, number>;
 
+// 시뮬레이션 근거 (docs/tier-thresholds-sim.md):
+// - 분포 피라미드: 브론즈 59% / 실버 30% / 골드 9% / 플래티넘 2% (신호 가치 유지)
+// - 준수한 리서처(승률 65~72%)의 절반이 첫 시즌에 실버 도달 (승급 동기 — 이탈 방지)
+// - 플래티넘 2%면 초기 30~50명 중 1명 안팎 — 구독 상품(2단계 매출) 해금 가능
 export const DEFAULT_TIER_THRESHOLDS: TierThresholds = {
-  SILVER: 1_000,
-  GOLD: 3_000,
-  PLATINUM: 8_000,
+  SILVER: 600,
+  GOLD: 2_000,
+  PLATINUM: 5_000,
 };
 
 /**
