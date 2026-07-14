@@ -11,7 +11,8 @@
     "db:migrate": "prisma migrate dev",
     "smoke:market": "tsx scripts/smokeMarketData.ts",
     "seed:dev": "tsx scripts/seedDev.ts",
-    "batch:judge": "tsx scripts/runJudgmentBatch.ts"
+    "batch:judge": "tsx scripts/runJudgmentBatch.ts",
+    "batch:season": "tsx scripts/runSeasonRecalc.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

@@ -18,15 +18,22 @@ export function seasonStart(d: Date): Date {
   return new Date(Date.UTC(kst.getUTCFullYear(), quarterMonth, 1) - 9 * 3600_000);
 }
 
-/** 리서처의 현재 시즌 자산군별 누적 점수 */
+/** 다음 시즌 시작 시각 */
+export function nextSeasonStart(d: Date): Date {
+  const kst = new Date(d.getTime() + 9 * 3600_000);
+  const quarterMonth = Math.floor(kst.getUTCMonth() / 3) * 3;
+  return new Date(Date.UTC(kst.getUTCFullYear(), quarterMonth + 3, 1) - 9 * 3600_000);
+}
+
+/** 기준 시각이 속한 시즌의 자산군별 누적 점수 (판정 시각 기준 집계) */
 export async function researcherSeasonScores(
   prisma: PrismaClient,
   researcherId: string,
-  now = new Date(),
+  at = new Date(),
 ): Promise<Record<AssetClass, number>> {
   const judgments = await prisma.judgment.findMany({
     where: {
-      judgedAt: { gte: seasonStart(now) },
+      judgedAt: { gte: seasonStart(at), lt: nextSeasonStart(at) },
       score: { not: null },
       predictionCard: { report: { researcherId } },
     },
