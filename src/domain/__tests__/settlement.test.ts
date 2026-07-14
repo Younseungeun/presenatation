@@ -43,7 +43,7 @@ describe('settle — 실패', () => {
   it('선결제 30%: 선결제분(수수료 차감 후)은 리서처, 성과 연동분은 크레딧', () => {
     const input: SettlementInput = {
       amountKrw: 30000,
-      feeRateBp: 1900, // 플래티넘 13% + 30% 할증 6%p
+      feeRateBp: 1900, // 예시 총 수수료 19% (정산 로직은 등급과 무관하게 bp만 사용)
       prepaymentRatio: 30,
       outcome: 'MISS',
     };

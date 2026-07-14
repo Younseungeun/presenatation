@@ -102,7 +102,7 @@ describe('validateConditions', () => {
   it('등급이 허용하지 않는 선결제 비율 거부 (브론즈 + 10%)', () => {
     expect(validateConditions({ ...validCond, prepaymentRatio: 10 })).not.toEqual([]);
     expect(
-      validateConditions({ ...validCond, tier: 'SILVER', prepaymentRatio: 10 }),
+      validateConditions({ ...validCond, tier: 'GOLD', prepaymentRatio: 10 }),
     ).toEqual([]);
   });
 });
