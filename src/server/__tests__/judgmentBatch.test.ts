@@ -156,7 +156,7 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
     }
   });
 
-  it('MISS: 성과 연동분 전액 크레딧 환급, 마이너스 점수', async () => {
+  it('MISS: 성과 연동분 전액 현금 환불, 마이너스 점수', async () => {
     await publishAndBuy('KRW-BBB', 95); // -5% 실현, +10% 예측 → MISS
     await judgeAndSettleDueCards(prisma, registryWithOutcome('KRW-BBB', 95), BATCH_NOW);
 
@@ -172,13 +172,11 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
       include: { settlement: true },
     });
     for (const p of purchases) {
-      expect(p.escrowStatus).toBe('SETTLED');
-      expect(p.settlement!.buyerRefundKrw).toBe(10_000); // 선결제 0 → 전액 크레딧
-      expect(p.settlement!.refundType).toBe('CREDIT');
+      // 선결제 0 → 전액 현금 환불 = 원상복구이므로 REFUNDED
+      expect(p.escrowStatus).toBe('REFUNDED');
+      expect(p.settlement!.buyerRefundKrw).toBe(10_000);
+      expect(p.settlement!.refundType).toBe('CASH_REFUND');
     }
-    const credits = await prisma.credit.findMany({ where: { reason: 'MISS_REFUND' } });
-    expect(credits.length).toBeGreaterThanOrEqual(2);
-    expect(credits[0].amountKrw).toBe(10_000);
   });
 
   it('판정 불가(거래정지): 전액 환불, 수수료 0, 점수 0', async () => {
@@ -204,7 +202,7 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
       expect(p.escrowStatus).toBe('REFUNDED');
       expect(p.settlement!.platformFeeKrw).toBe(0);
       expect(p.settlement!.buyerRefundKrw).toBe(10_000);
-      expect(p.settlement!.refundType).toBe('FULL_REFUND');
+      expect(p.settlement!.refundType).toBe('CASH_REFUND');
     }
   });
 

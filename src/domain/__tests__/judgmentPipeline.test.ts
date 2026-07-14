@@ -78,7 +78,7 @@ describe('runJudgment', () => {
       outcome: result.outcome,
     });
     expect(settlement.buyerRefundKrw).toBe(30000);
-    expect(settlement.refundType).toBe('FULL_REFUND');
+    expect(settlement.refundType).toBe('CASH_REFUND');
   });
 
   it('기준가 소급 확정(KR 당일 카드): 게시일 직전 종가 기준으로 판정', async () => {

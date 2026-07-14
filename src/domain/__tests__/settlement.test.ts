@@ -25,7 +25,7 @@ describe('settle — 적중', () => {
 });
 
 describe('settle — 실패', () => {
-  it('완전 성과 연동(선결제 0%): 전액 구매자 크레딧, 리서처·플랫폼 0원', () => {
+  it('완전 성과 연동(선결제 0%): 전액 구매자 현금 환불, 리서처·플랫폼 0원', () => {
     const input: SettlementInput = {
       amountKrw: 30000,
       feeRateBp: 2000,
@@ -36,11 +36,11 @@ describe('settle — 실패', () => {
     expect(r.researcherPayoutKrw).toBe(0);
     expect(r.platformFeeKrw).toBe(0);
     expect(r.buyerRefundKrw).toBe(30000);
-    expect(r.refundType).toBe('CREDIT');
+    expect(r.refundType).toBe('CASH_REFUND');
     expectConservation(input, r);
   });
 
-  it('선결제 30%: 선결제분(수수료 차감 후)은 리서처, 성과 연동분은 크레딧', () => {
+  it('선결제 30%: 선결제분(수수료 차감 후)은 리서처, 성과 연동분은 현금 환불', () => {
     const input: SettlementInput = {
       amountKrw: 30000,
       feeRateBp: 1900, // 예시 총 수수료 19% (정산 로직은 등급과 무관하게 bp만 사용)
@@ -52,13 +52,13 @@ describe('settle — 실패', () => {
     expect(r.researcherPayoutKrw).toBe(7290);
     expect(r.platformFeeKrw).toBe(1710);
     expect(r.buyerRefundKrw).toBe(21000);
-    expect(r.refundType).toBe('CREDIT');
+    expect(r.refundType).toBe('CASH_REFUND');
     expectConservation(input, r);
   });
 });
 
 describe('settle — 판정 불가', () => {
-  it('전액 환불, 수수료 미발생', () => {
+  it('전액 현금 환불, 수수료 미발생', () => {
     const input: SettlementInput = {
       amountKrw: 30000,
       feeRateBp: 2000,
@@ -69,7 +69,7 @@ describe('settle — 판정 불가', () => {
     expect(r.researcherPayoutKrw).toBe(0);
     expect(r.platformFeeKrw).toBe(0);
     expect(r.buyerRefundKrw).toBe(30000);
-    expect(r.refundType).toBe('FULL_REFUND');
+    expect(r.refundType).toBe('CASH_REFUND');
     expectConservation(input, r);
   });
 });

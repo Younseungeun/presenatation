@@ -118,6 +118,8 @@ export async function judgeAndSettleDueCards(
             prepaymentRatio: card.report.prepaymentRatio,
             outcome: result.outcome,
           });
+          // 환불은 항상 현금 (확정 결정) — 실제 지급(PG 취소/계좌이체)은 PG 연동 시
+          // 이 Settlement 기록을 지시서로 사용한다. 전액 환불 건만 REFUNDED로 구분.
           return [
             prisma.settlement.create({
               data: {
@@ -132,21 +134,8 @@ export async function judgeAndSettleDueCards(
             }),
             prisma.purchase.update({
               where: { id: p.id },
-              data: { escrowStatus: s.refundType === 'FULL_REFUND' ? 'REFUNDED' : 'SETTLED' },
+              data: { escrowStatus: s.buyerRefundKrw === p.amountKrw ? 'REFUNDED' : 'SETTLED' },
             }),
-            // 실패 환급은 앱 내 크레딧 (유효기간 1년), 판정 불가는 전액 환불(PG 취소)
-            ...(s.refundType === 'CREDIT' && s.buyerRefundKrw > 0
-              ? [
-                  prisma.credit.create({
-                    data: {
-                      userId: p.buyerId,
-                      amountKrw: s.buyerRefundKrw,
-                      reason: 'MISS_REFUND',
-                      expiresAt: new Date(now.getTime() + 365 * 86_400_000),
-                    },
-                  }),
-                ]
-              : []),
           ];
         }),
       ]);

@@ -19,15 +19,19 @@ export interface SettlementResult {
   researcherPayoutKrw: number;
   platformFeeKrw: number;
   buyerRefundKrw: number;
-  /** MISS → 앱 내 크레딧 / UNDECIDABLE → 전액 환불 */
-  refundType: 'CREDIT' | 'FULL_REFUND' | null;
+  /**
+   * 환불이 발생하면 항상 현금(PG 취소 또는 계좌이체) — 확정 결정.
+   * MISS/UNDECIDABLE 구분은 outcome 필드가 담당한다.
+   * 카드 취소 기한(통상 1년)을 넘긴 건은 계좌이체 폴백 (운영 절차)
+   */
+  refundType: 'CASH_REFUND' | null;
 }
 
 /**
  * 판정 결과에 따라 에스크로 금액을 분배한다.
  * - 적중: 리서처에게 (판매액 − 수수료) 정산
- * - 실패: 성과 연동분 → 구매자 크레딧 환급, 선결제분 → 리서처 정산 (수수료는 선결제분에만 부과)
- * - 판정 불가: 전액 환불, 수수료 미발생
+ * - 실패: 성과 연동분 → 구매자에게 현금 환불, 선결제분 → 리서처 정산 (수수료는 선결제분에만 부과)
+ * - 판정 불가: 전액 현금 환불, 수수료 미발생
  */
 export function settle(input: SettlementInput): SettlementResult {
   const { amountKrw, feeRateBp, prepaymentRatio, outcome } = input;
@@ -41,7 +45,7 @@ export function settle(input: SettlementInput): SettlementResult {
       researcherPayoutKrw: 0,
       platformFeeKrw: 0,
       buyerRefundKrw: amountKrw,
-      refundType: 'FULL_REFUND',
+      refundType: 'CASH_REFUND',
     };
   }
 
@@ -56,7 +60,7 @@ export function settle(input: SettlementInput): SettlementResult {
     };
   }
 
-  // MISS: 선결제분은 리서처에게, 성과 연동분은 구매자 크레딧으로
+  // MISS: 선결제분은 리서처에게, 성과 연동분은 구매자에게 현금 환불
   const prepaidKrw = Math.round((amountKrw * prepaymentRatio) / 100);
   const performanceKrw = amountKrw - prepaidKrw;
   const fee = applyFeeBp(prepaidKrw, feeRateBp);
@@ -65,6 +69,6 @@ export function settle(input: SettlementInput): SettlementResult {
     researcherPayoutKrw: prepaidKrw - fee,
     platformFeeKrw: fee,
     buyerRefundKrw: performanceKrw,
-    refundType: 'CREDIT',
+    refundType: performanceKrw > 0 ? 'CASH_REFUND' : null,
   };
 }

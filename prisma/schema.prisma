@@ -22,7 +22,6 @@ model User {
 
   researcherProfile ResearcherProfile?
   purchases         Purchase[]
-  credits           Credit[]
 }
 
 // 리서처 프로필: 등급·경력 배지·신고 여부
@@ -122,21 +121,9 @@ model Settlement {
   outcome            String // HIT | MISS | UNDECIDABLE
   researcherPayoutKrw Int // 리서처 정산액
   platformFeeKrw     Int // 플랫폼 수수료 (판정 불가 시 0)
-  buyerRefundKrw     Int // 구매자 환급액 (크레딧 또는 전액 환불)
-  refundType         String? // CREDIT(실패→앱 내 크레딧) | FULL_REFUND(판정불가→전액)
+  buyerRefundKrw     Int // 구매자 환불액 — 항상 현금 (실패: 성과 연동분 / 판정불가: 전액)
+  refundType         String? // CASH_REFUND | null. PG 취소/계좌이체 실행의 지시서 역할
   settledAt          DateTime @default(now())
-}
-
-// 환급 크레딧: 앱 내 재사용 전용, 유효기간 명시, 직접 충전·현금화 불가
-model Credit {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  amountKrw Int
-  reason    String // MISS_REFUND 등
-  expiresAt DateTime
-  usedAt    DateTime?
-  createdAt DateTime @default(now())
 }
 
 // 등급 이력: 분기 시즌제 재산정·강등 기록
