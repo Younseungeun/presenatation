@@ -9,6 +9,7 @@ import {
   validateConditions,
   type CardDraft,
 } from '@/domain/publishReport';
+import { toCardDraft } from './cardMapper';
 import { researcherSeasonScores } from './scoreService';
 
 // 리포트 생명주기: DRAFT → PUBLISHED → (철회 시) CLOSED
@@ -107,18 +108,7 @@ export async function publishReport(
     throw new Error('예측 카드가 없는 리포트는 게시할 수 없습니다');
   }
 
-  const cardDraft: CardDraft = {
-    assetClass: card.assetClass as CardDraft['assetClass'],
-    ticker: card.ticker,
-    assetName: card.assetName,
-    direction: card.direction as CardDraft['direction'],
-    targetType: card.targetType as CardDraft['targetType'],
-    targetValue: card.targetValue,
-    deadline: card.deadline,
-    confidence: card.confidence,
-    selfStability: card.selfStability,
-    selfProfitability: card.selfProfitability,
-  };
+  const cardDraft = toCardDraft(card);
 
   // 소급 확정 모드(주식 단기 카드)는 시세 조회 없이 컷오프 규칙만 검증된다.
   // 그 외에는 외부 시세 조회(트랜잭션 밖)로 기준가를 게시 시점에 확정한다.

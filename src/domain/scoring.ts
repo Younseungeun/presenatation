@@ -1,4 +1,4 @@
-import type { AssetClass, Direction } from './constants';
+import type { AssetClass, Direction, Outcome, TargetType } from './constants';
 
 // 점수 산정 (등급의 유일한 기준 — 경쟁적 요소).
 //
@@ -24,7 +24,6 @@ import type { AssetClass, Direction } from './constants';
 // - 실현 0% 또는 판정 불가·철회: 0점 (표본 제외)
 
 export const CONFIDENCE_RANGE = { min: 1, max: 10 } as const;
-export const SELF_RATING_RANGE = { min: 1, max: 10 } as const;
 export const BASE_SCORE_CAP = 100;
 
 /**
@@ -144,4 +143,40 @@ export function targetPriceToMagnitudePct(targetPrice: number, basePrice: number
 /** 리서처 누적 점수 (등급 산정 입력) */
 export function sumScores(scores: Array<Pick<CardScore, 'score'>>): number {
   return scores.reduce((acc, s) => acc + s.score, 0);
+}
+
+export interface JudgedCardScoreInput {
+  direction: Direction;
+  targetType: TargetType;
+  /** 예측 크기: RETURN_PCT는 등락률(%), TARGET_PRICE는 목표가 */
+  targetValue: number;
+  confidence: number;
+  /** 기준가 (소급 확정 후 값). 없으면 점수 0 */
+  basePrice: number | null;
+  /** 판정 종가. 없으면 점수 0 */
+  settledPrice: number | null | undefined;
+  outcome: Outcome;
+}
+
+/**
+ * 판정 결과 → 실현 등락률·점수 (§2.2). 판정 불가·데이터 결측은 0점(표본 제외).
+ * 배치가 카드별로 호출한다.
+ */
+export function scoreJudgedCard(input: JudgedCardScoreInput): {
+  realizedReturnPct: number | null;
+  score: number;
+} {
+  if (input.outcome === 'UNDECIDABLE' || input.settledPrice == null || !input.basePrice) {
+    return { realizedReturnPct: null, score: 0 };
+  }
+  const realizedReturnPct = ((input.settledPrice - input.basePrice) / input.basePrice) * 100;
+  const predictedMagnitudePct =
+    input.targetType === 'RETURN_PCT'
+      ? input.targetValue
+      : targetPriceToMagnitudePct(input.targetValue, input.basePrice);
+  const { score } = computeCardScore(
+    { direction: input.direction, predictedMagnitudePct, confidence: input.confidence },
+    realizedReturnPct,
+  );
+  return { realizedReturnPct, score };
 }

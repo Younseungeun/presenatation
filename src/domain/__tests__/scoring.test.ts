@@ -3,6 +3,7 @@ import {
   computeCardScore,
   lossAmplifier,
   optimalWinRateFor,
+  scoreJudgedCard,
   sumScores,
   targetPriceToMagnitudePct,
   winAmplifier,
@@ -138,5 +139,43 @@ describe('targetPriceToMagnitudePct', () => {
 describe('sumScores', () => {
   it('누적 점수 합산', () => {
     expect(sumScores([{ score: 100 }, { score: -30 }, { score: 0 }])).toBe(70);
+  });
+});
+
+describe('scoreJudgedCard — 판정 결과 → 실현 등락률·점수', () => {
+  const hit = {
+    direction: 'UP' as const,
+    targetType: 'RETURN_PCT' as const,
+    targetValue: 10,
+    confidence: 5,
+    basePrice: 100,
+    settledPrice: 112,
+    outcome: 'HIT' as const,
+  };
+
+  it('수익률형 HIT: 실현 +12%, 기본 100(컷) × 신뢰도 5', () => {
+    const r = scoreJudgedCard(hit);
+    expect(r.realizedReturnPct).toBeCloseTo(12);
+    expect(r.score).toBe(500);
+  });
+
+  it('목표가형: 기준가 대비 크기로 환산해 채점', () => {
+    const r = scoreJudgedCard({
+      ...hit,
+      targetType: 'TARGET_PRICE',
+      targetValue: 130, // 기준가 100 → +30% 예측
+      settledPrice: 103, // 실현 +3% → 기본 3/30×100 = 10
+      confidence: 1,
+    });
+    expect(r.score).toBeCloseTo(10);
+  });
+
+  it('판정 불가·기준가/종가 결측은 0점 (표본 제외)', () => {
+    expect(scoreJudgedCard({ ...hit, outcome: 'UNDECIDABLE' })).toEqual({
+      realizedReturnPct: null,
+      score: 0,
+    });
+    expect(scoreJudgedCard({ ...hit, basePrice: null }).score).toBe(0);
+    expect(scoreJudgedCard({ ...hit, settledPrice: null }).score).toBe(0);
   });
 });

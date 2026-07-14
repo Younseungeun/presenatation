@@ -1,13 +1,10 @@
-import type { PrismaClient } from '@prisma/client';
-import type { AssetClass, BaseMode, Direction, TargetType } from '@/domain/constants';
-import {
-  JudgmentDeferredError,
-  runJudgmentFromRegistry,
-  type JudgeableCard,
-} from '@/domain/judgmentPipeline';
+import type { Prisma, PrismaClient } from '@prisma/client';
+import type { Direction, TargetType } from '@/domain/constants';
+import { JudgmentDeferredError, runJudgmentFromRegistry } from '@/domain/judgmentPipeline';
 import type { ProviderRegistry } from '@/domain/marketData';
-import { computeCardScore, targetPriceToMagnitudePct } from '@/domain/scoring';
+import { scoreJudgedCard } from '@/domain/scoring';
 import { settle } from '@/domain/settlement';
+import { toJudgeableCard } from './cardMapper';
 
 // 판정 배치: 시한이 지난 미판정 카드를 찾아 판정 → 점수 산정 → 에스크로 정산까지
 // 하나의 트랜잭션으로 실행한다 (docs/market-data.md §4).
@@ -30,31 +27,21 @@ export async function judgeAndSettleDueCards(
   registry: ProviderRegistry,
   now = new Date(),
 ): Promise<BatchSummary> {
+  // HELD 구매까지 한 번에 조회 — 카드별 개별 쿼리(N+1) 제거
   const dueCards = await prisma.predictionCard.findMany({
     where: {
       judgment: null,
       deadline: { lte: now },
       report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
     },
-    include: { report: true },
+    include: { report: { include: { purchases: { where: { escrowStatus: 'HELD' } } } } },
     orderBy: { deadline: 'asc' },
   });
 
   const summary: BatchSummary = { judged: 0, deferred: 0, failed: 0, staleDeferred: [] };
 
   for (const card of dueCards) {
-    const judgeable: JudgeableCard = {
-      assetClass: card.assetClass as AssetClass,
-      baseMode: card.baseMode as BaseMode,
-      ticker: card.ticker,
-      direction: card.direction as Direction,
-      targetType: card.targetType as TargetType,
-      targetValue: card.targetValue,
-      basePrice: card.basePrice,
-      withdrawn: card.withdrawnAt !== null,
-      publishedAt: card.report.publishedAt!,
-      deadline: card.deadline,
-    };
+    const judgeable = toJudgeableCard(card, card.report.publishedAt!);
 
     try {
       const { result, audit, resolvedBasePrice } = await runJudgmentFromRegistry(
@@ -64,30 +51,17 @@ export async function judgeAndSettleDueCards(
       );
       const basePrice = resolvedBasePrice ?? card.basePrice;
 
-      // 점수 산정 (§2.2): 판정 불가는 0점(표본 제외), 그 외는 실현 등락률 기반
-      let realizedReturnPct: number | null = null;
-      let score = 0;
-      if (result.outcome !== 'UNDECIDABLE' && result.settledPrice != null && basePrice) {
-        realizedReturnPct = ((result.settledPrice - basePrice) / basePrice) * 100;
-        const predictedMagnitudePct =
-          card.targetType === 'RETURN_PCT'
-            ? card.targetValue
-            : targetPriceToMagnitudePct(card.targetValue, basePrice);
-        score = computeCardScore(
-          {
-            direction: card.direction as Direction,
-            predictedMagnitudePct,
-            confidence: card.confidence,
-          },
-          realizedReturnPct,
-        ).score;
-      }
-
-      const heldPurchases = await prisma.purchase.findMany({
-        where: { reportId: card.reportId, escrowStatus: 'HELD' },
+      const { realizedReturnPct, score } = scoreJudgedCard({
+        direction: card.direction as Direction,
+        targetType: card.targetType as TargetType,
+        targetValue: card.targetValue,
+        confidence: card.confidence,
+        basePrice,
+        settledPrice: result.settledPrice,
+        outcome: result.outcome,
       });
 
-      await prisma.$transaction([
+      const writes: Prisma.PrismaPromise<unknown>[] = [
         prisma.judgment.create({
           data: {
             predictionCardId: card.id,
@@ -101,44 +75,48 @@ export async function judgeAndSettleDueCards(
             judgedAt: now,
           },
         }),
-        // 소급 확정된 기준가를 카드에 기록 (감사 추적)
-        ...(resolvedBasePrice != null
-          ? [
-              prisma.predictionCard.update({
-                where: { id: card.id },
-                data: { basePrice: resolvedBasePrice },
-              }),
-            ]
-          : []),
-        // 에스크로 3분기 정산 — 금액 보존 불변식은 settle()이 보장
-        ...heldPurchases.flatMap((p) => {
-          const s = settle({
-            amountKrw: p.amountKrw,
-            feeRateBp: card.report.feeRateBp!,
-            prepaymentRatio: card.report.prepaymentRatio,
-            outcome: result.outcome,
-          });
-          // 환불은 항상 현금 (확정 결정) — 실제 지급(PG 취소/계좌이체)은 PG 연동 시
-          // 이 Settlement 기록을 지시서로 사용한다. 전액 환불 건만 REFUNDED로 구분.
-          return [
-            prisma.settlement.create({
-              data: {
-                purchaseId: p.id,
-                outcome: s.outcome,
-                researcherPayoutKrw: s.researcherPayoutKrw,
-                platformFeeKrw: s.platformFeeKrw,
-                buyerRefundKrw: s.buyerRefundKrw,
-                refundType: s.refundType,
-                settledAt: now,
-              },
-            }),
-            prisma.purchase.update({
-              where: { id: p.id },
-              data: { escrowStatus: s.buyerRefundKrw === p.amountKrw ? 'REFUNDED' : 'SETTLED' },
-            }),
-          ];
-        }),
-      ]);
+      ];
+
+      // 소급 확정된 기준가를 카드에 기록 (감사 추적)
+      if (resolvedBasePrice != null) {
+        writes.push(
+          prisma.predictionCard.update({
+            where: { id: card.id },
+            data: { basePrice: resolvedBasePrice },
+          }),
+        );
+      }
+
+      // 에스크로 3분기 정산 — 금액 보존 불변식은 settle()이 보장.
+      // 환불은 항상 현금(확정) — Settlement 기록이 PG 취소/계좌이체 지시서 역할.
+      // 전액 환불 건만 REFUNDED로 구분.
+      for (const p of card.report.purchases) {
+        const s = settle({
+          amountKrw: p.amountKrw,
+          feeRateBp: card.report.feeRateBp!,
+          prepaymentRatio: card.report.prepaymentRatio,
+          outcome: result.outcome,
+        });
+        writes.push(
+          prisma.settlement.create({
+            data: {
+              purchaseId: p.id,
+              outcome: s.outcome,
+              researcherPayoutKrw: s.researcherPayoutKrw,
+              platformFeeKrw: s.platformFeeKrw,
+              buyerRefundKrw: s.buyerRefundKrw,
+              refundType: s.refundType,
+              settledAt: now,
+            },
+          }),
+          prisma.purchase.update({
+            where: { id: p.id },
+            data: { escrowStatus: s.buyerRefundKrw === p.amountKrw ? 'REFUNDED' : 'SETTLED' },
+          }),
+        );
+      }
+
+      await prisma.$transaction(writes);
       summary.judged++;
     } catch (e) {
       if (e instanceof JudgmentDeferredError) {
