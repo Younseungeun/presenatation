@@ -50,49 +50,34 @@ export default async function LeaderboardPage({
       {rows.length === 0 ? (
         <p className={styles.sub}>아직 이 자산군에 판정된 리서처가 없습니다.</p>
       ) : (
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th className={styles.rank}>#</th>
-              <th>리서처</th>
-              <th className={styles.num}>시즌 점수</th>
-              <th className={styles.num}>적중률</th>
-              <th className={styles.num}>표본</th>
-              <th className={styles.num}>가상 수익률</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={r.researcherId}>
-                <td className={styles.rank}>{i + 1}</td>
-                <td>
-                  <Link className={styles.nameLink} href={`/r/${r.researcherId}`}>
-                    {r.name}
-                  </Link>
-                  {r.careerBadge && <span className={styles.badge}>🎖️</span>}
+        <div className={styles.list}>
+          {rows.map((r, i) => (
+            <Link key={r.researcherId} href={`/r/${r.researcherId}`} className={styles.row}>
+              <span className={styles.rank}>{i + 1}</span>
+              <div className={styles.rowMain}>
+                <div className={styles.rowName}>
+                  {r.name}
+                  {r.careerBadge && <span>🎖️</span>}
                   <span className={styles.tier}>{r.tier}</span>
                   {r.verifying && (
-                    <small style={{ marginLeft: 6, opacity: 0.6 }}>검증 중</small>
+                    <small style={{ color: "var(--text-faint)", fontWeight: 500 }}>검증 중</small>
                   )}
-                </td>
-                <td className={`${styles.num} ${r.seasonScore >= 0 ? styles.pos : styles.neg}`}>
+                </div>
+                <div className={styles.rowSub}>
+                  적중률 {pct(r.hitRate)} · 표본 {r.sampleSize}
+                  {r.hypotheticalReturnPct !== null &&
+                    ` · 가상 ${r.hypotheticalReturnPct >= 0 ? "+" : ""}${r.hypotheticalReturnPct.toFixed(1)}%`}
+                </div>
+              </div>
+              <div className={styles.rowScore}>
+                <div className={r.seasonScore >= 0 ? styles.pos : styles.neg}>
                   {Math.round(r.seasonScore).toLocaleString()}
-                </td>
-                <td className={styles.num}>{pct(r.hitRate)}</td>
-                <td className={styles.num}>{r.sampleSize}</td>
-                <td
-                  className={`${styles.num} ${
-                    (r.hypotheticalReturnPct ?? 0) >= 0 ? styles.pos : styles.neg
-                  }`}
-                >
-                  {r.hypotheticalReturnPct === null
-                    ? "—"
-                    : `${r.hypotheticalReturnPct >= 0 ? "+" : ""}${r.hypotheticalReturnPct.toFixed(1)}%`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </div>
+                <div className={styles.scoreLabel}>시즌 점수</div>
+              </div>
+            </Link>
+          ))}
+        </div>
       )}
     </main>
   );
