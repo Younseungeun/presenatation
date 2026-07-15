@@ -38,6 +38,9 @@ export function AppBarUser({
       <Link href="/leaderboard" style={linkStyle}>
         리더보드
       </Link>
+      <Link href="/purchases" style={linkStyle}>
+        구매 내역
+      </Link>
       {researcherId ? (
         <Link href={`/researcher/${researcherId}`} style={linkStyle}>
           내 리포트

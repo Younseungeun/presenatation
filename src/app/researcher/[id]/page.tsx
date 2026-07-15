@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/server/db";
+import { getResearcherFinance } from "@/server/financeQueries";
 import { getResearcherDashboard, type DashboardReport } from "@/server/reportQueries";
 import { ReportActions } from "./ReportActions";
 import styles from "../researcher.module.css";
@@ -50,8 +51,10 @@ export default async function ResearcherDashboard({
   const { id } = await params;
   const data = await getResearcherDashboard(prisma, id);
   if (!data) notFound();
+  const finance = await getResearcherFinance(prisma, id);
 
   const name = data.user.penName ?? data.user.email;
+  const payoutByReport = new Map(finance.byReport.map((r) => [r.reportId, r]));
 
   return (
     <main className={styles.page}>
@@ -68,6 +71,27 @@ export default async function ResearcherDashboard({
         리포트 {data.reports.length}건 · 게시하면 예측 카드가 잠기고 판정·정산이 자동으로
         진행됩니다.
       </p>
+
+      <div className={styles.statGrid}>
+        <div className={styles.stat}>
+          <div className={styles.statLabel}>누적 판매</div>
+          <div className={styles.statValue}>{finance.totals.salesCount}건</div>
+        </div>
+        <div className={styles.stat}>
+          <div className={styles.statLabel}>에스크로 보관 중</div>
+          <div className={styles.statValue}>{finance.totals.heldKrw.toLocaleString()}원</div>
+        </div>
+        <div className={styles.stat}>
+          <div className={styles.statLabel}>확정 정산액</div>
+          <div className={styles.statValue} style={{ color: "var(--pos)" }}>
+            {finance.totals.payoutKrw.toLocaleString()}원
+          </div>
+        </div>
+        <div className={styles.stat}>
+          <div className={styles.statLabel}>구매자 환불</div>
+          <div className={styles.statValue}>{finance.totals.refundedKrw.toLocaleString()}원</div>
+        </div>
+      </div>
 
       {data.reports.length === 0 ? (
         <div className={styles.empty}>
@@ -91,6 +115,21 @@ export default async function ResearcherDashboard({
               <span>선결제 {report.prepaymentRatio}%</span>
               {report.feeRateBp != null && <span>수수료 {report.feeRateBp / 100}%</span>}
               <span>구매 {report._count.purchases}건</span>
+              {(() => {
+                const f = payoutByReport.get(report.id);
+                if (!f) return null;
+                return (
+                  <>
+                    {f.heldKrw > 0 && <span>보관 {f.heldKrw.toLocaleString()}원</span>}
+                    {f.payoutKrw > 0 && (
+                      <span style={{ color: "var(--pos)", fontWeight: 700 }}>
+                        정산 {f.payoutKrw.toLocaleString()}원
+                      </span>
+                    )}
+                    {f.refundedKrw > 0 && <span>환불 {f.refundedKrw.toLocaleString()}원</span>}
+                  </>
+                );
+              })()}
             </div>
             <ReportActions reportId={report.id} status={report.status} />
           </div>
