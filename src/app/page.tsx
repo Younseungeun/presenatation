@@ -17,7 +17,7 @@ export default function Home() {
         </ul>
         <div className={styles.ctas}>
           <Link className={styles.primary} href="/leaderboard">
-            적중률 리더보드 보기
+            리더보드에서 리서처 찾기
           </Link>
         </div>
       </main>

@@ -29,8 +29,14 @@ function requireHeader(req: NextRequest, name: string): string {
 /** 리서처 식별 (리포트 게시·철회) */
 export const requireResearcherId = (req: NextRequest) => requireHeader(req, 'x-researcher-id');
 
-/** 사용자 식별 (구매) */
-export const requireUserId = (req: NextRequest) => requireHeader(req, 'x-user-id');
+/** 사용자 식별 (구매) — 헤더 우선, 화면은 데모 신원 쿠키 폴백 */
+export function requireUserId(req: NextRequest): string {
+  const id = req.headers.get('x-user-id') ?? req.cookies.get('demo-user-id')?.value;
+  if (!id) {
+    throw new HttpError(401, '로그인이 필요합니다 (인증 스텁)');
+  }
+  return id;
+}
 
 const PRISMA_STATUS: Record<string, { status: number; message: string }> = {
   P2025: { status: 404, message: '리소스를 찾을 수 없습니다' },
