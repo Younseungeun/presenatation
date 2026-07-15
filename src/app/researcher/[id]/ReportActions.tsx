@@ -4,13 +4,11 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "../researcher.module.css";
 
-// 게시·철회는 기존 API를 호출한다 (인증은 헤더 스텁).
+// 게시·철회는 API를 호출한다 (인증은 세션, 소유권은 서버가 검증).
 export function ReportActions({
-  researcherId,
   reportId,
   status,
 }: {
-  researcherId: string;
   reportId: string;
   status: string;
 }) {
@@ -22,10 +20,7 @@ export function ReportActions({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reports/${reportId}/${action}`, {
-        method: "POST",
-        headers: { "x-researcher-id": researcherId },
-      });
+      const res = await fetch(`/api/reports/${reportId}/${action}`, { method: "POST" });
       const body = await res.json();
       if (!res.ok) {
         setError(body.issues ? body.issues.join(" / ") : body.error ?? "실패");

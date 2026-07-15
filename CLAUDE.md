@@ -263,7 +263,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 139건, 브랜치 `claude/session-start-59rfim`.
+테스트 154건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -282,9 +282,13 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 - 점수 집계: Judgment.score를 시즌(분기)·자산군별 합산 → 마이너스 규율·등급 평가에 연동
 - 시즌 재산정 배치: 분기 경계에서 직전 시즌 점수로 전면 재평가, 승급/강등 TierHistory 기록,
   새 시즌 점수 0 시작(게시 정지 자동 해제) (npm run batch:season)
+- 본인 인증·세션: CI 해시 기반 1인 1계정(계정 재생성 세탁 차단), 서명 쿠키 세션,
+  본인 인증 공급자 추상화(스텁→PASS/NICE 교체 대비), 리서처 전환, API 세션 인증 (§2.3~2.4)
+- 화면(iOS·토스풍, 화이트+민트 #99FFCC): 홈·리더보드(자산군별)·공개 프로필·리포트 상세·
+  구매·리서처 대시보드·리포트 작성·로그인
 
 **미구현 (다음 단계)**
 - 강등 시 신규 구독 판매 제한 (구독 상품 도입 시)
 - 환불 실행(PG 취소/계좌이체 연동 — 현재는 Settlement 기록까지), 리서처 정산금 출금
-- 본인 인증(현재 헤더 스텁), 웹 결제(PG) 연동, 화면(리더보드 스텁만 존재)
+- 본인 인증 실공급자(PASS/NICE) 연동, 웹 결제(PG) 연동
 - 챌린저 상대평가, 난이도 가중 점수(영업비밀 — 설계 자체를 비공개 유지)

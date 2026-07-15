@@ -92,7 +92,7 @@ export default async function ResearcherDashboard({
               {report.feeRateBp != null && <span>수수료 {report.feeRateBp / 100}%</span>}
               <span>구매 {report._count.purchases}건</span>
             </div>
-            <ReportActions researcherId={id} reportId={report.id} status={report.status} />
+            <ReportActions reportId={report.id} status={report.status} />
           </div>
         ))
       )}

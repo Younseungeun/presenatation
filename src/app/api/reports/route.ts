@@ -32,7 +32,7 @@ const bodySchema = z.object({
 /** 리포트 초안 생성 (예측 카드 포함) */
 export async function POST(req: NextRequest) {
   try {
-    const researcherId = requireResearcherId(req);
+    const researcherId = await requireResearcherId(prisma);
     const body = bodySchema.parse(await req.json());
     const report = await createDraftReport(prisma, { researcherId, ...body });
     return NextResponse.json(report, { status: 201 });

@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { prisma } from "@/server/db";
+import { getSessionUserId } from "@/server/session";
+import { AppBarUser } from "./AppBarUser";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -8,11 +11,22 @@ export const metadata: Metadata = {
     "성과 검증형 리서치 마켓플레이스 — 예측이 시장 데이터로 자동 검증되는 리포트 플랫폼",
 };
 
-export default function RootLayout({
+async function currentUser() {
+  const userId = await getSessionUserId();
+  if (!userId) return null;
+  return prisma.user.findUnique({
+    where: { id: userId },
+    select: { penName: true, researcherProfile: { select: { id: true } } },
+  });
+}
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const user = await currentUser();
+
   return (
     <html lang="ko">
       <body>
@@ -23,12 +37,19 @@ export default function RootLayout({
               리서치마켓
             </Link>
             <div style={{ flex: 1 }} />
-            <Link
-              href="/leaderboard"
-              style={{ fontSize: 14, fontWeight: 600, color: "var(--text-weak)" }}
-            >
-              리더보드
-            </Link>
+            {user ? (
+              <AppBarUser
+                penName={user.penName}
+                researcherId={user.researcherProfile?.id ?? null}
+              />
+            ) : (
+              <Link
+                href="/login"
+                style={{ fontSize: 14, fontWeight: 700, color: "var(--brand-strong)" }}
+              >
+                로그인
+              </Link>
+            )}
           </div>
         </header>
         {children}

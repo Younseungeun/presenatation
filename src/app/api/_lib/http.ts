@@ -1,8 +1,9 @@
-import { Prisma } from '@prisma/client';
-import { NextResponse, type NextRequest } from 'next/server';
+import { Prisma, type PrismaClient } from '@prisma/client';
+import { NextResponse } from 'next/server';
 import { PublishValidationError } from '@/domain/publishReport';
+import { getSessionUserId } from '@/server/session';
 
-// API 공통: 인증 스텁 + 에러 매핑
+// API 공통: 세션 인증 + 에러 매핑
 
 export class HttpError extends Error {
   constructor(
@@ -14,28 +15,19 @@ export class HttpError extends Error {
   }
 }
 
-/**
- * 헤더 기반 인증 스텁 — 본인 인증(1인 1계정) 구현 전까지 사용.
- * TODO: 세션 기반 인증으로 교체 (CLAUDE.md 6.3절 7번)
- */
-function requireHeader(req: NextRequest, name: string): string {
-  const value = req.headers.get(name);
-  if (!value) {
-    throw new HttpError(401, `${name} 헤더가 필요합니다 (인증 스텁)`);
-  }
-  return value;
+/** 로그인 사용자 id (구매 등). 세션 없으면 401 */
+export async function requireUserId(): Promise<string> {
+  const userId = await getSessionUserId();
+  if (!userId) throw new HttpError(401, '로그인이 필요합니다');
+  return userId;
 }
 
-/** 리서처 식별 (리포트 게시·철회) */
-export const requireResearcherId = (req: NextRequest) => requireHeader(req, 'x-researcher-id');
-
-/** 사용자 식별 (구매) — 헤더 우선, 화면은 데모 신원 쿠키 폴백 */
-export function requireUserId(req: NextRequest): string {
-  const id = req.headers.get('x-user-id') ?? req.cookies.get('demo-user-id')?.value;
-  if (!id) {
-    throw new HttpError(401, '로그인이 필요합니다 (인증 스텁)');
-  }
-  return id;
+/** 로그인 사용자의 리서처 프로필 id (게시·철회). 프로필 없으면 403 */
+export async function requireResearcherId(prisma: PrismaClient): Promise<string> {
+  const userId = await requireUserId();
+  const profile = await prisma.researcherProfile.findUnique({ where: { userId } });
+  if (!profile) throw new HttpError(403, '리서처로 활동하려면 먼저 리서처 전환이 필요합니다');
+  return profile.id;
 }
 
 const PRISMA_STATUS: Record<string, { status: number; message: string }> = {

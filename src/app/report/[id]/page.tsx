@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDemoUserId } from "@/server/currentUser";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
+import { getSessionUserId } from "@/server/session";
 import { PurchaseButton } from "./PurchaseButton";
 import styles from "../../market.module.css";
 
@@ -20,7 +20,7 @@ export default async function ReportDetail({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const viewerId = await getDemoUserId();
+  const viewerId = await getSessionUserId();
   const data = await getReportDetail(prisma, id, viewerId);
   if (!data) notFound();
 

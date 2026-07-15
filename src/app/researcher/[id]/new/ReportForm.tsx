@@ -60,7 +60,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
     try {
       const res = await fetch("/api/reports", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-researcher-id": researcherId },
+        headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
       });
       const body = await res.json();
