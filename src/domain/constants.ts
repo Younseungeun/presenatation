@@ -11,6 +11,9 @@ export const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
   CRYPTO: '코인',
 };
 
+export const USER_ROLES = ['USER', 'OPERATOR'] as const;
+export type UserRole = (typeof USER_ROLES)[number];
+
 export const TIERS = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'CHALLENGER'] as const;
 export type Tier = (typeof TIERS)[number];
 

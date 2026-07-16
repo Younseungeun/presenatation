@@ -1,26 +1,27 @@
-import type { Prisma, PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import type { Direction, TargetType } from '@/domain/constants';
 import { JudgmentDeferredError, runJudgmentFromRegistry } from '@/domain/judgmentPipeline';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { scoreJudgedCard } from '@/domain/scoring';
-import { settle } from '@/domain/settlement';
 import { toJudgeableCard } from './cardMapper';
+import { buildJudgmentWrites } from './judgmentWriter';
 
 // 판정 배치: 시한이 지난 미판정 카드를 찾아 판정 → 점수 산정 → 에스크로 정산까지
 // 하나의 트랜잭션으로 실행한다 (docs/market-data.md §4).
 // - 멱등성: Judgment.predictionCardId unique — 재실행해도 중복 판정 불가
 // - 데이터 미도달: 이월 (deferred) — 다음 배치가 다시 시도
-// - 이월이 5영업일을 넘는 카드는 운영자 보류 큐 대상 (요약의 staleDeferred로 보고)
+// - 이월이 STALE_DEFER_DAYS를 넘는 카드는 운영자 보류 큐 대상 (manualJudgmentService)
 
 export interface BatchSummary {
   judged: number;
   deferred: number;
   failed: number;
-  /** 시한이 7일 이상 지났는데 아직 판정 못 한 카드 — 수동 확인 필요 */
+  /** 시한이 STALE_DEFER_DAYS 이상 지났는데 아직 판정 못 한 카드 — 수동 확인 필요 */
   staleDeferred: string[];
 }
 
-const STALE_DEFER_DAYS = 7;
+/** 이월이 이 일수를 넘으면 운영자 보류 큐 대상 */
+export const STALE_DEFER_DAYS = 7;
 
 export async function judgeAndSettleDueCards(
   prisma: PrismaClient,
@@ -61,61 +62,12 @@ export async function judgeAndSettleDueCards(
         outcome: result.outcome,
       });
 
-      const writes: Prisma.PrismaPromise<unknown>[] = [
-        prisma.judgment.create({
-          data: {
-            predictionCardId: card.id,
-            outcome: result.outcome,
-            undecidableReason: result.undecidableReason ?? null,
-            settledPrice: result.settledPrice ?? null,
-            realizedReturnPct,
-            score,
-            dataSource: audit.dataSource,
-            marketSnapshotJson: JSON.stringify(audit),
-            judgedAt: now,
-          },
-        }),
-      ];
-
-      // 소급 확정된 기준가를 카드에 기록 (감사 추적)
-      if (resolvedBasePrice != null) {
-        writes.push(
-          prisma.predictionCard.update({
-            where: { id: card.id },
-            data: { basePrice: resolvedBasePrice },
-          }),
-        );
-      }
-
-      // 에스크로 3분기 정산 — 금액 보존 불변식은 settle()이 보장.
-      // 환불은 항상 현금(확정) — Settlement 기록이 PG 취소/계좌이체 지시서 역할.
-      // 전액 환불 건만 REFUNDED로 구분.
-      for (const p of card.report.purchases) {
-        const s = settle({
-          amountKrw: p.amountKrw,
-          feeRateBp: card.report.feeRateBp!,
-          prepaymentRatio: card.report.prepaymentRatio,
-          outcome: result.outcome,
-        });
-        writes.push(
-          prisma.settlement.create({
-            data: {
-              purchaseId: p.id,
-              outcome: s.outcome,
-              researcherPayoutKrw: s.researcherPayoutKrw,
-              platformFeeKrw: s.platformFeeKrw,
-              buyerRefundKrw: s.buyerRefundKrw,
-              refundType: s.refundType,
-              settledAt: now,
-            },
-          }),
-          prisma.purchase.update({
-            where: { id: p.id },
-            data: { escrowStatus: s.buyerRefundKrw === p.amountKrw ? 'REFUNDED' : 'SETTLED' },
-          }),
-        );
-      }
-
+      const writes = buildJudgmentWrites(
+        prisma,
+        card,
+        { result, realizedReturnPct, score, dataSource: audit.dataSource, audit, resolvedBasePrice },
+        now,
+      );
       await prisma.$transaction(writes);
       summary.judged++;
     } catch (e) {

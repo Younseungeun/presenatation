@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { PublishValidationError } from '@/domain/publishReport';
+import { ManualJudgmentError } from '@/server/manualJudgmentService';
 import { getSessionUserId } from '@/server/session';
 
 // API 공통: 세션 인증 + 에러 매핑
@@ -19,6 +20,14 @@ export class HttpError extends Error {
 export async function requireUserId(): Promise<string> {
   const userId = await getSessionUserId();
   if (!userId) throw new HttpError(401, '로그인이 필요합니다');
+  return userId;
+}
+
+/** 운영자 사용자 id (판정 보류 큐 수동 판정). OPERATOR 아니면 403 */
+export async function requireOperatorId(prisma: PrismaClient): Promise<string> {
+  const userId = await requireUserId();
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (user?.role !== 'OPERATOR') throw new HttpError(403, '운영자 권한이 필요합니다');
   return userId;
 }
 
@@ -41,6 +50,9 @@ export function toErrorResponse(e: unknown): NextResponse {
   }
   if (e instanceof PublishValidationError) {
     return NextResponse.json({ error: '검증 실패', issues: e.issues }, { status: 400 });
+  }
+  if (e instanceof ManualJudgmentError) {
+    return NextResponse.json({ error: e.message }, { status: 400 });
   }
   if (e instanceof Prisma.PrismaClientKnownRequestError && PRISMA_STATUS[e.code]) {
     const { status, message } = PRISMA_STATUS[e.code];

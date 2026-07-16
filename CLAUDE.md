@@ -2,8 +2,7 @@
 
 > 이 문서는 기획 확정 사항의 단일 기준(Single Source of Truth)이다.
 > Claude Code 프로젝트 루트에 `CLAUDE.md`로 두고 개발 맥락으로 사용한다.
-> 최종 업데이트: 2026-07-13 (v1.1: 자산 범위 확정, 자산군별 최소 시한·기준가 규칙,
-> 판정 데이터 소스 부분 확정, 구현 현황 §7 추가)
+> 최종 업데이트: 2026-07-16 (v1.1.1: 운영자 판정 보류 큐 구현 반영 — §7)
 
 ---
 
@@ -265,7 +264,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 154건, 브랜치 `claude/session-start-59rfim`.
+테스트 163건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -281,6 +280,9 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 - 구매·에스크로: 자기 구매·중복·미인증·시한 경과 차단, HELD 보관 (PG는 스텁) (§3.3)
 - 판정 배치: 시한 도래 카드 판정→점수 산정→3분기 정산(환불 지시 기록)을 단일 트랜잭션으로,
   멱등 재실행·이월·보류 큐 보고 (npm run batch:judge)
+- 운영자 판정 보류 큐: 자동 판정이 7일 이상 이월된 카드를 운영자(role=OPERATOR,
+  npm run op:grant)가 검증 시세 입력 또는 판정 불가로 수동 판정 — 점수·정산은 자동 경로와
+  동일 함수 공유, 사유·입력값·운영자 식별자를 감사 스냅샷에 기록. /admin/judgments 화면 + API
 - 점수 집계: Judgment.score를 시즌(분기)·자산군별 합산 → 마이너스 규율·등급 평가에 연동
 - 시즌 재산정 배치: 분기 경계에서 직전 시즌 점수로 전면 재평가, 승급/강등 TierHistory 기록,
   새 시즌 점수 0 시작(게시 정지 자동 해제) (npm run batch:season)

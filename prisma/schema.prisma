@@ -18,6 +18,7 @@ model User {
   penName          String? // 필명 (공개 표시명)
   identityVerified Boolean  @default(false) // 본인 인증 완료 여부
   identityHash     String?  @unique // 실명 인증 CI 해시 — 계정 재생성 세탁 차단
+  role             String   @default("USER") // USER | OPERATOR — 운영자는 판정 보류 큐 수동 판정 가능
   createdAt        DateTime @default(now())
 
   researcherProfile ResearcherProfile?
