@@ -1,5 +1,6 @@
 import type {
   DailyQuote,
+  InstrumentListing,
   MarketDataProvider,
   SecurityStatus,
 } from '@/domain/marketData';
@@ -12,6 +13,16 @@ export class FixtureMarketDataProvider implements MarketDataProvider {
   private quotes = new Map<string, DailyQuote[]>();
   private statuses = new Map<string, SecurityStatus>();
   private currentPrices = new Map<string, number>();
+  private instruments: InstrumentListing[] = [];
+
+  setInstruments(listings: InstrumentListing[]): this {
+    this.instruments = listings;
+    return this;
+  }
+
+  async listInstruments(): Promise<InstrumentListing[]> {
+    return this.instruments;
+  }
 
   setQuotes(ticker: string, quotes: DailyQuote[]): this {
     this.quotes.set(ticker, quotes);

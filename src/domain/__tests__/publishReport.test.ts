@@ -84,25 +84,7 @@ describe('validateCardDraft', () => {
     expect(validateCardDraft({ ...crypto, targetValue: 10 }, NOW)).toEqual([]);
   });
 
-  it('하락 예측은 숏 실행 수단이 있는 종목만: KR 개별주식선물·US 인버스 ETF 유니버스', () => {
-    // KR: 삼성전자(선물 상장)는 허용, 잡주(가상의 6자리 코드)는 거부
-    expect(validateCardDraft({ ...validCard, direction: 'DOWN' }, NOW)).toEqual([]);
-    const krMinor = { ...validCard, ticker: '123456', assetName: '잡주' };
-    expect(validateCardDraft({ ...krMinor, direction: 'DOWN' }, NOW).join()).toMatch(/개별주식선물/);
-    expect(validateCardDraft(krMinor, NOW)).toEqual([]); // 상승 예측은 제한 없음
-
-    // US: TSLA(인버스 ETF 존재)는 허용, 소형주는 거부
-    const us = { ...validCard, assetClass: 'US_EQUITY' as const, assetName: 'x' };
-    expect(validateCardDraft({ ...us, ticker: 'TSLA', direction: 'DOWN' }, NOW)).toEqual([]);
-    expect(
-      validateCardDraft({ ...us, ticker: 'XYZQ', direction: 'DOWN' }, NOW).join(),
-    ).toMatch(/인버스/);
-    expect(validateCardDraft({ ...us, ticker: 'XYZQ' }, NOW)).toEqual([]);
-
-    // 코인은 선물·마진으로 어느 종목이든 숏 가능 → 제한 없음
-    const crypto = { ...validCard, assetClass: 'CRYPTO' as const, ticker: 'KRW-XRP', targetValue: 15 };
-    expect(validateCardDraft({ ...crypto, direction: 'DOWN' }, NOW)).toEqual([]);
-  });
+  // 종목 유니버스·하락 예측 제한은 종목 마스터(DB) 검증으로 이동 — instrumentService.test.ts
 
   it('신뢰도·안정성·수익성 자기 평가는 1~10 정수', () => {
     expect(validateCardDraft({ ...validCard, confidence: 11 }, NOW)).not.toEqual([]);

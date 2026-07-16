@@ -21,6 +21,13 @@ export interface SecurityStatus {
   halted: boolean;
 }
 
+/** 공급자가 지원하는 상장 종목 1건 — 종목 마스터(Instrument) 동기화 입력 */
+export interface InstrumentListing {
+  ticker: string;
+  name: string;
+  currency: string;
+}
+
 export interface MarketDataProvider {
   /** 소스 식별자 — 감사 스냅샷에 기록 */
   readonly sourceId: string;
@@ -33,6 +40,11 @@ export interface MarketDataProvider {
    * 실시간 기준가가 있는 자산군은 단기(1일~) 예측을 허용할 수 있다 (publishReport.ts).
    */
   getCurrentPrice?(ticker: string): Promise<number>;
+  /**
+   * 공급자가 시세를 제공하는 전체 종목 목록 (지원 소스만).
+   * 종목 마스터(Instrument) 동기화 배치가 사용 — 카드 작성은 이 유니버스 안에서만 가능하다.
+   */
+  listInstruments?(): Promise<InstrumentListing[]>;
 }
 
 // 자산군별 거래일 기준 시간대. 판정 날짜 환산의 단일 기준 (docs/market-data.md §1)

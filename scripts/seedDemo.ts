@@ -5,6 +5,7 @@ import { PrismaClient } from '@prisma/client';
 import { FixtureMarketDataProvider } from '../src/infra/marketData/fixtureProvider';
 import type { ProviderRegistry } from '../src/domain/marketData';
 import { judgeAndSettleDueCards } from '../src/server/judgmentBatch';
+import { applyInstrumentListings } from '../src/server/instrumentService';
 import { purchaseReport } from '../src/server/purchaseService';
 import { createDraftReport, publishReport } from '../src/server/reportService';
 
@@ -27,6 +28,13 @@ function reg(ticker: string, current: number, deadlineClose: number): ProviderRe
 }
 
 async function main() {
+  // 카드 초안·게시는 종목 마스터 검증을 거친다 — 데모 종목을 먼저 시드
+  await applyInstrumentListings(prisma, 'CRYPTO', 'seed', [
+    { ticker: 'KRW-BTC', name: '비트코인', currency: 'KRW' },
+    { ticker: 'KRW-ETH', name: '이더리움', currency: 'KRW' },
+    { ticker: 'KRW-SOL', name: '솔라나', currency: 'KRW' },
+  ]);
+
   const r = await prisma.user.upsert({
     where: { email: 'demo-researcher@test.io' },
     update: {},

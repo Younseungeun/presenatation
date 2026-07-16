@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTestDb } from './helpers/testDb';
+import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import { recalcSeasonTiers } from '../seasonRecalcService';
 import { nextSeasonStart, seasonStart } from '../scoreService';
 
@@ -64,6 +64,7 @@ async function seedResearcher(email: string, tier: string, q3Score: number | nul
 
 beforeAll(async () => {
   prisma = createTestDb('season-recalc-');
+  await seedTestInstruments(prisma);
 });
 
 afterAll(async () => {

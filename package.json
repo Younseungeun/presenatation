@@ -10,6 +10,7 @@
     "test": "vitest run",
     "db:migrate": "prisma migrate dev",
     "smoke:market": "tsx scripts/smokeMarketData.ts",
+    "sync:instruments": "tsx scripts/syncInstruments.ts",
     "seed:dev": "tsx scripts/seedDev.ts",
     "batch:judge": "tsx scripts/runJudgmentBatch.ts",
     "op:grant": "tsx scripts/grantOperator.ts",

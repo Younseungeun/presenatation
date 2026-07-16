@@ -9,7 +9,6 @@ import type {
 import { calcFeeRateBp } from './fees';
 import { marketClock } from './marketData';
 import { disciplineFor, MIN_MAGNITUDE_PCT, targetPriceToMagnitudePct } from './scoring';
-import { isShortAllowed, SHORT_RESTRICTION_NOTE } from './shortableUniverse';
 
 // 리포트 게시 검증 규칙 (순수 로직).
 // 게시는 되돌릴 수 없는 행위다: 수수료·선결제 비율·기준가가 고정되고 예측 카드가 잠긴다.
@@ -174,12 +173,8 @@ export function validateCardDraft(card: CardDraft, now = new Date()): string[] {
   if (card.assetName.trim().length === 0) {
     issues.push('자산명이 비어 있습니다');
   }
-  // 하락 예측은 구매자가 실제 숏 포지션을 잡을 수 있는 종목만 허용 (shortableUniverse.ts)
-  if (card.direction === 'DOWN' && !isShortAllowed(card.assetClass, card.ticker)) {
-    issues.push(
-      `${SHORT_RESTRICTION_NOTE[card.assetClass as Exclude<AssetClass, 'CRYPTO'>]}: ${card.ticker}`,
-    );
-  }
+  // 종목 유니버스·하락 예측 가능 여부는 종목 마스터(DB) 기준 — 서비스 레이어에서 검증
+  // (instrumentService.validateListedInstrument)
   if (!Number.isFinite(card.targetValue) || card.targetValue <= 0) {
     issues.push(`목표 수치는 양수여야 합니다 (RETURN_PCT는 등락률 크기): ${card.targetValue}`);
   }

@@ -83,6 +83,24 @@ model PredictionCard {
   judgment Judgment?
 }
 
+// 종목 마스터: 시세 공급자가 실제로 지원하는 종목 유니버스.
+// 동기화 소스: 업비트 market/all(코인), 금융위 시세정보(국내), Twelve Data stocks(미국).
+// 예측 카드는 이 안의 활성 종목만 선택 가능 → 게시되는 모든 카드의 판정 가능성이 보장된다.
+model Instrument {
+  id         String   @id @default(cuid())
+  assetClass String // KR_EQUITY | US_EQUITY | CRYPTO
+  ticker     String // 자산군별 표기 (6자리 코드 | 심볼 | KRW-마켓코드)
+  name       String // 종목명 (검색·표시용, 공급자 목록 기준)
+  currency   String   @default("KRW")
+  shortable  Boolean  @default(false) // 하락 예측 게시 가능 — 숏 실행 수단 존재 (코인은 전부 true)
+  active     Boolean  @default(true) // 상폐·거래지원종료 시 false — 신규 게시만 차단
+  source     String // 유니버스 출처 (upbit | fsc-data.go.kr | twelvedata | seed)
+  syncedAt   DateTime @default(now())
+
+  @@unique([assetClass, ticker])
+  @@index([assetClass, name])
+}
+
 // 판정: 시장 데이터 자동 판정 결과. 판정 불가 시 무효 처리 + 전액 환불.
 model Judgment {
   id               String   @id @default(cuid())

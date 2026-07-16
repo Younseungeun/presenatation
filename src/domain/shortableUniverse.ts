@@ -15,6 +15,9 @@ import type { AssetClass } from './constants';
 // 목록은 초안(운영 확정 필요): KR은 KRX 개별주식선물 상장 종목 전체로,
 // US는 인버스 ETF 신규 상장·상폐를 반영해 운영 데이터로 교체한다.
 // 상장 폐지·선물 상폐 시 기존 카드는 유지(판정 불가 규칙이 처리), 신규 게시만 막힌다.
+//
+// 역할: 이 목록은 종목 마스터(Instrument.shortable) 동기화의 "원천 데이터"다.
+// 런타임 검증·검색은 전부 종목 마스터 DB를 기준으로 한다 (instrumentService).
 
 export interface ShortableStock {
   ticker: string;

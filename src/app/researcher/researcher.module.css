@@ -265,3 +265,46 @@
   flex-wrap: wrap;
   margin-top: 4px;
 }
+
+/* 종목 마스터 검색 (카드 작성 — 지원 종목만 선택 가능) */
+.searchWrap {
+  position: relative;
+}
+.searchResults {
+  position: absolute;
+  top: calc(100% - 18px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 32px rgba(25, 31, 40, 0.12);
+  max-height: 260px;
+  overflow-y: auto;
+}
+.searchItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 14px;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+.searchItem:hover {
+  background: var(--brand-soft);
+}
+.searchItem span {
+  color: var(--text-weak);
+  font-size: 12.5px;
+}

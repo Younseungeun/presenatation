@@ -1,5 +1,6 @@
 import type {
   DailyQuote,
+  InstrumentListing,
   MarketDataProvider,
   SecurityStatus,
 } from '@/domain/marketData';
@@ -11,6 +12,7 @@ import type {
 
 const BASE_URL = 'https://api.upbit.com/v1/candles/days';
 const TICKER_URL = 'https://api.upbit.com/v1/ticker';
+const MARKET_ALL_URL = 'https://api.upbit.com/v1/market/all';
 const MAX_COUNT_PER_CALL = 200;
 
 /** 업비트 일봉 응답 항목 (사용 필드만) */
@@ -22,6 +24,19 @@ interface UpbitCandle {
   low_price: number;
   trade_price: number; // 종가
   candle_acc_trade_volume: number;
+}
+
+/** 업비트 market/all 응답 항목 (사용 필드만) */
+interface UpbitMarket {
+  market: string; // "KRW-BTC"
+  korean_name: string;
+}
+
+/** market/all 응답 → KRW 마켓 종목 목록 (순수 함수 — 네트워크 없이 테스트) */
+export function parseUpbitMarkets(markets: UpbitMarket[]): InstrumentListing[] {
+  return markets
+    .filter((m) => m.market.startsWith('KRW-'))
+    .map((m) => ({ ticker: m.market, name: m.korean_name, currency: 'KRW' }));
 }
 
 /** 응답 → DailyQuote[] 날짜 오름차순 (순수 함수 — 네트워크 없이 테스트) */
@@ -83,6 +98,15 @@ export class UpbitMarketDataProvider implements MarketDataProvider {
 
   getSecurityStatus(ticker: string, asOf: string): Promise<SecurityStatus> {
     return this.statusResolver(ticker, asOf);
+  }
+
+  /** 거래 지원 중인 KRW 마켓 전체 — 종목 마스터 동기화용 */
+  async listInstruments(): Promise<InstrumentListing[]> {
+    const res = await this.fetchImpl(`${MARKET_ALL_URL}?isDetails=false`);
+    if (!res.ok) {
+      throw new Error(`업비트 마켓 목록 API HTTP ${res.status}`);
+    }
+    return parseUpbitMarkets((await res.json()) as UpbitMarket[]);
   }
 
   /** 실시간 현재가 — 코인 게시 시점 기준가 확정용 (단타 예측의 조작 방지 핵심) */

@@ -1,5 +1,6 @@
 import type {
   DailyQuote,
+  InstrumentListing,
   MarketDataProvider,
   SecurityStatus,
 } from '@/domain/marketData';
@@ -15,6 +16,7 @@ const BASE_URL =
 interface FscPriceItem {
   basDt: string; // 기준일자 YYYYMMDD
   srtnCd: string; // 단축코드
+  itmsNm?: string; // 종목명 (종목 목록 동기화에 사용)
   mkp: string; // 시가
   hipr: string; // 고가
   lopr: string; // 저가
@@ -25,8 +27,21 @@ interface FscPriceItem {
 interface FscResponse {
   response?: {
     header?: { resultCode?: string; resultMsg?: string };
-    body?: { items?: { item?: FscPriceItem[] | FscPriceItem } };
+    body?: {
+      totalCount?: number;
+      items?: { item?: FscPriceItem[] | FscPriceItem };
+    };
   };
+}
+
+/** 응답 항목 배열 정규화 (단건이면 객체로 오는 공공데이터 응답 관행 처리) */
+function fscItems(json: FscResponse): FscPriceItem[] {
+  const code = json.response?.header?.resultCode;
+  if (code !== undefined && code !== '00') {
+    throw new Error(`금융위 시세 API 오류: ${code} ${json.response?.header?.resultMsg ?? ''}`);
+  }
+  const raw = json.response?.body?.items?.item;
+  return raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
 }
 
 /** YYYYMMDD → YYYY-MM-DD */
@@ -36,13 +51,7 @@ function toIsoDate(basDt: string): string {
 
 /** 응답 JSON → DailyQuote[] (순수 함수 — 네트워크 없이 테스트) */
 export function parseFscPriceResponse(json: FscResponse): DailyQuote[] {
-  const code = json.response?.header?.resultCode;
-  if (code !== undefined && code !== '00') {
-    throw new Error(`금융위 시세 API 오류: ${code} ${json.response?.header?.resultMsg ?? ''}`);
-  }
-  const raw = json.response?.body?.items?.item;
-  const items = raw === undefined ? [] : Array.isArray(raw) ? raw : [raw];
-  return items
+  return fscItems(json)
     .map((it) => ({
       date: toIsoDate(it.basDt),
       open: Number(it.mkp),
@@ -90,5 +99,47 @@ export class FscMarketDataProvider implements MarketDataProvider {
 
   getSecurityStatus(ticker: string, asOf: string): Promise<SecurityStatus> {
     return this.statusResolver(ticker, asOf);
+  }
+
+  /**
+   * 상장 종목 전체 — 종목 마스터 동기화용.
+   * 별도 종목 목록 API가 없어 최근 거래일의 전 종목 시세를 페이지네이션해 목록을 만든다
+   * (최근 10일 중 데이터가 있는 첫 날짜 사용 — 휴장일 회피).
+   */
+  async listInstruments(now = new Date()): Promise<InstrumentListing[]> {
+    for (let back = 1; back <= 10; back++) {
+      const d = new Date(now.getTime() - back * 86_400_000);
+      const basDt = d.toISOString().slice(0, 10).replaceAll('-', '');
+      const listings = await this.listInstrumentsAt(basDt);
+      if (listings.length > 0) return listings;
+    }
+    throw new Error('금융위 종목 목록: 최근 10일 내 거래일 데이터가 없습니다');
+  }
+
+  private async listInstrumentsAt(basDt: string): Promise<InstrumentListing[]> {
+    const byTicker = new Map<string, InstrumentListing>();
+    for (let pageNo = 1; ; pageNo++) {
+      const params = new URLSearchParams({
+        serviceKey: this.serviceKey,
+        resultType: 'json',
+        numOfRows: '1000',
+        pageNo: String(pageNo),
+        basDt,
+      });
+      const res = await this.fetchImpl(`${BASE_URL}?${params}`);
+      if (!res.ok) {
+        throw new Error(`금융위 시세 API HTTP ${res.status}`);
+      }
+      const json = (await res.json()) as FscResponse;
+      const items = fscItems(json);
+      for (const it of items) {
+        if (it.srtnCd && it.itmsNm) {
+          byTicker.set(it.srtnCd, { ticker: it.srtnCd, name: it.itmsNm, currency: 'KRW' });
+        }
+      }
+      const total = json.response?.body?.totalCount ?? 0;
+      if (items.length < 1000 || pageNo * 1000 >= total) break;
+    }
+    return [...byTicker.values()];
   }
 }

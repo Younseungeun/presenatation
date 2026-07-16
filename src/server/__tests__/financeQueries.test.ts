@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTestDb } from './helpers/testDb';
+import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { getBuyerPurchases, getResearcherFinance } from '../financeQueries';
@@ -67,6 +67,7 @@ async function publishAndBuy(ticker: string, deadline: Date) {
 
 beforeAll(async () => {
   prisma = createTestDb('finance-');
+  await seedTestInstruments(prisma);
 
   const r = await prisma.user.create({
     data: { email: 'r@f.io', identityVerified: true, researcherProfile: { create: {} } },

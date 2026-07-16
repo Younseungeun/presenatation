@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTestDb } from './helpers/testDb';
+import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import type { AssetClass } from '@/domain/constants';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
@@ -54,8 +54,9 @@ function draftInput() {
 /** 시간 고정이 필요한 테스트용 초안 생성 시각 (게시 시각들보다 앞) */
 const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 
-beforeAll(() => {
+beforeAll(async () => {
   prisma = createTestDb('report-service-');
+  await seedTestInstruments(prisma);
 });
 
 afterAll(async () => {

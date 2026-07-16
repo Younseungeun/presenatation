@@ -10,6 +10,7 @@ import {
   type CardDraft,
 } from '@/domain/publishReport';
 import { toCardDraft } from './cardMapper';
+import { validateListedInstrument } from './instrumentService';
 import { researcherSeasonScores } from './scoreService';
 
 // 리포트 생명주기: DRAFT → PUBLISHED → (철회 시) CLOSED
@@ -38,8 +39,17 @@ export async function createDraftReport(
     where: { id: input.researcherId },
   });
 
+  // 종목 마스터 검증: 시세 공급자 유니버스 안의 활성 종목만 허용 + 하락 예측 가능 여부
+  const instrument = await validateListedInstrument(
+    prisma,
+    input.card.assetClass,
+    input.card.ticker,
+    input.card.direction,
+  );
+
   // 초안 단계에서도 형식 오류는 즉시 돌려준다 (게시 시점 재검증은 별도)
   const issues = [
+    ...instrument.issues,
     ...validateCardDraft(input.card, now),
     ...validateConditions({
       priceKrw: input.priceKrw,
@@ -66,7 +76,8 @@ export async function createDraftReport(
           assetClass: input.card.assetClass,
           ticker: input.card.ticker,
           currency: input.card.assetClass === 'US_EQUITY' ? 'USD' : 'KRW',
-          assetName: input.card.assetName,
+          // 표시명은 종목 마스터 기준으로 정규화 — 입력값 위조 방지
+          assetName: instrument.name ?? input.card.assetName,
           direction: input.card.direction,
           targetType: input.card.targetType,
           targetValue: input.card.targetValue,
@@ -109,6 +120,17 @@ export async function publishReport(
   }
 
   const cardDraft = toCardDraft(card);
+
+  // 게시 시점 재검증: 초안 저장 후 상폐·거래지원종료(active=false)됐을 수 있다
+  const instrument = await validateListedInstrument(
+    prisma,
+    cardDraft.assetClass,
+    cardDraft.ticker,
+    cardDraft.direction,
+  );
+  if (instrument.issues.length > 0) {
+    throw new PublishValidationError(instrument.issues);
+  }
 
   // 소급 확정 모드(주식 단기 카드)는 시세 조회 없이 컷오프 규칙만 검증된다.
   // 그 외에는 외부 시세 조회(트랜잭션 밖)로 기준가를 게시 시점에 확정한다.

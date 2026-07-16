@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseUpbitCandles, UpbitMarketDataProvider } from '../upbitProvider';
+import { parseUpbitCandles, parseUpbitMarkets, UpbitMarketDataProvider } from '../upbitProvider';
 
 function candle(dateKst: string, close: number) {
   return {
@@ -54,6 +54,21 @@ describe('UpbitMarketDataProvider.getDailyQuotes', () => {
     await expect(provider.getDailyQuotes('KRW-BTC', '2026-07-01', '2026-07-11')).rejects.toThrow(
       /429/,
     );
+  });
+});
+
+describe('parseUpbitMarkets — 종목 마스터 동기화 입력', () => {
+  it('KRW 마켓만 종목 목록으로 변환 (BTC·USDT 마켓 제외)', () => {
+    const listings = parseUpbitMarkets([
+      { market: 'KRW-BTC', korean_name: '비트코인' },
+      { market: 'BTC-ETH', korean_name: '이더리움' },
+      { market: 'USDT-XRP', korean_name: '엑스알피' },
+      { market: 'KRW-SOL', korean_name: '솔라나' },
+    ]);
+    expect(listings).toEqual([
+      { ticker: 'KRW-BTC', name: '비트코인', currency: 'KRW' },
+      { ticker: 'KRW-SOL', name: '솔라나', currency: 'KRW' },
+    ]);
   });
 });
 

@@ -1,64 +1,101 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
 import { PRICE_GUIDE_KRW } from "@/domain/publishReport";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
-import { isShortAllowed, SHORT_RESTRICTION_NOTE, SHORTABLE_STOCKS } from "@/domain/shortableUniverse";
 import styles from "../../researcher.module.css";
 
 const RATING = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+interface InstrumentHit {
+  ticker: string;
+  name: string;
+  shortable: boolean;
+}
 
 export function ReportForm({ researcherId }: { researcherId: string }) {
   const router = useRouter();
   const [assetClass, setAssetClassState] = useState<AssetClass>("KR_EQUITY");
   const [direction, setDirection] = useState("UP");
-  const [ticker, setTicker] = useState("");
-  const [assetName, setAssetName] = useState("");
   const [targetType, setTargetType] = useState("RETURN_PCT");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
-  const sizeFloor = MIN_MAGNITUDE_PCT[assetClass];
-  const tickerHint =
-    assetClass === "KR_EQUITY"
-      ? "6자리 코드 (예: 005930)"
-      : assetClass === "US_EQUITY"
-        ? "심볼 (예: AAPL)"
-        : "업비트 마켓코드 (예: KRW-BTC)";
+  // 종목은 자유 입력이 아니라 종목 마스터(시세 공급자 유니버스) 검색·선택만 가능
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<InstrumentHit[]>([]);
+  const [selected, setSelected] = useState<InstrumentHit | null>(null);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 하락 예측 + 주식: 구매자가 숏 포지션을 잡을 수 있는 종목만 검색·선택 가능
-  const shortMode = direction === "DOWN" && assetClass !== "CRYPTO";
-  const shortable = SHORTABLE_STOCKS[assetClass];
+  const shortOnly = direction === "DOWN";
 
-  // 자산군·방향이 바뀌어 현재 종목이 숏 불가가 되면 비운다
-  function syncTicker(nextAssetClass: AssetClass, nextDirection: string) {
-    if (nextDirection === "DOWN" && !isShortAllowed(nextAssetClass, ticker)) {
-      setTicker("");
-      setAssetName("");
+  function runSearch(rawQuery: string, ac: AssetClass, shortOnlyFlag: boolean) {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    const q = rawQuery.trim();
+    if (!q) {
+      setHits([]);
+      setSearching(false);
+      return;
     }
+    setSearching(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const params = new URLSearchParams({
+          assetClass: ac,
+          q,
+          shortOnly: shortOnlyFlag ? "1" : "0",
+        });
+        const res = await fetch(`/api/instruments?${params}`);
+        setHits(res.ok ? await res.json() : []);
+      } catch {
+        setHits([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 250);
+  }
+
+  function onQueryChange(value: string) {
+    setQuery(value);
+    setSelected(null);
+    runSearch(value, assetClass, shortOnly);
+  }
+  function pick(hit: InstrumentHit) {
+    setSelected(hit);
+    setQuery(`${hit.name} (${hit.ticker})`);
+    setHits([]);
+  }
+  function clearSelection() {
+    setSelected(null);
+    setQuery("");
+    setHits([]);
   }
   function setAssetClass(next: AssetClass) {
     setAssetClassState(next);
-    if (next !== assetClass) {
-      setTicker("");
-      setAssetName("");
-    }
+    if (next !== assetClass) clearSelection();
   }
   function onDirectionChange(next: string) {
     setDirection(next);
-    syncTicker(assetClass, next);
+    const nextShortOnly = next === "DOWN";
+    // 하락으로 전환 시 숏 불가 종목 선택은 해제, 검색 중이던 질의는 새 조건으로 재검색
+    if (nextShortOnly && selected && !selected.shortable) clearSelection();
+    else if (!selected && query.trim()) runSearch(query, assetClass, nextShortOnly);
   }
-  function onTickerChange(value: string) {
-    const v = assetClass === "KR_EQUITY" ? value.trim() : value.trim().toUpperCase();
-    setTicker(v);
-    const match = shortable.find((s) => s.ticker === v);
-    if (shortMode && match) setAssetName(match.name);
-  }
+
+  const sizeFloor = MIN_MAGNITUDE_PCT[assetClass];
+  const searchHint = shortOnly
+    ? "하락 예측: 구매자가 숏 포지션(개별주식선물·인버스 ETF·코인 선물)을 잡을 수 있는 종목만 검색됩니다"
+    : "시세 공급자가 지원하는 종목만 선택 가능 — 코드 또는 종목명으로 검색";
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!selected) {
+      setErrors(["종목을 검색해서 목록에서 선택해주세요"]);
+      return;
+    }
     setBusy(true);
     setErrors([]);
     const f = new FormData(e.currentTarget);
@@ -72,9 +109,9 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
       prepaymentRatio: num("prepaymentRatio"),
       card: {
         assetClass,
-        ticker: f.get("ticker"),
-        assetName: f.get("assetName"),
-        direction: f.get("direction"),
+        ticker: selected.ticker,
+        assetName: selected.name,
+        direction,
         targetType,
         targetValue: num("targetValue"),
         deadline: new Date(String(f.get("deadline"))).toISOString(),
@@ -135,41 +172,32 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             ))}
           </select>
         </div>
-        <div className={styles.field}>
-          <label className={styles.label}>종목/자산 코드</label>
+        <div className={`${styles.field} ${styles.searchWrap}`}>
+          <label className={styles.label}>종목/자산</label>
           <input
             className={styles.input}
-            name="ticker"
             required
-            value={ticker}
-            onChange={(e) => onTickerChange(e.target.value)}
-            list={shortMode ? "shortable-stocks" : undefined}
-            placeholder={shortMode ? "숏 가능 종목 검색 (코드·종목명)" : undefined}
+            value={query}
+            onChange={(e) => onQueryChange(e.target.value)}
+            placeholder="코드 또는 종목명 검색"
+            autoComplete="off"
           />
-          {shortMode && (
-            <datalist id="shortable-stocks">
-              {shortable.map((s) => (
-                <option key={s.ticker} value={s.ticker}>
-                  {s.name}
-                </option>
+          {hits.length > 0 && (
+            <ul className={styles.searchResults}>
+              {hits.map((h) => (
+                <li key={h.ticker}>
+                  <button type="button" className={styles.searchItem} onClick={() => pick(h)}>
+                    <strong>{h.name}</strong> <span>{h.ticker}</span>
+                  </button>
+                </li>
               ))}
-            </datalist>
+            </ul>
           )}
-          <span className={styles.hint}>
-            {shortMode
-              ? SHORT_RESTRICTION_NOTE[assetClass as Exclude<AssetClass, "CRYPTO">]
-              : tickerHint}
-          </span>
-        </div>
-        <div className={styles.field}>
-          <label className={styles.label}>종목명</label>
-          <input
-            className={styles.input}
-            name="assetName"
-            required
-            value={assetName}
-            onChange={(e) => setAssetName(e.target.value)}
-          />
+          {searching && <span className={styles.hint}>검색 중…</span>}
+          {!searching && query.trim() && !selected && hits.length === 0 && (
+            <span className={styles.hint}>검색 결과 없음 — 지원 종목만 선택할 수 있습니다</span>
+          )}
+          {(!query.trim() || selected) && <span className={styles.hint}>{searchHint}</span>}
         </div>
       </div>
 
