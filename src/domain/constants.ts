@@ -4,6 +4,13 @@
 export const ASSET_CLASSES = ['KR_EQUITY', 'US_EQUITY', 'CRYPTO'] as const;
 export type AssetClass = (typeof ASSET_CLASSES)[number];
 
+/** 화면 표시용 자산군 한글명 (단일 기준 — 페이지별 중복 정의 금지) */
+export const ASSET_CLASS_LABEL: Record<AssetClass, string> = {
+  KR_EQUITY: '국내주식',
+  US_EQUITY: '미국주식',
+  CRYPTO: '코인',
+};
+
 export const TIERS = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'CHALLENGER'] as const;
 export type Tier = (typeof TIERS)[number];
 

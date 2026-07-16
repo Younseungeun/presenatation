@@ -2,16 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ASSET_CLASSES, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
+import { ASSET_CLASSES, ASSET_CLASS_LABEL, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
 import { PRICE_GUIDE_KRW } from "@/domain/publishReport";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import styles from "../../researcher.module.css";
-
-const ASSET_LABEL: Record<AssetClass, string> = {
-  KR_EQUITY: "국내주식",
-  US_EQUITY: "미국주식",
-  CRYPTO: "코인",
-};
 
 const RATING = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -103,7 +97,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
           >
             {ASSET_CLASSES.map((a) => (
               <option key={a} value={a}>
-                {ASSET_LABEL[a]}
+                {ASSET_CLASS_LABEL[a]}
               </option>
             ))}
           </select>
@@ -151,7 +145,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
           />
           {targetType === "RETURN_PCT" && (
             <span className={styles.hint}>
-              {ASSET_LABEL[assetClass]} 최소 크기 {sizeFloor}% 이상
+              {ASSET_CLASS_LABEL[assetClass]} 최소 크기 {sizeFloor}% 이상
             </span>
           )}
         </div>

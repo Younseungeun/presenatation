@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMarketSnapshot, toKstDateString, type DailyQuote } from '../marketData';
+import { buildMarketSnapshot, type DailyQuote } from '../marketData';
 
 const NORMAL = { delisted: false, halted: false };
 
@@ -52,12 +52,3 @@ describe('buildMarketSnapshot', () => {
   });
 });
 
-describe('toKstDateString', () => {
-  it('UTC 자정 직전은 KST 기준 다음 날', () => {
-    expect(toKstDateString(new Date('2026-07-11T16:00:00Z'))).toBe('2026-07-12');
-  });
-
-  it('KST 자정 이전은 같은 날', () => {
-    expect(toKstDateString(new Date('2026-07-11T14:59:00Z'))).toBe('2026-07-11');
-  });
-});

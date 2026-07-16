@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getSessionUserId } from "@/server/session";
@@ -7,12 +8,6 @@ import { PurchaseButton } from "./PurchaseButton";
 import styles from "../../market.module.css";
 
 export const dynamic = "force-dynamic";
-
-const ASSET_LABEL: Record<string, string> = {
-  KR_EQUITY: "국내주식",
-  US_EQUITY: "미국주식",
-  CRYPTO: "코인",
-};
 
 export default async function ReportDetail({
   params,
@@ -51,7 +46,7 @@ export default async function ReportDetail({
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>자산</span>
             <span className={styles.cardVal}>
-              {ASSET_LABEL[card.assetClass]} {card.assetName} ({card.ticker})
+              {ASSET_CLASS_LABEL[card.assetClass as AssetClass]} {card.assetName} ({card.ticker})
             </span>
           </div>
           <div className={styles.cardRow}>

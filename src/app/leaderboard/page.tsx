@@ -1,16 +1,10 @@
 import Link from "next/link";
-import { ASSET_CLASSES, type AssetClass } from "@/domain/constants";
+import { ASSET_CLASSES, ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getLeaderboard } from "@/server/leaderboardQueries";
 import styles from "../market.module.css";
 
 export const dynamic = "force-dynamic";
-
-const ASSET_LABEL: Record<AssetClass, string> = {
-  KR_EQUITY: "국내주식",
-  US_EQUITY: "미국주식",
-  CRYPTO: "코인",
-};
 
 function pct(v: number | null): string {
   return v === null ? "—" : `${(v * 100).toFixed(1)}%`;
@@ -42,7 +36,7 @@ export default async function LeaderboardPage({
             href={`/leaderboard?asset=${a}`}
             className={`${styles.tab} ${a === asset ? styles.tabActive : ""}`}
           >
-            {ASSET_LABEL[a]}
+            {ASSET_CLASS_LABEL[a]}
           </Link>
         ))}
       </div>

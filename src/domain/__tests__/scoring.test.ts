@@ -4,7 +4,6 @@ import {
   lossAmplifier,
   optimalWinRateFor,
   scoreJudgedCard,
-  sumScores,
   targetPriceToMagnitudePct,
   winAmplifier,
 } from '../scoring';
@@ -133,12 +132,6 @@ describe('targetPriceToMagnitudePct', () => {
   it('목표가형 카드의 크기 환산: 기준가 100,000 → 목표가 120,000 = 20%', () => {
     expect(targetPriceToMagnitudePct(120_000, 100_000)).toBeCloseTo(20);
     expect(targetPriceToMagnitudePct(80_000, 100_000)).toBeCloseTo(20);
-  });
-});
-
-describe('sumScores', () => {
-  it('누적 점수 합산', () => {
-    expect(sumScores([{ score: 100 }, { score: -30 }, { score: 0 }])).toBe(70);
   });
 });
 

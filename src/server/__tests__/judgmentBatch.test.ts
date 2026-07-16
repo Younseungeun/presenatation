@@ -1,9 +1,6 @@
-import { execSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createTestDb } from './helpers/testDb';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { judgeAndSettleDueCards } from '../judgmentBatch';
@@ -75,13 +72,7 @@ async function publishAndBuy(ticker: string, closeAtDeadline: number, confidence
 }
 
 beforeAll(async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'judgment-batch-'));
-  const url = `file:${path.join(dir, 'test.db')}`;
-  execSync('npx prisma migrate deploy', {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: 'pipe',
-  });
-  prisma = new PrismaClient({ datasourceUrl: url });
+  prisma = createTestDb('judgment-batch-');
 
   const researcher = await prisma.user.create({
     data: {

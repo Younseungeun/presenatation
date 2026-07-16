@@ -1,9 +1,7 @@
-import { execSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createTestDb } from './helpers/testDb';
+import type { AssetClass } from '@/domain/constants';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { createDraftReport, publishReport, withdrawPredictionCard } from '../reportService';
@@ -38,7 +36,7 @@ function draftInput() {
     priceKrw: 10_000,
     prepaymentRatio: 0 as const,
     card: {
-      assetClass: 'CRYPTO' as const,
+      assetClass: 'CRYPTO' as AssetClass,
       ticker: 'KRW-BTC',
       assetName: '비트코인',
       direction: 'UP' as const,
@@ -57,13 +55,7 @@ function draftInput() {
 const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 
 beforeAll(() => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'report-service-'));
-  const url = `file:${path.join(dir, 'test.db')}`;
-  execSync('npx prisma migrate deploy', {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: 'pipe',
-  });
-  prisma = new PrismaClient({ datasourceUrl: url });
+  prisma = createTestDb('report-service-');
 });
 
 afterAll(async () => {

@@ -1,9 +1,6 @@
-import { execSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createTestDb } from './helpers/testDb';
 import { ensureResearcherProfile, hashCi, verifyAndSignIn } from '../authService';
 import { StubIdentityProvider } from '../identityProvider';
 
@@ -11,13 +8,7 @@ let prisma: PrismaClient;
 const provider = new StubIdentityProvider();
 
 beforeAll(() => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'auth-'));
-  const url = `file:${path.join(dir, 'test.db')}`;
-  execSync('npx prisma migrate deploy', {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: 'pipe',
-  });
-  prisma = new PrismaClient({ datasourceUrl: url });
+  prisma = createTestDb('auth-');
 });
 
 afterAll(async () => {

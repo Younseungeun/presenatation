@@ -1,17 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import type { AssetClass } from "@/domain/constants";
+import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getPublicProfile } from "@/server/leaderboardQueries";
 import styles from "../../market.module.css";
 
 export const dynamic = "force-dynamic";
-
-const ASSET_LABEL: Record<string, string> = {
-  KR_EQUITY: "국내주식",
-  US_EQUITY: "미국주식",
-  CRYPTO: "코인",
-};
 
 function outcomeBadge(outcome: string) {
   if (outcome === "HIT") return <span className={styles.badgeHit}>적중</span>;
@@ -53,7 +47,7 @@ export default async function PublicProfile({
         trackRecords.map((tr) => (
           <div key={tr.assetClass} style={{ marginTop: 20 }}>
             <div className={styles.section}>
-              {ASSET_LABEL[tr.assetClass as AssetClass]} 트랙레코드
+              {ASSET_CLASS_LABEL[tr.assetClass as AssetClass]} 트랙레코드
               {tr.verifying && <small style={{ opacity: 0.6 }}> · 검증 중</small>}
             </div>
             <div className={styles.statGrid}>
@@ -115,7 +109,7 @@ export default async function PublicProfile({
               </div>
               <div className={styles.meta}>
                 <span>
-                  {ASSET_LABEL[r.predictionCard!.assetClass]} {r.predictionCard!.assetName}
+                  {ASSET_CLASS_LABEL[r.predictionCard!.assetClass as AssetClass]} {r.predictionCard!.assetName}
                 </span>
                 {r.predictionCard!.judgment!.realizedReturnPct != null && (
                   <span>

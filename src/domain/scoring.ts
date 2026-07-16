@@ -140,11 +140,6 @@ export function targetPriceToMagnitudePct(targetPrice: number, basePrice: number
   return (Math.abs(targetPrice - basePrice) / basePrice) * 100;
 }
 
-/** 리서처 누적 점수 (등급 산정 입력) */
-export function sumScores(scores: Array<Pick<CardScore, 'score'>>): number {
-  return scores.reduce((acc, s) => acc + s.score, 0);
-}
-
 export interface JudgedCardScoreInput {
   direction: Direction;
   targetType: TargetType;

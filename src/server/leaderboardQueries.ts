@@ -28,16 +28,6 @@ function toJudgedPrediction(j: JudgmentRow): JudgedPrediction {
   };
 }
 
-const JUDGMENT_SELECT = {
-  score: true,
-  outcome: true,
-  settledPrice: true,
-  judgedAt: true,
-  predictionCard: {
-    select: { assetClass: true, direction: true, basePrice: true },
-  },
-} as const;
-
 export interface LeaderboardEntry {
   researcherId: string;
   name: string;
@@ -56,32 +46,49 @@ export async function getLeaderboard(
   assetClass: AssetClass,
   now = new Date(),
 ): Promise<LeaderboardEntry[]> {
-  const profiles = await prisma.researcherProfile.findMany({
-    include: {
-      user: { select: { penName: true, email: true } },
-      reports: {
+  // 판정에서 출발해 해당 자산군만 조회 — 전체 리서처×리포트 풀스캔 회피
+  const judgments = await prisma.judgment.findMany({
+    where: { predictionCard: { assetClass } },
+    select: {
+      score: true,
+      outcome: true,
+      settledPrice: true,
+      judgedAt: true,
+      predictionCard: {
         select: {
-          predictionCard: {
-            select: { assetClass: true, judgment: { select: JUDGMENT_SELECT } },
-          },
+          assetClass: true,
+          direction: true,
+          basePrice: true,
+          report: { select: { researcherId: true } },
         },
       },
     },
+  });
+  if (judgments.length === 0) return [];
+
+  const byResearcher = new Map<string, typeof judgments>();
+  for (const j of judgments) {
+    const rid = j.predictionCard.report.researcherId;
+    const list = byResearcher.get(rid);
+    if (list) list.push(j);
+    else byResearcher.set(rid, [j]);
+  }
+
+  const profiles = await prisma.researcherProfile.findMany({
+    where: { id: { in: [...byResearcher.keys()] } },
+    include: { user: { select: { penName: true, email: true } } },
   });
 
   const seasonLo = seasonStart(now);
   const seasonHi = nextSeasonStart(now);
 
   const entries = profiles.map((p) => {
-    const judgments = p.reports
-      .map((r) => r.predictionCard?.judgment)
-      .filter((j): j is NonNullable<typeof j> => !!j && j.predictionCard.assetClass === assetClass);
-
-    const seasonScore = judgments
+    const js = byResearcher.get(p.id) ?? [];
+    const seasonScore = js
       .filter((j) => j.judgedAt >= seasonLo && j.judgedAt < seasonHi)
       .reduce((acc, j) => acc + (j.score ?? 0), 0);
 
-    const record = computeTrackRecord(judgments.map(toJudgedPrediction), now);
+    const record = computeTrackRecord(js.map(toJudgedPrediction), now);
     return {
       researcherId: p.id,
       name: p.user.penName ?? p.user.email,

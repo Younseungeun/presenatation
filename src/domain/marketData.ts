@@ -48,11 +48,6 @@ export function toMarketDateString(d: Date, assetClass: AssetClass): string {
   return new Intl.DateTimeFormat('sv-SE', { timeZone: MARKET_TIMEZONE[assetClass] }).format(d);
 }
 
-/** Date → KST YYYY-MM-DD */
-export function toKstDateString(d: Date): string {
-  return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Seoul' }).format(d);
-}
-
 /** 특정 시장 시간대의 시각·요일·날짜 (컷오프·기준일 판단용) */
 export function marketClock(
   d: Date,

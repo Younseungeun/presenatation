@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getResearcherFinance } from "@/server/financeQueries";
 import { getResearcherDashboard, type DashboardReport } from "@/server/reportQueries";
@@ -7,12 +8,6 @@ import { ReportActions } from "./ReportActions";
 import styles from "../researcher.module.css";
 
 export const dynamic = "force-dynamic";
-
-const ASSET_LABEL: Record<string, string> = {
-  KR_EQUITY: "국내주식",
-  US_EQUITY: "미국주식",
-  CRYPTO: "코인",
-};
 
 function StatusBadge({ report }: { report: DashboardReport }) {
   const j = report.predictionCard?.judgment;
@@ -40,7 +35,7 @@ function cardSummary(report: DashboardReport): string | null {
       ? `${c.targetValue}%`
       : `목표가 ${c.targetValue.toLocaleString()}`;
   const deadline = new Date(c.deadline).toLocaleDateString("ko-KR");
-  return `${ASSET_LABEL[c.assetClass] ?? c.assetClass} ${c.assetName}(${c.ticker}) · ${dir} ${size} · 시한 ${deadline} · 신뢰도 ${c.confidence}`;
+  return `${ASSET_CLASS_LABEL[c.assetClass as AssetClass] ?? c.assetClass} ${c.assetName}(${c.ticker}) · ${dir} ${size} · 시한 ${deadline} · 신뢰도 ${c.confidence}`;
 }
 
 export default async function ResearcherDashboard({

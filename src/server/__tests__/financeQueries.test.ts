@@ -1,12 +1,10 @@
-import { execSync } from 'node:child_process';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createTestDb } from './helpers/testDb';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { getBuyerPurchases, getResearcherFinance } from '../financeQueries';
+import { getLeaderboard } from '../leaderboardQueries';
 import { judgeAndSettleDueCards } from '../judgmentBatch';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
@@ -68,13 +66,7 @@ async function publishAndBuy(ticker: string, deadline: Date) {
 }
 
 beforeAll(async () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'finance-'));
-  const url = `file:${path.join(dir, 'test.db')}`;
-  execSync('npx prisma migrate deploy', {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: 'pipe',
-  });
-  prisma = new PrismaClient({ datasourceUrl: url });
+  prisma = createTestDb('finance-');
 
   const r = await prisma.user.create({
     data: { email: 'r@f.io', identityVerified: true, researcherProfile: { create: {} } },
@@ -113,6 +105,21 @@ describe('getBuyerPurchases — 구매 내역', () => {
     // 미판정: 에스크로 보관
     expect(byTicker['KRW-CCC'].settlement).toBeNull();
     expect(byTicker['KRW-CCC'].escrowStatus).toBe('HELD');
+  });
+});
+
+describe('getLeaderboard — 판정 기반 집계', () => {
+  it('판정된 자산군만 집계: HIT +500, MISS −750 → 시즌 점수 −250', async () => {
+    const rows = await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].researcherId).toBe(researcherId);
+    expect(rows[0].sampleSize).toBe(2);
+    // HIT: 실현 +12% ÷ 예측 10% → 기본 100(컷) × c5 = +500
+    // MISS: 실현 −5% ÷ 예측 10% → 기본 50 × c(c+1)/2=15 = −750
+    expect(rows[0].seasonScore).toBe(-250);
+
+    // 판정 없는 자산군은 빈 리더보드
+    expect(await getLeaderboard(prisma, 'KR_EQUITY', BATCH_NOW)).toEqual([]);
   });
 });
 
