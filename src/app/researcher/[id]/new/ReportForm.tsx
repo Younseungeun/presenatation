@@ -5,13 +5,17 @@ import { useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
 import { PRICE_GUIDE_KRW } from "@/domain/publishReport";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
+import { isShortAllowed, SHORT_RESTRICTION_NOTE, SHORTABLE_STOCKS } from "@/domain/shortableUniverse";
 import styles from "../../researcher.module.css";
 
 const RATING = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 export function ReportForm({ researcherId }: { researcherId: string }) {
   const router = useRouter();
-  const [assetClass, setAssetClass] = useState<AssetClass>("KR_EQUITY");
+  const [assetClass, setAssetClassState] = useState<AssetClass>("KR_EQUITY");
+  const [direction, setDirection] = useState("UP");
+  const [ticker, setTicker] = useState("");
+  const [assetName, setAssetName] = useState("");
   const [targetType, setTargetType] = useState("RETURN_PCT");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
@@ -23,6 +27,35 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
       : assetClass === "US_EQUITY"
         ? "심볼 (예: AAPL)"
         : "업비트 마켓코드 (예: KRW-BTC)";
+
+  // 하락 예측 + 주식: 구매자가 숏 포지션을 잡을 수 있는 종목만 검색·선택 가능
+  const shortMode = direction === "DOWN" && assetClass !== "CRYPTO";
+  const shortable = SHORTABLE_STOCKS[assetClass];
+
+  // 자산군·방향이 바뀌어 현재 종목이 숏 불가가 되면 비운다
+  function syncTicker(nextAssetClass: AssetClass, nextDirection: string) {
+    if (nextDirection === "DOWN" && !isShortAllowed(nextAssetClass, ticker)) {
+      setTicker("");
+      setAssetName("");
+    }
+  }
+  function setAssetClass(next: AssetClass) {
+    setAssetClassState(next);
+    if (next !== assetClass) {
+      setTicker("");
+      setAssetName("");
+    }
+  }
+  function onDirectionChange(next: string) {
+    setDirection(next);
+    syncTicker(assetClass, next);
+  }
+  function onTickerChange(value: string) {
+    const v = assetClass === "KR_EQUITY" ? value.trim() : value.trim().toUpperCase();
+    setTicker(v);
+    const match = shortable.find((s) => s.ticker === v);
+    if (shortMode && match) setAssetName(match.name);
+  }
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -104,19 +137,51 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
         </div>
         <div className={styles.field}>
           <label className={styles.label}>종목/자산 코드</label>
-          <input className={styles.input} name="ticker" required />
-          <span className={styles.hint}>{tickerHint}</span>
+          <input
+            className={styles.input}
+            name="ticker"
+            required
+            value={ticker}
+            onChange={(e) => onTickerChange(e.target.value)}
+            list={shortMode ? "shortable-stocks" : undefined}
+            placeholder={shortMode ? "숏 가능 종목 검색 (코드·종목명)" : undefined}
+          />
+          {shortMode && (
+            <datalist id="shortable-stocks">
+              {shortable.map((s) => (
+                <option key={s.ticker} value={s.ticker}>
+                  {s.name}
+                </option>
+              ))}
+            </datalist>
+          )}
+          <span className={styles.hint}>
+            {shortMode
+              ? SHORT_RESTRICTION_NOTE[assetClass as Exclude<AssetClass, "CRYPTO">]
+              : tickerHint}
+          </span>
         </div>
         <div className={styles.field}>
           <label className={styles.label}>종목명</label>
-          <input className={styles.input} name="assetName" required />
+          <input
+            className={styles.input}
+            name="assetName"
+            required
+            value={assetName}
+            onChange={(e) => setAssetName(e.target.value)}
+          />
         </div>
       </div>
 
       <div className={styles.row}>
         <div className={styles.field}>
           <label className={styles.label}>방향</label>
-          <select className={styles.select} name="direction" defaultValue="UP">
+          <select
+            className={styles.select}
+            name="direction"
+            value={direction}
+            onChange={(e) => onDirectionChange(e.target.value)}
+          >
             <option value="UP">상승 (buy)</option>
             <option value="DOWN">하락 (sell)</option>
           </select>
