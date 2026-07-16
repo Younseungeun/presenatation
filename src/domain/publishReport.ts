@@ -22,16 +22,16 @@ export const PRICE_GUIDE_KRW = { min: 5_000, max: 50_000 } as const;
  * 목적: 신뢰도 1 저품질 대량 게시의 마지막 구멍 차단 (docs/score-discipline-sim.md).
  * 마이너스 규율은 기대 점수 ≈ 0인 신뢰도 1 스팸에 발동하지 않는데, 그 동기는
  * 점수가 아니라 판매 수익이므로 노출 총량 자체를 제한한다.
- * 산정 근거: 성실한 리서처 주 2~3건 × 평균 시한 ~1개월 → 동시 활성 8~12건.
- * 브론즈 기본값이 그 상단이고, 검증된 상위 등급일수록 슬롯이 늘어난다.
+ * 검증 전 신규(브론즈)는 소수의 카드에 집중하게 좁게 열고,
+ * 검증된 상위 등급일수록 슬롯이 늘어난다.
  * 판정·철회로 카드가 닫히면 슬롯이 즉시 회수된다.
  */
 export const MAX_ACTIVE_CARDS: Record<Tier, number> = {
-  BRONZE: 10,
-  SILVER: 15,
-  GOLD: 20,
-  PLATINUM: 25,
-  CHALLENGER: 30,
+  BRONZE: 5,
+  SILVER: 7,
+  GOLD: 10,
+  PLATINUM: 12,
+  CHALLENGER: 15,
 };
 
 /**

@@ -11,10 +11,18 @@ import { PrismaClient } from '@prisma/client';
 export function createTestDb(prefix: string): PrismaClient {
   const dir = mkdtempSync(path.join(tmpdir(), prefix));
   const url = `file:${path.join(dir, 'test.db')}`;
-  execSync('npx prisma migrate deploy', {
-    env: { ...process.env, DATABASE_URL: url },
-    stdio: 'pipe',
-  });
+  // prisma CLI가 간헐적으로 실패하는 경우가 있어 1회 재시도 (테스트 플레이크 방지)
+  for (let attempt = 1; ; attempt++) {
+    try {
+      execSync('npx prisma migrate deploy', {
+        env: { ...process.env, DATABASE_URL: url },
+        stdio: 'pipe',
+      });
+      break;
+    } catch (e) {
+      if (attempt >= 2) throw e;
+    }
+  }
   return new PrismaClient({ datasourceUrl: url });
 }
 

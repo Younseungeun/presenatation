@@ -228,15 +228,15 @@ describe('리포트 게시 플로우', () => {
     expect(draft.status).toBe('DRAFT');
   });
 
-  it('동시 활성 카드 상한: 브론즈 10건이면 11번째 게시 거부, 판정으로 슬롯 회수', async () => {
-    // 별도 리서처로 격리 — 활성 카드 10건을 직접 삽입 (게시·미판정·미철회)
+  it('동시 활성 카드 상한: 브론즈 5건이면 6번째 게시 거부, 판정으로 슬롯 회수', async () => {
+    // 별도 리서처로 격리 — 활성 카드 5건(브론즈 상한)을 직접 삽입 (게시·미판정·미철회)
     const u = await prisma.user.create({
       data: { email: 'cap@test.io', identityVerified: true, researcherProfile: { create: {} } },
       include: { researcherProfile: true },
     });
     const capResearcherId = u.researcherProfile!.id;
     const reportIds: string[] = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 5; i++) {
       const r = await prisma.report.create({
         data: {
           researcherId: capResearcherId,
