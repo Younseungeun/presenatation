@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import { NextResponse } from 'next/server';
 import { PublishValidationError } from '@/domain/publishReport';
 import { ManualJudgmentError } from '@/server/manualJudgmentService';
+import { SettlementOpsError } from '@/server/settlementOpsService';
 import { getSessionUserId } from '@/server/session';
 
 // API 공통: 세션 인증 + 에러 매핑
@@ -51,7 +52,7 @@ export function toErrorResponse(e: unknown): NextResponse {
   if (e instanceof PublishValidationError) {
     return NextResponse.json({ error: '검증 실패', issues: e.issues }, { status: 400 });
   }
-  if (e instanceof ManualJudgmentError) {
+  if (e instanceof ManualJudgmentError || e instanceof SettlementOpsError) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
   if (e instanceof Prisma.PrismaClientKnownRequestError && PRISMA_STATUS[e.code]) {

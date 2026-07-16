@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
@@ -27,7 +28,7 @@ export default async function AdminJudgmentsPage() {
           <p className={styles.sub}>
             자동 판정이 7일 이상 이월된 카드입니다. 검증된 시세를 입력해 수동 판정하면
             점수·에스크로 정산까지 자동 경로와 동일하게 실행됩니다. 입력값과 사유는 감사
-            기록으로 남습니다.
+            기록으로 남습니다. <Link href="/admin/settlements">정산 지시서 →</Link>
           </p>
         </div>
       </div>

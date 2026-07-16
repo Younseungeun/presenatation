@@ -132,7 +132,9 @@ model Purchase {
   @@unique([reportId, buyerId]) // 자기 구매 중복 방지 및 1인 1구매
 }
 
-// 정산: 적중/실패/판정불가 3분기 결과 기록
+// 정산: 적중/실패/판정불가 3분기 결과 기록.
+// 판정 시점엔 "지시서"(얼마를 환불/지급해야 하는가)가 만들어지고,
+// 실제 돈이 움직인 시점은 운영자가 실행 필드로 기록한다 (PG 자동화 전 수동 운영 경로).
 model Settlement {
   id                 String   @id @default(cuid())
   purchaseId         String   @unique
@@ -143,6 +145,14 @@ model Settlement {
   buyerRefundKrw     Int // 구매자 환불액 — 항상 현금 (실패: 성과 연동분 / 판정불가: 전액)
   refundType         String? // CASH_REFUND | null. PG 취소/계좌이체 실행의 지시서 역할
   settledAt          DateTime @default(now())
+
+  // 환불 실행 추적 (buyerRefundKrw > 0 건)
+  refundMethod       String? // PG_CANCEL | BANK_TRANSFER (취소 기한 초과 건은 계좌이체 폴백)
+  refundExecutedAt   DateTime?
+  refundExecutedBy   String? // 실행 운영자 userId
+  // 리서처 지급 실행 추적 (researcherPayoutKrw > 0 건)
+  payoutExecutedAt   DateTime?
+  payoutExecutedBy   String? // 실행 운영자 userId
 }
 
 // 인앱 알림: 판정·정산 결과를 구매자/리서처에게 통지 (판정 트랜잭션에서 함께 생성)
