@@ -141,6 +141,16 @@ export async function publishReport(
   // 마이너스 규율(§2.2) 입력: 해당 자산군의 현재 시즌 누적 점수
   const seasonScores = await researcherSeasonScores(prisma, report.researcherId, now);
 
+  // 동시 활성 카드 상한 입력: 같은 자산군에서 게시됐고 아직 판정·철회되지 않은 카드 수
+  const activeCardCount = await prisma.predictionCard.count({
+    where: {
+      assetClass: cardDraft.assetClass,
+      withdrawnAt: null,
+      judgment: null,
+      report: { researcherId: report.researcherId, status: 'PUBLISHED' },
+    },
+  });
+
   const snapshot = preparePublish(
     cardDraft,
     {
@@ -149,6 +159,7 @@ export async function publishReport(
       tier: report.researcher.tier as Tier,
       promoActive: isPromoActive(report.researcher.promoFeeUntil, now),
       assetClassScore: seasonScores[cardDraft.assetClass],
+      activeCardCount,
     },
     basePrice,
     now,

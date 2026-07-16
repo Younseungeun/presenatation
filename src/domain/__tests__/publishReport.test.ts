@@ -125,6 +125,25 @@ describe('preparePublish', () => {
     expect(snap.feeRateBp).toBe(1000);
   });
 
+  it('동시 활성 카드 상한: 브론즈 10건 도달 시 게시 거부, 등급이 오르면 슬롯 확대', () => {
+    expect(() =>
+      preparePublish(validCard, { ...validCond, activeCardCount: 10 }, 70_000, NOW),
+    ).toThrow(/동시 활성 카드/);
+    // 상한 미만이면 통과
+    expect(
+      preparePublish(validCard, { ...validCond, activeCardCount: 9 }, 70_000, NOW).feeRateBp,
+    ).toBe(2000);
+    // 실버는 15건까지 — 같은 10건도 통과
+    expect(
+      preparePublish(
+        validCard,
+        { ...validCond, tier: 'SILVER', activeCardCount: 10 },
+        70_000,
+        NOW,
+      ).feeRateBp,
+    ).toBe(1500);
+  });
+
   it('기준가를 확정할 수 없으면 게시 실패', () => {
     expect(() => preparePublish(validCard, validCond, NaN, NOW)).toThrow(/기준가/);
     expect(() => preparePublish(validCard, validCond, 0, NOW)).toThrow(/기준가/);

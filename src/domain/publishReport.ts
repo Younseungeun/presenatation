@@ -18,6 +18,23 @@ import { disciplineFor, MIN_MAGNITUDE_PCT, targetPriceToMagnitudePct } from './s
 export const PRICE_GUIDE_KRW = { min: 5_000, max: 50_000 } as const;
 
 /**
+ * 리서처당 자산군별 동시 활성(게시·미판정·미철회) 카드 상한 — 초안 수치.
+ * 목적: 신뢰도 1 저품질 대량 게시의 마지막 구멍 차단 (docs/score-discipline-sim.md).
+ * 마이너스 규율은 기대 점수 ≈ 0인 신뢰도 1 스팸에 발동하지 않는데, 그 동기는
+ * 점수가 아니라 판매 수익이므로 노출 총량 자체를 제한한다.
+ * 산정 근거: 성실한 리서처 주 2~3건 × 평균 시한 ~1개월 → 동시 활성 8~12건.
+ * 브론즈 기본값이 그 상단이고, 검증된 상위 등급일수록 슬롯이 늘어난다.
+ * 판정·철회로 카드가 닫히면 슬롯이 즉시 회수된다.
+ */
+export const MAX_ACTIVE_CARDS: Record<Tier, number> = {
+  BRONZE: 10,
+  SILVER: 15,
+  GOLD: 20,
+  PLATINUM: 25,
+  CHALLENGER: 30,
+};
+
+/**
  * 검증 시한 최소(자산군별, 초안 단계)·최대.
  * 최소 시한은 기술 제약이 아니라 조작 방지 장치다: EOD 기준가로 초단기 예측을 허용하면
  * 게시 시점에 이미 실현된 등락을 공짜로 가져갈 수 있다. 자산군별 해법:
@@ -94,6 +111,8 @@ export interface PublishConditions {
    * 점수 집계 배치가 붙기 전까지는 0 (규율 미발동).
    */
   assetClassScore?: number;
+  /** 해당 자산군의 현재 활성(게시·미판정·미철회) 카드 수 — 동시 게시 상한 판단용 */
+  activeCardCount?: number;
 }
 
 export class PublishValidationError extends Error {
@@ -250,6 +269,14 @@ export function preparePublish(
   const issues = [...validateCardDraft(card, now), ...validateConditions(cond)];
   const plan = planBaseMode(card.assetClass, card.deadline, now);
   const retroactive = plan.baseMode !== 'FIXED_AT_PUBLISH';
+
+  // 동시 활성 카드 상한: 신뢰도 1 저품질 대량 게시 차단 (자산군별, 등급별 슬롯)
+  const maxActive = MAX_ACTIVE_CARDS[cond.tier];
+  if ((cond.activeCardCount ?? 0) >= maxActive) {
+    issues.push(
+      `${card.assetClass} 동시 활성 카드가 상한(${cond.tier} ${maxActive}건)에 도달했습니다 — 기존 카드가 판정되거나 철회되면 다시 게시할 수 있습니다`,
+    );
+  }
 
   // 마이너스 점수 규율: 게시 정지 또는 최소 신뢰도 상승 (자산군별)
   const discipline = disciplineFor(cond.assetClassScore ?? 0);

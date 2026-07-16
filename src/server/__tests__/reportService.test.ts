@@ -227,4 +227,67 @@ describe('리포트 게시 플로우', () => {
     const draft = await createDraftReport(prisma, input, DRAFT_NOW);
     expect(draft.status).toBe('DRAFT');
   });
+
+  it('동시 활성 카드 상한: 브론즈 10건이면 11번째 게시 거부, 판정으로 슬롯 회수', async () => {
+    // 별도 리서처로 격리 — 활성 카드 10건을 직접 삽입 (게시·미판정·미철회)
+    const u = await prisma.user.create({
+      data: { email: 'cap@test.io', identityVerified: true, researcherProfile: { create: {} } },
+      include: { researcherProfile: true },
+    });
+    const capResearcherId = u.researcherProfile!.id;
+    const reportIds: string[] = [];
+    for (let i = 0; i < 10; i++) {
+      const r = await prisma.report.create({
+        data: {
+          researcherId: capResearcherId,
+          title: `활성 ${i}`,
+          summary: 's',
+          content: 'c',
+          priceKrw: 10_000,
+          prepaymentRatio: 0,
+          feeRateBp: 2000,
+          status: 'PUBLISHED',
+          publishedAt: NOW,
+          predictionCard: {
+            create: {
+              assetClass: 'CRYPTO',
+              ticker: 'KRW-BTC',
+              assetName: '비트코인',
+              direction: 'UP',
+              targetType: 'RETURN_PCT',
+              targetValue: 10,
+              basePrice: 100,
+              deadline: new Date(Date.now() + 30 * 86_400_000),
+              confidence: 1,
+              selfStability: 5,
+              selfProfitability: 5,
+            },
+          },
+        },
+      });
+      reportIds.push(r.id);
+    }
+
+    const draft = await createDraftReport(
+      prisma,
+      { ...draftInput(), researcherId: capResearcherId },
+      DRAFT_NOW,
+    );
+    const registry = {
+      CRYPTO: new FixtureMarketDataProvider().setCurrentPrice('KRW-BTC', 100),
+    };
+    await expect(
+      publishReport(prisma, registry, draft.id, capResearcherId, NOW),
+    ).rejects.toThrow(/동시 활성 카드/);
+
+    // 1건이 판정되면 슬롯이 비어 게시 가능
+    const judgedCard = await prisma.predictionCard.findUniqueOrThrow({
+      where: { reportId: reportIds[0] },
+    });
+    await prisma.judgment.create({
+      data: { predictionCardId: judgedCard.id, outcome: 'HIT', score: 0, judgedAt: NOW },
+    });
+    const published = await publishReport(prisma, registry, draft.id, capResearcherId, NOW);
+    expect(published.status).toBe('PUBLISHED');
+  });
 });
