@@ -171,6 +171,24 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
     }
   });
 
+  it('판정 시 구매자·리서처 인앱 알림이 함께 생성된다', async () => {
+    // 위의 HIT(KRW-AAA)·MISS(KRW-BBB) 판정에서 생성된 알림 검증
+    const researcherNotis = await prisma.notification.findMany({
+      where: { userId: researcherUserId, type: 'JUDGMENT_RESULT' },
+    });
+    expect(researcherNotis.some((n) => n.title.includes('적중'))).toBe(true);
+    expect(researcherNotis.some((n) => n.title.includes('실패'))).toBe(true);
+    const hit = researcherNotis.find((n) => n.title.includes('적중'))!;
+    expect(hit.body).toContain('+500점');
+    expect(hit.body).toContain('16,000원'); // 구매 2건 × 8,000원 정산
+
+    const buyerNotis = await prisma.notification.findMany({ where: { userId: buyerAId } });
+    const missNoti = buyerNotis.find((n) => n.title.includes('실패'))!;
+    expect(missNoti.body).toContain('10,000원'); // 현금 환불액 명시
+    expect(buyerNotis.some((n) => n.title.includes('적중'))).toBe(true);
+    expect(missNoti.readAt).toBeNull(); // 미읽음으로 생성
+  });
+
   it('판정 불가(거래정지): 전액 환불, 수수료 0, 점수 0', async () => {
     const { reportId } = await publishAndBuy('KRW-CCC', 100);
     const haltedRegistry: ProviderRegistry = {

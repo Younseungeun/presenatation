@@ -2,12 +2,18 @@ import type { Prisma, PrismaClient, PredictionCard, Purchase, Report } from '@pr
 import type { JudgmentResult } from '@/domain/judgment';
 import { settle } from '@/domain/settlement';
 
-// 판정 결과 영속화 + 에스크로 3분기 정산 쓰기 묶음.
+// 판정 결과 영속화 + 에스크로 3분기 정산 + 인앱 알림 쓰기 묶음.
 // 자동 배치(judgmentBatch)와 운영자 수동 판정(manualJudgmentService)이 공유한다 —
-// 어느 경로로 판정하든 점수·정산·감사 기록의 형태는 동일해야 한다.
+// 어느 경로로 판정하든 점수·정산·감사 기록·알림의 형태는 동일해야 한다.
 
 export type CardWithHeldPurchases = PredictionCard & {
-  report: Report & { purchases: Purchase[] };
+  report: Report & { purchases: Purchase[]; researcher: { userId: string } };
+};
+
+const OUTCOME_LABEL: Record<string, string> = {
+  HIT: '적중',
+  MISS: '실패',
+  UNDECIDABLE: '판정 불가',
 };
 
 export interface JudgmentRecordInput {
@@ -62,6 +68,10 @@ export function buildJudgmentWrites(
   // 에스크로 3분기 정산 — 금액 보존 불변식은 settle()이 보장.
   // 환불은 항상 현금(확정) — Settlement 기록이 PG 취소/계좌이체 지시서 역할.
   // 전액 환불 건만 REFUNDED로 구분.
+  const label = OUTCOME_LABEL[result.outcome] ?? result.outcome;
+  let payoutTotal = 0;
+  let refundTotal = 0;
+
   for (const p of card.report.purchases) {
     const s = settle({
       amountKrw: p.amountKrw,
@@ -69,6 +79,8 @@ export function buildJudgmentWrites(
       prepaymentRatio: card.report.prepaymentRatio,
       outcome: result.outcome,
     });
+    payoutTotal += s.researcherPayoutKrw;
+    refundTotal += s.buyerRefundKrw;
     writes.push(
       prisma.settlement.create({
         data: {
@@ -85,8 +97,44 @@ export function buildJudgmentWrites(
         where: { id: p.id },
         data: { escrowStatus: s.buyerRefundKrw === p.amountKrw ? 'REFUNDED' : 'SETTLED' },
       }),
+      // 구매자 알림: 판정 결과와 환불 여부를 즉시 통지 (환불 인지가 서비스 신뢰의 핵심)
+      prisma.notification.create({
+        data: {
+          userId: p.buyerId,
+          type: 'JUDGMENT_RESULT',
+          title: `구매 리포트 판정: ${card.assetName} ${label}`,
+          body:
+            result.outcome === 'HIT'
+              ? '예측이 적중했습니다. 결제액은 리서처에게 정산됩니다.'
+              : result.outcome === 'MISS'
+                ? `예측이 빗나갔습니다. ${s.buyerRefundKrw.toLocaleString()}원이 현금 환불됩니다.`
+                : `판정 불가 처리되었습니다. 전액(${s.buyerRefundKrw.toLocaleString()}원)이 환불됩니다.`,
+          link: `/report/${card.reportId}`,
+          createdAt: now,
+        },
+      }),
     );
   }
+
+  // 리서처 알림: 판정 결과 + 점수 + 정산 요약
+  const settleSummary =
+    card.report.purchases.length === 0
+      ? '판매된 구매 건이 없습니다.'
+      : payoutTotal > 0
+        ? `${payoutTotal.toLocaleString()}원이 정산됩니다 (구매 ${card.report.purchases.length}건).`
+        : `구매 ${card.report.purchases.length}건, ${refundTotal.toLocaleString()}원이 구매자에게 환불됩니다.`;
+  writes.push(
+    prisma.notification.create({
+      data: {
+        userId: card.report.researcher.userId,
+        type: 'JUDGMENT_RESULT',
+        title: `예측 판정: ${card.assetName} ${label}`,
+        body: `점수 ${input.score > 0 ? '+' : ''}${Math.round(input.score)}점. ${settleSummary}`,
+        link: `/researcher/${card.report.researcherId}`,
+        createdAt: now,
+      },
+    }),
+  );
 
   return writes;
 }

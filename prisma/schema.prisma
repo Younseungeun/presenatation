@@ -145,6 +145,21 @@ model Settlement {
   settledAt          DateTime @default(now())
 }
 
+// 인앱 알림: 판정·정산 결과를 구매자/리서처에게 통지 (판정 트랜잭션에서 함께 생성)
+model Notification {
+  id        String    @id @default(cuid())
+  userId    String
+  type      String // JUDGMENT_RESULT (확장: SETTLEMENT, SEASON 등)
+  title     String
+  body      String
+  link      String? // 클릭 시 이동 경로 (예: /report/xxx)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
 // 등급 이력: 분기 시즌제 재산정·강등 기록
 model TierHistory {
   id           String   @id @default(cuid())

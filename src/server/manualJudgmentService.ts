@@ -124,7 +124,12 @@ export async function manualJudgeCard(
     where: { id: input.cardId },
     include: {
       judgment: { select: { id: true } },
-      report: { include: { purchases: { where: { escrowStatus: 'HELD' } } } },
+      report: {
+        include: {
+          purchases: { where: { escrowStatus: 'HELD' } },
+          researcher: { select: { userId: true } },
+        },
+      },
     },
   });
   if (!card) throw new ManualJudgmentError('카드를 찾을 수 없습니다');

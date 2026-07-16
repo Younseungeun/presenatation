@@ -35,7 +35,14 @@ export async function judgeAndSettleDueCards(
       deadline: { lte: now },
       report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
     },
-    include: { report: { include: { purchases: { where: { escrowStatus: 'HELD' } } } } },
+    include: {
+      report: {
+        include: {
+          purchases: { where: { escrowStatus: 'HELD' } },
+          researcher: { select: { userId: true } },
+        },
+      },
+    },
     orderBy: { deadline: 'asc' },
   });
 

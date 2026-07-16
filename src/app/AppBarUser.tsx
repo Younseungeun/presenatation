@@ -8,9 +8,11 @@ import { useState } from "react";
 export function AppBarUser({
   penName,
   researcherId,
+  unreadCount,
 }: {
   penName: string | null;
   researcherId: string | null;
+  unreadCount: number;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -40,6 +42,30 @@ export function AppBarUser({
       </Link>
       <Link href="/purchases" style={linkStyle}>
         구매 내역
+      </Link>
+      <Link href="/notifications" style={{ ...linkStyle, position: "relative" }}>
+        알림
+        {unreadCount > 0 && (
+          <span
+            style={{
+              position: "absolute",
+              top: -7,
+              right: -14,
+              minWidth: 16,
+              height: 16,
+              padding: "0 4px",
+              borderRadius: 8,
+              background: "var(--brand-strong)",
+              color: "#fff",
+              fontSize: 10.5,
+              fontWeight: 800,
+              lineHeight: "16px",
+              textAlign: "center",
+            }}
+          >
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
       </Link>
       {researcherId ? (
         <Link href={`/researcher/${researcherId}`} style={linkStyle}>

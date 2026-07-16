@@ -14,10 +14,14 @@ export const metadata: Metadata = {
 async function currentUser() {
   const userId = await getSessionUserId();
   if (!userId) return null;
-  return prisma.user.findUnique({
-    where: { id: userId },
-    select: { penName: true, researcherProfile: { select: { id: true } } },
-  });
+  const [user, unreadCount] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { penName: true, researcherProfile: { select: { id: true } } },
+    }),
+    prisma.notification.count({ where: { userId, readAt: null } }),
+  ]);
+  return user ? { ...user, unreadCount } : null;
 }
 
 export default async function RootLayout({
@@ -41,6 +45,7 @@ export default async function RootLayout({
               <AppBarUser
                 penName={user.penName}
                 researcherId={user.researcherProfile?.id ?? null}
+                unreadCount={user.unreadCount}
               />
             ) : (
               <Link

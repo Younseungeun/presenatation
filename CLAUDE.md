@@ -277,7 +277,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 163건, 브랜치 `claude/session-start-59rfim`.
+테스트 175건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -297,6 +297,8 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 - 하락 예측 종목 제한: 종목 마스터의 shortable 플래그로 일원화 — 원천은 숏 실행 수단
   유니버스(KR 개별주식선물 35종·US 인버스 ETF 25종, 초안), 하락 선택 시 해당 종목만 검색 (§2.1)
 - 동시 활성 카드 수 제한: 자산군별 활성 카드 상한(등급별 10~30, 초안), 게시 시점 검증 (§2.2)
+- 판정 결과 인앱 알림: 판정 트랜잭션에서 구매자(환불·정산 안내)·리서처(점수·정산 요약) 알림
+  생성 — 자동·수동 판정 공통 경로(judgmentWriter), 앱바 미읽음 뱃지 + 알림함(열람 시 읽음)
 - 구매·에스크로: 자기 구매·중복·미인증·시한 경과 차단, HELD 보관 (PG는 스텁) (§3.3)
 - 판정 배치: 시한 도래 카드 판정→점수 산정→3분기 정산(환불 지시 기록)을 단일 트랜잭션으로,
   멱등 재실행·이월·보류 큐 보고 (npm run batch:judge)
