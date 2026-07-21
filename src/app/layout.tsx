@@ -58,6 +58,19 @@ export default async function RootLayout({
           </div>
         </header>
         {children}
+        <footer className="siteFooter">
+          <div className="siteFooterInner">
+            <nav className="siteFooterLinks">
+              <Link href="/terms/TERMS_OF_SERVICE">이용약관</Link>
+              <Link href="/terms/PRIVACY_POLICY">개인정보처리방침</Link>
+              <Link href="/terms/RESEARCHER_AGREEMENT">리서처 이용계약</Link>
+            </nav>
+            <p className="siteFooterNote">
+              본 서비스의 리포트는 공개 자료 기반 분석이며 투자권유가 아닙니다. 투자 판단과
+              결과의 책임은 이용자 본인에게 있습니다.
+            </p>
+          </div>
+        </footer>
       </body>
     </html>
   );

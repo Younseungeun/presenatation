@@ -155,6 +155,20 @@ model Settlement {
   payoutExecutedBy   String? // 실행 운영자 userId
 }
 
+// 약관 동의 이력: 누가·언제·어느 문서 버전에·어떤 맥락에서 동의했는지 기록.
+// 법적 결론과 무관하게 필요한 감사 데이터 — PG 심사·분쟁 대응의 증빙이 된다.
+model Consent {
+  id       String   @id @default(cuid())
+  userId   String
+  docKey   String // TERMS_OF_SERVICE | PRIVACY_POLICY | RESEARCHER_AGREEMENT | REFUND_POLICY
+  version  String // 동의 시점의 문서 버전 (legalDocs.ts)
+  context  String // SIGNUP | RESEARCHER_ACTIVATION | PURCHASE
+  note     String? // 맥락 부가정보 (예: PURCHASE의 reportId)
+  agreedAt DateTime @default(now())
+
+  @@index([userId, docKey])
+}
+
 // 인앱 알림: 판정·정산 결과를 구매자/리서처에게 통지 (판정 트랜잭션에서 함께 생성)
 model Notification {
   id        String    @id @default(cuid())

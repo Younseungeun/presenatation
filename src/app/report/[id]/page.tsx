@@ -4,6 +4,7 @@ import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getSessionUserId } from "@/server/session";
+import { Disclaimer } from "../../Disclaimer";
 import { PurchaseButton } from "./PurchaseButton";
 import styles from "../../market.module.css";
 
@@ -118,6 +119,8 @@ export default async function ReportDetail({
       ) : (
         <div className={styles.locked}>현재 판매 중인 리포트가 아닙니다.</div>
       )}
+
+      <Disclaimer />
     </main>
   );
 }

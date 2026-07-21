@@ -297,3 +297,36 @@
   background: var(--brand-strong);
   vertical-align: 2px;
 }
+
+/* 약관 동의 체크 + 환불 규정 고지 */
+.consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-weak);
+  margin: 12px 0;
+  cursor: pointer;
+}
+.consent input {
+  margin-top: 2px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brand-strong);
+  flex-shrink: 0;
+}
+.consent a {
+  color: var(--brand-strong);
+  font-weight: 600;
+  text-decoration: underline;
+}
+.refundNotice {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-weak);
+  background: var(--brand-soft);
+  border-radius: var(--radius-sm);
+  padding: 12px 14px;
+  margin: 8px 0 0;
+}

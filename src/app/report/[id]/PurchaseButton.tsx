@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { REFUND_POLICY_SUMMARY } from "@/domain/legalDocs";
 import styles from "../../market.module.css";
 
 /**
  * 구매 버튼. 로그인(본인 인증)이 없으면 /login으로 유도한다.
  * 구매는 에스크로 보관 — 판정 후 적중이면 리서처 정산, 실패면 현금 환불.
+ * 구매 전 환불 규정을 고지하고 동의를 받는다 (전자상거래법).
  */
 export function PurchaseButton({
   reportId,
@@ -18,6 +21,7 @@ export function PurchaseButton({
   hasIdentity: boolean;
 }) {
   const router = useRouter();
+  const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,10 +30,18 @@ export function PurchaseButton({
       router.push(`/login?next=/report/${reportId}`);
       return;
     }
+    if (!agreed) {
+      setError("환불 규정에 동의해야 결제할 수 있습니다.");
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reports/${reportId}/purchase`, { method: "POST" });
+      const res = await fetch(`/api/reports/${reportId}/purchase`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agreedRefund: true }),
+      });
       const body = await res.json();
       if (!res.ok) {
         setError(body.error ?? "구매 실패");
@@ -45,7 +57,30 @@ export function PurchaseButton({
 
   return (
     <div>
-      <button className={styles.primaryBtn} onClick={purchase} disabled={busy}>
+      {hasIdentity && (
+        <>
+          <p className={styles.refundNotice}>{REFUND_POLICY_SUMMARY}</p>
+          <label className={styles.consent}>
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(e) => setAgreed(e.target.checked)}
+            />
+            <span>
+              위 환불 규정과{" "}
+              <Link href="/terms/TERMS_OF_SERVICE" target="_blank">
+                이용약관
+              </Link>
+              을 확인했습니다 (필수)
+            </span>
+          </label>
+        </>
+      )}
+      <button
+        className={styles.primaryBtn}
+        onClick={purchase}
+        disabled={busy || (hasIdentity && !agreed)}
+      >
         {busy
           ? "결제 중…"
           : hasIdentity

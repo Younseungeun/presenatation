@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import styles from "../researcher/researcher.module.css";
@@ -13,10 +14,15 @@ export function LoginForm() {
   const search = useSearchParams();
   const next = search.get("next") ?? "/";
   const [busy, setBusy] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!agreed) {
+      setError("이용약관·개인정보처리방침에 동의해야 시작할 수 있습니다.");
+      return;
+    }
     setBusy(true);
     setError(null);
     const f = new FormData(e.currentTarget);
@@ -28,6 +34,7 @@ export function LoginForm() {
           name: f.get("name"),
           phone: f.get("phone"),
           penName: f.get("penName") || undefined,
+          agreedTerms: agreed,
         }),
       });
       const body = await res.json();
@@ -67,12 +74,30 @@ export function LoginForm() {
         <span className={styles.hint}>실명 대신 표시될 이름입니다. 나중에 설정할 수도 있어요.</span>
       </div>
 
+      <label className={styles.consent}>
+        <input
+          type="checkbox"
+          checked={agreed}
+          onChange={(e) => setAgreed(e.target.checked)}
+        />
+        <span>
+          <Link href="/terms/TERMS_OF_SERVICE" target="_blank">
+            이용약관
+          </Link>
+          {" 및 "}
+          <Link href="/terms/PRIVACY_POLICY" target="_blank">
+            개인정보처리방침
+          </Link>
+          에 동의합니다 (필수)
+        </span>
+      </label>
+
       {error && (
         <div className={styles.error}>{error}</div>
       )}
 
       <div className={styles.formActions}>
-        <button className={styles.primaryBtn} type="submit" disabled={busy}>
+        <button className={styles.primaryBtn} type="submit" disabled={busy || !agreed}>
           {busy ? "인증 중…" : "본인 인증하고 시작"}
         </button>
       </div>
