@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
-// 앱바 우측 로그인 상태. 로그아웃은 API 호출 후 새로고침.
+// 앱바 우측 로그인 상태.
+// - 데스크톱: 링크를 가로로 나열
+// - 모바일: 알림 미읽음 뱃지를 단 햄버거 버튼 → 드롭다운 시트
 export function AppBarUser({
   penName,
   researcherId,
@@ -14,62 +17,72 @@ export function AppBarUser({
   unreadCount: number;
 }) {
   const router = useRouter();
-  const linkStyle = { fontSize: 14, fontWeight: 600, color: "var(--text-weak)" };
+  const [menuOpen, setMenuOpen] = useState(false);
 
   async function logout() {
+    setMenuOpen(false);
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/");
     router.refresh();
   }
 
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-      <Link href="/leaderboard" style={linkStyle}>
+  const links = (
+    <>
+      <Link href="/leaderboard" className="navLink" onClick={() => setMenuOpen(false)}>
         리더보드
       </Link>
-      <Link href="/purchases" style={linkStyle}>
+      <Link href="/purchases" className="navLink" onClick={() => setMenuOpen(false)}>
         구매 내역
       </Link>
-      <Link href="/notifications" style={{ ...linkStyle, position: "relative" }}>
+      <Link href="/notifications" className="navLink navNoti" onClick={() => setMenuOpen(false)}>
         알림
-        {unreadCount > 0 && (
-          <span
-            style={{
-              position: "absolute",
-              top: -7,
-              right: -14,
-              minWidth: 16,
-              height: 16,
-              padding: "0 4px",
-              borderRadius: 8,
-              background: "var(--brand-strong)",
-              color: "#fff",
-              fontSize: 10.5,
-              fontWeight: 800,
-              lineHeight: "16px",
-              textAlign: "center",
-            }}
-          >
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        )}
+        {unreadCount > 0 && <span className="navBadge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
       </Link>
       {researcherId ? (
-        <Link href={`/researcher/${researcherId}`} style={linkStyle}>
+        <Link href={`/researcher/${researcherId}`} className="navLink" onClick={() => setMenuOpen(false)}>
           내 리포트
         </Link>
       ) : (
-        <Link href="/researcher/start" style={linkStyle}>
+        <Link href="/researcher/start" className="navLink" onClick={() => setMenuOpen(false)}>
           리서처 되기
         </Link>
       )}
-      <span style={{ fontSize: 14, fontWeight: 700 }}>{penName ?? "회원"}</span>
+    </>
+  );
+
+  return (
+    <>
+      {/* 데스크톱 */}
+      <nav className="navDesktop">
+        {links}
+        <span className="navName">{penName ?? "회원"}</span>
+        <button onClick={logout} className="navLink navBtn">
+          로그아웃
+        </button>
+      </nav>
+
+      {/* 모바일 */}
       <button
-        onClick={logout}
-        style={{ ...linkStyle, background: "none", border: "none", cursor: "pointer" }}
+        className="navToggle"
+        aria-label="메뉴"
+        aria-expanded={menuOpen}
+        onClick={() => setMenuOpen((v) => !v)}
       >
-        로그아웃
+        <span className="navToggleBars" />
+        {unreadCount > 0 && !menuOpen && <span className="navBadge navToggleBadge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
       </button>
-    </div>
+      {menuOpen && (
+        <>
+          <button className="navScrim" aria-label="닫기" onClick={() => setMenuOpen(false)} />
+          <div className="navSheet">
+            <div className="navSheetName">{penName ?? "회원"}</div>
+            {links}
+            <button onClick={logout} className="navLink navBtn navSheetLogout">
+              로그아웃
+            </button>
+          </div>
+        </>
+      )}
+    </>
   );
 }

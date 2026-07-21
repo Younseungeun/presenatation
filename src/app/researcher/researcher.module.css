@@ -332,3 +332,16 @@
   font-weight: 600;
   text-decoration: underline;
 }
+
+/* 모바일 반응형 */
+@media (max-width: 640px) {
+  .page {
+    padding: 24px 16px 80px;
+  }
+  .header h1 {
+    font-size: 22px;
+  }
+  .statGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

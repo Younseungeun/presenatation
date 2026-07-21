@@ -330,3 +330,29 @@
   padding: 12px 14px;
   margin: 8px 0 0;
 }
+
+/* 모바일 반응형 */
+@media (max-width: 640px) {
+  .page {
+    padding: 24px 16px 80px;
+  }
+  .h1 {
+    font-size: 22px;
+  }
+  .tabs {
+    display: flex;
+    width: 100%;
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px 8px;
+  }
+  .content {
+    overflow-wrap: break-word;
+  }
+  .cardRow {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+}
