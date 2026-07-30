@@ -12,6 +12,7 @@
     "smoke:market": "tsx scripts/smokeMarketData.ts",
     "sync:instruments": "tsx scripts/syncInstruments.ts",
     "seed:dev": "tsx scripts/seedDev.ts",
+    "seed:demo": "tsx scripts/seedDemo.ts",
     "batch:judge": "tsx scripts/runJudgmentBatch.ts",
     "op:grant": "tsx scripts/grantOperator.ts",
     "batch:season": "tsx scripts/runSeasonRecalc.ts"
