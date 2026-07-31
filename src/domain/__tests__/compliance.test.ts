@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyRules,
+  deadlineRisk,
   decide,
   findingMessages,
+  formatElapsed,
+  holdUrgency,
   mergeFindings,
   resolveAction,
   type ScreeningInput,
@@ -121,6 +124,36 @@ describe('findingMessages — 리서처에게 보여줄 사유', () => {
     ];
     expect(findingMessages(findings, 'BLOCK')).toHaveLength(1);
     expect(findingMessages(findings)).toHaveLength(2);
+  });
+});
+
+describe('보류 대기 시간 — 큐 정렬·강조 기준', () => {
+  const now = new Date('2026-07-31T12:00:00Z');
+  const ago = (hours: number) => new Date(now.getTime() - hours * 3_600_000);
+
+  it('6시간·24시간을 경계로 주의·지연 단계가 올라간다', () => {
+    expect(holdUrgency(ago(0.5), now)).toBe('NORMAL');
+    expect(holdUrgency(ago(5.9), now)).toBe('NORMAL');
+    expect(holdUrgency(ago(6), now)).toBe('ATTENTION');
+    expect(holdUrgency(ago(23.9), now)).toBe('ATTENTION');
+    expect(holdUrgency(ago(24), now)).toBe('OVERDUE');
+    expect(holdUrgency(ago(100), now)).toBe('OVERDUE');
+  });
+
+  it('경과 시간 표기는 단위가 커질수록 간결해진다', () => {
+    expect(formatElapsed(ago(0.7), now)).toBe('42분 대기');
+    expect(formatElapsed(ago(3), now)).toBe('3시간 대기');
+    expect(formatElapsed(ago(48), now)).toBe('2일 대기');
+    expect(formatElapsed(ago(53), now)).toBe('2일 5시간 대기');
+    // 시계 오차로 미래 시각이 들어와도 음수를 보여주지 않는다
+    expect(formatElapsed(new Date(now.getTime() + 60_000), now)).toBe('0분 대기');
+  });
+
+  it('시한이 지났거나 48시간 내면 승인 위험을 알린다', () => {
+    expect(deadlineRisk(new Date(now.getTime() - 1), now)).toBe('PASSED');
+    expect(deadlineRisk(new Date(now.getTime() + 24 * 3_600_000), now)).toBe('NEAR');
+    expect(deadlineRisk(new Date(now.getTime() + 72 * 3_600_000), now)).toBe('NONE');
+    expect(deadlineRisk(null, now)).toBe('NONE');
   });
 });
 

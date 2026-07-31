@@ -377,6 +377,34 @@ describe('보류 건에 대한 운영자 결정 — 승인/반려', () => {
     expect(noti.body).toContain('공개 자료로 교체 필요');
   });
 
+  it('큐는 보류가 오래된 순으로 온다 (대기가 긴 건이 먼저)', async () => {
+    // 제출 시각을 다르게 준 세 건 — 큐 순서가 대기 시간 순인지 확인
+    const ids: string[] = [];
+    for (const [i, title] of ['정렬 늦은 건', '정렬 중간 건', '정렬 이른 건'].entries()) {
+      const draft = await createDraftReport(
+        prisma,
+        draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', title, takedownResearcherId),
+        DRAFT_NOW,
+      );
+      await publishReport(
+        prisma,
+        registry,
+        draft.id,
+        takedownResearcherId,
+        new Date(PUBLISH_NOW.getTime() - i * 3_600_000), // 0h, 1h, 2h 전
+      );
+      ids.push(draft.id);
+    }
+
+    const queue = await getPendingComplianceReviews(prisma);
+    const positions = ids.map((id) => queue.findIndex((r) => r.report.id === id));
+    // 가장 오래 기다린 '정렬 이른 건'(2시간 전)이 '정렬 늦은 건'(방금)보다 앞
+    expect(positions[2]).toBeLessThan(positions[1]);
+    expect(positions[1]).toBeLessThan(positions[0]);
+
+    for (const id of ids) await rejectPendingReport(prisma, id, OPERATOR, '정렬 테스트 정리');
+  });
+
   it('사유 없는 반려·보류 아닌 건에 대한 결정은 거부된다', async () => {
     const reportId = await held('가드 확인');
     await expect(rejectPendingReport(prisma, reportId, OPERATOR, '   ')).rejects.toThrow(

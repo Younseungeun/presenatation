@@ -193,6 +193,51 @@ export function findingMessages(findings: Finding[], severity?: Severity): strin
     );
 }
 
+// ── 보류 대기 시간 ────────────────────────────────────────────────────
+//
+// 보류 중인 리포트는 판매가 멈춰 있다. 대기가 길어질수록 리서처의 손해가 커지고,
+// 검증 시한이 짧은 카드(코인 최소 1일)는 승인 시점에 이미 게시 조건을 못 맞출 수 있다.
+// 그래서 큐는 오래된 순으로 정렬하고, 경과 시간에 따라 눈에 띄게 표시한다.
+
+/** 이 시간을 넘기면 주의 (반나절 안에는 답을 줘야 한다는 기준) */
+export const HOLD_ATTENTION_HOURS = 6;
+/** 이 시간을 넘기면 지연 — 단기 카드는 이미 가치를 잃었을 수 있다 */
+export const HOLD_OVERDUE_HOURS = 24;
+
+export type HoldUrgency = 'NORMAL' | 'ATTENTION' | 'OVERDUE';
+
+export function holdUrgency(heldAt: Date, now: Date): HoldUrgency {
+  const hours = (now.getTime() - heldAt.getTime()) / 3_600_000;
+  if (hours >= HOLD_OVERDUE_HOURS) return 'OVERDUE';
+  if (hours >= HOLD_ATTENTION_HOURS) return 'ATTENTION';
+  return 'NORMAL';
+}
+
+/** 경과 시간을 사람이 읽는 표기로 ("42분 대기" / "3시간 대기" / "2일 5시간 대기") */
+export function formatElapsed(from: Date, now: Date): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - from.getTime()) / 60_000));
+  if (minutes < 60) return `${minutes}분 대기`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}시간 대기`;
+  const days = Math.floor(hours / 24);
+  const rest = hours % 24;
+  return rest === 0 ? `${days}일 대기` : `${days}일 ${rest}시간 대기`;
+}
+
+/**
+ * 승인해도 게시가 안 될 수 있는 상태인가.
+ * 시한이 이미 지났으면 승인 자체가 실패하고, 임박했으면 최소 시한 규칙에 걸릴 수 있다.
+ */
+export function deadlineRisk(
+  deadline: Date | null | undefined,
+  now: Date,
+): 'NONE' | 'NEAR' | 'PASSED' {
+  if (!deadline) return 'NONE';
+  const hours = (deadline.getTime() - now.getTime()) / 3_600_000;
+  if (hours <= 0) return 'PASSED';
+  return hours <= 48 ? 'NEAR' : 'NONE';
+}
+
 /** 규칙 결과 + AI 결과 병합 (중복 카테고리는 규칙 쪽을 우선) */
 export function mergeFindings(ruleFindings: Finding[], aiFindings: Finding[]): Finding[] {
   const seen = new Set(ruleFindings.map((f) => `${f.category}:${f.severity}`));

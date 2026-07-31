@@ -163,7 +163,11 @@ export async function getScreeningUsageStats(prisma: PrismaClient) {
   };
 }
 
-/** 운영자 검토 대기 큐 — 미확인 WARN·UNAVAILABLE (오래된 순) */
+/**
+ * 운영자 검토 대기 큐 — 보류가 오래된 순.
+ * 정렬 기준이 보류 경과 시간인 이유: 리서처는 결정이 날 때까지 판매를 못 한다.
+ * 대기가 길어질수록 예측의 가치가 떨어지므로(특히 단기 카드) 오래된 건이 먼저다.
+ */
 export function getPendingComplianceReviews(prisma: PrismaClient) {
   return prisma.complianceReview.findMany({
     where: { needsOperatorReview: true, operatorReviewedAt: null },
@@ -178,6 +182,8 @@ export function getPendingComplianceReviews(prisma: PrismaClient) {
           },
           // 강제 철회 시 환불될 규모 — 운영자가 집행 전에 영향 범위를 보고 판단해야 한다
           purchases: { where: { escrowStatus: 'HELD' }, select: { amountKrw: true } },
+          // 검증 시한 — 대기 중 시한이 다가오면 승인해도 게시 조건을 못 맞출 수 있다
+          predictionCard: { select: { deadline: true, assetClass: true } },
         },
       },
     },

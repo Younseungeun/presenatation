@@ -1,6 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { RISK_CATEGORY_LABEL, type Finding, type RiskCategory } from "@/domain/compliance";
+import {
+  deadlineRisk,
+  formatElapsed,
+  HOLD_ATTENTION_HOURS,
+  HOLD_OVERDUE_HOURS,
+  holdUrgency,
+  RISK_CATEGORY_LABEL,
+  type Finding,
+  type HoldUrgency,
+  type RiskCategory,
+} from "@/domain/compliance";
 import {
   getPendingComplianceReviews,
   getPublishedReportsForOversight,
@@ -23,6 +33,13 @@ function parseFindings(json: string): Finding[] {
   }
 }
 
+// 대기가 길어진 건일수록 강하게 드러낸다 — 큐를 열었을 때 무엇부터 볼지가 바로 보여야 한다
+const URGENCY_STYLE: Record<HoldUrgency, { accent: string; label: string }> = {
+  OVERDUE: { accent: "var(--neg)", label: "지연" },
+  ATTENTION: { accent: "var(--warn)", label: "주의" },
+  NORMAL: { accent: "transparent", label: "" },
+};
+
 export default async function AdminCompliancePage() {
   const userId = await getSessionUserId();
   if (!userId) notFound();
@@ -33,6 +50,11 @@ export default async function AdminCompliancePage() {
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
   ]);
+
+  // 큐는 이미 오래된 순(= 대기가 긴 순)으로 온다. 상단에 지연 현황을 먼저 알린다.
+  const now = new Date();
+  const overdue = pending.filter((r) => holdUrgency(r.createdAt, now) === "OVERDUE").length;
+  const attention = pending.filter((r) => holdUrgency(r.createdAt, now) === "ATTENTION").length;
 
   return (
     <main className={styles.page}>
@@ -46,6 +68,22 @@ export default async function AdminCompliancePage() {
             시작되지 않습니다.{" "}
             <Link href="/admin/judgments">판정 보류 큐 →</Link>
           </p>
+          {(overdue > 0 || attention > 0) && (
+            <p className={styles.sub} style={{ marginTop: 6, fontWeight: 700 }}>
+              {overdue > 0 && (
+                <span style={{ color: "var(--neg)" }}>
+                  {HOLD_OVERDUE_HOURS}시간 초과 {overdue}건
+                </span>
+              )}
+              {overdue > 0 && attention > 0 && " · "}
+              {attention > 0 && (
+                <span style={{ color: "var(--warn)" }}>
+                  {HOLD_ATTENTION_HOURS}시간 초과 {attention}건
+                </span>
+              )}{" "}
+              — 대기가 긴 순으로 정렬되어 있습니다.
+            </p>
+          )}
         </div>
       </div>
 
@@ -57,27 +95,52 @@ export default async function AdminCompliancePage() {
           const researcher = review.report.researcher.user;
           const held = review.report.purchases;
           const heldAmountKrw = held.reduce((sum, p) => sum + p.amountKrw, 0);
+          const urgency = holdUrgency(review.createdAt, now);
+          const { accent, label: urgencyLabel } = URGENCY_STYLE[urgency];
+          const risk = deadlineRisk(review.report.predictionCard?.deadline, now);
           return (
-            <div key={review.id} className={styles.card}>
+            <div
+              key={review.id}
+              className={styles.card}
+              style={
+                urgency === "NORMAL"
+                  ? undefined
+                  : { borderLeft: `4px solid ${accent}`, background: `color-mix(in srgb, ${accent} 5%, var(--bg))` }
+              }
+            >
               <div className={styles.cardTop}>
                 <div className={styles.cardTitle}>{review.report.title}</div>
-                <span
-                  className={`${styles.badge} ${
-                    review.decision === "UNAVAILABLE" ? styles.undecidable : styles.miss
-                  }`}
-                >
-                  {review.report.status === "PENDING_REVIEW" ? "게시 대기" : "게시 중"} ·{" "}
-                  {review.decision === "UNAVAILABLE"
-                    ? "검수 실패"
-                    : review.decision === "BLOCK"
-                      ? "AI 위반 판정"
-                      : "AI 경고"}
-                </span>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {urgencyLabel && (
+                    <span
+                      className={`${styles.badge} ${
+                        urgency === "OVERDUE" ? styles.miss : styles.undecidable
+                      }`}
+                    >
+                      {urgencyLabel} · {formatElapsed(review.createdAt, now)}
+                    </span>
+                  )}
+                  <span
+                    className={`${styles.badge} ${
+                      review.decision === "UNAVAILABLE" ? styles.undecidable : styles.miss
+                    }`}
+                  >
+                    {review.report.status === "PENDING_REVIEW" ? "게시 대기" : "게시 중"} ·{" "}
+                    {review.decision === "UNAVAILABLE"
+                      ? "검수 실패"
+                      : review.decision === "BLOCK"
+                        ? "AI 위반 판정"
+                        : "AI 경고"}
+                  </span>
+                </div>
               </div>
               <div className={styles.meta}>
                 <span>{researcher.penName ?? researcher.email}</span>
                 <span>검수 {review.reviewer}</span>
-                <span>{new Date(review.createdAt).toLocaleString("ko-KR")}</span>
+                <span>
+                  {new Date(review.createdAt).toLocaleString("ko-KR")} (
+                  {formatElapsed(review.createdAt, now)})
+                </span>
                 <span>
                   {review.report.status === "PENDING_REVIEW"
                     ? "게시 보류 — 판매 전"
@@ -87,6 +150,15 @@ export default async function AdminCompliancePage() {
                 </span>
                 <Link href={`/report/${review.report.id}`}>본문 보기 →</Link>
               </div>
+
+              {/* 승인은 그 시점 기준으로 컷오프를 다시 검증한다 — 시한이 임박하면 승인이 실패할 수 있다 */}
+              {review.report.status === "PENDING_REVIEW" && risk !== "NONE" && (
+                <p className={styles.hint} style={{ color: "var(--neg)", fontWeight: 600 }}>
+                  {risk === "PASSED"
+                    ? "검증 시한이 이미 지났습니다 — 승인해도 게시되지 않습니다. 반려해주세요."
+                    : "검증 시한이 48시간 내입니다 — 대기가 더 길어지면 최소 시한 규칙에 걸려 승인이 실패할 수 있습니다."}
+                </p>
+              )}
 
               {review.decision === "UNAVAILABLE" ? (
                 <p className={styles.hint}>

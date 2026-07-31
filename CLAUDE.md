@@ -281,7 +281,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 219건, 브랜치 `claude/session-start-59rfim`.
+테스트 223건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -328,6 +328,11 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
   기간의 시세 변동이 이미 실현된 채 판매되어 정보 이점이 생기기 때문.
   반려(rejectPendingReport)는 삭제가 아니라 초안 복귀 + 사유 통지 → 리서처가 고쳐 재제출.
   보류 건은 구매 불가(purchaseService가 PUBLISHED만 허용), 리서처 화면엔 "검토 중" 배지
+- 검토 큐 우선순위: 보류가 오래된 순 정렬 + 경과 시간 강조 (6시간↑ 주의 / 24시간↑ 지연,
+  HOLD_ATTENTION_HOURS·HOLD_OVERDUE_HOURS). 정렬 기준이 대기 시간인 이유는 결정이
+  날 때까지 리서처가 판매를 못 하기 때문. 상단에 지연 건수 요약, 카드는 좌측 컬러
+  보더로 강조. 검증 시한이 48시간 내면 "승인해도 최소 시한 규칙에 걸릴 수 있음",
+  이미 지났으면 "승인 불가 — 반려 필요" 경고 (승인은 그 시점 컷오프를 재검증하므로)
 - 운영자 강제 철회 (사후 집행): 승인 후 위반이 드러난 판매 중 리포트를 내린다.
   카드를 시한 전에 판정 불가(WITHDRAWN)로 즉시 확정해 에스크로 전액 환불·수수료 0·
   리서처 정산 0·점수 0으로 처리하고(자동 경로와 동일한 judgmentWriter 공유), 사유를
