@@ -9,7 +9,10 @@ import {
   validateConditions,
   type CardDraft,
 } from '@/domain/publishReport';
+import { blockMessages, blocksPublish } from '@/domain/compliance';
+import type { ComplianceScreener } from '@/infra/compliance/screener';
 import { toCardDraft } from './cardMapper';
+import { screenAndRecord } from './complianceService';
 import { validateListedInstrument } from './instrumentService';
 import { researcherSeasonScores } from './scoreService';
 
@@ -102,6 +105,8 @@ export async function publishReport(
   reportId: string,
   researcherId: string,
   now = new Date(),
+  /** 컴플라이언스 검수기. null이면 결정적 규칙만 적용된다 */
+  screener: ComplianceScreener | null = null,
 ) {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
@@ -130,6 +135,26 @@ export async function publishReport(
   );
   if (instrument.issues.length > 0) {
     throw new PublishValidationError(instrument.issues);
+  }
+
+  // 컴플라이언스 검수: 규제 위반 표현은 게시 자체를 막는다 (§1 법적 경계).
+  // 검수 실패(외부 장애)는 게시를 막지 않고 운영자 검토 대상으로 넘어간다.
+  const compliance = await screenAndRecord(
+    prisma,
+    reportId,
+    {
+      title: report.title,
+      summary: report.summary,
+      content: report.content,
+      assetClass: cardDraft.assetClass,
+      assetName: cardDraft.assetName,
+      direction: cardDraft.direction,
+    },
+    screener,
+    now,
+  );
+  if (blocksPublish(compliance.decision)) {
+    throw new PublishValidationError(blockMessages(compliance.findings));
   }
 
   // 소급 확정 모드(주식 단기 카드)는 시세 조회 없이 컷오프 규칙만 검증된다.

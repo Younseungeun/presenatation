@@ -55,8 +55,9 @@ model Report {
   publishedAt     DateTime?
   createdAt       DateTime @default(now())
 
-  predictionCard PredictionCard?
-  purchases      Purchase[]
+  predictionCard    PredictionCard?
+  purchases         Purchase[]
+  complianceReviews ComplianceReview[]
 }
 
 // 예측 카드: 게시 후 수정·삭제 불가. 철회는 가능하되 기록에 남김.
@@ -153,6 +154,24 @@ model Settlement {
   // 리서처 지급 실행 추적 (researcherPayoutKrw > 0 건)
   payoutExecutedAt   DateTime?
   payoutExecutedBy   String? // 실행 운영자 userId
+}
+
+// 컴플라이언스 검수: 게시 시도마다 남는 기록.
+// 차단된 시도도 보존한다 — 반복 위반 패턴이 어뷰징 탐지 근거가 되기 때문.
+model ComplianceReview {
+  id                  String    @id @default(cuid())
+  reportId            String
+  report              Report    @relation(fields: [reportId], references: [id])
+  decision            String // PASS | WARN | BLOCK | UNAVAILABLE
+  reviewer            String // 검수 주체 (rule | rule+claude:모델명)
+  findingsJson        String // Finding[] 직렬화 (감사·리서처 안내용)
+  needsOperatorReview Boolean   @default(false)
+  operatorReviewedAt  DateTime? // 운영자가 확인한 시각
+  operatorReviewedBy  String? // 확인한 운영자 userId
+  createdAt           DateTime  @default(now())
+
+  @@index([reportId])
+  @@index([needsOperatorReview, operatorReviewedAt])
 }
 
 // 약관 동의 이력: 누가·언제·어느 문서 버전에·어떤 맥락에서 동의했는지 기록.

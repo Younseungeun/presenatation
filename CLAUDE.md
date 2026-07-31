@@ -281,7 +281,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 175건, 브랜치 `claude/session-start-59rfim`.
+테스트 196건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -306,6 +306,11 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 - 정산 지시서 콘솔: 판정이 만든 환불(PG 취소/계좌이체 선택)·리서처 지급 지시서를 운영자가
   실행·기록(실행자·시각·방법, 이중 실행 차단) + 당사자 알림 — PG 자동화 전 수동 운영 경로,
   /admin/settlements 화면 + API
+- 게시 전 컴플라이언스 검수 (AI): 결정적 규칙 + Claude(claude-opus-5, 구조화 출력) 2단 검수.
+  BLOCK(수익 보장·1:1 상담 유도·미공개정보 정황)은 게시 자체를 차단, WARN(풍문 등)은 게시
+  허용 후 운영자 큐(/admin/compliance)로. 규칙이 BLOCK이면 AI 미호출(비용 절감), AI 실패는
+  UNAVAILABLE로 게시 통과 후 검토 대상(외부 장애가 서비스 중단으로 번지지 않게).
+  ANTHROPIC_API_KEY 없으면 규칙만 동작. 검수 이력은 차단 시도까지 보존(어뷰징 탐지 근거)
 - 약관 동의 플로우: 버전 관리 약관 3종(이용약관·개인정보처리방침·리서처 이용계약, 본문은
   변호사 검토 전 자리표시자) + Consent 동의 이력(가입·리서처전환·구매 맥락, 버전 기준 중복
   방지) + 약관 열람 페이지 + 전 화면 푸터 링크·투자 유의 문구. 환불 조항은 "콘텐츠 거래대금
