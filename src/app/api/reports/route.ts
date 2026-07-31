@@ -1,14 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { ASSET_CLASSES, DIRECTIONS, PREPAYMENT_RATIOS, TARGET_TYPES } from '@/domain/constants';
+import { REPORT_TEXT_LIMITS } from '@/domain/publishReport';
 import { prisma } from '@/server/db';
 import { createDraftReport } from '@/server/reportService';
 import { requireResearcherId, toErrorResponse } from '../_lib/http';
 
 const bodySchema = z.object({
-  title: z.string().min(1).max(200),
-  summary: z.string().min(1).max(2000),
-  content: z.string().min(1),
+  // 상한은 도메인 상수가 단일 기준 (REPORT_TEXT_LIMITS) — 검수 입력 토큰 상한과 연동된다
+  title: z.string().min(1).max(REPORT_TEXT_LIMITS.title),
+  summary: z.string().min(1).max(REPORT_TEXT_LIMITS.summary),
+  content: z.string().min(1).max(REPORT_TEXT_LIMITS.content),
   priceKrw: z.number().int(),
   prepaymentRatio: z
     .number()

@@ -58,6 +58,8 @@ export interface ComplianceResult {
   reviewer: string;
   /** 운영자 검토가 필요한가 (WARN·UNAVAILABLE) */
   needsOperatorReview: boolean;
+  /** AI 검수 토큰 사용량 — 비용 측정·숙고량 신호용 (규칙만 돌았으면 없음) */
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 export interface ScreeningInput {

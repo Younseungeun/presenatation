@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
-import { PRICE_GUIDE_KRW } from "@/domain/publishReport";
+import { PRICE_GUIDE_KRW, REPORT_TEXT_LIMITS } from "@/domain/publishReport";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import styles from "../../researcher.module.css";
 
@@ -22,6 +22,11 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
   const [targetType, setTargetType] = useState("RETURN_PCT");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+
+  // 글자 수를 실시간으로 보여주기 위해 제어 컴포넌트로 관리 (상한은 도메인 상수)
+  const [title, setTitle] = useState("");
+  const [summary, setSummary] = useState("");
+  const [content, setContent] = useState("");
 
   // 종목은 자유 입력이 아니라 종목 마스터(시세 공급자 유니버스) 검색·선택만 가능
   const [query, setQuery] = useState("");
@@ -145,15 +150,46 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
     <form className={styles.form} onSubmit={onSubmit}>
       <div className={styles.field}>
         <label className={styles.label}>리포트 제목</label>
-        <input className={styles.input} name="title" required maxLength={200} />
+        <input
+          className={styles.input}
+          name="title"
+          required
+          maxLength={REPORT_TEXT_LIMITS.title}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <span className={styles.hint}>
+          {title.length}/{REPORT_TEXT_LIMITS.title}자
+        </span>
       </div>
       <div className={styles.field}>
         <label className={styles.label}>요약 (구매 전 공개)</label>
-        <input className={styles.input} name="summary" required maxLength={2000} />
+        <input
+          className={styles.input}
+          name="summary"
+          required
+          maxLength={REPORT_TEXT_LIMITS.summary}
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+        />
+        <span className={styles.hint}>
+          {summary.length}/{REPORT_TEXT_LIMITS.summary}자 · 구매 전 공개되는 미리보기입니다
+        </span>
       </div>
       <div className={styles.field}>
         <label className={styles.label}>본문 (유료 · 예측 근거)</label>
-        <textarea className={styles.textarea} name="content" required />
+        <textarea
+          className={styles.textarea}
+          name="content"
+          required
+          maxLength={REPORT_TEXT_LIMITS.content}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+        />
+        <span className={styles.hint}>
+          {content.length}/{REPORT_TEXT_LIMITS.content}자 · 결론은 예측 카드가 담으므로 본문은
+          근거를 압축해 작성해주세요
+        </span>
       </div>
 
       <h3>예측 카드</h3>

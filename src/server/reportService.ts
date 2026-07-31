@@ -7,6 +7,7 @@ import {
   PublishValidationError,
   validateCardDraft,
   validateConditions,
+  validateReportText,
   type CardDraft,
 } from '@/domain/publishReport';
 import { blockMessages, blocksPublish } from '@/domain/compliance';
@@ -53,6 +54,7 @@ export async function createDraftReport(
   // 초안 단계에서도 형식 오류는 즉시 돌려준다 (게시 시점 재검증은 별도)
   const issues = [
     ...instrument.issues,
+    ...validateReportText(input),
     ...validateCardDraft(input.card, now),
     ...validateConditions({
       priceKrw: input.priceKrw,

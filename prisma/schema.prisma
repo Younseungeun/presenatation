@@ -168,6 +168,11 @@ model ComplianceReview {
   needsOperatorReview Boolean   @default(false)
   operatorReviewedAt  DateTime? // 운영자가 확인한 시각
   operatorReviewedBy  String? // 확인한 운영자 userId
+  // AI 검수 토큰 사용량 — 실제 비용 측정 + 숙고량 신호 (규칙만 돌았으면 null).
+  // 이 데이터가 쌓이면 ① 모델 선택 ② 에스컬레이션 임계값을 근거 있게 정할 수 있다.
+  inputTokens         Int?
+  outputTokens        Int?
+  deliberationRatio   Float? // outputTokens / inputTokens — 리포트 길이 정규화한 고민 지표
   createdAt           DateTime  @default(now())
 
   @@index([reportId])

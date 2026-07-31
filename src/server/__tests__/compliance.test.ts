@@ -69,7 +69,7 @@ describe('runScreening — 규칙과 AI 조합', () => {
       reviewerId: 'spy',
       async screen() {
         called = true;
-        return [];
+        return { findings: [] };
       },
     };
     const result = await runScreening({ ...clean, content: '원금 보장됩니다' }, spy);
@@ -97,6 +97,15 @@ describe('runScreening — 규칙과 AI 조합', () => {
 
   it('검수기가 없으면 규칙만으로 판정', async () => {
     expect((await runScreening(clean, null)).reviewer).toBe('rule');
+  });
+
+  it('AI 토큰 사용량이 결과에 실려 온다 (비용 측정·숙고량 신호)', async () => {
+    const screener = new FixtureComplianceScreener([], undefined, {
+      inputTokens: 2_400,
+      outputTokens: 720,
+    });
+    const result = await runScreening(clean, screener);
+    expect(result.usage).toEqual({ inputTokens: 2_400, outputTokens: 720 });
   });
 });
 
@@ -135,6 +144,26 @@ describe('publishReport — 검수 연동', () => {
     });
     expect(review.decision).toBe('PASS');
     expect(review.needsOperatorReview).toBe(false);
+  });
+
+  it('검수 사용량이 기록되고 숙고 지수가 계산된다', async () => {
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('공개 자료를 근거로 상승을 전망합니다.', '사용량 기록'),
+      DRAFT_NOW,
+    );
+    const screener = new FixtureComplianceScreener([], undefined, {
+      inputTokens: 2_000,
+      outputTokens: 600,
+    });
+    await publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW, screener);
+
+    const review = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId: draft.id },
+    });
+    expect(review.inputTokens).toBe(2_000);
+    expect(review.outputTokens).toBe(600);
+    expect(review.deliberationRatio).toBeCloseTo(0.3); // 600/2000
   });
 
   it('WARN은 게시를 허용하되 운영자 검토 큐에 올린다', async () => {

@@ -8,7 +8,7 @@ import {
   type Severity,
 } from '@/domain/compliance';
 import { ASSET_CLASS_LABEL } from '@/domain/constants';
-import type { ComplianceScreener } from './screener';
+import type { ComplianceScreener, ScreeningOutput } from './screener';
 
 // Claude 기반 컴플라이언스 검수 어댑터.
 // 결정적 규칙이 놓치는 우회 표현·문맥 의존 위반을 찾는다.
@@ -122,7 +122,7 @@ export class ClaudeComplianceScreener implements ComplianceScreener {
 
   constructor(private readonly client: Anthropic = new Anthropic()) {}
 
-  async screen(input: ScreeningInput): Promise<Finding[]> {
+  async screen(input: ScreeningInput): Promise<ScreeningOutput> {
     const response = await this.client.beta.messages.create({
       model: MODEL,
       max_tokens: 16_000,
@@ -153,7 +153,14 @@ export class ClaudeComplianceScreener implements ComplianceScreener {
     if (!text.trim()) {
       throw new Error('컴플라이언스 검수 응답이 비어 있습니다');
     }
-    return parseFindings(JSON.parse(text));
+    return {
+      findings: parseFindings(JSON.parse(text)),
+      // 실제 비용 측정·숙고량 신호의 원천 (출력에는 사고 토큰이 포함된다)
+      usage: {
+        inputTokens: message.usage.input_tokens,
+        outputTokens: message.usage.output_tokens,
+      },
+    };
   }
 }
 

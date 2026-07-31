@@ -281,7 +281,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 196건, 브랜치 `claude/session-start-59rfim`.
+테스트 202건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -311,6 +311,14 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
   허용 후 운영자 큐(/admin/compliance)로. 규칙이 BLOCK이면 AI 미호출(비용 절감), AI 실패는
   UNAVAILABLE로 게시 통과 후 검토 대상(외부 장애가 서비스 중단으로 번지지 않게).
   ANTHROPIC_API_KEY 없으면 규칙만 동작. 검수 이력은 차단 시도까지 보존(어뷰징 탐지 근거)
+- 리포트 글자 수 상한 (확정): 제목 100자 / 요약 300자 / 본문 1,000자
+  (REPORT_TEXT_LIMITS, publishReport.ts). 이 셋이 검수 입력 전체이므로 상한이 곧
+  AI 검수 입력 토큰의 상한이 된다 — 건당 비용이 길이에 좌우되지 않고 예측 가능해진다.
+  초안 저장·API(zod)·작성 화면(실시간 카운터) 3중 적용
+- 검수 사용량 측정: ComplianceReview에 inputTokens/outputTokens/deliberationRatio
+  (=output/input, 길이 정규화한 숙고량 지표) 기록 + getScreeningUsageStats()의 P50/P80/P90.
+  용도 ① 실측 기반 모델 선택(현재 opus 유지, 데이터 쌓인 뒤 재결정)
+  ② 숙고량 상위 구간을 운영자 큐로 넘기는 에스컬레이션 임계값 산정 (임계값 미정)
 - 약관 동의 플로우: 버전 관리 약관 3종(이용약관·개인정보처리방침·리서처 이용계약, 본문은
   변호사 검토 전 자리표시자) + Consent 동의 이력(가입·리서처전환·구매 맥락, 버전 기준 중복
   방지) + 약관 열람 페이지 + 전 화면 푸터 링크·투자 유의 문구. 환불 조항은 "콘텐츠 거래대금

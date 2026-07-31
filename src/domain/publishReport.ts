@@ -18,6 +18,48 @@ import { disciplineFor, MIN_MAGNITUDE_PCT, targetPriceToMagnitudePct } from './s
 export const PRICE_GUIDE_KRW = { min: 5_000, max: 50_000 } as const;
 
 /**
+ * 리포트 본문·요약·제목 글자 수 상한 (확정).
+ *
+ * 목적 두 가지:
+ *  ① 컴플라이언스 AI 검수의 입력 토큰 상한을 구조적으로 고정 — 본문이 길어질수록
+ *     검수 비용이 선형으로 늘어나므로, 상한이 없으면 비용이 예측 불가능해진다
+ *  ② 리포트 품질 — 예측 카드가 결론을 담으므로 본문은 근거를 압축해 쓰는 것이 맞다
+ *
+ * 요약도 함께 제한한다: 요약은 구매 전 공개되는 미리보기이고, 검수 입력에도
+ * 포함되므로 여기를 열어두면 본문만 막는 것이 의미가 없다.
+ */
+export const REPORT_TEXT_LIMITS = {
+  title: 100,
+  summary: 300,
+  content: 1_000,
+} as const;
+
+/** 리포트 본문 검증 — 초안 저장 시점에 적용 (게시 전에 이미 막힌다) */
+export function validateReportText(text: {
+  title: string;
+  summary: string;
+  content: string;
+}): string[] {
+  const issues: string[] = [];
+  for (const [field, label] of [
+    ['title', '제목'],
+    ['summary', '요약'],
+    ['content', '본문'],
+  ] as const) {
+    const value = text[field].trim();
+    if (value.length === 0) {
+      issues.push(`${label}을(를) 입력해주세요`);
+      continue;
+    }
+    const limit = REPORT_TEXT_LIMITS[field];
+    if (value.length > limit) {
+      issues.push(`${label}은(는) ${limit}자 이내여야 합니다 (현재 ${value.length}자)`);
+    }
+  }
+  return issues;
+}
+
+/**
  * 리서처당 자산군별 동시 활성(게시·미판정·미철회) 카드 상한 — 초안 수치.
  * 목적: 신뢰도 1 저품질 대량 게시의 마지막 구멍 차단 (docs/score-discipline-sim.md).
  * 마이너스 규율은 기대 점수 ≈ 0인 신뢰도 1 스팸에 발동하지 않는데, 그 동기는
