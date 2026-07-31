@@ -73,19 +73,51 @@ export async function screenAndRecord(
 ): Promise<ComplianceResult> {
   const result = await runScreening(input, screener);
   const usage = result.usage as ScreeningUsage | undefined;
-  await prisma.complianceReview.create({
-    data: {
-      reportId,
-      decision: result.decision,
-      reviewer: result.reviewer,
-      findingsJson: JSON.stringify(result.findings),
-      needsOperatorReview: result.needsOperatorReview,
-      inputTokens: usage?.inputTokens ?? null,
-      outputTokens: usage?.outputTokens ?? null,
-      deliberationRatio: usage ? deliberationRatio(usage) : null,
-      createdAt: now,
-    },
-  });
+
+  const writes: Prisma.PrismaPromise<unknown>[] = [
+    prisma.complianceReview.create({
+      data: {
+        reportId,
+        decision: result.decision,
+        reviewer: result.reviewer,
+        findingsJson: JSON.stringify(result.findings),
+        needsOperatorReview: result.needsOperatorReview,
+        inputTokens: usage?.inputTokens ?? null,
+        outputTokens: usage?.outputTokens ?? null,
+        deliberationRatio: usage ? deliberationRatio(usage) : null,
+        createdAt: now,
+      },
+    }),
+  ];
+
+  // 2단 검수로 결론이 나지 않은 건은 운영자에게 즉시 알린다.
+  // 큐 페이지를 열어봐야만 알 수 있으면 위반 콘텐츠가 팔리는 시간이 길어진다.
+  if (result.needsOperatorReview) {
+    const operators = await prisma.user.findMany({
+      where: { role: 'OPERATOR' },
+      select: { id: true },
+    });
+    const label = result.decision === 'UNAVAILABLE' ? 'AI 검수 실패' : '검수 경고';
+    for (const op of operators) {
+      writes.push(
+        prisma.notification.create({
+          data: {
+            userId: op.id,
+            type: 'COMPLIANCE_REVIEW',
+            title: `[${label}] 컴플라이언스 검토 필요: ${input.title}`,
+            body:
+              result.decision === 'UNAVAILABLE'
+                ? 'AI 검수가 실패해 결정적 규칙만 적용된 채 게시됐습니다. 본문을 직접 확인해 게시 유지 또는 강제 철회를 결정해주세요.'
+                : `${result.findings.map((f) => f.reason).join(' / ')} — 게시 유지 또는 강제 철회를 결정해주세요.`,
+            link: '/admin/compliance',
+            createdAt: now,
+          },
+        }),
+      );
+    }
+  }
+
+  await prisma.$transaction(writes);
   return result;
 }
 

@@ -34,8 +34,9 @@ export default async function AdminCompliancePage() {
         <div>
           <h1>컴플라이언스 검토</h1>
           <p className={styles.sub}>
-            게시는 허용됐지만 확인이 필요한 리포트입니다. 명백한 위반은 게시 시점에 자동
-            차단되므로 여기에는 올라오지 않습니다.{" "}
+            게시 시점 2단 검수(금지 표현 규칙 → AI 판단)로 결론이 나지 않은 건입니다. 명백한
+            위반은 게시 자체가 차단되므로 여기에 올라오지 않습니다. 각 건은{" "}
+            <strong>게시 유지</strong> 또는 <strong>강제 철회</strong> 중 하나로 결정해주세요.{" "}
             <Link href="/admin/judgments">판정 보류 큐 →</Link>
           </p>
         </div>

@@ -17,17 +17,20 @@ import { createDraftReport, publishReport } from '../reportService';
 
 let prisma: PrismaClient;
 let researcherId: string;
-let researcherUserId: string;
 let buyerId: string;
+let operatorUserId: string;
+let takedownResearcherId: string;
+let takedownResearcherUserId: string;
 const OPERATOR = 'op-user-id';
 
 const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 const PUBLISH_NOW = new Date('2026-07-12T00:00:00Z');
 const registry = { CRYPTO: new FixtureMarketDataProvider().setCurrentPrice('KRW-BTC', 100) };
 
-function draftInput(content: string, title = 'BTC 전망') {
+// 자산군별 동시 활성 카드 상한(브론즈 5)에 걸리지 않게, 강제 철회 테스트는 별도 리서처를 쓴다
+function draftInput(content: string, title = 'BTC 전망', authorId = researcherId) {
   return {
-    researcherId,
+    researcherId: authorId,
     title,
     summary: '요약',
     content,
@@ -56,8 +59,16 @@ beforeAll(async () => {
     include: { researcherProfile: true },
   });
   researcherId = r.researcherProfile!.id;
-  researcherUserId = r.id;
   buyerId = (await prisma.user.create({ data: { email: 'b@c.io', identityVerified: true } })).id;
+  operatorUserId = (
+    await prisma.user.create({ data: { email: 'op@c.io', role: 'OPERATOR' } })
+  ).id;
+  const t = await prisma.user.create({
+    data: { email: 't@c.io', identityVerified: true, researcherProfile: { create: {} } },
+    include: { researcherProfile: true },
+  });
+  takedownResearcherId = t.researcherProfile!.id;
+  takedownResearcherUserId = t.id;
 });
 
 afterAll(async () => {
@@ -177,7 +188,7 @@ describe('publishReport — 검수 연동', () => {
     expect(review.deliberationRatio).toBeCloseTo(0.3); // 600/2000
   });
 
-  it('WARN은 게시를 허용하되 운영자 검토 큐에 올린다', async () => {
+  it('WARN은 게시를 허용하되 운영자 검토 큐에 올리고 운영자에게 알린다', async () => {
     const draft = await createDraftReport(
       prisma,
       draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', '풍문 포함'),
@@ -191,6 +202,39 @@ describe('publishReport — 검수 연동', () => {
     });
     expect(review.decision).toBe('WARN');
     expect(review.needsOperatorReview).toBe(true);
+
+    // 큐에 올린 것만으로는 부족 — 운영자가 열어보기 전에 알아야 한다
+    const alarm = await prisma.notification.findFirstOrThrow({
+      where: { userId: operatorUserId, type: 'COMPLIANCE_REVIEW', title: { contains: '풍문 포함' } },
+    });
+    expect(alarm.link).toBe('/admin/compliance');
+    expect(alarm.body).toContain('강제 철회');
+  });
+
+  it('AI 검수 실패도 운영자 알림 대상 (검수 공백을 사람이 메운다)', async () => {
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('공개 자료를 근거로 상승을 전망합니다.', '검수 장애'),
+      DRAFT_NOW,
+    );
+    const failing = new FixtureComplianceScreener([], new Error('API 장애'));
+    await publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW, failing);
+
+    const alarm = await prisma.notification.findFirstOrThrow({
+      where: { userId: operatorUserId, type: 'COMPLIANCE_REVIEW', title: { contains: '검수 장애' } },
+    });
+    expect(alarm.title).toContain('AI 검수 실패');
+  });
+
+  it('PASS는 알림을 만들지 않는다 (운영자 알림 피로 방지)', async () => {
+    const before = await prisma.notification.count({ where: { type: 'COMPLIANCE_REVIEW' } });
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('공개 실적 자료를 근거로 상승을 전망합니다.', '통과 건'),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW);
+    expect(await prisma.notification.count({ where: { type: 'COMPLIANCE_REVIEW' } })).toBe(before);
   });
 });
 
@@ -201,10 +245,10 @@ describe('forceWithdrawReport — 운영자 강제 철회', () => {
   async function publishedWithBuyer(title: string) {
     const draft = await createDraftReport(
       prisma,
-      draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', title),
+      draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', title, takedownResearcherId),
       DRAFT_NOW,
     );
-    await publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW);
+    await publishReport(prisma, registry, draft.id, takedownResearcherId, PUBLISH_NOW);
     await purchaseReport(prisma, draft.id, buyerId, PUBLISH_NOW);
     return draft.id;
   }
@@ -254,7 +298,7 @@ describe('forceWithdrawReport — 운영자 강제 철회', () => {
 
     // 리서처 통지에 사유가 실린다
     const noti = await prisma.notification.findFirstOrThrow({
-      where: { userId: researcherUserId, type: 'COMPLIANCE_TAKEDOWN' },
+      where: { userId: takedownResearcherUserId, type: 'COMPLIANCE_TAKEDOWN' },
     });
     expect(noti.body).toContain('공개 자료 확인 불가');
 
@@ -289,7 +333,11 @@ describe('forceWithdrawReport — 운영자 강제 철회', () => {
   });
 
   it('게시되지 않은 초안은 대상이 아니다', async () => {
-    const draft = await createDraftReport(prisma, draftInput('본문', '초안 상태'), DRAFT_NOW);
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('본문', '초안 상태', takedownResearcherId),
+      DRAFT_NOW,
+    );
     await expect(
       forceWithdrawReport(prisma, { reportId: draft.id, operatorUserId: OPERATOR, reason: '위반' }),
     ).rejects.toThrow(/초안/);

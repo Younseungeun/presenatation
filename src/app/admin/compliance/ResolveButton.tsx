@@ -4,8 +4,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import styles from "../../researcher/researcher.module.css";
 
-// 검토 큐의 두 가지 집행 액션.
-//  - 검토 완료: 문제 없음 확인 → 큐에서 제거 (기록만 남음)
+// 2단 검수로 결론이 나지 않은 건에 대한 운영자의 최종 결정 — 둘 중 하나다.
+//  - 게시 유지: 문제 없음 → 큐에서 제거 (결정한 운영자·시각은 기록에 남는다)
 //  - 강제 철회: 실제 위반 → 게시 중단 + 즉시 전액 환불. 되돌릴 수 없으므로
 //    사유 입력과 확인 단계를 거치게 한다.
 export function ResolveButton({
@@ -102,7 +102,7 @@ export function ResolveButton({
         onClick={() => post({ action: "RESOLVE", reviewId }, "처리 실패")}
         disabled={busy}
       >
-        {busy ? "처리 중…" : "검토 완료"}
+        {busy ? "처리 중…" : "게시 유지"}
       </button>
       {canTakedown && (
         <button

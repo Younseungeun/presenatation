@@ -281,7 +281,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 206건, 브랜치 `claude/session-start-59rfim`.
+테스트 208건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -306,10 +306,13 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 - 정산 지시서 콘솔: 판정이 만든 환불(PG 취소/계좌이체 선택)·리서처 지급 지시서를 운영자가
   실행·기록(실행자·시각·방법, 이중 실행 차단) + 당사자 알림 — PG 자동화 전 수동 운영 경로,
   /admin/settlements 화면 + API
-- 게시 전 컴플라이언스 검수 (AI): 결정적 규칙 + Claude(claude-opus-5, 구조화 출력) 2단 검수.
-  BLOCK(수익 보장·1:1 상담 유도·미공개정보 정황)은 게시 자체를 차단, WARN(풍문 등)은 게시
-  허용 후 운영자 큐(/admin/compliance)로. 규칙이 BLOCK이면 AI 미호출(비용 절감), AI 실패는
-  UNAVAILABLE로 게시 통과 후 검토 대상(외부 장애가 서비스 중단으로 번지지 않게).
+- 게시 전 컴플라이언스 검수 (AI): 리서처가 게시를 누르면 자동 실행되는 2단 검수.
+  1차 결정적 규칙 → BLOCK(수익 보장·1:1 상담 유도·미공개정보 정황)이면 AI 호출 없이
+  게시 차단. 2차 Claude(claude-opus-5, 구조화 출력)가 문맥이 필요한 애매한 표현을 판단.
+  2단에서도 결론이 안 나면(WARN=경고 소견, UNAVAILABLE=AI 장애) 게시는 통과시키되
+  운영자 큐(/admin/compliance) + 운영자 인앱 알림(COMPLIANCE_REVIEW)으로 넘겨
+  사람이 게시 유지/강제 철회를 결정한다. AI 실패로 게시를 막지 않는 이유는
+  외부 장애가 서비스 중단으로 번지지 않게 하기 위함.
   ANTHROPIC_API_KEY 없으면 규칙만 동작. 검수 이력은 차단 시도까지 보존(어뷰징 탐지 근거)
 - 운영자 강제 철회 (집행 액션): 검토 큐에서 실제 위반으로 판단하면 게시 중단 —
   카드를 시한 전에 판정 불가(WITHDRAWN)로 즉시 확정해 에스크로 전액 환불·수수료 0·
