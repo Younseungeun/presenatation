@@ -51,7 +51,8 @@ model Report {
   priceKrw        Int // 건당 가격 (플랫폼 가이드: 5천~5만원)
   prepaymentRatio Int      @default(0) // 0 | 10 | 20 | 30 (%) — 게시 시점 고정, 변경 불가
   feeRateBp       Int? // 게시 시점 확정 총 수수료 (bp, 예: 2000 = 20%). 초안 단계엔 null
-  status          String   @default("DRAFT") // DRAFT | PUBLISHED | CLOSED
+  // DRAFT | PENDING_REVIEW(컴플라이언스 검토 대기 — 판매 전) | PUBLISHED | CLOSED
+  status          String   @default("DRAFT")
   publishedAt     DateTime?
   createdAt       DateTime @default(now())
 

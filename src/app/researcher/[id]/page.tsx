@@ -19,6 +19,7 @@ function StatusBadge({ report }: { report: DashboardReport }) {
   }
   const map: Record<string, [string, string]> = {
     DRAFT: [styles.draft, "초안"],
+    PENDING_REVIEW: [styles.undecidable, "검토 중"],
     PUBLISHED: [styles.published, "판매 중"],
     CLOSED: [styles.closed, "종료"],
   };

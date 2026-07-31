@@ -1,19 +1,31 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { createDefaultRegistry } from '@/infra/marketData/registry';
 import {
   forceWithdrawReport,
   getPendingComplianceReviews,
   markComplianceReviewed,
 } from '@/server/complianceService';
 import { prisma } from '@/server/db';
+import { approvePendingReport, rejectPendingReport } from '@/server/reportService';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 
-// 운영자 컴플라이언스 검토 큐: WARN·검수 실패(UNAVAILABLE) 건 조회 + 두 가지 집행 액션
-//  - RESOLVE: 확인만 (문제 없음 → 큐에서 제거)
-//  - TAKEDOWN: 실제 위반 → 게시 중단 + 즉시 전액 환불
+// 운영자 컴플라이언스 검토 큐: 2단 검수로 결론이 안 난 건에 대한 결정.
+// 보류(PENDING_REVIEW) 건 — 아직 판매 전이므로 환불 문제가 없다
+//  - APPROVE: 게시 승인 (기준가·수수료는 이 시점에 확정)
+//  - REJECT: 반려 → 초안으로 되돌림 (사유 통지)
+// 이미 게시된 건 — 승인 후 재검토·구버전 데이터
+//  - RESOLVE: 게시 유지 (큐에서 제거)
+//  - TAKEDOWN: 강제 철회 → 게시 중단 + 즉시 전액 환불
 
 const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('RESOLVE'), reviewId: z.string().min(1) }),
+  z.object({ action: z.literal('APPROVE'), reportId: z.string().min(1) }),
+  z.object({
+    action: z.literal('REJECT'),
+    reportId: z.string().min(1),
+    reason: z.string().trim().min(1).max(500),
+  }),
   z.object({
     action: z.literal('TAKEDOWN'),
     reportId: z.string().min(1),
@@ -37,17 +49,31 @@ export async function POST(req: NextRequest) {
     // action 미지정은 기존 확인 처리로 해석 (하위 호환)
     const body = bodySchema.parse({ action: 'RESOLVE', ...raw });
 
-    if (body.action === 'TAKEDOWN') {
-      const summary = await forceWithdrawReport(prisma, {
-        reportId: body.reportId,
-        operatorUserId,
-        reason: body.reason,
-      });
-      return NextResponse.json({ ok: true, ...summary });
+    switch (body.action) {
+      case 'APPROVE': {
+        const published = await approvePendingReport(
+          prisma,
+          createDefaultRegistry(),
+          body.reportId,
+          operatorUserId,
+        );
+        return NextResponse.json({ ok: true, status: published.status });
+      }
+      case 'REJECT':
+        await rejectPendingReport(prisma, body.reportId, operatorUserId, body.reason);
+        return NextResponse.json({ ok: true });
+      case 'TAKEDOWN': {
+        const summary = await forceWithdrawReport(prisma, {
+          reportId: body.reportId,
+          operatorUserId,
+          reason: body.reason,
+        });
+        return NextResponse.json({ ok: true, ...summary });
+      }
+      default:
+        await markComplianceReviewed(prisma, body.reviewId, operatorUserId);
+        return NextResponse.json({ ok: true });
     }
-
-    await markComplianceReviewed(prisma, body.reviewId, operatorUserId);
-    return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '요청 형식 오류', issues: e.issues }, { status: 400 });

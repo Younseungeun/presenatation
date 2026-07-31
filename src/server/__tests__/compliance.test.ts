@@ -11,7 +11,12 @@ import {
   runScreening,
 } from '../complianceService';
 import { purchaseReport } from '../purchaseService';
-import { createDraftReport, publishReport } from '../reportService';
+import {
+  approvePendingReport,
+  createDraftReport,
+  publishReport,
+  rejectPendingReport,
+} from '../reportService';
 
 // 게시 전 컴플라이언스 검수가 실제 게시 플로우를 막는지/통과시키는지 종단 검증
 
@@ -188,14 +193,20 @@ describe('publishReport — 검수 연동', () => {
     expect(review.deliberationRatio).toBeCloseTo(0.3); // 600/2000
   });
 
-  it('WARN은 게시를 허용하되 운영자 검토 큐에 올리고 운영자에게 알린다', async () => {
+  it('WARN은 게시하지 않고 보류한다 — 판매 전에 사람이 결정한다', async () => {
     const draft = await createDraftReport(
       prisma,
       draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', '풍문 포함'),
       DRAFT_NOW,
     );
-    const published = await publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW);
-    expect(published.status).toBe('PUBLISHED');
+    const result = await publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW);
+    expect(result.status).toBe('PENDING_REVIEW');
+    // 보류 중에는 판매 조건이 확정되지 않는다 (승인 시점 시세로 확정)
+    expect(result.publishedAt).toBeNull();
+    expect(result.feeRateBp).toBeNull();
+    expect(
+      (await prisma.predictionCard.findFirstOrThrow({ where: { reportId: draft.id } })).basePrice,
+    ).toBeNull();
 
     const review = await prisma.complianceReview.findFirstOrThrow({
       where: { reportId: draft.id },
@@ -208,22 +219,43 @@ describe('publishReport — 검수 연동', () => {
       where: { userId: operatorUserId, type: 'COMPLIANCE_REVIEW', title: { contains: '풍문 포함' } },
     });
     expect(alarm.link).toBe('/admin/compliance');
-    expect(alarm.body).toContain('강제 철회');
+    // 리서처도 왜 안 올라갔는지 알아야 한다
+    await prisma.notification.findFirstOrThrow({
+      where: { type: 'COMPLIANCE_PENDING', title: { contains: '게시 보류' } },
+    });
   });
 
-  it('AI 검수 실패도 운영자 알림 대상 (검수 공백을 사람이 메운다)', async () => {
+  it('AI 검수 실패도 보류 대상 (검수 공백을 사람이 메운다)', async () => {
     const draft = await createDraftReport(
       prisma,
       draftInput('공개 자료를 근거로 상승을 전망합니다.', '검수 장애'),
       DRAFT_NOW,
     );
     const failing = new FixtureComplianceScreener([], new Error('API 장애'));
-    await publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW, failing);
+    const result = await publishReport(
+      prisma,
+      registry,
+      draft.id,
+      researcherId,
+      PUBLISH_NOW,
+      failing,
+    );
+    expect(result.status).toBe('PENDING_REVIEW');
 
     const alarm = await prisma.notification.findFirstOrThrow({
       where: { userId: operatorUserId, type: 'COMPLIANCE_REVIEW', title: { contains: '검수 장애' } },
     });
     expect(alarm.title).toContain('AI 검수 실패');
+  });
+
+  it('보류 건은 구매할 수 없다', async () => {
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', '보류 구매 시도'),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW);
+    await expect(purchaseReport(prisma, draft.id, buyerId, PUBLISH_NOW)).rejects.toThrow();
   });
 
   it('PASS는 알림을 만들지 않는다 (운영자 알림 피로 방지)', async () => {
@@ -238,10 +270,79 @@ describe('publishReport — 검수 연동', () => {
   });
 });
 
+describe('보류 건에 대한 운영자 결정 — 승인/반려', () => {
+  const DECIDE_NOW = new Date('2026-07-13T00:00:00Z');
+
+  async function held(title: string) {
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', title, takedownResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, takedownResearcherId, PUBLISH_NOW);
+    return draft.id;
+  }
+
+  it('승인하면 그때서야 게시되고 기준가·수수료가 확정된다', async () => {
+    const reportId = await held('승인 대상');
+    expect((await getPendingComplianceReviews(prisma)).some((r) => r.report.id === reportId)).toBe(
+      true,
+    );
+
+    const published = await approvePendingReport(prisma, registry, reportId, OPERATOR, DECIDE_NOW);
+    expect(published.status).toBe('PUBLISHED');
+    // 기준가는 제출 시점(7/12)이 아니라 승인 시점(7/13) 기준으로 확정된다 —
+    // 보류 기간의 시세 변동이 흡수되어 정보 이점이 생기지 않는다
+    expect(published.publishedAt).toEqual(DECIDE_NOW);
+    expect(published.feeRateBp).toBeGreaterThan(0);
+    expect(published.basePrice).toBe(100);
+
+    expect((await getPendingComplianceReviews(prisma)).some((r) => r.report.id === reportId)).toBe(
+      false,
+    );
+    await prisma.notification.findFirstOrThrow({
+      where: { userId: takedownResearcherUserId, title: { contains: '게시 승인' } },
+    });
+    // 승인 후에는 판매 가능
+    await purchaseReport(prisma, reportId, buyerId, DECIDE_NOW);
+  });
+
+  it('반려하면 초안으로 돌아가고 사유가 리서처에게 전달된다', async () => {
+    const reportId = await held('반려 대상');
+    await rejectPendingReport(prisma, reportId, OPERATOR, '풍문 근거를 공개 자료로 교체 필요', DECIDE_NOW);
+
+    const report = await prisma.report.findUniqueOrThrow({ where: { id: reportId } });
+    expect(report.status).toBe('DRAFT'); // 삭제가 아니라 초안 복귀 — 고쳐서 재제출 가능
+    expect(report.publishedAt).toBeNull();
+    expect((await getPendingComplianceReviews(prisma)).some((r) => r.report.id === reportId)).toBe(
+      false,
+    );
+
+    const noti = await prisma.notification.findFirstOrThrow({
+      where: { userId: takedownResearcherUserId, title: { contains: '게시 반려' } },
+    });
+    expect(noti.body).toContain('공개 자료로 교체 필요');
+  });
+
+  it('사유 없는 반려·보류 아닌 건에 대한 결정은 거부된다', async () => {
+    const reportId = await held('가드 확인');
+    await expect(rejectPendingReport(prisma, reportId, OPERATOR, '   ')).rejects.toThrow(
+      PublishValidationError,
+    );
+    await approvePendingReport(prisma, registry, reportId, OPERATOR, DECIDE_NOW);
+    await expect(
+      approvePendingReport(prisma, registry, reportId, OPERATOR, DECIDE_NOW),
+    ).rejects.toThrow(PublishValidationError);
+    await expect(rejectPendingReport(prisma, reportId, OPERATOR, '사유')).rejects.toThrow(
+      PublishValidationError,
+    );
+  });
+});
+
 describe('forceWithdrawReport — 운영자 강제 철회', () => {
   const TAKEDOWN_NOW = new Date('2026-07-13T00:00:00Z');
 
-  /** 검토 큐에 올라간(WARN) 게시 리포트 + 에스크로 보관 구매 1건 */
+  /** 보류 → 운영자 승인 → 판매된 리포트 (승인 후 재검토로 내려야 하는 상황) */
   async function publishedWithBuyer(title: string) {
     const draft = await createDraftReport(
       prisma,
@@ -249,15 +350,13 @@ describe('forceWithdrawReport — 운영자 강제 철회', () => {
       DRAFT_NOW,
     );
     await publishReport(prisma, registry, draft.id, takedownResearcherId, PUBLISH_NOW);
+    await approvePendingReport(prisma, registry, draft.id, OPERATOR, PUBLISH_NOW);
     await purchaseReport(prisma, draft.id, buyerId, PUBLISH_NOW);
     return draft.id;
   }
 
-  it('게시 중단 + 즉시 전액 환불 + 점수 0, 검토 큐에서 내려간다', async () => {
+  it('게시 중단 + 즉시 전액 환불 + 점수 0', async () => {
     const reportId = await publishedWithBuyer('강제 철회 대상');
-    expect(
-      (await getPendingComplianceReviews(prisma)).some((r) => r.report.id === reportId),
-    ).toBe(true);
 
     const summary = await forceWithdrawReport(
       prisma,
@@ -302,11 +401,9 @@ describe('forceWithdrawReport — 운영자 강제 철회', () => {
     });
     expect(noti.body).toContain('공개 자료 확인 불가');
 
-    // 검토 큐 종결
+    // 검토 큐에 남지 않는다
     const pending = await getPendingComplianceReviews(prisma);
     expect(pending.some((r) => r.report.id === reportId)).toBe(false);
-    const review = await prisma.complianceReview.findFirstOrThrow({ where: { reportId } });
-    expect(review.operatorReviewedBy).toBe(OPERATOR);
   });
 
   it('사유 없이는 철회할 수 없다 (감사 기록 필수)', async () => {

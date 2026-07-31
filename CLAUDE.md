@@ -281,7 +281,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 208건, 브랜치 `claude/session-start-59rfim`.
+테스트 212건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -309,16 +309,25 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 - 게시 전 컴플라이언스 검수 (AI): 리서처가 게시를 누르면 자동 실행되는 2단 검수.
   1차 결정적 규칙 → BLOCK(수익 보장·1:1 상담 유도·미공개정보 정황)이면 AI 호출 없이
   게시 차단. 2차 Claude(claude-opus-5, 구조화 출력)가 문맥이 필요한 애매한 표현을 판단.
-  2단에서도 결론이 안 나면(WARN=경고 소견, UNAVAILABLE=AI 장애) 게시는 통과시키되
-  운영자 큐(/admin/compliance) + 운영자 인앱 알림(COMPLIANCE_REVIEW)으로 넘겨
-  사람이 게시 유지/강제 철회를 결정한다. AI 실패로 게시를 막지 않는 이유는
-  외부 장애가 서비스 중단으로 번지지 않게 하기 위함.
+  1·2차를 통과한 리포트만 즉시 게시된다.
+  2단에서도 결론이 안 나면(WARN=경고 소견, UNAVAILABLE=AI 장애) **게시하지 않고
+  보류(PENDING_REVIEW)** — 3차로 운영자 큐(/admin/compliance) + 운영자 인앱
+  알림(COMPLIANCE_REVIEW)에 올려 사람이 본문을 읽고 게시 승인/반려를 결정한다 (확정).
+  검수로 결론이 안 난 콘텐츠가 판매되는 시간을 0으로 만드는 것이 목적.
+  AI 장애도 보류로 처리하지만 이는 리포트 1건이 늦어지는 것일 뿐 서비스는 계속 돈다.
   ANTHROPIC_API_KEY 없으면 규칙만 동작. 검수 이력은 차단 시도까지 보존(어뷰징 탐지 근거)
-- 운영자 강제 철회 (집행 액션): 검토 큐에서 실제 위반으로 판단하면 게시 중단 —
+- 게시 보류 상태(PENDING_REVIEW) 규칙: 보류 중에는 판매 조건을 확정하지 않는다 —
+  기준가·수수료·카드 잠금은 **운영자 승인 시점**에 확정(approvePendingReport →
+  finalizePublish, PASS 즉시 게시와 동일 함수). 제출 시점에 기준가를 박으면 보류
+  기간의 시세 변동이 이미 실현된 채 판매되어 정보 이점이 생기기 때문.
+  반려(rejectPendingReport)는 삭제가 아니라 초안 복귀 + 사유 통지 → 리서처가 고쳐 재제출.
+  보류 건은 구매 불가(purchaseService가 PUBLISHED만 허용), 리서처 화면엔 "검토 중" 배지
+- 운영자 강제 철회 (사후 집행): 승인 후 위반이 드러난 판매 중 리포트를 내린다.
   카드를 시한 전에 판정 불가(WITHDRAWN)로 즉시 확정해 에스크로 전액 환불·수수료 0·
   리서처 정산 0·점수 0으로 처리하고(자동 경로와 동일한 judgmentWriter 공유), 사유를
   리서처에게 통지하며 감사 스냅샷에 운영자·사유를 기록한다. 기록은 삭제하지 않고
-  상태만 CLOSED로 전이. 확인만 하는 큐는 집행 수단이 없어 규제 리스크를 못 줄인다
+  상태만 CLOSED로 전이. 진입점은 /admin/compliance 하단 "판매 중 리포트" 목록
+  (검토 큐에는 보류 건만 올라오므로 별도 진입점이 필요)
 - 리포트 글자 수 상한 (확정): 제목 100자 / 요약 300자 / 본문 1,000자
   (REPORT_TEXT_LIMITS, publishReport.ts). 이 셋이 검수 입력 전체이므로 상한이 곧
   AI 검수 입력 토큰의 상한이 된다 — 건당 비용이 길이에 좌우되지 않고 예측 가능해진다.

@@ -24,7 +24,12 @@ export default async function ReportDetail({
   const card = report.predictionCard;
   const judgment = card?.judgment;
   const researcherName = report.researcher.user.penName ?? report.researcher.user.email;
-  const purchased = !!purchase;
+  // 운영자는 검토를 위해 본문을 볼 수 있어야 한다 — 게시 보류 건은 본문 판단이 결정의 근거다
+  const isOperator = viewerId
+    ? (await prisma.user.findUnique({ where: { id: viewerId }, select: { role: true } }))?.role ===
+      "OPERATOR"
+    : false;
+  const purchased = !!purchase || isOperator;
 
   const dir = card?.direction === "UP" ? "▲ 상승 (buy)" : "▼ 하락 (sell)";
   const size =
@@ -95,8 +100,11 @@ export default async function ReportDetail({
       {purchased ? (
         <>
           <div className={styles.section}>리포트 본문</div>
+          {!purchase && (
+            <p className={styles.sub}>운영자 권한으로 검토를 위해 본문을 열람 중입니다.</p>
+          )}
           <div className={styles.content}>{report.content}</div>
-          {purchase.settlement && (
+          {purchase?.settlement && (
             <p className={styles.sub}>
               {purchase.settlement.buyerRefundKrw > 0
                 ? `이 예측은 성과 조건을 충족하지 못해 ${purchase.settlement.buyerRefundKrw.toLocaleString()}원이 현금 환불됩니다.`

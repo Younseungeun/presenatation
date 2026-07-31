@@ -104,11 +104,11 @@ export async function screenAndRecord(
           data: {
             userId: op.id,
             type: 'COMPLIANCE_REVIEW',
-            title: `[${label}] 컴플라이언스 검토 필요: ${input.title}`,
+            title: `[${label}] 게시 보류 — 검토 필요: ${input.title}`,
             body:
               result.decision === 'UNAVAILABLE'
-                ? 'AI 검수가 실패해 결정적 규칙만 적용된 채 게시됐습니다. 본문을 직접 확인해 게시 유지 또는 강제 철회를 결정해주세요.'
-                : `${result.findings.map((f) => f.reason).join(' / ')} — 게시 유지 또는 강제 철회를 결정해주세요.`,
+                ? 'AI 검수가 실패해 결정적 규칙만 적용됐습니다. 게시를 보류했으니 본문을 확인해 게시 승인 또는 반려를 결정해주세요.'
+                : `${result.findings.map((f) => f.reason).join(' / ')} — 게시를 보류했습니다. 본문을 확인해 게시 승인 또는 반려를 결정해주세요.`,
             link: '/admin/compliance',
             createdAt: now,
           },
@@ -172,6 +172,45 @@ export function getPendingComplianceReviews(prisma: PrismaClient) {
     },
     orderBy: { createdAt: 'asc' },
   });
+}
+
+/**
+ * 판매 중 리포트 목록 (최근순) — 강제 철회의 진입점.
+ * 검토 큐는 "보류 중"만 담기 때문에, 승인 후 문제가 드러난 리포트를 내리려면
+ * 판매 중인 것들을 볼 수 있어야 한다.
+ */
+export function getPublishedReportsForOversight(prisma: PrismaClient, limit = 20) {
+  return prisma.report.findMany({
+    where: { status: 'PUBLISHED' },
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      publishedAt: true,
+      researcher: { select: { user: { select: { penName: true, email: true } } } },
+      purchases: { where: { escrowStatus: 'HELD' }, select: { amountKrw: true } },
+    },
+    orderBy: { publishedAt: 'desc' },
+    take: limit,
+  });
+}
+
+/**
+ * 리포트의 미확인 검토 건을 종결 처리하는 쓰기 (호출자의 트랜잭션에 합류).
+ * 운영자가 어떤 결정(승인·반려·강제 철회)을 내리든 큐에서는 내려가야 한다.
+ */
+export function closeComplianceReviewWrites(
+  prisma: PrismaClient,
+  reportId: string,
+  operatorUserId: string,
+  now: Date,
+): Prisma.PrismaPromise<unknown>[] {
+  return [
+    prisma.complianceReview.updateMany({
+      where: { reportId, needsOperatorReview: true, operatorReviewedAt: null },
+      data: { operatorReviewedAt: now, operatorReviewedBy: operatorUserId },
+    }),
+  ];
 }
 
 /** 운영자 확인 처리 (큐에서 제거) */
@@ -297,10 +336,7 @@ export async function forceWithdrawReport(
       },
     }),
     // 이 리포트의 미확인 검토 건은 집행으로 종결 처리 (큐에 남겨둘 이유가 없다)
-    prisma.complianceReview.updateMany({
-      where: { reportId: report.id, needsOperatorReview: true, operatorReviewedAt: null },
-      data: { operatorReviewedAt: now, operatorReviewedBy: input.operatorUserId },
-    }),
+    ...closeComplianceReviewWrites(prisma, report.id, input.operatorUserId, now),
   ];
 
   await prisma.$transaction(writes);

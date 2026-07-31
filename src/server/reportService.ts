@@ -13,7 +13,7 @@ import {
 import { blockMessages, blocksPublish } from '@/domain/compliance';
 import type { ComplianceScreener } from '@/infra/compliance/screener';
 import { toCardDraft } from './cardMapper';
-import { screenAndRecord } from './complianceService';
+import { closeComplianceReviewWrites, screenAndRecord } from './complianceService';
 import { validateListedInstrument } from './instrumentService';
 import { researcherSeasonScores } from './scoreService';
 
@@ -98,8 +98,11 @@ export async function createDraftReport(
 }
 
 /**
- * 게시: 기준가를 시세 공급자에서 실측(직전 거래일 종가)해 고정하고,
- * 수수료를 확정하며, 예측 카드를 잠근다. 이후 카드 수정·삭제는 불가능하다.
+ * 게시 요청: 컴플라이언스 2단 검수를 돌리고 결과에 따라 갈린다.
+ * - BLOCK: 게시 실패 (수정 후 재시도)
+ * - PASS: 즉시 게시 — 기준가·수수료 고정, 예측 카드 잠금 (되돌릴 수 없음)
+ * - WARN·UNAVAILABLE: 게시 보류(PENDING_REVIEW). 운영자가 본문을 검토해 승인해야 판매 시작.
+ *   검수로 결론이 안 난 콘텐츠가 판매되는 시간을 0으로 만드는 것이 목적이다.
  */
 export async function publishReport(
   prisma: PrismaClient,
@@ -140,7 +143,6 @@ export async function publishReport(
   }
 
   // 컴플라이언스 검수: 규제 위반 표현은 게시 자체를 막는다 (§1 법적 경계).
-  // 검수 실패(외부 장애)는 게시를 막지 않고 운영자 검토 대상으로 넘어간다.
   const compliance = await screenAndRecord(
     prisma,
     reportId,
@@ -158,6 +160,51 @@ export async function publishReport(
   if (blocksPublish(compliance.decision)) {
     throw new PublishValidationError(blockMessages(compliance.findings));
   }
+
+  // 2단 검수로 결론이 나지 않았으면 게시하지 않고 보류한다.
+  // 기준가·수수료도 여기서 확정하지 않는다 — 승인 시점에 확정해야
+  // 보류 기간 동안의 시세 변동이 기준가에 반영되어 정보 이점이 생기지 않는다.
+  if (compliance.needsOperatorReview) {
+    const held = await prisma.$transaction([
+      prisma.report.update({
+        where: { id: reportId, status: 'DRAFT' },
+        data: { status: 'PENDING_REVIEW' },
+      }),
+      prisma.notification.create({
+        data: {
+          userId: report.researcher.userId,
+          type: 'COMPLIANCE_PENDING',
+          title: `게시 보류 — 검토 중: ${report.title}`,
+          body: '자동 검수에서 확인이 필요한 표현이 발견되어 운영자 검토 대기 중입니다. 승인되면 판매가 시작되고, 결과는 알림으로 안내됩니다.',
+          link: `/researcher/${report.researcherId}`,
+          createdAt: now,
+        },
+      }),
+    ]);
+    return { ...held[0], basePrice: null as number | null };
+  }
+
+  return finalizePublish(prisma, registry, report.id, 'DRAFT', now);
+}
+
+/**
+ * 실제 게시 실행 — 기준가 실측·수수료 확정·카드 잠금.
+ * 즉시 게시(PASS)와 운영자 승인(PENDING_REVIEW) 두 경로가 공유한다.
+ * 승인 경로에서도 이 시점의 시세·컷오프·활성 카드 수로 다시 검증된다.
+ */
+async function finalizePublish(
+  prisma: PrismaClient,
+  registry: ProviderRegistry,
+  reportId: string,
+  expectedStatus: 'DRAFT' | 'PENDING_REVIEW',
+  now: Date,
+) {
+  const report = await prisma.report.findUniqueOrThrow({
+    where: { id: reportId },
+    include: { predictionCard: true, researcher: true },
+  });
+  const card = report.predictionCard!;
+  const cardDraft = toCardDraft(card);
 
   // 소급 확정 모드(주식 단기 카드)는 시세 조회 없이 컷오프 규칙만 검증된다.
   // 그 외에는 외부 시세 조회(트랜잭션 밖)로 기준가를 게시 시점에 확정한다.
@@ -194,8 +241,8 @@ export async function publishReport(
 
   const [updated] = await prisma.$transaction([
     prisma.report.update({
-      // 동시 게시 요청 대비: DRAFT 조건을 다시 걸어 원자적으로 전이
-      where: { id: reportId, status: 'DRAFT' },
+      // 동시 요청 대비: 진입 상태 조건을 다시 걸어 원자적으로 전이
+      where: { id: reportId, status: expectedStatus },
       data: {
         status: 'PUBLISHED',
         publishedAt: snapshot.publishedAt,
@@ -209,6 +256,89 @@ export async function publishReport(
   ]);
 
   return { ...updated, basePrice: snapshot.basePrice };
+}
+
+/**
+ * 운영자 승인 — 보류 리포트를 실제로 게시한다.
+ * 기준가·컷오프는 승인 시점 기준으로 확정된다 (보류 중 시세 변동 흡수).
+ * 보류 사이 시한이 지났거나 조건이 깨졌으면 preparePublish가 막고, 운영자는 반려하면 된다.
+ */
+export async function approvePendingReport(
+  prisma: PrismaClient,
+  registry: ProviderRegistry,
+  reportId: string,
+  operatorUserId: string,
+  now = new Date(),
+) {
+  const report = await prisma.report.findUniqueOrThrow({
+    where: { id: reportId },
+    include: { researcher: { select: { userId: true } } },
+  });
+  if (report.status !== 'PENDING_REVIEW') {
+    throw new PublishValidationError([`게시 보류 상태의 리포트만 승인할 수 있습니다 (현재: ${report.status})`]);
+  }
+
+  const published = await finalizePublish(prisma, registry, reportId, 'PENDING_REVIEW', now);
+
+  await prisma.$transaction([
+    ...closeComplianceReviewWrites(prisma, reportId, operatorUserId, now),
+    prisma.notification.create({
+      data: {
+        userId: report.researcher.userId,
+        type: 'COMPLIANCE_PENDING',
+        title: `게시 승인: ${report.title}`,
+        body: '운영자 검토가 완료되어 판매가 시작되었습니다.',
+        link: `/report/${reportId}`,
+        createdAt: now,
+      },
+    }),
+  ]);
+
+  return published;
+}
+
+/**
+ * 운영자 반려 — 보류 리포트를 초안으로 되돌린다.
+ * 삭제하지 않는 이유: 리서처가 문구를 고쳐 다시 제출할 수 있어야 하고,
+ * 검수 이력(시도 기록)은 어뷰징 탐지 근거로 남아야 하기 때문.
+ */
+export async function rejectPendingReport(
+  prisma: PrismaClient,
+  reportId: string,
+  operatorUserId: string,
+  reason: string,
+  now = new Date(),
+) {
+  const trimmed = reason.trim();
+  if (!trimmed) throw new PublishValidationError(['반려 사유는 필수입니다']);
+
+  const report = await prisma.report.findUniqueOrThrow({
+    where: { id: reportId },
+    include: { researcher: { select: { userId: true } } },
+  });
+  if (report.status !== 'PENDING_REVIEW') {
+    throw new PublishValidationError([`게시 보류 상태의 리포트만 반려할 수 있습니다 (현재: ${report.status})`]);
+  }
+
+  await prisma.$transaction([
+    prisma.report.update({
+      where: { id: reportId, status: 'PENDING_REVIEW' },
+      data: { status: 'DRAFT' },
+    }),
+    ...closeComplianceReviewWrites(prisma, reportId, operatorUserId, now),
+    prisma.notification.create({
+      data: {
+        userId: report.researcher.userId,
+        type: 'COMPLIANCE_PENDING',
+        title: `게시 반려: ${report.title}`,
+        body: `운영자 검토 결과 게시가 반려되었습니다. 사유: ${trimmed} · 초안으로 되돌렸으니 문구를 수정해 다시 게시할 수 있습니다.`,
+        link: `/researcher/${report.researcherId}`,
+        createdAt: now,
+      },
+    }),
+  ]);
+
+  return { reportId, reason: trimmed };
 }
 
 /**
