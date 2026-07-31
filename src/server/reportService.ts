@@ -153,9 +153,11 @@ export async function publishReport(
       assetClass: cardDraft.assetClass,
       assetName: cardDraft.assetName,
       direction: cardDraft.direction,
-      // 위험 종목이면 리스크 고지 여부를 함께 본다
+      // 종목 위험(시장경보·상폐 가능성·과소 시총)은 게시 보류를 유발한다
       riskLevel: instrument.riskLevel,
       riskNote: instrument.riskNote,
+      delistingRisk: instrument.delistingRisk,
+      marketCap: instrument.marketCap,
     },
     screener,
     now,

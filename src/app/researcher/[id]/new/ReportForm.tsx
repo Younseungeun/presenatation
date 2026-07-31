@@ -4,7 +4,11 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
 import { PRICE_GUIDE_KRW, REPORT_TEXT_LIMITS } from "@/domain/publishReport";
-import { RISK_LEVEL_LABEL, RISK_LEVEL_NOTE, type RiskLevel } from "@/domain/instrumentRisk";
+import {
+  instrumentRiskReasons,
+  RISK_LEVEL_LABEL,
+  type RiskLevel,
+} from "@/domain/instrumentRisk";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import styles from "../../researcher.module.css";
 
@@ -16,6 +20,8 @@ interface InstrumentHit {
   shortable: boolean;
   riskLevel: RiskLevel;
   riskNote: string | null;
+  delistingRisk: boolean;
+  marketCap: number | null;
 }
 
 export function ReportForm({ researcherId }: { researcherId: string }) {
@@ -92,6 +98,17 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
     if (nextShortOnly && selected && !selected.shortable) clearSelection();
     else if (!selected && query.trim()) runSearch(query, assetClass, nextShortOnly);
   }
+
+  // 선택한 종목이 게시 보류를 유발하는지 (도메인 규칙 그대로 — 서버 판정과 어긋나지 않게)
+  const selectedRiskReasons = selected
+    ? instrumentRiskReasons({
+        assetClass,
+        riskLevel: selected.riskLevel,
+        riskNote: selected.riskNote,
+        delistingRisk: selected.delistingRisk,
+        marketCap: selected.marketCap,
+      })
+    : [];
 
   const sizeFloor = MIN_MAGNITUDE_PCT[assetClass];
   const searchHint = shortOnly
@@ -247,13 +264,13 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             <span className={styles.hint}>검색 결과 없음 — 지원 종목만 선택할 수 있습니다</span>
           )}
           {(!query.trim() || selected) && <span className={styles.hint}>{searchHint}</span>}
-          {/* 위험 종목을 고르면 무엇이 요구되는지 작성 전에 알린다 */}
-          {selected && selected.riskLevel !== "NONE" && (
+          {/* 위험 종목이면 게시가 보류된다는 사실을 작성 전에 알린다 */}
+          {selectedRiskReasons.length > 0 && (
             <span className={styles.hint} style={{ color: "var(--neg)", fontWeight: 600 }}>
-              {RISK_LEVEL_NOTE[selected.riskLevel]}
-              {selected.riskNote ? ` (${selected.riskNote})` : ""}
-              {selected.riskLevel === "WARNING" &&
-                " 본문에 변동성·거래 제한 위험을 함께 설명해야 검수를 통과합니다."}
+              이 종목은 게시 시 <u>운영자 검토를 거쳐야 판매가 시작됩니다</u>:{" "}
+              {selectedRiskReasons.map((r) => r.message).join(" ")}
+              {selected?.riskLevel === "WARNING" &&
+                " 본문에 변동성·거래 제한 위험을 함께 설명해주세요."}
             </span>
           )}
         </div>

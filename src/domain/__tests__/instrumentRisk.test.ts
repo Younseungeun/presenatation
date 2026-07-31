@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   blocksNewCard,
   hasRiskDisclosure,
+  instrumentRiskReasons,
   isRiskAtLeast,
+  MIN_MARKET_CAP,
   requiresRiskDisclosure,
   riskBlockMessage,
   toRiskLevel,
@@ -47,6 +49,67 @@ describe('공급자 신호 매핑', () => {
     expect(toRiskLevel({ caution: true })).toBe('CAUTION');
     expect(toRiskLevel({})).toBe('NONE');
     expect(toRiskLevel(undefined)).toBe('NONE');
+  });
+});
+
+describe('게시 보류를 유발하는 종목 위험', () => {
+  const base = { assetClass: 'KR_EQUITY' as const, riskLevel: 'NONE' as const };
+
+  it('위험 신호가 없으면 사유도 없다', () => {
+    expect(instrumentRiskReasons({ ...base, marketCap: 5_000_000_000_000 })).toEqual([]);
+  });
+
+  it('투자주의·투자경고 지정은 보류 사유', () => {
+    expect(instrumentRiskReasons({ ...base, riskLevel: 'CAUTION' })[0].code).toBe('MARKET_ALERT');
+    const warned = instrumentRiskReasons({
+      ...base,
+      riskLevel: 'WARNING',
+      riskNote: 'KRX 투자경고',
+    });
+    expect(warned[0].code).toBe('MARKET_ALERT');
+    expect(warned[0].message).toContain('KRX 투자경고');
+  });
+
+  it('상장폐지 가능성은 보류 사유 (판정 불가로 끝날 위험)', () => {
+    const r = instrumentRiskReasons({ ...base, delistingRisk: true });
+    expect(r[0].code).toBe('DELISTING_RISK');
+    expect(r[0].message).toContain('판정이 불가능');
+  });
+
+  it('시총이 자산군 기준 미만이면 보류 사유', () => {
+    const small = instrumentRiskReasons({ ...base, marketCap: 45_000_000_000 }); // 450억
+    expect(small[0].code).toBe('SMALL_CAP');
+    expect(small[0].message).toContain('450억원');
+    expect(small[0].message).toContain('1,000억원');
+
+    // 기준 이상은 사유 없음
+    expect(instrumentRiskReasons({ ...base, marketCap: MIN_MARKET_CAP.KR_EQUITY })).toEqual([]);
+    // 시총 정보가 없으면 판단하지 않는다 (공급자 미지원 자산군)
+    expect(instrumentRiskReasons({ ...base, marketCap: null })).toEqual([]);
+  });
+
+  it('자산군마다 시총 기준이 다르다 (미국은 달러)', () => {
+    expect(
+      instrumentRiskReasons({ assetClass: 'US_EQUITY', riskLevel: 'NONE', marketCap: 200_000_000 }),
+    ).toHaveLength(1);
+    expect(
+      instrumentRiskReasons({ assetClass: 'US_EQUITY', riskLevel: 'NONE', marketCap: 900_000_000 }),
+    ).toEqual([]);
+  });
+
+  it('여러 위험이 겹치면 사유가 모두 쌓인다', () => {
+    const r = instrumentRiskReasons({
+      ...base,
+      riskLevel: 'WARNING',
+      delistingRisk: true,
+      marketCap: 10_000_000_000,
+    });
+    expect(r.map((x) => x.code)).toEqual(['MARKET_ALERT', 'DELISTING_RISK', 'SMALL_CAP']);
+  });
+
+  it('DANGER는 보류가 아니라 차단이므로 사유에 넣지 않는다', () => {
+    expect(instrumentRiskReasons({ ...base, riskLevel: 'DANGER' })).toEqual([]);
+    expect(blocksNewCard('DANGER')).toBe(true);
   });
 });
 

@@ -100,6 +100,11 @@ model Instrument {
   riskLevel  String   @default("NONE") // NONE | CAUTION | WARNING | DANGER(신규 게시 차단)
   riskNote   String? // 지정 사유 (표시용)
   riskSyncedAt DateTime? // 위험 정보 갱신 시각
+  // 상장폐지 가능성 (관리종목 지정·감사의견 거절·자본잠식 등). 확정 정리매매는 riskLevel=DANGER
+  delistingRisk Boolean @default(false)
+  // 시가총액 (종목 통화 기준). 과소 시총은 시세 조종·유동성 위험 → 게시 보류 대상.
+  // null이면 판단하지 않는다 (공급자가 시총을 주지 않는 자산군)
+  marketCap  Float?
   source     String // 유니버스 출처 (upbit | fsc-data.go.kr | twelvedata | seed)
   syncedAt   DateTime @default(now())
 

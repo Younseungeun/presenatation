@@ -10,6 +10,7 @@ import {
   getPendingComplianceReviews,
   runScreening,
 } from '../complianceService';
+import { setInstrumentRisk } from '../instrumentService';
 import { purchaseReport } from '../purchaseService';
 import {
   approvePendingReport,
@@ -299,6 +300,69 @@ describe('publishReport — 검수 연동', () => {
       where: { userId: operatorUserId, type: 'COMPLIANCE_REVIEW', title: { contains: '검수 장애' } },
     });
     expect(alarm.title).toContain('AI 검수 실패');
+  });
+
+  it('위험 종목(시장경보·상폐 가능성·과소 시총)은 본문이 깨끗해도 보류된다', async () => {
+    // 문제 표현이 전혀 없는 정상 리포트 — 보류 사유는 오직 종목 위험이어야 한다
+    const cases: Array<[string, Parameters<typeof setInstrumentRisk>[3], object, string]> = [
+      ['시장경보 종목', 'WARNING', {}, 'MARKET_ALERT'],
+      ['상폐 가능성 종목', 'NONE', { delistingRisk: true }, 'DELISTING_RISK'],
+      ['과소 시총 종목', 'NONE', { marketCap: 1_000_000_000 }, 'SMALL_CAP'],
+    ];
+
+    for (const [title, level, extra, expectedCode] of cases) {
+      await setInstrumentRisk(prisma, 'CRYPTO', 'KRW-BTC', level, '테스트 지정', extra);
+      const draft = await createDraftReport(
+        prisma,
+        draftInput(
+          '공개 온체인 지표를 근거로 상승을 전망합니다. 변동성 위험에 유의해야 합니다.',
+          title,
+          takedownResearcherId,
+        ),
+        DRAFT_NOW,
+      );
+      const result = await publishReport(
+        prisma,
+        registry,
+        draft.id,
+        takedownResearcherId,
+        PUBLISH_NOW,
+      );
+      expect(result.status, `${title}(${expectedCode})`).toBe('PENDING_REVIEW');
+
+      const review = await prisma.complianceReview.findFirstOrThrow({
+        where: { reportId: draft.id },
+      });
+      const findings = JSON.parse(review.findingsJson) as Array<{
+        category: string;
+        reason: string;
+      }>;
+      expect(findings.some((f) => f.category === 'RISKY_INSTRUMENT')).toBe(true);
+      await rejectPendingReport(prisma, draft.id, OPERATOR, '테스트 정리');
+    }
+
+    // 위험 정보를 지우면 정상 게시된다 (오탐이 아니라 종목 위험이 원인이었음을 확인)
+    await setInstrumentRisk(prisma, 'CRYPTO', 'KRW-BTC', 'NONE', null, {
+      delistingRisk: false,
+      marketCap: null,
+    });
+    const clean = await createDraftReport(
+      prisma,
+      draftInput(
+        '공개 온체인 지표를 근거로 상승을 전망합니다.',
+        '위험 해제 후',
+        takedownResearcherId,
+      ),
+      DRAFT_NOW,
+    );
+    const published = await publishReport(
+      prisma,
+      registry,
+      clean.id,
+      takedownResearcherId,
+      PUBLISH_NOW,
+    );
+    expect(published.status).toBe('PUBLISHED');
   });
 
   it('보류 건은 구매할 수 없다', async () => {

@@ -72,7 +72,7 @@ describe('applyRules — 명백한 금지 표현 차단', () => {
     );
   });
 
-  it('위험 종목인데 리스크 고지가 없으면 지적한다', () => {
+  it('위험 종목은 그 자체로 지적되고(보류 사유), 고지까지 없으면 하나 더 붙는다', () => {
     const withoutDisclosure = applyRules(
       input({
         content: '실적 개선으로 상승을 전망합니다.',
@@ -80,26 +80,39 @@ describe('applyRules — 명백한 금지 표현 차단', () => {
         riskNote: 'KRX 투자경고',
       }),
     );
-    expect(withoutDisclosure[0]).toMatchObject({
-      category: 'MISSING_DISCLOSURE',
-      severity: 'WARN',
-    });
-    expect(withoutDisclosure[0].quote).toContain('KRX 투자경고');
+    const categories = withoutDisclosure.map((f) => f.category);
+    expect(categories).toContain('RISKY_INSTRUMENT'); // 종목 위험 → 게시 보류
+    expect(categories).toContain('MISSING_DISCLOSURE'); // 리스크 미고지 → 추가 지적
+    expect(withoutDisclosure.every((f) => f.severity === 'WARN')).toBe(true); // 거절이 아니라 보류
 
-    // 고지가 있으면 지적하지 않는다
+    // 고지가 있으면 미고지 지적은 사라지고 종목 위험만 남는다
+    const withDisclosure = applyRules(
+      input({
+        content: '실적 개선으로 상승을 전망하나 변동성이 크므로 손실 위험에 유의해야 합니다.',
+        riskLevel: 'WARNING',
+      }),
+    );
+    expect(withDisclosure.map((f) => f.category)).toEqual(['RISKY_INSTRUMENT']);
+
+    // 투자주의도 보류 대상이지만 고지까지 요구하지는 않는다
     expect(
-      applyRules(
-        input({
-          content: '실적 개선으로 상승을 전망하나 변동성이 크므로 손실 위험에 유의해야 합니다.',
-          riskLevel: 'WARNING',
-        }),
+      applyRules(input({ content: '실적 개선으로 상승을 전망합니다.', riskLevel: 'CAUTION' })).map(
+        (f) => f.category,
       ),
-    ).toEqual([]);
+    ).toEqual(['RISKY_INSTRUMENT']);
+  });
 
-    // 주의(CAUTION) 등급은 고지를 요구하지 않는다 — 표시만
+  it('상장폐지 가능성·과소 시총도 지적한다 (본문이 깨끗해도)', () => {
     expect(
-      applyRules(input({ content: '실적 개선으로 상승을 전망합니다.', riskLevel: 'CAUTION' })),
-    ).toEqual([]);
+      applyRules(input({ delistingRisk: true })).map((f) => f.category),
+    ).toEqual(['RISKY_INSTRUMENT']);
+
+    const smallCap = applyRules(input({ marketCap: 30_000_000_000 })); // 300억 < 1,000억
+    expect(smallCap[0].category).toBe('RISKY_INSTRUMENT');
+    expect(smallCap[0].reason).toContain('시가총액');
+
+    // 기준 이상 시총은 지적 없음
+    expect(applyRules(input({ marketCap: 5_000_000_000_000 }))).toEqual([]);
   });
 
   it('정상적인 투자 분석은 지적하지 않는다 (오탐 방지)', () => {

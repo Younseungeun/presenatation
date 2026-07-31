@@ -12,6 +12,7 @@
 import type { AssetClass } from './constants';
 import {
   hasRiskDisclosure,
+  instrumentRiskReasons,
   requiresRiskDisclosure,
   RISK_LEVEL_LABEL,
   type RiskLevel,
@@ -26,6 +27,7 @@ export const RISK_CATEGORIES = [
   'UNSUPPORTED_CLAIM', // 근거 없는 단정 (품질 문제 — 경고만)
   'RISK_INDUCEMENT', // 위험 투자 조장 (빚투·풀매수·고배율 레버리지 권유)
   'MISSING_DISCLOSURE', // 위험 종목인데 리스크 고지 없음
+  'RISKY_INSTRUMENT', // 종목 자체가 위험 (시장경보·상폐 가능성·과소 시총)
 ] as const;
 export type RiskCategory = (typeof RISK_CATEGORIES)[number];
 
@@ -37,6 +39,7 @@ export const RISK_CATEGORY_LABEL: Record<RiskCategory, string> = {
   UNSUPPORTED_CLAIM: '근거 없는 단정',
   RISK_INDUCEMENT: '위험 투자 조장',
   MISSING_DISCLOSURE: '위험 종목 리스크 미고지',
+  RISKY_INSTRUMENT: '위험 종목',
 };
 
 /** BLOCK: 게시 차단 / WARN: 게시 허용하되 운영자 검토 대상 */
@@ -96,6 +99,10 @@ export interface ScreeningInput {
   /** 종목의 거래소 지정 위험 등급 — 경고 이상이면 리스크 고지를 요구한다 */
   riskLevel?: RiskLevel;
   riskNote?: string | null;
+  /** 상장폐지 가능성 (관리종목 등) */
+  delistingRisk?: boolean;
+  /** 시가총액 (종목 통화 기준). 과소 시총은 게시 보류 대상 */
+  marketCap?: number | null;
 }
 
 // ── 1단계: 결정적 규칙 ────────────────────────────────────────────────
@@ -182,7 +189,25 @@ export function applyRules(input: ScreeningInput): Finding[] {
     });
   }
 
-  // 거래소가 경고를 낸 종목인데 본문에 위험을 전혀 언급하지 않았다면 지적한다.
+  // 종목 자체의 위험(시장경보·상폐 가능성·과소 시총)은 게시를 보류시킨다.
+  // 위법이 아니라 위험이므로 거절하지 않고, 판매 시작 전에 사람이 판단하게 한다.
+  const riskReasons = instrumentRiskReasons({
+    assetClass: input.assetClass,
+    riskLevel: input.riskLevel ?? 'NONE',
+    riskNote: input.riskNote,
+    delistingRisk: input.delistingRisk,
+    marketCap: input.marketCap,
+  });
+  for (const r of riskReasons) {
+    findings.push({
+      category: 'RISKY_INSTRUMENT',
+      severity: 'WARN',
+      quote: input.assetName,
+      reason: r.message,
+    });
+  }
+
+  // 거래소가 경고를 낸 종목인데 본문에 위험을 전혀 언급하지 않았다면 추가로 지적한다.
   // 위험 종목 매수를 권하면서 위험을 숨기는 것이 구매자에게 가장 해로운 형태다.
   if (
     input.riskLevel &&

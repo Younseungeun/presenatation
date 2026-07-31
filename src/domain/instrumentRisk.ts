@@ -45,7 +45,12 @@ export function isRiskAtLeast(level: RiskLevel, min: RiskLevel): boolean {
   return ORDER[level] >= ORDER[min];
 }
 
-/** 신규 게시가 막히는 등급인가 */
+/**
+ * 신규 게시가 즉시 막히는 등급인가.
+ * DANGER만 차단한다 — 이미 거래가 중단·종료된 종목이라 운영자가 승인해도
+ * 판정 자체가 불가능(전액 환불로 끝남)하기 때문. 그 외 위험 신호는 차단이 아니라
+ * 보류(운영자 판단) 대상이다.
+ */
 export function blocksNewCard(level: RiskLevel): boolean {
   return level === 'DANGER';
 }
@@ -53,6 +58,75 @@ export function blocksNewCard(level: RiskLevel): boolean {
 /** 게시는 되지만 구매자에게 경고를 노출해야 하는 등급인가 */
 export function requiresRiskDisclosure(level: RiskLevel): boolean {
   return isRiskAtLeast(level, 'WARNING');
+}
+
+// ── 게시 보류를 유발하는 종목 위험 ────────────────────────────────────
+//
+// 투자주의·경고 지정, 상장폐지 가능성, 과소 시총은 "위법"이 아니라 "위험"이다.
+// 그래서 게시를 거절하지 않고 보류해 운영자가 판단하게 한다 —
+// 판매는 시작되지 않으므로 구매자는 보호되고, 정당한 소형주 분석은 승인으로 살아난다.
+
+/**
+ * 자산군별 최소 시가총액 (종목 통화 기준, 초안 수치).
+ * 근거: 이 아래 구간은 소수 물량으로 시세가 크게 움직여 예측 자체가
+ * 조작에 노출되고, 유동성이 얕아 구매자가 실제로 따라 들어가기 어렵다.
+ */
+export const MIN_MARKET_CAP: Record<AssetClass, number> = {
+  KR_EQUITY: 100_000_000_000, // 1,000억원
+  US_EQUITY: 300_000_000, // 3억 달러 (통상 스몰캡 하단)
+  CRYPTO: 100_000_000_000, // 1,000억원
+};
+
+export function formatMarketCap(value: number, assetClass: AssetClass): string {
+  if (assetClass === 'US_EQUITY') return `$${(value / 1_000_000).toLocaleString()}M`;
+  return `${Math.round(value / 100_000_000).toLocaleString()}억원`;
+}
+
+export interface InstrumentRiskFacts {
+  assetClass: AssetClass;
+  riskLevel: RiskLevel;
+  riskNote?: string | null;
+  delistingRisk?: boolean;
+  /** 종목 통화 기준 시가총액. null이면 판단하지 않는다 */
+  marketCap?: number | null;
+}
+
+export interface InstrumentRiskReason {
+  code: 'MARKET_ALERT' | 'DELISTING_RISK' | 'SMALL_CAP';
+  message: string;
+}
+
+/** 게시를 보류해야 하는 종목 위험 사유 (없으면 빈 배열) */
+export function instrumentRiskReasons(facts: InstrumentRiskFacts): InstrumentRiskReason[] {
+  const reasons: InstrumentRiskReason[] = [];
+
+  if (isRiskAtLeast(facts.riskLevel, 'CAUTION') && facts.riskLevel !== 'DANGER') {
+    reasons.push({
+      code: 'MARKET_ALERT',
+      message:
+        `거래소가 ${RISK_LEVEL_LABEL[facts.riskLevel]} 종목으로 지정했습니다` +
+        `${facts.riskNote ? ` (${facts.riskNote})` : ''}.`,
+    });
+  }
+  if (facts.delistingRisk) {
+    reasons.push({
+      code: 'DELISTING_RISK',
+      message:
+        '상장폐지 가능성이 있는 종목입니다 (관리종목 지정·감사의견 거절 등). ' +
+        '검증 시한 내 거래가 중단되면 판정이 불가능해집니다.',
+    });
+  }
+  const floor = MIN_MARKET_CAP[facts.assetClass];
+  if (facts.marketCap != null && facts.marketCap < floor) {
+    reasons.push({
+      code: 'SMALL_CAP',
+      message:
+        `시가총액 ${formatMarketCap(facts.marketCap, facts.assetClass)} — ` +
+        `기준 ${formatMarketCap(floor, facts.assetClass)} 미만입니다. ` +
+        '유동성이 얕아 시세 조종에 노출되기 쉽고 구매자가 실제로 따라 매매하기 어렵습니다.',
+    });
+  }
+  return reasons;
 }
 
 /** 게시 차단 시 리서처에게 보여줄 사유 */

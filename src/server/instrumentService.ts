@@ -24,6 +24,8 @@ export interface InstrumentSearchResult {
   /** 거래소 지정 위험 등급 — 작성 화면에서 배지로 표시 */
   riskLevel: RiskLevel;
   riskNote: string | null;
+  delistingRisk: boolean;
+  marketCap: number | null;
 }
 
 /** 활성 종목 검색 — 티커·종목명 부분 일치, 접두 일치 우선 */
@@ -53,6 +55,8 @@ export async function searchInstruments(
       shortable: true,
       riskLevel: true,
       riskNote: true,
+      delistingRisk: true,
+      marketCap: true,
     },
     take: limit * 3, // 접두 일치 재정렬 여유분
   });
@@ -79,7 +83,14 @@ export async function validateListedInstrument(
   assetClass: AssetClass,
   ticker: string,
   direction: Direction,
-): Promise<{ issues: string[]; name?: string; riskLevel?: RiskLevel; riskNote?: string | null }> {
+): Promise<{
+  issues: string[];
+  name?: string;
+  riskLevel?: RiskLevel;
+  riskNote?: string | null;
+  delistingRisk?: boolean;
+  marketCap?: number | null;
+}> {
   const inst = await prisma.instrument.findUnique({
     where: { assetClass_ticker: { assetClass, ticker } },
   });
@@ -107,7 +118,14 @@ export async function validateListedInstrument(
       riskNote: inst.riskNote,
     };
   }
-  return { issues: [], name: inst.name, riskLevel, riskNote: inst.riskNote };
+  return {
+    issues: [],
+    name: inst.name,
+    riskLevel,
+    riskNote: inst.riskNote,
+    delistingRisk: inst.delistingRisk,
+    marketCap: inst.marketCap,
+  };
 }
 
 /**
@@ -120,11 +138,18 @@ export async function setInstrumentRisk(
   ticker: string,
   riskLevel: RiskLevel,
   riskNote: string | null,
+  extra: { delistingRisk?: boolean; marketCap?: number | null } = {},
   now = new Date(),
 ) {
   return prisma.instrument.update({
     where: { assetClass_ticker: { assetClass, ticker } },
-    data: { riskLevel, riskNote, riskSyncedAt: now },
+    data: {
+      riskLevel,
+      riskNote,
+      riskSyncedAt: now,
+      ...(extra.delistingRisk === undefined ? {} : { delistingRisk: extra.delistingRisk }),
+      ...(extra.marketCap === undefined ? {} : { marketCap: extra.marketCap }),
+    },
   });
 }
 
