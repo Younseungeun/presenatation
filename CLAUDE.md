@@ -281,7 +281,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 202건, 브랜치 `claude/session-start-59rfim`.
+테스트 206건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -311,6 +311,11 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
   허용 후 운영자 큐(/admin/compliance)로. 규칙이 BLOCK이면 AI 미호출(비용 절감), AI 실패는
   UNAVAILABLE로 게시 통과 후 검토 대상(외부 장애가 서비스 중단으로 번지지 않게).
   ANTHROPIC_API_KEY 없으면 규칙만 동작. 검수 이력은 차단 시도까지 보존(어뷰징 탐지 근거)
+- 운영자 강제 철회 (집행 액션): 검토 큐에서 실제 위반으로 판단하면 게시 중단 —
+  카드를 시한 전에 판정 불가(WITHDRAWN)로 즉시 확정해 에스크로 전액 환불·수수료 0·
+  리서처 정산 0·점수 0으로 처리하고(자동 경로와 동일한 judgmentWriter 공유), 사유를
+  리서처에게 통지하며 감사 스냅샷에 운영자·사유를 기록한다. 기록은 삭제하지 않고
+  상태만 CLOSED로 전이. 확인만 하는 큐는 집행 수단이 없어 규제 리스크를 못 줄인다
 - 리포트 글자 수 상한 (확정): 제목 100자 / 요약 300자 / 본문 1,000자
   (REPORT_TEXT_LIMITS, publishReport.ts). 이 셋이 검수 입력 전체이므로 상한이 곧
   AI 검수 입력 토큰의 상한이 된다 — 건당 비용이 길이에 좌우되지 않고 예측 가능해진다.

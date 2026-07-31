@@ -4,13 +4,22 @@ import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import { PublishValidationError } from '@/domain/publishReport';
 import { FixtureComplianceScreener } from '@/infra/compliance/screener';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
-import { runScreening } from '../complianceService';
+import {
+  ComplianceTakedownError,
+  forceWithdrawReport,
+  getPendingComplianceReviews,
+  runScreening,
+} from '../complianceService';
+import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
 
 // 게시 전 컴플라이언스 검수가 실제 게시 플로우를 막는지/통과시키는지 종단 검증
 
 let prisma: PrismaClient;
 let researcherId: string;
+let researcherUserId: string;
+let buyerId: string;
+const OPERATOR = 'op-user-id';
 
 const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 const PUBLISH_NOW = new Date('2026-07-12T00:00:00Z');
@@ -47,6 +56,8 @@ beforeAll(async () => {
     include: { researcherProfile: true },
   });
   researcherId = r.researcherProfile!.id;
+  researcherUserId = r.id;
+  buyerId = (await prisma.user.create({ data: { email: 'b@c.io', identityVerified: true } })).id;
 });
 
 afterAll(async () => {
@@ -180,5 +191,107 @@ describe('publishReport — 검수 연동', () => {
     });
     expect(review.decision).toBe('WARN');
     expect(review.needsOperatorReview).toBe(true);
+  });
+});
+
+describe('forceWithdrawReport — 운영자 강제 철회', () => {
+  const TAKEDOWN_NOW = new Date('2026-07-13T00:00:00Z');
+
+  /** 검토 큐에 올라간(WARN) 게시 리포트 + 에스크로 보관 구매 1건 */
+  async function publishedWithBuyer(title: string) {
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', title),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW);
+    await purchaseReport(prisma, draft.id, buyerId, PUBLISH_NOW);
+    return draft.id;
+  }
+
+  it('게시 중단 + 즉시 전액 환불 + 점수 0, 검토 큐에서 내려간다', async () => {
+    const reportId = await publishedWithBuyer('강제 철회 대상');
+    expect(
+      (await getPendingComplianceReviews(prisma)).some((r) => r.report.id === reportId),
+    ).toBe(true);
+
+    const summary = await forceWithdrawReport(
+      prisma,
+      { reportId, operatorUserId: OPERATOR, reason: '풍문을 근거로 제시 — 공개 자료 확인 불가' },
+      TAKEDOWN_NOW,
+    );
+    expect(summary).toEqual({ reportId, refundedPurchases: 1, refundedAmountKrw: 10_000 });
+
+    // 리포트·카드 상태 (기록은 남고 상태만 전이)
+    const report = await prisma.report.findUniqueOrThrow({
+      where: { id: reportId },
+      include: { predictionCard: { include: { judgment: true } } },
+    });
+    expect(report.status).toBe('CLOSED');
+    expect(report.predictionCard!.withdrawnAt).toEqual(TAKEDOWN_NOW);
+
+    // 판정: 시한(10/1)을 기다리지 않고 즉시 판정 불가로 확정
+    const judgment = report.predictionCard!.judgment!;
+    expect(judgment.outcome).toBe('UNDECIDABLE');
+    expect(judgment.undecidableReason).toBe('WITHDRAWN');
+    expect(judgment.score).toBe(0);
+    expect(judgment.dataSource).toBe(`takedown:${OPERATOR}`);
+    expect(JSON.parse(judgment.marketSnapshotJson!)).toMatchObject({
+      takedown: true,
+      operatorUserId: OPERATOR,
+    });
+
+    // 정산: 전액 환불, 수수료·리서처 정산 없음
+    const settlement = await prisma.settlement.findFirstOrThrow({
+      where: { purchase: { reportId } },
+    });
+    expect(settlement.buyerRefundKrw).toBe(10_000);
+    expect(settlement.researcherPayoutKrw).toBe(0);
+    expect(settlement.platformFeeKrw).toBe(0);
+    expect(
+      (await prisma.purchase.findFirstOrThrow({ where: { reportId } })).escrowStatus,
+    ).toBe('REFUNDED');
+
+    // 리서처 통지에 사유가 실린다
+    const noti = await prisma.notification.findFirstOrThrow({
+      where: { userId: researcherUserId, type: 'COMPLIANCE_TAKEDOWN' },
+    });
+    expect(noti.body).toContain('공개 자료 확인 불가');
+
+    // 검토 큐 종결
+    const pending = await getPendingComplianceReviews(prisma);
+    expect(pending.some((r) => r.report.id === reportId)).toBe(false);
+    const review = await prisma.complianceReview.findFirstOrThrow({ where: { reportId } });
+    expect(review.operatorReviewedBy).toBe(OPERATOR);
+  });
+
+  it('사유 없이는 철회할 수 없다 (감사 기록 필수)', async () => {
+    const reportId = await publishedWithBuyer('사유 누락');
+    await expect(
+      forceWithdrawReport(prisma, { reportId, operatorUserId: OPERATOR, reason: '  ' }),
+    ).rejects.toThrow(ComplianceTakedownError);
+    expect(
+      (await prisma.report.findUniqueOrThrow({ where: { id: reportId } })).status,
+    ).toBe('PUBLISHED');
+  });
+
+  it('이미 철회·판정된 건은 재실행할 수 없다 (이중 환불 차단)', async () => {
+    const reportId = await publishedWithBuyer('재실행 방지');
+    await forceWithdrawReport(
+      prisma,
+      { reportId, operatorUserId: OPERATOR, reason: '위반' },
+      TAKEDOWN_NOW,
+    );
+    await expect(
+      forceWithdrawReport(prisma, { reportId, operatorUserId: OPERATOR, reason: '위반' }),
+    ).rejects.toThrow(ComplianceTakedownError);
+    expect(await prisma.settlement.count({ where: { purchase: { reportId } } })).toBe(1);
+  });
+
+  it('게시되지 않은 초안은 대상이 아니다', async () => {
+    const draft = await createDraftReport(prisma, draftInput('본문', '초안 상태'), DRAFT_NOW);
+    await expect(
+      forceWithdrawReport(prisma, { reportId: draft.id, operatorUserId: OPERATOR, reason: '위반' }),
+    ).rejects.toThrow(/초안/);
   });
 });

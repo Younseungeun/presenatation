@@ -47,6 +47,8 @@ export default async function AdminCompliancePage() {
         pending.map((review) => {
           const findings = parseFindings(review.findingsJson);
           const researcher = review.report.researcher.user;
+          const held = review.report.purchases;
+          const heldAmountKrw = held.reduce((sum, p) => sum + p.amountKrw, 0);
           return (
             <div key={review.id} className={styles.card}>
               <div className={styles.cardTop}>
@@ -63,6 +65,11 @@ export default async function AdminCompliancePage() {
                 <span>{researcher.penName ?? researcher.email}</span>
                 <span>검수 {review.reviewer}</span>
                 <span>{new Date(review.createdAt).toLocaleDateString("ko-KR")}</span>
+                <span>
+                  {review.report.status === "PUBLISHED"
+                    ? `판매 중 · 에스크로 ${held.length}건 ${heldAmountKrw.toLocaleString()}원`
+                    : "판매 종료"}
+                </span>
                 <Link href={`/report/${review.report.id}`}>리포트 보기 →</Link>
               </div>
 
@@ -84,7 +91,13 @@ export default async function AdminCompliancePage() {
                 </ul>
               )}
 
-              <ResolveButton reviewId={review.id} />
+              <ResolveButton
+                reviewId={review.id}
+                reportId={review.report.id}
+                canTakedown={review.report.status === "PUBLISHED"}
+                heldPurchases={held.length}
+                heldAmountKrw={heldAmountKrw}
+              />
             </div>
           );
         })
