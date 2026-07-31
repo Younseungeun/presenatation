@@ -96,6 +96,10 @@ model Instrument {
   currency   String   @default("KRW")
   shortable  Boolean  @default(false) // 하락 예측 게시 가능 — 숏 실행 수단 존재 (코인은 전부 true)
   active     Boolean  @default(true) // 상폐·거래지원종료 시 false — 신규 게시만 차단
+  // 거래소 지정 위험 등급 (domain/instrumentRisk.ts) — 자체 판단이 아니라 시장의 공식 지정을 반영
+  riskLevel  String   @default("NONE") // NONE | CAUTION | WARNING | DANGER(신규 게시 차단)
+  riskNote   String? // 지정 사유 (표시용)
+  riskSyncedAt DateTime? // 위험 정보 갱신 시각
   source     String // 유니버스 출처 (upbit | fsc-data.go.kr | twelvedata | seed)
   syncedAt   DateTime @default(now())
 

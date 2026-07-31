@@ -10,6 +10,12 @@
 // 규칙이 BLOCK을 내면 AI 호출 없이 즉시 차단한다 (비용·지연 절약).
 
 import type { AssetClass } from './constants';
+import {
+  hasRiskDisclosure,
+  requiresRiskDisclosure,
+  RISK_LEVEL_LABEL,
+  type RiskLevel,
+} from './instrumentRisk';
 
 /** 위반 유형 — 각 항목은 특정 규제·정책 조항에 대응한다 */
 export const RISK_CATEGORIES = [
@@ -18,6 +24,8 @@ export const RISK_CATEGORIES = [
   'RUMOR', // 출처 불명 풍문·시세조종성 표현
   'SOLICIT_CONTACT', // 1:1 상담·외부 채널 유도 (투자자문업 경계)
   'UNSUPPORTED_CLAIM', // 근거 없는 단정 (품질 문제 — 경고만)
+  'RISK_INDUCEMENT', // 위험 투자 조장 (빚투·풀매수·고배율 레버리지 권유)
+  'MISSING_DISCLOSURE', // 위험 종목인데 리스크 고지 없음
 ] as const;
 export type RiskCategory = (typeof RISK_CATEGORIES)[number];
 
@@ -27,6 +35,8 @@ export const RISK_CATEGORY_LABEL: Record<RiskCategory, string> = {
   RUMOR: '출처 불명 풍문',
   SOLICIT_CONTACT: '1:1 상담·외부 채널 유도',
   UNSUPPORTED_CLAIM: '근거 없는 단정',
+  RISK_INDUCEMENT: '위험 투자 조장',
+  MISSING_DISCLOSURE: '위험 종목 리스크 미고지',
 };
 
 /** BLOCK: 게시 차단 / WARN: 게시 허용하되 운영자 검토 대상 */
@@ -83,6 +93,9 @@ export interface ScreeningInput {
   assetName: string;
   /** 예측 방향 — 하락 예측은 시세조종성 표현 여부를 더 민감하게 본다 */
   direction: 'UP' | 'DOWN';
+  /** 종목의 거래소 지정 위험 등급 — 경고 이상이면 리스크 고지를 요구한다 */
+  riskLevel?: RiskLevel;
+  riskNote?: string | null;
 }
 
 // ── 1단계: 결정적 규칙 ────────────────────────────────────────────────
@@ -133,6 +146,16 @@ const RULES: Rule[] = [
     pattern: /카더라|~?라는\s*소문|소문\s*에\s*의하면|찌라시/,
     reason: '출처가 불명확한 풍문성 표현입니다. 확인 가능한 공개 자료로 대체해주세요.',
   },
+  {
+    // 위험 투자 조장 — 표현 자체가 위법은 아니지만 소비자 피해로 직결된다.
+    // 차단이 아니라 경고로 두고 사람이 문맥을 본다 (정상 분석에서도 레버리지를 언급할 수 있다).
+    category: 'RISK_INDUCEMENT',
+    severity: 'WARN',
+    pattern:
+      /빚투|대출\s*(받아|받아서|내서)|신용\s*(융자|매수)\s*(로|해서|추천)|미수\s*(거래|매수)|풀\s*매수|몰빵|영끌|전\s*재산|올인|\d{2,3}\s*배\s*(레버리지|롱|숏)|시드\s*(전부|다)/,
+    reason:
+      '레버리지·차입·집중 투자를 권유하는 표현입니다. 특정 투자 방식을 조장하지 말고 분석과 전망만 제시해주세요.',
+  },
 ];
 
 /** 원문에서 매칭 구간 주변을 잘라 인용문으로 만든다 (리서처가 위치를 찾을 수 있게) */
@@ -156,6 +179,22 @@ export function applyRules(input: ScreeningInput): Finding[] {
       severity: rule.severity,
       quote: quoteAround(text, match.index, match[0].length),
       reason: rule.reason,
+    });
+  }
+
+  // 거래소가 경고를 낸 종목인데 본문에 위험을 전혀 언급하지 않았다면 지적한다.
+  // 위험 종목 매수를 권하면서 위험을 숨기는 것이 구매자에게 가장 해로운 형태다.
+  if (
+    input.riskLevel &&
+    requiresRiskDisclosure(input.riskLevel) &&
+    !hasRiskDisclosure(input.content)
+  ) {
+    findings.push({
+      category: 'MISSING_DISCLOSURE',
+      severity: 'WARN',
+      quote: `${input.assetName} (${RISK_LEVEL_LABEL[input.riskLevel]}${input.riskNote ? ` · ${input.riskNote}` : ''})`,
+      reason:
+        '거래소가 위험을 경고한 종목인데 본문에 리스크 언급이 없습니다. 변동성·거래 제한 가능성을 함께 설명해주세요.',
     });
   }
   return findings;

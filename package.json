@@ -15,6 +15,7 @@
     "seed:demo": "tsx scripts/seedDemo.ts",
     "batch:judge": "tsx scripts/runJudgmentBatch.ts",
     "op:grant": "tsx scripts/grantOperator.ts",
+    "risk:set": "tsx scripts/setInstrumentRisk.ts",
     "batch:season": "tsx scripts/runSeasonRecalc.ts"
   },
   "dependencies": {

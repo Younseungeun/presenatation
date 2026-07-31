@@ -6,6 +6,7 @@ import {
   applyInstrumentListings,
   searchInstruments,
   syncInstruments,
+  setInstrumentRisk,
   validateListedInstrument,
 } from '../instrumentService';
 import { createDraftReport } from '../reportService';
@@ -134,5 +135,77 @@ describe('syncInstruments — 공급자 목록 동기화', () => {
   it('빈 목록은 동기화 중단 (유니버스 전체 비활성화 사고 방지)', async () => {
     const provider = new FixtureMarketDataProvider().setInstruments([]);
     await expect(syncInstruments(prisma, 'CRYPTO', provider)).rejects.toThrow(/비어 있습니다/);
+  });
+});
+
+describe('위험 종목 선별', () => {
+  it('공급자 경보가 위험 등급으로 반영된다 (업비트 유의·주의)', async () => {
+    await applyInstrumentListings(prisma, 'CRYPTO', 'upbit', [
+      { ticker: 'KRW-BTC', name: '비트코인', currency: 'KRW' },
+      {
+        ticker: 'KRW-RISK',
+        name: '유의코인',
+        currency: 'KRW',
+        risk: { warning: true, note: '업비트 유의 종목 지정' },
+      },
+      {
+        ticker: 'KRW-CARE',
+        name: '주의코인',
+        currency: 'KRW',
+        risk: { caution: true, note: '업비트 주의 종목 (가격 급등락)' },
+      },
+    ]);
+
+    const warned = await prisma.instrument.findUniqueOrThrow({
+      where: { assetClass_ticker: { assetClass: 'CRYPTO', ticker: 'KRW-RISK' } },
+    });
+    expect(warned.riskLevel).toBe('WARNING');
+    expect(warned.riskNote).toBe('업비트 유의 종목 지정');
+    expect(warned.riskSyncedAt).not.toBeNull();
+
+    const caution = await prisma.instrument.findUniqueOrThrow({
+      where: { assetClass_ticker: { assetClass: 'CRYPTO', ticker: 'KRW-CARE' } },
+    });
+    expect(caution.riskLevel).toBe('CAUTION');
+  });
+
+  it('경고 종목은 게시 가능하되 검색 결과에 등급이 실린다', async () => {
+    const hits = await searchInstruments(prisma, 'CRYPTO', '유의코인');
+    expect(hits[0]).toMatchObject({ ticker: 'KRW-RISK', riskLevel: 'WARNING' });
+
+    const v = await validateListedInstrument(prisma, 'CRYPTO', 'KRW-RISK', 'UP');
+    expect(v.issues).toEqual([]);
+    expect(v.riskLevel).toBe('WARNING');
+  });
+
+  it('거래 위험(DANGER) 종목은 검색되지 않고 게시도 막힌다', async () => {
+    await setInstrumentRisk(prisma, 'CRYPTO', 'KRW-RISK', 'DANGER', '거래지원 종료 예정');
+
+    expect(await searchInstruments(prisma, 'CRYPTO', '유의코인')).toEqual([]);
+    const v = await validateListedInstrument(prisma, 'CRYPTO', 'KRW-RISK', 'UP');
+    expect(v.issues.join()).toMatch(/거래 위험 종목/);
+    expect(v.issues.join()).toContain('거래지원 종료 예정');
+  });
+
+  it('운영자가 등록한 위험 등급을 동기화가 덮어쓰지 않는다 (공급자가 경보를 안 주는 자산군)', async () => {
+    await applyInstrumentListings(prisma, 'KR_EQUITY', 'seed', [
+      { ticker: '005930', name: '삼성전자', currency: 'KRW' },
+      { ticker: '000660', name: 'SK하이닉스', currency: 'KRW' },
+      { ticker: '042700', name: '한미반도체', currency: 'KRW' },
+    ]);
+    await setInstrumentRisk(prisma, 'KR_EQUITY', '042700', 'WARNING', 'KRX 투자경고');
+
+    // 공급자 목록에 risk 필드가 없는 재동기화 — 운영자 등록값이 유지되어야 한다
+    await applyInstrumentListings(prisma, 'KR_EQUITY', 'seed', [
+      { ticker: '005930', name: '삼성전자', currency: 'KRW' },
+      { ticker: '000660', name: 'SK하이닉스', currency: 'KRW' },
+      { ticker: '042700', name: '한미반도체', currency: 'KRW' },
+    ]);
+
+    const kept = await prisma.instrument.findUniqueOrThrow({
+      where: { assetClass_ticker: { assetClass: 'KR_EQUITY', ticker: '042700' } },
+    });
+    expect(kept.riskLevel).toBe('WARNING');
+    expect(kept.riskNote).toBe('KRX 투자경고');
   });
 });

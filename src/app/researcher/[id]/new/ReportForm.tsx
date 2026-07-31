@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
 import { PRICE_GUIDE_KRW, REPORT_TEXT_LIMITS } from "@/domain/publishReport";
+import { RISK_LEVEL_LABEL, RISK_LEVEL_NOTE, type RiskLevel } from "@/domain/instrumentRisk";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import styles from "../../researcher.module.css";
 
@@ -13,6 +14,8 @@ interface InstrumentHit {
   ticker: string;
   name: string;
   shortable: boolean;
+  riskLevel: RiskLevel;
+  riskNote: string | null;
 }
 
 export function ReportForm({ researcherId }: { researcherId: string }) {
@@ -224,6 +227,16 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
                 <li key={h.ticker}>
                   <button type="button" className={styles.searchItem} onClick={() => pick(h)}>
                     <strong>{h.name}</strong> <span>{h.ticker}</span>
+                    {h.riskLevel !== "NONE" && (
+                      <span
+                        className={`${styles.badge} ${
+                          h.riskLevel === "WARNING" ? styles.miss : styles.undecidable
+                        }`}
+                        style={{ marginLeft: 6 }}
+                      >
+                        {RISK_LEVEL_LABEL[h.riskLevel]}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -234,6 +247,15 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             <span className={styles.hint}>검색 결과 없음 — 지원 종목만 선택할 수 있습니다</span>
           )}
           {(!query.trim() || selected) && <span className={styles.hint}>{searchHint}</span>}
+          {/* 위험 종목을 고르면 무엇이 요구되는지 작성 전에 알린다 */}
+          {selected && selected.riskLevel !== "NONE" && (
+            <span className={styles.hint} style={{ color: "var(--neg)", fontWeight: 600 }}>
+              {RISK_LEVEL_NOTE[selected.riskLevel]}
+              {selected.riskNote ? ` (${selected.riskNote})` : ""}
+              {selected.riskLevel === "WARNING" &&
+                " 본문에 변동성·거래 제한 위험을 함께 설명해야 검수를 통과합니다."}
+            </span>
+          )}
         </div>
       </div>
 

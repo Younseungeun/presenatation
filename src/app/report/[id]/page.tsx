@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
+import { RISK_LEVEL_LABEL, RISK_LEVEL_NOTE, type RiskLevel } from "@/domain/instrumentRisk";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getSessionUserId } from "@/server/session";
@@ -20,7 +21,8 @@ export default async function ReportDetail({
   const data = await getReportDetail(prisma, id, viewerId);
   if (!data) notFound();
 
-  const { report, purchase } = data;
+  const { report, purchase, instrument } = data;
+  const riskLevel = (instrument?.riskLevel ?? "NONE") as RiskLevel;
   const card = report.predictionCard;
   const judgment = card?.judgment;
   const researcherName = report.researcher.user.penName ?? report.researcher.user.email;
@@ -46,6 +48,28 @@ export default async function ReportDetail({
         {report.title}
       </h1>
       <p className={styles.sub}>{report.summary}</p>
+
+      {/* 거래소가 위험을 경고한 종목이면 구매 전에 먼저 보여준다 */}
+      {riskLevel !== "NONE" && (
+        <div
+          style={{
+            border: "1px solid color-mix(in srgb, var(--neg) 35%, transparent)",
+            background: "color-mix(in srgb, var(--neg) 7%, transparent)",
+            borderRadius: "var(--radius)",
+            padding: "12px 14px",
+            margin: "12px 0",
+            fontSize: 13.5,
+            lineHeight: 1.6,
+          }}
+        >
+          <strong style={{ color: "var(--neg)" }}>
+            ⚠ {RISK_LEVEL_LABEL[riskLevel]} 종목
+          </strong>
+          <br />
+          {RISK_LEVEL_NOTE[riskLevel]}
+          {instrument?.riskNote ? ` (${instrument.riskNote})` : ""}
+        </div>
+      )}
 
       {card && (
         <div className={styles.cardBox}>

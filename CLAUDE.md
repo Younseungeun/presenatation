@@ -281,7 +281,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 223건, 브랜치 `claude/session-start-59rfim`.
+테스트 236건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -328,6 +328,19 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
   기간의 시세 변동이 이미 실현된 채 판매되어 정보 이점이 생기기 때문.
   반려(rejectPendingReport)는 삭제가 아니라 초안 복귀 + 사유 통지 → 리서처가 고쳐 재제출.
   보류 건은 구매 불가(purchaseService가 PUBLISHED만 허용), 리서처 화면엔 "검토 중" 배지
+- 위험 종목 선별 (확정): 종목 마스터에 거래소 지정 위험 등급(riskLevel) 보유.
+  **자체 판단이 아니라 거래소 공식 지정만 반영한다** — 플랫폼이 종목 위험도를 스스로
+  평가하면 근거를 대기 어렵고 종목 선정 개입(투자자문업 해석)으로 읽힐 수 있다.
+  | 등급 | 원천 | 처리 |
+  |---|---|---|
+  | CAUTION | 투자주의·업비트 주의 | 검색 결과에 배지 표시 |
+  | WARNING | 투자경고·업비트 유의 | 게시 가능 + 리포트 상세 경고 배너 + 본문에 리스크 고지 없으면 검수에서 지적(MISSING_DISCLOSURE) |
+  | DANGER | 관리종목·정리매매·거래지원 종료 | 검색 제외 + 신규 게시 차단 (거래 중단 시 판정 불가로 끝나기 때문) |
+  코인은 업비트 market/all(isDetails=true)의 market_event를 동기화가 자동 반영.
+  KR·US는 시세 공급자가 시장경보를 주지 않아 운영자 수동 등록(npm run risk:set) —
+  동기화가 운영자 등록값을 덮어쓰지 않는다. KRX 자동 수집은 소스 확정 후 어댑터 추가
+- 위험 내용 선별: 컴플라이언스 규칙에 RISK_INDUCEMENT(빚투·풀매수·영끌·고배율 레버리지
+  권유) 추가 — WARN. 표현 자체가 위법은 아니지만 소비자 피해로 직결되므로 사람이 문맥 확인
 - 검토 큐 우선순위: 보류가 오래된 순 정렬 + 경과 시간 강조 (6시간↑ 주의 / 24시간↑ 지연,
   HOLD_ATTENTION_HOURS·HOLD_OVERDUE_HOURS). 정렬 기준이 대기 시간인 이유는 결정이
   날 때까지 리서처가 판매를 못 하기 때문. 상단에 지연 건수 요약, 카드는 좌측 컬러
@@ -347,6 +360,12 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
   (=output/input, 길이 정규화한 숙고량 지표) 기록 + getScreeningUsageStats()의 P50/P80/P90.
   용도 ① 실측 기반 모델 선택(현재 opus 유지, 데이터 쌓인 뒤 재결정)
   ② 숙고량 상위 구간을 운영자 큐로 넘기는 에스컬레이션 임계값 산정 (임계값 미정)
+- 면책·책임 조항 (초안, 변호사 확인 필요 — docs/legal-consultation.md Q6):
+  이용약관 제7조(콘텐츠 책임과 사전 검수의 성격)·제8조(위험 종목 표시),
+  리서처 계약 제6조(게시 전 검수와 게시 중단)·제7조(책임과 배상) 추가.
+  핵심 논리는 "검수는 명백한 금지 표현의 기계적 필터일 뿐 내용의 적법성·성과를
+  보증하지 않는다" — 검수한다는 사실이 오히려 플랫폼 책임을 키우는 역효과를 막기 위함.
+  이 해석 자체가 3차 상담 확인 대상
 - 약관 동의 플로우: 버전 관리 약관 3종(이용약관·개인정보처리방침·리서처 이용계약, 본문은
   변호사 검토 전 자리표시자) + Consent 동의 이력(가입·리서처전환·구매 맥락, 버전 기준 중복
   방지) + 약관 열람 페이지 + 전 화면 푸터 링크·투자 유의 문구. 환불 조항은 "콘텐츠 거래대금

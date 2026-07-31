@@ -59,6 +59,49 @@ describe('applyRules — 명백한 금지 표현 차단', () => {
     expect(resolveAction('WARN', 'WARN')).toBe('HOLD');
   });
 
+  it('차입·집중 투자 권유는 WARN (위험 조장)', () => {
+    expect(applyRules(input({ content: '빚투로라도 담아야 합니다.' }))[0]).toMatchObject({
+      category: 'RISK_INDUCEMENT',
+      severity: 'WARN',
+    });
+    expect(applyRules(input({ content: '전 재산 올인 각입니다.' }))[0].category).toBe(
+      'RISK_INDUCEMENT',
+    );
+    expect(applyRules(input({ content: '100배 레버리지 롱 추천' }))[0].category).toBe(
+      'RISK_INDUCEMENT',
+    );
+  });
+
+  it('위험 종목인데 리스크 고지가 없으면 지적한다', () => {
+    const withoutDisclosure = applyRules(
+      input({
+        content: '실적 개선으로 상승을 전망합니다.',
+        riskLevel: 'WARNING',
+        riskNote: 'KRX 투자경고',
+      }),
+    );
+    expect(withoutDisclosure[0]).toMatchObject({
+      category: 'MISSING_DISCLOSURE',
+      severity: 'WARN',
+    });
+    expect(withoutDisclosure[0].quote).toContain('KRX 투자경고');
+
+    // 고지가 있으면 지적하지 않는다
+    expect(
+      applyRules(
+        input({
+          content: '실적 개선으로 상승을 전망하나 변동성이 크므로 손실 위험에 유의해야 합니다.',
+          riskLevel: 'WARNING',
+        }),
+      ),
+    ).toEqual([]);
+
+    // 주의(CAUTION) 등급은 고지를 요구하지 않는다 — 표시만
+    expect(
+      applyRules(input({ content: '실적 개선으로 상승을 전망합니다.', riskLevel: 'CAUTION' })),
+    ).toEqual([]);
+  });
+
   it('정상적인 투자 분석은 지적하지 않는다 (오탐 방지)', () => {
     expect(applyRules(input())).toEqual([]);
     // 강한 확신·목표가 제시·매수 의견은 전부 정상

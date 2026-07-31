@@ -153,6 +153,9 @@ export async function publishReport(
       assetClass: cardDraft.assetClass,
       assetName: cardDraft.assetName,
       direction: cardDraft.direction,
+      // 위험 종목이면 리스크 고지 여부를 함께 본다
+      riskLevel: instrument.riskLevel,
+      riskNote: instrument.riskNote,
     },
     screener,
     now,

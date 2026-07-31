@@ -8,6 +8,7 @@ import {
   type Severity,
 } from '@/domain/compliance';
 import { ASSET_CLASS_LABEL } from '@/domain/constants';
+import { RISK_LEVEL_LABEL } from '@/domain/instrumentRisk';
 import type { ComplianceScreener, ScreeningOutput } from './screener';
 
 // Claude 기반 컴플라이언스 검수 어댑터.
@@ -62,10 +63,13 @@ const SYSTEM_PROMPT = `당신은 한국 투자 리서치 콘텐츠 마켓플레�
 - RUMOR: 출처를 확인할 수 없는 풍문·찌라시를 근거로 제시하는 표현.
 - SOLICIT_CONTACT: 1:1 상담·개인 연락·외부 채널(카톡, 텔레그램, 리딩방 등) 유도. 이 플랫폼은 불특정 다수 대상 리포트만 허용하며, 개별 자문은 투자자문업 영역이라 금지됩니다.
 - UNSUPPORTED_CLAIM: 아무 근거 없이 단정하는 서술. 규제 위반은 아니므로 반드시 WARN.
+- RISK_INDUCEMENT: 차입(빚투·신용·미수)·고배율 레버리지·전 재산 집중 투자를 권유하는 표현. 규제 위반이라기보다 소비자 피해로 직결되므로 WARN.
+- MISSING_DISCLOSURE: 거래소가 위험을 경고한 종목인데(사용자 메시지에 표시됨) 본문이 변동성·거래 제한 가능성을 전혀 언급하지 않는 경우. WARN.
 
 ## 심각도
-- BLOCK: 명백한 규제 위반. 게시가 차단되고 리서처는 수정해야 합니다.
-- WARN: 위반 소지는 있으나 해석의 여지가 있는 경우. 게시는 허용되고 운영자가 검토합니다.
+- BLOCK: 명백한 규제 위반. 게시가 보류되고 운영자가 최종 판단합니다.
+- WARN: 위반 소지는 있으나 해석의 여지가 있는 경우. 역시 보류 후 운영자가 검토합니다.
+두 경우 모두 게시가 즉시 거절되지는 않지만, 판매가 시작되지 않고 사람의 확인을 기다리게 됩니다.
 
 ## 가장 중요한 원칙: 오탐을 내지 마세요
 이 플랫폼의 존재 이유가 투자 분석 리포트 판매입니다. **평범한 분석·전망·투자의견은 위반이 아닙니다.**
@@ -82,8 +86,13 @@ const SYSTEM_PROMPT = `당신은 한국 투자 리서치 콘텐츠 마켓플레�
 
 function buildUserMessage(input: ScreeningInput): string {
   const dir = input.direction === 'UP' ? '상승' : '하락';
+  const risk =
+    input.riskLevel && input.riskLevel !== 'NONE'
+      ? `\n⚠ 이 종목은 거래소가 ${RISK_LEVEL_LABEL[input.riskLevel]} 종목으로 지정했습니다` +
+        `${input.riskNote ? ` (${input.riskNote})` : ''}. 본문에 변동성·거래 제한 위험이 설명되어 있는지 확인하세요.`
+      : '';
   return [
-    `자산군: ${ASSET_CLASS_LABEL[input.assetClass]} / 종목: ${input.assetName} / 예측 방향: ${dir}`,
+    `자산군: ${ASSET_CLASS_LABEL[input.assetClass]} / 종목: ${input.assetName} / 예측 방향: ${dir}${risk}`,
     '',
     '아래 리포트를 검수하세요.',
     '',
