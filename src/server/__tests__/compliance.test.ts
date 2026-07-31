@@ -105,19 +105,28 @@ describe('runScreening — 규칙과 AI 조합', () => {
     expect(called).toBe(false);
   });
 
-  it('AI가 찾은 위반이 결정에 반영된다', async () => {
+  it('규칙 BLOCK은 즉시 거절 (REJECT)', async () => {
+    const result = await runScreening({ ...clean, content: '원금 보장됩니다' }, null);
+    expect(result.decision).toBe('BLOCK');
+    expect(result.action).toBe('REJECT');
+  });
+
+  it('AI가 찾은 위반은 거절이 아니라 보류 — 오탐으로 게시를 죽이지 않는다', async () => {
     const screener = new FixtureComplianceScreener([
       { category: 'PROFIT_GUARANTEE', severity: 'BLOCK', quote: '우회 표현', reason: 'r' },
     ]);
     const result = await runScreening(clean, screener);
-    expect(result.decision).toBe('BLOCK');
+    expect(result.decision).toBe('BLOCK'); // 위험 수준은 BLOCK
+    expect(result.action).toBe('HOLD'); // 처리는 보류
+    expect(result.needsOperatorReview).toBe(true);
     expect(result.reviewer).toBe('rule+fixture');
   });
 
-  it('AI 검수 실패는 게시를 막지 않고 운영자 검토로 넘긴다', async () => {
+  it('AI 검수 실패도 보류로 넘긴다 (거절 아님)', async () => {
     const failing = new FixtureComplianceScreener([], new Error('API 장애'));
     const result = await runScreening(clean, failing);
     expect(result.decision).toBe('UNAVAILABLE');
+    expect(result.action).toBe('HOLD');
     expect(result.needsOperatorReview).toBe(true);
     expect(result.findings).toEqual([]);
   });
@@ -155,6 +164,50 @@ describe('publishReport — 검수 연동', () => {
     });
     expect(review.decision).toBe('BLOCK');
     expect(JSON.parse(review.findingsJson)[0].category).toBe('PROFIT_GUARANTEE');
+  });
+
+  it('AI가 위반으로 본 리포트는 게시되지 않고 보류된다 (사유 통지 포함)', async () => {
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('공개 자료를 근거로 상승을 전망합니다.', 'AI 위반 판정'),
+      DRAFT_NOW,
+    );
+    const screener = new FixtureComplianceScreener([
+      {
+        category: 'PROFIT_GUARANTEE',
+        severity: 'BLOCK',
+        quote: '손해 볼 일 없습니다',
+        reason: '사실상 수익을 보장하는 표현입니다.',
+      },
+    ]);
+    const result = await publishReport(
+      prisma,
+      registry,
+      draft.id,
+      researcherId,
+      PUBLISH_NOW,
+      screener,
+    );
+    expect(result.status).toBe('PENDING_REVIEW');
+
+    const review = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId: draft.id },
+    });
+    expect(review.decision).toBe('BLOCK');
+    expect(review.needsOperatorReview).toBe(true);
+
+    // 리서처는 왜 보류됐는지 알아야 한다
+    const noti = await prisma.notification.findFirstOrThrow({
+      where: { type: 'COMPLIANCE_PENDING', title: { contains: 'AI 위반 판정' } },
+    });
+    expect(noti.body).toContain('사실상 수익을 보장하는 표현');
+    expect(noti.body).toContain('손해 볼 일 없습니다');
+
+    // 운영자 알림도 위반 판정임을 구분해 알린다
+    const alarm = await prisma.notification.findFirstOrThrow({
+      where: { userId: operatorUserId, type: 'COMPLIANCE_REVIEW', title: { contains: 'AI 위반 판정' } },
+    });
+    expect(alarm.title).toContain('AI 위반 판정');
   });
 
   it('정상 리포트는 통과하고 PASS가 기록된다', async () => {

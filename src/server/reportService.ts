@@ -10,7 +10,7 @@ import {
   validateReportText,
   type CardDraft,
 } from '@/domain/publishReport';
-import { blockMessages, blocksPublish } from '@/domain/compliance';
+import { findingMessages } from '@/domain/compliance';
 import type { ComplianceScreener } from '@/infra/compliance/screener';
 import { toCardDraft } from './cardMapper';
 import { closeComplianceReviewWrites, screenAndRecord } from './complianceService';
@@ -157,14 +157,20 @@ export async function publishReport(
     screener,
     now,
   );
-  if (blocksPublish(compliance.decision)) {
-    throw new PublishValidationError(blockMessages(compliance.findings));
+  // 결정적 규칙이 잡은 명백한 위반만 즉시 거절한다 (오탐이 사실상 없는 표현).
+  if (compliance.action === 'REJECT') {
+    throw new PublishValidationError(findingMessages(compliance.findings, 'BLOCK'));
   }
 
-  // 2단 검수로 결론이 나지 않았으면 게시하지 않고 보류한다.
+  // AI 판정(위반·경고)과 AI 장애는 게시하지 않고 보류한다.
+  // AI 판단만으로 게시를 죽이지 않되(오탐 가능), 판매도 시작하지 않고 사람이 결정한다.
   // 기준가·수수료도 여기서 확정하지 않는다 — 승인 시점에 확정해야
   // 보류 기간 동안의 시세 변동이 기준가에 반영되어 정보 이점이 생기지 않는다.
-  if (compliance.needsOperatorReview) {
+  if (compliance.action === 'HOLD') {
+    const detail =
+      compliance.decision === 'UNAVAILABLE'
+        ? '자동 검수를 완료하지 못해(AI 일시 장애) 운영자 확인 대기 중입니다.'
+        : `사유: ${findingMessages(compliance.findings).join(' / ')}`;
     const held = await prisma.$transaction([
       prisma.report.update({
         where: { id: reportId, status: 'DRAFT' },
@@ -175,7 +181,7 @@ export async function publishReport(
           userId: report.researcher.userId,
           type: 'COMPLIANCE_PENDING',
           title: `게시 보류 — 검토 중: ${report.title}`,
-          body: '자동 검수에서 확인이 필요한 표현이 발견되어 운영자 검토 대기 중입니다. 승인되면 판매가 시작되고, 결과는 알림으로 안내됩니다.',
+          body: `${detail} 운영자가 승인하면 판매가 시작되고, 반려되면 사유와 함께 초안으로 돌아갑니다.`,
           link: `/researcher/${report.researcherId}`,
           createdAt: now,
         },

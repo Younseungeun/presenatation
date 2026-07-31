@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { applyRules, blocksPublish, decide, mergeFindings, type ScreeningInput } from '../compliance';
+import {
+  applyRules,
+  decide,
+  findingMessages,
+  mergeFindings,
+  resolveAction,
+  type ScreeningInput,
+} from '../compliance';
 
 // 결정적 규칙은 오탐이 사실상 없어야 한다 — 정상 리서처의 게시를 막으면
 // 공급 확보(1단계 전략)가 무너지기 때문. 그 균형을 테스트로 고정한다.
@@ -43,10 +50,10 @@ describe('applyRules — 명백한 금지 표현 차단', () => {
     expect(f[0]).toMatchObject({ category: 'PRIVATE_INFO', severity: 'BLOCK' });
   });
 
-  it('풍문성 표현은 WARN (게시는 허용, 운영자 검토)', () => {
+  it('풍문성 표현은 WARN (즉시 거절이 아니라 운영자 검토)', () => {
     const f = applyRules(input({ content: '시장에 카더라가 돌고 있습니다.' }));
     expect(f[0]).toMatchObject({ category: 'RUMOR', severity: 'WARN' });
-    expect(blocksPublish(decide(f))).toBe(false);
+    expect(resolveAction('WARN', 'WARN')).toBe('HOLD');
   });
 
   it('정상적인 투자 분석은 지적하지 않는다 (오탐 방지)', () => {
@@ -67,8 +74,8 @@ describe('applyRules — 명백한 금지 표현 차단', () => {
   });
 });
 
-describe('decide — 결정 규칙', () => {
-  it('BLOCK 하나라도 있으면 차단, WARN만 있으면 통과', () => {
+describe('decide — 위험 수준 판정', () => {
+  it('BLOCK 하나라도 있으면 BLOCK, WARN만 있으면 WARN', () => {
     expect(decide([])).toBe('PASS');
     expect(decide([{ category: 'RUMOR', severity: 'WARN', quote: 'q', reason: 'r' }])).toBe('WARN');
     expect(
@@ -77,7 +84,43 @@ describe('decide — 결정 규칙', () => {
         { category: 'PROFIT_GUARANTEE', severity: 'BLOCK', quote: 'q', reason: 'r' },
       ]),
     ).toBe('BLOCK');
-    expect(blocksPublish('UNAVAILABLE')).toBe(false); // 검수 장애는 게시를 막지 않는다
+  });
+});
+
+describe('resolveAction — 누가 낸 판정인지에 따라 처리가 갈린다', () => {
+  it('규칙 BLOCK만 즉시 거절', () => {
+    expect(resolveAction('BLOCK', 'BLOCK')).toBe('REJECT');
+  });
+
+  it('AI가 낸 BLOCK은 거절이 아니라 보류 — 오탐으로 게시를 죽이지 않는다', () => {
+    expect(resolveAction('PASS', 'BLOCK')).toBe('HOLD');
+    expect(resolveAction('WARN', 'BLOCK')).toBe('HOLD');
+  });
+
+  it('경고·검수 장애도 보류, 소견 없으면 게시', () => {
+    expect(resolveAction('PASS', 'WARN')).toBe('HOLD');
+    expect(resolveAction('PASS', 'UNAVAILABLE')).toBe('HOLD');
+    expect(resolveAction('PASS', 'PASS')).toBe('PUBLISH');
+  });
+});
+
+describe('findingMessages — 리서처에게 보여줄 사유', () => {
+  it('심각도·유형·사유·인용을 한 줄로 만든다', () => {
+    const [msg] = findingMessages([
+      { category: 'PROFIT_GUARANTEE', severity: 'BLOCK', quote: '원금 보장', reason: '금지 표현' },
+    ]);
+    expect(msg).toContain('위반');
+    expect(msg).toContain('수익 보장·손실 보전 표현');
+    expect(msg).toContain('원금 보장');
+  });
+
+  it('심각도로 걸러낼 수 있다', () => {
+    const findings = [
+      { category: 'RUMOR' as const, severity: 'WARN' as const, quote: 'q', reason: 'r' },
+      { category: 'PRIVATE_INFO' as const, severity: 'BLOCK' as const, quote: 'q', reason: 'r' },
+    ];
+    expect(findingMessages(findings, 'BLOCK')).toHaveLength(1);
+    expect(findingMessages(findings)).toHaveLength(2);
   });
 });
 

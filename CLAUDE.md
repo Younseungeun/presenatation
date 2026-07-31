@@ -281,7 +281,7 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 ## 7. 구현 현황 (2026-07-13 기준)
 
 기술 스택: Next.js(App Router)+TypeScript, Prisma(개발 SQLite→운영 Postgres 전제), Vitest.
-테스트 212건, 브랜치 `claude/session-start-59rfim`.
+테스트 219건, 브랜치 `claude/session-start-59rfim`.
 
 **완료 (테스트 포함)**
 - 데이터 모델: User/ResearcherProfile/Report/PredictionCard/Judgment/Purchase/Settlement/Credit/TierHistory
@@ -306,15 +306,21 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
 - 정산 지시서 콘솔: 판정이 만든 환불(PG 취소/계좌이체 선택)·리서처 지급 지시서를 운영자가
   실행·기록(실행자·시각·방법, 이중 실행 차단) + 당사자 알림 — PG 자동화 전 수동 운영 경로,
   /admin/settlements 화면 + API
-- 게시 전 컴플라이언스 검수 (AI): 리서처가 게시를 누르면 자동 실행되는 2단 검수.
-  1차 결정적 규칙 → BLOCK(수익 보장·1:1 상담 유도·미공개정보 정황)이면 AI 호출 없이
-  게시 차단. 2차 Claude(claude-opus-5, 구조화 출력)가 문맥이 필요한 애매한 표현을 판단.
-  1·2차를 통과한 리포트만 즉시 게시된다.
-  2단에서도 결론이 안 나면(WARN=경고 소견, UNAVAILABLE=AI 장애) **게시하지 않고
-  보류(PENDING_REVIEW)** — 3차로 운영자 큐(/admin/compliance) + 운영자 인앱
-  알림(COMPLIANCE_REVIEW)에 올려 사람이 본문을 읽고 게시 승인/반려를 결정한다 (확정).
-  검수로 결론이 안 난 콘텐츠가 판매되는 시간을 0으로 만드는 것이 목적.
-  AI 장애도 보류로 처리하지만 이는 리포트 1건이 늦어지는 것일 뿐 서비스는 계속 돈다.
+- 게시 전 컴플라이언스 검수 (확정 — 3단 파이프라인): 리서처가 게시를 누르면 자동 실행.
+  **위험 수준(decision)과 처리 방침(action)을 분리한다** — 같은 BLOCK이라도 판단 주체에
+  따라 처리가 다르기 때문 (domain/compliance.ts resolveAction).
+  | 단계 | 판정 | 처리(action) |
+  |---|---|---|
+  | 1차 결정적 규칙 | BLOCK (수익 보장·1:1 상담 유도·미공개정보 정황) | REJECT — 즉시 거절, AI 미호출 |
+  | 2차 Claude(opus-5) | PASS | PUBLISH — 즉시 게시 |
+  | 2차 Claude | WARN·BLOCK | HOLD — 게시 보류 + 3차로 |
+  | 2차 실패(장애) | UNAVAILABLE | HOLD — 게시 보류 + 3차로 |
+  | 3차 운영자 | 사람 판단 | 게시 승인 / 반려 |
+  즉시 거절은 **규칙이 잡은 BLOCK뿐**이다. 오탐이 사실상 없는 표현만 규칙에 넣었기 때문.
+  AI가 낸 BLOCK은 오탐 가능성이 있어 그것만으로 리서처의 게시를 죽이지 않되, 판매도
+  시작하지 않고 사람이 최종 결정한다 (검수로 결론이 안 난 콘텐츠의 판매 시간 = 0).
+  거절·보류 사유는 심각도(위반/확인 필요)·유형·인용문까지 리서처에게 전달(findingMessages),
+  운영자 알림도 AI 위반 판정/경고/검수 실패를 구분해 표시.
   ANTHROPIC_API_KEY 없으면 규칙만 동작. 검수 이력은 차단 시도까지 보존(어뷰징 탐지 근거)
 - 게시 보류 상태(PENDING_REVIEW) 규칙: 보류 중에는 판매 조건을 확정하지 않는다 —
   기준가·수수료·카드 잠금은 **운영자 승인 시점**에 확정(approvePendingReport →

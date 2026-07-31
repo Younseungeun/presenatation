@@ -67,7 +67,11 @@ export default async function AdminCompliancePage() {
                   }`}
                 >
                   {review.report.status === "PENDING_REVIEW" ? "게시 대기" : "게시 중"} ·{" "}
-                  {review.decision === "UNAVAILABLE" ? "검수 실패" : "검토 필요"}
+                  {review.decision === "UNAVAILABLE"
+                    ? "검수 실패"
+                    : review.decision === "BLOCK"
+                      ? "AI 위반 판정"
+                      : "AI 경고"}
                 </span>
               </div>
               <div className={styles.meta}>
@@ -92,6 +96,14 @@ export default async function AdminCompliancePage() {
                 <ul style={{ margin: "8px 0 0", paddingLeft: 18, fontSize: 13.5 }}>
                   {findings.map((f, i) => (
                     <li key={i} style={{ marginBottom: 6, color: "var(--text-weak)" }}>
+                      <span
+                        className={`${styles.badge} ${
+                          f.severity === "BLOCK" ? styles.miss : styles.undecidable
+                        }`}
+                        style={{ marginRight: 6 }}
+                      >
+                        {f.severity === "BLOCK" ? "위반" : "확인 필요"}
+                      </span>
                       <strong>{RISK_CATEGORY_LABEL[f.category as RiskCategory]}</strong> —{" "}
                       {f.reason}
                       <br />

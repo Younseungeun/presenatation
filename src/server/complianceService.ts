@@ -2,7 +2,9 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 import {
   applyRules,
   decide,
+  findingMessages,
   mergeFindings,
+  resolveAction,
   type ComplianceResult,
   type ScreeningInput,
 } from '@/domain/compliance';
@@ -31,6 +33,7 @@ export async function runScreening(
   if (ruleDecision === 'BLOCK' || !screener) {
     return {
       decision: ruleDecision,
+      action: resolveAction(ruleDecision, ruleDecision),
       findings: ruleFindings,
       reviewer: 'rule',
       needsOperatorReview: ruleDecision === 'WARN',
@@ -41,11 +44,12 @@ export async function runScreening(
   try {
     output = await screener.screen(input);
   } catch (e) {
-    // 검수 실패로 게시를 막지 않는다 — 외부 장애가 서비스 중단으로 번지지 않게.
-    // 대신 운영자 검토 대상으로 돌린다.
+    // 검수 실패로 게시를 거절하지는 않는다 — 외부 장애로 정상 리포트가 반려되면 안 된다.
+    // 대신 판매도 시작하지 않고 운영자 검토로 돌린다.
     console.error('컴플라이언스 AI 검수 실패:', e);
     return {
       decision: 'UNAVAILABLE',
+      action: 'HOLD',
       findings: ruleFindings,
       reviewer: `rule+${screener.reviewerId}(실패)`,
       needsOperatorReview: true,
@@ -54,11 +58,13 @@ export async function runScreening(
 
   const findings = mergeFindings(ruleFindings, output.findings);
   const decision = decide(findings);
+  const action = resolveAction(ruleDecision, decision);
   return {
     decision,
+    action,
     findings,
     reviewer: `rule+${screener.reviewerId}`,
-    needsOperatorReview: decision === 'WARN',
+    needsOperatorReview: action === 'HOLD',
     usage: output.usage,
   };
 }
@@ -97,7 +103,12 @@ export async function screenAndRecord(
       where: { role: 'OPERATOR' },
       select: { id: true },
     });
-    const label = result.decision === 'UNAVAILABLE' ? 'AI 검수 실패' : '검수 경고';
+    const label =
+      result.decision === 'UNAVAILABLE'
+        ? 'AI 검수 실패'
+        : result.decision === 'BLOCK'
+          ? 'AI 위반 판정'
+          : '검수 경고';
     for (const op of operators) {
       writes.push(
         prisma.notification.create({
@@ -108,7 +119,7 @@ export async function screenAndRecord(
             body:
               result.decision === 'UNAVAILABLE'
                 ? 'AI 검수가 실패해 결정적 규칙만 적용됐습니다. 게시를 보류했으니 본문을 확인해 게시 승인 또는 반려를 결정해주세요.'
-                : `${result.findings.map((f) => f.reason).join(' / ')} — 게시를 보류했습니다. 본문을 확인해 게시 승인 또는 반려를 결정해주세요.`,
+                : `${findingMessages(result.findings).join(' / ')} — 게시를 보류했습니다. 본문을 확인해 게시 승인 또는 반려를 결정해주세요.`,
             link: '/admin/compliance',
             createdAt: now,
           },

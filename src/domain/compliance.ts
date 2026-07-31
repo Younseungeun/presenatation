@@ -42,21 +42,34 @@ export interface Finding {
 }
 
 /**
- * 검수 결정.
- * - BLOCK: 게시 불가. 리서처가 문구를 고쳐 다시 시도해야 한다
- * - WARN: 게시는 되지만 운영자 검토 큐에 올라간다
- * - PASS: 통과
- * - UNAVAILABLE: AI 검수 실패(장애 등). 게시는 허용하되 운영자 검토 대상 —
- *   검수 실패로 게시 자체를 막으면 외부 장애가 서비스 중단으로 번지기 때문
+ * 검수에서 발견된 위험 수준 (무엇을 찾았는가).
+ * - BLOCK: 명백한 위반 소견
+ * - WARN: 확인이 필요한 소견
+ * - PASS: 소견 없음
+ * - UNAVAILABLE: AI 검수 실패(장애 등)
  */
 export type ComplianceDecision = 'PASS' | 'WARN' | 'BLOCK' | 'UNAVAILABLE';
 
+/**
+ * 그래서 게시를 어떻게 할 것인가 (무엇을 할 것인가).
+ * 위험 수준과 분리한 이유: 같은 BLOCK이라도 판단 주체에 따라 처리가 달라야 한다.
+ * - REJECT: 즉시 게시 거절. **결정적 규칙이 잡은 BLOCK만** 여기 해당한다.
+ *   오탐이 사실상 없는 표현만 규칙에 넣었으므로 사람 확인 없이 막아도 안전하다
+ * - HOLD: 게시 보류 → 운영자 큐. AI가 낸 BLOCK·WARN, AI 장애가 여기 해당한다.
+ *   AI 판단은 오탐 가능성이 있어 그것만으로 리서처의 게시를 죽이지 않는다 —
+ *   대신 판매도 시작하지 않고 사람이 최종 결정한다
+ * - PUBLISH: 즉시 게시
+ */
+export type ComplianceAction = 'PUBLISH' | 'HOLD' | 'REJECT';
+
 export interface ComplianceResult {
   decision: ComplianceDecision;
+  /** 게시 처리 방침 */
+  action: ComplianceAction;
   findings: Finding[];
   /** 검수 주체 식별자 (rule / claude:모델명 / rule+claude:모델명) */
   reviewer: string;
-  /** 운영자 검토가 필요한가 (WARN·UNAVAILABLE) */
+  /** 운영자 검토가 필요한가 (action === 'HOLD') */
   needsOperatorReview: boolean;
   /** AI 검수 토큰 사용량 — 비용 측정·숙고량 신호용 (규칙만 돌았으면 없음) */
   usage?: { inputTokens: number; outputTokens: number };
@@ -157,16 +170,27 @@ export function decide(findings: Finding[]): Exclude<ComplianceDecision, 'UNAVAI
   return 'PASS';
 }
 
-/** 결정 → 게시 가능 여부 */
-export function blocksPublish(decision: ComplianceDecision): boolean {
-  return decision === 'BLOCK';
+/**
+ * 위험 수준 → 게시 처리 방침.
+ * 규칙이 낸 BLOCK만 즉시 거절이고, AI가 낸 BLOCK은 보류다 (사람이 최종 결정).
+ */
+export function resolveAction(
+  ruleDecision: Exclude<ComplianceDecision, 'UNAVAILABLE'>,
+  finalDecision: ComplianceDecision,
+): ComplianceAction {
+  if (ruleDecision === 'BLOCK') return 'REJECT';
+  return finalDecision === 'PASS' ? 'PUBLISH' : 'HOLD';
 }
 
-/** 게시 차단 시 리서처에게 보여줄 메시지 */
-export function blockMessages(findings: Finding[]): string[] {
+/** 게시 거절·보류 사유를 리서처에게 보여줄 메시지로 (심각도 표시 포함) */
+export function findingMessages(findings: Finding[], severity?: Severity): string[] {
   return findings
-    .filter((f) => f.severity === 'BLOCK')
-    .map((f) => `[${RISK_CATEGORY_LABEL[f.category]}] ${f.reason} (해당 부분: "${f.quote}")`);
+    .filter((f) => !severity || f.severity === severity)
+    .map(
+      (f) =>
+        `[${f.severity === 'BLOCK' ? '위반' : '확인 필요'} · ${RISK_CATEGORY_LABEL[f.category]}] ` +
+        `${f.reason} (해당 부분: "${f.quote}")`,
+    );
 }
 
 /** 규칙 결과 + AI 결과 병합 (중복 카테고리는 규칙 쪽을 우선) */
