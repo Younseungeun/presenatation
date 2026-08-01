@@ -28,6 +28,7 @@ export const RISK_CATEGORIES = [
   'RISK_INDUCEMENT', // 위험 투자 조장 (빚투·풀매수·고배율 레버리지 권유)
   'MISSING_DISCLOSURE', // 위험 종목인데 리스크 고지 없음
   'RISKY_INSTRUMENT', // 종목 자체가 위험 (시장경보·상폐 가능성·과소 시총)
+  'SCREENING_EVASION', // 검수 회피 시도 (AI에게 지시를 주입해 판정을 조작하려는 문장)
 ] as const;
 export type RiskCategory = (typeof RISK_CATEGORIES)[number];
 
@@ -40,6 +41,7 @@ export const RISK_CATEGORY_LABEL: Record<RiskCategory, string> = {
   RISK_INDUCEMENT: '위험 투자 조장',
   MISSING_DISCLOSURE: '위험 종목 리스크 미고지',
   RISKY_INSTRUMENT: '위험 종목',
+  SCREENING_EVASION: '검수 회피 시도',
 };
 
 /** BLOCK: 게시 차단 / WARN: 게시 허용하되 운영자 검토 대상 */
@@ -152,6 +154,23 @@ const RULES: Rule[] = [
     severity: 'WARN',
     pattern: /카더라|~?라는\s*소문|소문\s*에\s*의하면|찌라시/,
     reason: '출처가 불명확한 풍문성 표현입니다. 확인 가능한 공개 자료로 대체해주세요.',
+  },
+  {
+    // 검수 회피 시도 — 리포트 본문은 그대로 AI에 입력되므로, 본문에 "지시"를 심어
+    // 판정을 조작하려는 시도가 가능하다(프롬프트 인젝션).
+    //
+    // 이 규칙의 진짜 값어치는 방어 깊이에 있다: AI가 주입에 넘어가 findings를 비워도
+    // 규칙이 낸 이 소견은 mergeFindings에서 살아남아 게시가 보류된다.
+    // 즉 AI를 완전히 장악해도 사람 검토를 우회할 수 없다.
+    //
+    // 즉시 거절이 아니라 WARN(보류)인 이유: 정상 문장이 우연히 걸릴 여지를 남겨두고
+    // 사람이 확인하게 한다. 실제 주입이면 운영자가 반려하고 어뷰징으로 처리하면 된다.
+    category: 'SCREENING_EVASION',
+    severity: 'WARN',
+    pattern:
+      /(이전|위|앞|모든)\s*(의)?\s*(지시|규칙|명령|프롬프트|instruction)\w*\s*(사항|들)?\s*(은|는|을|를)?\s*(모두\s*)?(무시|잊|해제|취소)|시스템\s*프롬프트|system\s*prompt|ignore\s+(all\s+|the\s+|previous\s+|above\s+)*(instruction|prompt|rule)|disregard\s+(all\s+|the\s+|previous\s+|above\s+)*(instruction|prompt|rule)|findings\s*(를|는|을)?\s*(빈|empty|\[\s*\])|검수\w*\s*(를|을)?\s*(통과|생략|건너)\w*\s*(시켜|하라|하세요|해라|해줘)|당신(은|이)\s*(이제\s*)?(ai|어시스턴트|검수자|모델|시스템)|you\s+are\s+(now\s+)?(an?\s+)?(ai|assistant|reviewer)|<\s*\/?\s*(제목|요약|본문)\s*[^>]*>/i,
+    reason:
+      '검수 시스템에 지시를 주입하려는 문장으로 보입니다. 리포트 본문에는 분석 내용만 작성해주세요.',
   },
   {
     // 위험 투자 조장 — 표현 자체가 위법은 아니지만 소비자 피해로 직결된다.
