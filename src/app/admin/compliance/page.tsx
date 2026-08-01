@@ -18,6 +18,7 @@ import {
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
 import styles from "../../researcher/researcher.module.css";
+import tabStyles from "../../market.module.css";
 import { ResolveButton } from "./ResolveButton";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,29 @@ const URGENCY_STYLE: Record<HoldUrgency, { accent: string; label: string }> = {
   OVERDUE: { accent: "var(--neg)", label: "지연" },
   ATTENTION: { accent: "var(--warn)", label: "주의" },
   NORMAL: { accent: "transparent", label: "" },
+};
+
+// 화면 분리: 판단 기준이 다른 건을 한 화면에서 섞어 보면 매번 "무엇을 봐야 하는 건인지"를
+// 다시 파악해야 한다. 탭 상태는 URL(?tab=)에 두어 새로고침·공유·뒤로가기가 자연스럽게 동작한다.
+const TAB_KEYS = ["content", "instrument", "published"] as const;
+type TabKey = (typeof TAB_KEYS)[number];
+
+const TABS: Record<TabKey, { label: string; description: string }> = {
+  content: {
+    label: "본문 검수 보류",
+    description:
+      "리포트 표현에서 확인이 필요한 소견이 나온 건입니다. 본문을 읽고 게시 승인 또는 반려를 결정해주세요.",
+  },
+  instrument: {
+    label: "위험 종목 보류",
+    description:
+      "본문에는 문제가 없으나 종목 자체가 위험 신호를 받은 건입니다 — 거래소 투자주의·경고 지정, 상장폐지 가능성, 기준 미만 시가총액. 위법이 아니라 위험이므로 사람이 판단합니다. 정상적인 분석이면 승인하고, 구매자가 따라 들어가기에 부적절하면 반려해주세요.",
+  },
+  published: {
+    label: "판매 중 리포트",
+    description:
+      "검토를 통과해 판매 중인 리포트입니다. 사후에 위반이 확인되면 강제 철회로 게시를 중단하고 구매자에게 전액 환불할 수 있습니다.",
+  },
 };
 
 type PendingReview = Awaited<ReturnType<typeof getPendingComplianceReviews>>[number];
@@ -190,7 +214,11 @@ function ReviewCard({ review, now }: { review: PendingReview; now: Date }) {
   );
 }
 
-export default async function AdminCompliancePage() {
+export default async function AdminCompliancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string }>;
+}) {
   const userId = await getSessionUserId();
   if (!userId) notFound();
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
@@ -205,8 +233,14 @@ export default async function AdminCompliancePage() {
   const now = new Date();
   const instrumentHolds = pending.filter((r) => isInstrumentOnlyHold(parseFindings(r.findingsJson)));
   const contentHolds = pending.filter((r) => !isInstrumentOnlyHold(parseFindings(r.findingsJson)));
-  const contentUrgency = urgencySummary(contentHolds, now);
-  const instrumentUrgency = urgencySummary(instrumentHolds, now);
+
+  const sp = await searchParams;
+  const tab: TabKey = TAB_KEYS.includes(sp.tab as TabKey) ? (sp.tab as TabKey) : "content";
+  const counts: Record<TabKey, number> = {
+    content: contentHolds.length,
+    instrument: instrumentHolds.length,
+    published: published.length,
+  };
 
   return (
     <main className={styles.page}>
@@ -217,62 +251,54 @@ export default async function AdminCompliancePage() {
             2단 검수(금지 표현 규칙 → AI 판단)로 결론이 나지 않아 <strong>게시가 보류된</strong>{" "}
             리포트입니다. 명백한 위반은 게시 시도 자체가 차단되므로 여기에 올라오지 않습니다.
             운영자가 <strong>게시 승인</strong> 또는 <strong>반려</strong>를 결정할 때까지 판매는
-            시작되지 않습니다. 보류 사유에 따라 두 항목으로 나뉩니다.{" "}
+            시작되지 않습니다.{" "}
             <Link href="/admin/judgments">판정 보류 큐 →</Link>
           </p>
         </div>
       </div>
 
-      {/* ① 본문 검수 — 표현·문맥이 문제인 건. 판단 대상은 리포트 내용이다 */}
-      <div className={styles.header} style={{ marginTop: 8 }}>
-        <div>
-          <h2 style={{ fontSize: 18, fontWeight: 800 }}>
-            본문 검수 보류 {contentHolds.length > 0 && `(${contentHolds.length})`}
-          </h2>
-          <p className={styles.sub}>
-            리포트 표현에서 확인이 필요한 소견이 나온 건입니다. 본문을 읽고 판단해주세요.
-          </p>
-          <UrgencyLine {...contentUrgency} />
-        </div>
+      {/* 보류 사유별로 화면을 분리한다 — 판단 기준이 다른 건을 한 화면에서 섞어 보지 않게 */}
+      <div className={tabStyles.tabs}>
+        {TAB_KEYS.map((key) => (
+          <Link
+            key={key}
+            href={`/admin/compliance?tab=${key}`}
+            className={`${tabStyles.tab} ${key === tab ? tabStyles.tabActive : ""}`}
+          >
+            {TABS[key].label}
+            {counts[key] > 0 && ` (${counts[key]})`}
+          </Link>
+        ))}
       </div>
-      {contentHolds.length === 0 ? (
-        <p className={styles.empty}>본문 검수로 보류된 건이 없습니다.</p>
-      ) : (
-        contentHolds.map((review) => <ReviewCard key={review.id} review={review} now={now} />)
+
+      <p className={styles.sub} style={{ marginTop: -10, marginBottom: 16 }}>
+        {TABS[tab].description}
+      </p>
+
+      {tab === "content" && (
+        <>
+          <UrgencyLine {...urgencySummary(contentHolds, now)} />
+          {contentHolds.length === 0 ? (
+            <p className={styles.empty}>본문 검수로 보류된 건이 없습니다.</p>
+          ) : (
+            contentHolds.map((review) => <ReviewCard key={review.id} review={review} now={now} />)
+          )}
+        </>
       )}
 
-      {/* ② 위험 종목 — 본문은 문제없고 종목 자체가 위험한 건. 판단 대상은 종목이다 */}
-      <div className={styles.header} style={{ marginTop: 32 }}>
-        <div>
-          <h2 style={{ fontSize: 18, fontWeight: 800 }}>
-            위험 종목 보류 {instrumentHolds.length > 0 && `(${instrumentHolds.length})`}
-          </h2>
-          <p className={styles.sub}>
-            본문에는 문제가 없으나 <strong>종목 자체가 위험 신호를 받은</strong> 건입니다 —
-            거래소 투자주의·경고 지정, 상장폐지 가능성, 기준 미만 시가총액. 위법이 아니라
-            위험이므로 사람이 판단합니다. 정상적인 분석이면 승인하고, 구매자가 따라 들어가기에
-            부적절하다고 보이면 반려해주세요.
-          </p>
-          <UrgencyLine {...instrumentUrgency} />
-        </div>
-      </div>
-      {instrumentHolds.length === 0 ? (
-        <p className={styles.empty}>위험 종목으로 보류된 건이 없습니다.</p>
-      ) : (
-        instrumentHolds.map((review) => <ReviewCard key={review.id} review={review} now={now} />)
+      {tab === "instrument" && (
+        <>
+          <UrgencyLine {...urgencySummary(instrumentHolds, now)} />
+          {instrumentHolds.length === 0 ? (
+            <p className={styles.empty}>위험 종목으로 보류된 건이 없습니다.</p>
+          ) : (
+            instrumentHolds.map((review) => <ReviewCard key={review.id} review={review} now={now} />)
+          )}
+        </>
       )}
 
-      {/* 승인 후 문제가 드러난 리포트를 내리는 경로 — 검토 큐에는 보류 건만 올라온다 */}
-      <div className={styles.header} style={{ marginTop: 32 }}>
-        <div>
-          <h2 style={{ fontSize: 18, fontWeight: 800 }}>판매 중 리포트</h2>
-          <p className={styles.sub}>
-            검토를 통과해 판매 중인 리포트입니다. 사후에 위반이 확인되면 강제 철회로 게시를
-            중단하고 구매자에게 전액 환불할 수 있습니다.
-          </p>
-        </div>
-      </div>
-      {published.length === 0 ? (
+      {tab === "published" &&
+        (published.length === 0 ? (
         <p className={styles.empty}>판매 중인 리포트가 없습니다.</p>
       ) : (
         published.map((report) => {
@@ -305,7 +331,7 @@ export default async function AdminCompliancePage() {
             </div>
           );
         })
-      )}
+        ))}
     </main>
   );
 }
