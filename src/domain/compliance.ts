@@ -178,7 +178,9 @@ const RULES: Rule[] = [
     category: 'RISK_INDUCEMENT',
     severity: 'WARN',
     pattern:
-      /빚투|대출\s*(받아|받아서|내서)|신용\s*(융자|매수)\s*(로|해서|추천)|미수\s*(거래|매수)|풀\s*매수|몰빵|영끌|전\s*재산|올인|\d{2,3}\s*배\s*(레버리지|롱|숏)|시드\s*(전부|다)/,
+      // "전 재산"은 단독으로 두면 "안전 재산 배분" 같은 정상 문구가 걸린다 —
+      // 투입을 권하는 문맥이 뒤따를 때만 지적한다
+      /빚투|대출\s*(받아|받아서|내서)|신용\s*(융자|매수)\s*(로|해서|추천)|미수\s*(거래|매수)|풀\s*매수|몰빵|영끌|전\s*재산\s*(을|를|으로|로)?\s*[^.\n]{0,8}(투입|투자|올인|넣|매수|매입|베팅|걸어)|올인|\d{2,3}\s*배\s*(레버리지|롱|숏)|시드\s*(전부|다)/,
     reason:
       '레버리지·차입·집중 투자를 권유하는 표현입니다. 특정 투자 방식을 조장하지 말고 분석과 전망만 제시해주세요.',
   },
@@ -193,18 +195,73 @@ function quoteAround(text: string, index: number, length: number): string {
   return `${start > 0 ? '…' : ''}${slice}${end < text.length ? '…' : ''}`;
 }
 
+// ── 회피 탐지용 정규화 ────────────────────────────────────────────────
+//
+// 정규식은 글자 사이를 벌리면 그대로 뚫린다: "원금 보장"은 잡아도 "원 금 보 장",
+// "원·금·보·장", "원금*보장"은 못 잡는다. 공백·구분기호를 걷어낸 사본을 하나 더 만들어
+// 같은 규칙을 다시 돌린다.
+//
+// 정규화본에서 나온 소견은 **심각도를 WARN으로 낮춘다**. 붙여 읽으면 우연히 금지어가
+// 생기는 경우("복원. 금보장 구역" → "복원금보장구역")가 있어 즉시 거절하면 위험하고,
+// 어차피 WARN이면 게시가 보류되어 사람이 확인하므로 우회는 성립하지 않는다.
+
+/** 제거 대상: 공백과 글자 사이에 끼워 넣을 수 있는 흔한 구분기호 */
+const RULE_SEPARATORS = /[\s.,·․‧•*_~^|'"`()[\]{}\-–—/\\]/;
+
+interface NormalizedText {
+  text: string;
+  /** 정규화본 i번째 글자가 원문의 몇 번째 글자였는지 */
+  origin: number[];
+}
+
+function normalizeForRules(text: string): NormalizedText {
+  const chars: string[] = [];
+  const origin: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (RULE_SEPARATORS.test(ch)) continue;
+    chars.push(ch.toLowerCase());
+    origin.push(i);
+  }
+  return { text: chars.join(''), origin };
+}
+
 /** 결정적 규칙 검사 — API 호출 없이 즉시 실행 */
 export function applyRules(input: ScreeningInput): Finding[] {
   const text = `${input.title}\n${input.summary}\n${input.content}`;
   const findings: Finding[] = [];
+  const matchedCategories = new Set<RiskCategory>();
+
+  // 1차: 원문 그대로 (기존 동작 — 심각도 유지)
   for (const rule of RULES) {
     const match = rule.pattern.exec(text);
     if (!match) continue;
+    matchedCategories.add(rule.category);
     findings.push({
       category: rule.category,
       severity: rule.severity,
       quote: quoteAround(text, match.index, match[0].length),
       reason: rule.reason,
+    });
+  }
+
+  // 2차: 공백·기호를 걷어낸 사본 (회피 탐지 — 같은 유형이 이미 잡혔으면 건너뛴다)
+  const normalized = normalizeForRules(text);
+  for (const rule of RULES) {
+    if (matchedCategories.has(rule.category)) continue;
+    const match = rule.pattern.exec(normalized.text);
+    if (!match) continue;
+    // 인용문은 원문 기준으로 보여줘야 리서처가 어디를 고칠지 안다
+    const start = normalized.origin[match.index] ?? 0;
+    const endIndex = normalized.origin[match.index + match[0].length - 1] ?? start;
+    // 문장 경계를 넘어 붙은 매칭은 우연이다 ("복원. 금보장 구역" → "복원금보장구역").
+    // 회피는 한 표현 안에서 글자를 벌리지, 중간에 마침표를 찍지 않는다.
+    if (/[.!?\n]/.test(text.slice(start, endIndex + 1))) continue;
+    findings.push({
+      category: rule.category,
+      severity: 'WARN', // 회피 추정 — 사람이 확인
+      quote: quoteAround(text, start, endIndex - start + 1),
+      reason: `${rule.reason} (글자 사이를 띄우거나 기호로 나눈 표현이 탐지되었습니다)`,
     });
   }
 

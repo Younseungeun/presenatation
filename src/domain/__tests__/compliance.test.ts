@@ -67,6 +67,14 @@ describe('applyRules — 명백한 금지 표현 차단', () => {
     expect(applyRules(input({ content: '전 재산 올인 각입니다.' }))[0].category).toBe(
       'RISK_INDUCEMENT',
     );
+    expect(applyRules(input({ content: '전 재산을 투입할 자리입니다.' }))[0].category).toBe(
+      'RISK_INDUCEMENT',
+    );
+    // "전 재산"만으로는 지적하지 않는다 — 투입을 권하는 문맥이 있어야 한다
+    expect(applyRules(input({ content: '안전 재산 배분 관점에서 접근합니다.' }))).toEqual([]);
+    expect(
+      applyRules(input({ content: '전 재산의 30%를 주식으로 보유한 가계가 늘었습니다.' })),
+    ).toEqual([]);
     expect(applyRules(input({ content: '100배 레버리지 롱 추천' }))[0].category).toBe(
       'RISK_INDUCEMENT',
     );
@@ -133,6 +141,43 @@ describe('applyRules — 명백한 금지 표현 차단', () => {
       // 즉시 거절이 아니라 보류 — 사람이 확인한다
       expect(f.find((x) => x.category === 'SCREENING_EVASION')!.severity).toBe('WARN');
     }
+  });
+
+  it('글자 사이를 벌리거나 기호로 나눠도 탐지한다 (정규화 검사)', () => {
+    const evasions = [
+      '원 금 보 장 수준입니다.',
+      '원금·보장 확실합니다.',
+      '원금*보장 드립니다.',
+      '무 조 건 상승합니다.',
+      '자세한 건 텔 레 그 램 으로 문의주세요.',
+      '내 부 관 계 자 에게 들었습니다.',
+    ];
+    for (const content of evasions) {
+      const f = applyRules(input({ content }));
+      expect(f.length, content).toBeGreaterThan(0);
+      // 회피 탐지는 즉시 거절이 아니라 보류 — 붙여 읽다 우연히 걸릴 여지가 있기 때문
+      expect(f[0].severity, content).toBe('WARN');
+      expect(f[0].reason, content).toContain('띄우거나 기호로 나눈');
+    }
+  });
+
+  it('문장 경계를 넘어 우연히 붙은 매칭은 무시한다', () => {
+    // "복원. 금보장" → 정규화하면 "복원금보장" — 회피가 아니라 우연이다
+    expect(applyRules(input({ content: '실적은 복원. 금보장 구역 개발도 호재입니다.' }))).toEqual(
+      [],
+    );
+  });
+
+  it('원문에서 이미 잡힌 유형은 정규화 검사에서 중복 지적하지 않는다', () => {
+    const f = applyRules(input({ content: '원금 보장에 원 금 보 장까지 강조합니다.' }));
+    const guarantees = f.filter((x) => x.category === 'PROFIT_GUARANTEE');
+    expect(guarantees).toHaveLength(1);
+    expect(guarantees[0].severity).toBe('BLOCK'); // 원문 매칭이 우선 — 즉시 거절 유지
+  });
+
+  it('정규화 검사도 인용문은 원문 기준으로 보여준다', () => {
+    const f = applyRules(input({ content: '이 종목은 원 금 보 장 수준으로 안전합니다.' }));
+    expect(f[0].quote).toContain('원 금 보 장');
   });
 
   it('회피 규칙이 정상 문장을 잡지 않는다 (오탐 방지)', () => {
