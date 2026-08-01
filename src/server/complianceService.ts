@@ -178,7 +178,8 @@ export function getPendingComplianceReviews(prisma: PrismaClient) {
           title: true,
           status: true,
           researcher: {
-            select: { user: { select: { penName: true, email: true } } },
+            // tier는 정렬 기준(리서처 등급)에 쓰인다
+            select: { id: true, tier: true, user: { select: { penName: true, email: true } } },
           },
           // 강제 철회 시 환불될 규모 — 운영자가 집행 전에 영향 범위를 보고 판단해야 한다
           purchases: { where: { escrowStatus: 'HELD' }, select: { amountKrw: true } },
@@ -204,12 +205,38 @@ export function getPublishedReportsForOversight(prisma: PrismaClient, limit = 20
       title: true,
       status: true,
       publishedAt: true,
-      researcher: { select: { user: { select: { penName: true, email: true } } } },
+      researcher: {
+        select: { id: true, tier: true, user: { select: { penName: true, email: true } } },
+      },
       purchases: { where: { escrowStatus: 'HELD' }, select: { amountKrw: true } },
+      predictionCard: { select: { deadline: true } },
+      _count: { select: { purchases: true } }, // 판매량 정렬 기준 (환불 건 포함 누적)
     },
     orderBy: { publishedAt: 'desc' },
     take: limit,
   });
+}
+
+/**
+ * 리서처별 누적 판매 건수 — 보류 건 정렬(판매량)에 쓴다.
+ * 보류 중인 리포트는 아직 판매 전이라 자기 판매량이 0이므로,
+ * "이 리서처가 얼마나 팔아온 사람인가"를 대신 본다.
+ */
+export async function researcherSalesCounts(
+  prisma: PrismaClient,
+  researcherIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (researcherIds.length === 0) return counts;
+
+  const rows = await prisma.report.findMany({
+    where: { researcherId: { in: researcherIds } },
+    select: { researcherId: true, _count: { select: { purchases: true } } },
+  });
+  for (const r of rows) {
+    counts.set(r.researcherId, (counts.get(r.researcherId) ?? 0) + r._count.purchases);
+  }
+  return counts;
 }
 
 /**

@@ -11,9 +11,11 @@ import {
   type HoldUrgency,
   type RiskCategory,
 } from "@/domain/compliance";
+import { TIERS, type Tier } from "@/domain/constants";
 import {
   getPendingComplianceReviews,
   getPublishedReportsForOversight,
+  researcherSalesCounts,
 } from "@/server/complianceService";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
@@ -64,7 +66,105 @@ const TABS: Record<TabKey, { label: string; description: string }> = {
   },
 };
 
+// 정렬 기준. 기본은 대기 시간 — 보류가 길어질수록 리서처가 판매를 못 하기 때문.
+// 나머지는 운영자가 다른 관점으로 훑고 싶을 때 쓴다.
+const SORT_KEYS = ["wait", "deadline", "tier", "sales"] as const;
+type SortKey = (typeof SORT_KEYS)[number];
+
+const SORT_LABEL: Record<SortKey, string> = {
+  wait: "대기 오래된 순",
+  deadline: "검증 시한 임박 순",
+  tier: "리서처 등급 높은 순",
+  sales: "판매량 많은 순",
+};
+
+/** 판매 중 탭은 대기 개념이 없으므로 최신 게시 순이 기본 */
+const PUBLISHED_SORT_LABEL: Record<SortKey, string> = {
+  ...SORT_LABEL,
+  wait: "최근 게시 순",
+};
+
+const tierRank = (tier: string) => TIERS.indexOf(tier as Tier);
+
 type PendingReview = Awaited<ReturnType<typeof getPendingComplianceReviews>>[number];
+type PublishedReport = Awaited<ReturnType<typeof getPublishedReportsForOversight>>[number];
+
+/** 시한이 없는 카드는 항상 뒤로 (정렬에서 튀지 않게) */
+const deadlineValue = (d: Date | null | undefined) => d?.getTime() ?? Number.MAX_SAFE_INTEGER;
+
+function sortPending(
+  reviews: PendingReview[],
+  sort: SortKey,
+  sales: Map<string, number>,
+): PendingReview[] {
+  const rows = [...reviews];
+  switch (sort) {
+    case "deadline":
+      return rows.sort(
+        (a, b) =>
+          deadlineValue(a.report.predictionCard?.deadline) -
+          deadlineValue(b.report.predictionCard?.deadline),
+      );
+    case "tier":
+      return rows.sort((a, b) => tierRank(b.report.researcher.tier) - tierRank(a.report.researcher.tier));
+    case "sales":
+      return rows.sort(
+        (a, b) =>
+          (sales.get(b.report.researcher.id) ?? 0) - (sales.get(a.report.researcher.id) ?? 0),
+      );
+    default: // wait — 쿼리가 이미 오래된 순으로 준다
+      return rows;
+  }
+}
+
+function sortPublished(reports: PublishedReport[], sort: SortKey): PublishedReport[] {
+  const rows = [...reports];
+  switch (sort) {
+    case "deadline":
+      return rows.sort(
+        (a, b) =>
+          deadlineValue(a.predictionCard?.deadline) - deadlineValue(b.predictionCard?.deadline),
+      );
+    case "tier":
+      return rows.sort((a, b) => tierRank(b.researcher.tier) - tierRank(a.researcher.tier));
+    case "sales":
+      return rows.sort((a, b) => b._count.purchases - a._count.purchases);
+    default: // 쿼리가 이미 최신 게시 순으로 준다
+      return rows;
+  }
+}
+
+function SortBar({ tab, sort }: { tab: TabKey; sort: SortKey }) {
+  const labels = tab === "published" ? PUBLISHED_SORT_LABEL : SORT_LABEL;
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        gap: 10,
+        margin: "0 0 14px",
+        fontSize: 13,
+      }}
+    >
+      <span style={{ color: "var(--text-faint)", fontWeight: 600 }}>정렬</span>
+      {SORT_KEYS.map((key) => (
+        <Link
+          key={key}
+          href={`/admin/compliance?tab=${tab}&sort=${key}`}
+          style={{
+            fontWeight: key === sort ? 700 : 500,
+            color: key === sort ? "var(--text)" : "var(--text-weak)",
+            textDecoration: key === sort ? "underline" : "none",
+            textUnderlineOffset: 4,
+          }}
+        >
+          {labels[key]}
+        </Link>
+      ))}
+    </div>
+  );
+}
 
 /**
  * 보류 사유가 종목 위험뿐인가.
@@ -154,12 +254,19 @@ function ReviewCard({ review, now }: { review: PendingReview; now: Date }) {
         </div>
       </div>
       <div className={styles.meta}>
-        <span>{researcher.penName ?? researcher.email}</span>
+        <span>
+          {researcher.penName ?? researcher.email} · {review.report.researcher.tier}
+        </span>
         <span>검수 {review.reviewer}</span>
         <span>
           {new Date(review.createdAt).toLocaleString("ko-KR")} (
           {formatElapsed(review.createdAt, now)})
         </span>
+        {review.report.predictionCard && (
+          <span>
+            시한 {new Date(review.report.predictionCard.deadline).toLocaleDateString("ko-KR")}
+          </span>
+        )}
         <span>
           {review.report.status === "PENDING_REVIEW"
             ? "게시 보류 — 판매 전"
@@ -217,7 +324,7 @@ function ReviewCard({ review, now }: { review: PendingReview; now: Date }) {
 export default async function AdminCompliancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; sort?: string }>;
 }) {
   const userId = await getSessionUserId();
   if (!userId) notFound();
@@ -236,11 +343,20 @@ export default async function AdminCompliancePage({
 
   const sp = await searchParams;
   const tab: TabKey = TAB_KEYS.includes(sp.tab as TabKey) ? (sp.tab as TabKey) : "content";
+  const sort: SortKey = SORT_KEYS.includes(sp.sort as SortKey) ? (sp.sort as SortKey) : "wait";
   const counts: Record<TabKey, number> = {
     content: contentHolds.length,
     instrument: instrumentHolds.length,
     published: published.length,
   };
+
+  // 판매량 정렬용 — 보류 건은 아직 안 팔렸으므로 리서처의 누적 판매 건수를 본다
+  const sales =
+    sort === "sales"
+      ? await researcherSalesCounts(prisma, [
+          ...new Set(pending.map((r) => r.report.researcher.id)),
+        ])
+      : new Map<string, number>();
 
   return (
     <main className={styles.page}>
@@ -262,7 +378,7 @@ export default async function AdminCompliancePage({
         {TAB_KEYS.map((key) => (
           <Link
             key={key}
-            href={`/admin/compliance?tab=${key}`}
+            href={`/admin/compliance?tab=${key}&sort=${sort}`}
             className={`${tabStyles.tab} ${key === tab ? tabStyles.tabActive : ""}`}
           >
             {TABS[key].label}
@@ -271,28 +387,34 @@ export default async function AdminCompliancePage({
         ))}
       </div>
 
-      <p className={styles.sub} style={{ marginTop: -10, marginBottom: 16 }}>
+      <p className={styles.sub} style={{ marginTop: -10, marginBottom: 12 }}>
         {TABS[tab].description}
       </p>
 
+      <SortBar tab={tab} sort={sort} />
+
       {tab === "content" && (
         <>
-          <UrgencyLine {...urgencySummary(contentHolds, now)} />
+          {sort === "wait" && <UrgencyLine {...urgencySummary(contentHolds, now)} />}
           {contentHolds.length === 0 ? (
             <p className={styles.empty}>본문 검수로 보류된 건이 없습니다.</p>
           ) : (
-            contentHolds.map((review) => <ReviewCard key={review.id} review={review} now={now} />)
+            sortPending(contentHolds, sort, sales).map((review) => (
+              <ReviewCard key={review.id} review={review} now={now} />
+            ))
           )}
         </>
       )}
 
       {tab === "instrument" && (
         <>
-          <UrgencyLine {...urgencySummary(instrumentHolds, now)} />
+          {sort === "wait" && <UrgencyLine {...urgencySummary(instrumentHolds, now)} />}
           {instrumentHolds.length === 0 ? (
             <p className={styles.empty}>위험 종목으로 보류된 건이 없습니다.</p>
           ) : (
-            instrumentHolds.map((review) => <ReviewCard key={review.id} review={review} now={now} />)
+            sortPending(instrumentHolds, sort, sales).map((review) => (
+              <ReviewCard key={review.id} review={review} now={now} />
+            ))
           )}
         </>
       )}
@@ -301,7 +423,7 @@ export default async function AdminCompliancePage({
         (published.length === 0 ? (
         <p className={styles.empty}>판매 중인 리포트가 없습니다.</p>
       ) : (
-        published.map((report) => {
+        sortPublished(published, sort).map((report) => {
           const heldAmountKrw = report.purchases.reduce((sum, p) => sum + p.amountKrw, 0);
           const author = report.researcher.user;
           return (
@@ -311,14 +433,22 @@ export default async function AdminCompliancePage({
                 <span className={`${styles.badge} ${styles.published}`}>판매 중</span>
               </div>
               <div className={styles.meta}>
-                <span>{author.penName ?? author.email}</span>
+                <span>
+                  {author.penName ?? author.email} · {report.researcher.tier}
+                </span>
                 <span>
                   {report.publishedAt
                     ? new Date(report.publishedAt).toLocaleDateString("ko-KR")
                     : "-"}
                 </span>
                 <span>
-                  에스크로 {report.purchases.length}건 {heldAmountKrw.toLocaleString()}원
+                  {report.predictionCard
+                    ? `시한 ${new Date(report.predictionCard.deadline).toLocaleDateString("ko-KR")}`
+                    : "시한 -"}
+                </span>
+                <span>
+                  판매 {report._count.purchases}건 · 에스크로 {report.purchases.length}건{" "}
+                  {heldAmountKrw.toLocaleString()}원
                 </span>
                 <Link href={`/report/${report.id}`}>본문 보기 →</Link>
               </div>
