@@ -1,0 +1,56 @@
+import Link from "next/link";
+import { prisma } from "@/server/db";
+import { getFreeReports } from "@/server/freeReportService";
+import { AppHeader } from "../AppHeader";
+import styles from "../market.module.css";
+
+export const dynamic = "force-dynamic";
+
+// 무료 시황·증시 리포트 전체 목록. 홈 섹션의 "더 보기" 목적지.
+
+function fmtDate(d: Date | null): string {
+  if (!d) return "";
+  return new Date(d).toLocaleDateString("ko-KR", {
+    year: "2-digit",
+    month: "short",
+    day: "numeric",
+  });
+}
+
+export default async function FreeReportsPage() {
+  const reports = await getFreeReports(prisma, 50);
+
+  return (
+    <>
+      <AppHeader title="무료 시황·증시 리포트" backHref="/" />
+      <main className={styles.page}>
+        <p className={styles.sub}>
+          리서처가 무료로 공개한 시황입니다. 예측 카드가 없어 판정·환불 대상이 아니며, 누구나
+          바로 읽을 수 있습니다.
+        </p>
+
+        {reports.length === 0 ? (
+          <p className={styles.sub}>아직 공개된 무료 리포트가 없습니다.</p>
+        ) : (
+          reports.map((r) => (
+            <Link key={r.reportId} href={`/report/${r.reportId}`} className={styles.reportCard}>
+              <div className={styles.reportTitle}>
+                <span className={styles.pill}>무료</span>
+                {r.title}
+              </div>
+              <div className={styles.meta}>
+                <span>{r.summary}</span>
+              </div>
+              <div className={styles.meta}>
+                <span>{r.researcherName}</span>
+                <span className={styles.tier}>{r.tier}</span>
+                {r.careerBadge && <span className={styles.pill}>인증</span>}
+                <span>{fmtDate(r.publishedAt)}</span>
+              </div>
+            </Link>
+          ))
+        )}
+      </main>
+    </>
+  );
+}

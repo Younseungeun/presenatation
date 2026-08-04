@@ -4,6 +4,7 @@ import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getResearcherFinance } from "@/server/financeQueries";
 import { getResearcherDashboard, type DashboardReport } from "@/server/reportQueries";
+import { AppHeader } from "../../AppHeader";
 import { ReportActions } from "./ReportActions";
 import styles from "../researcher.module.css";
 
@@ -52,15 +53,22 @@ export default async function ResearcherDashboard({
   const payoutByReport = new Map(finance.byReport.map((r) => [r.reportId, r]));
 
   return (
-    <main className={styles.page}>
+    <>
+      <AppHeader title="내 리포트·정산" titleAs="span" backHref="/my?mode=seller" />
+      <main className={styles.page}>
       <div className={styles.header}>
         <div>
           <h1>{name}</h1>
           <span className={styles.tier}>{data.tier}</span>
         </div>
-        <Link className={styles.primaryBtn} href={`/researcher/${id}/new`}>
-          + 새 리포트 작성
-        </Link>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Link className={styles.actionBtn} href={`/researcher/${id}/free`}>
+            무료 시황 쓰기
+          </Link>
+          <Link className={styles.primaryBtn} href={`/researcher/${id}/new`}>
+            + 새 리포트 작성
+          </Link>
+        </div>
       </div>
       <p className={styles.sub}>
         리포트 {data.reports.length}건 · 게시하면 예측 카드가 잠기고 판정·정산이 자동으로
@@ -130,6 +138,7 @@ export default async function ResearcherDashboard({
           </div>
         ))
       )}
-    </main>
+      </main>
+    </>
   );
 }

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { LEGAL_DOCS } from "@/domain/legalDocs";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
+import { AppHeader } from "../../AppHeader";
 import styles from "../researcher.module.css";
 import { ActivateForm } from "./ActivateForm";
 
@@ -19,8 +20,9 @@ export default async function ResearcherStartPage() {
   const doc = LEGAL_DOCS.RESEARCHER_AGREEMENT;
 
   return (
-    <main className={styles.page} style={{ maxWidth: 560 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800, letterSpacing: "-0.03em" }}>리서처 시작하기</h1>
+    <>
+      <AppHeader title="리서처 시작하기" backHref="/my" />
+      <main className={styles.page} style={{ maxWidth: 560 }}>
       <p className={styles.sub}>
         리포트를 판매하려면 리서처 이용계약에 동의해야 합니다. 예측 카드는 게시 후 수정·삭제할
         수 없고, 판정 결과가 성과 기록으로 공개됩니다.
@@ -46,6 +48,7 @@ export default async function ResearcherStartPage() {
       </div>
 
       <ActivateForm />
-    </main>
+      </main>
+    </>
   );
 }

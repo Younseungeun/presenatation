@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getPublicProfile } from "@/server/leaderboardQueries";
+import { AppHeader } from "../../AppHeader";
 import styles from "../../market.module.css";
 
 export const dynamic = "force-dynamic";
@@ -26,11 +27,10 @@ export default async function PublicProfile({
   const name = profile.user.penName ?? profile.user.email;
 
   return (
-    <main className={styles.page}>
-      <Link href="/leaderboard" className={styles.backLink}>
-        ← 리더보드
-      </Link>
-      <div className={styles.profileHead} style={{ marginTop: 12 }}>
+    <>
+      <AppHeader title="리서처 프로필" titleAs="span" backHref="/leaderboard" />
+      <main className={styles.page}>
+      <div className={styles.profileHead}>
         <h1 className={styles.h1}>{name}</h1>
         {profile.careerBadge && <span>🎖️ {profile.careerBadge}</span>}
         <span className={styles.tier}>{profile.tier}</span>
@@ -122,6 +122,7 @@ export default async function PublicProfile({
           ))}
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }

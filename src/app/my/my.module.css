@@ -1,0 +1,242 @@
+/* MY 화면 전용 — 상단 모드 스위치 / 프로필 / 타일 그리드 / 구매 통계 스트립 */
+
+/* 소비자 · 리서처 모드 스위치 — 상단 헤더 가운데에 들어간다 */
+.modeSwitch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-width: 0;
+}
+.mode {
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--text-faint);
+  padding: 4px 2px;
+  white-space: nowrap;
+}
+.modeActive {
+  color: var(--text);
+}
+.modeDivider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+}
+
+/* 프로필 */
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-size: 24px;
+  font-weight: 800;
+}
+.profileMain {
+  min-width: 0;
+  flex: 1;
+}
+.profileName {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+.profileMeta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.profileBtns {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0 20px;
+}
+.profileBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+.profileBtn:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
+}
+
+/* 안내 배너 (프로모션 슬롯 위치) */
+.banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+  margin-bottom: 20px;
+}
+.bannerText {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--brand-ink);
+  line-height: 1.5;
+}
+.bannerGo {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--brand-strong);
+  white-space: nowrap;
+}
+
+/* 타일 그리드 (3열 2행) */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px 0;
+  padding: 8px 0 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 20px;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  min-height: 88px;
+}
+.tile:hover {
+  background: var(--surface);
+}
+.tileIcon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  color: var(--text);
+}
+.tileValue {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.tileLabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  line-height: 1.3;
+}
+.tileDot {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--neg);
+}
+
+/* 구매 내역 통계 스트립 (= 카드 목록 필터) */
+.stripTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 10px;
+}
+.strip {
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 14px 0;
+  margin-bottom: 16px;
+}
+.stripItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+.stripItem + .stripItem::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--border);
+}
+.stripValue {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+.stripLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+.stripActive .stripValue,
+.stripActive .stripLabel {
+  color: var(--brand-strong);
+}
+
+/* 접힌 목록 펼치기 버튼 */
+.showMore {
+  display: block;
+  width: 100%;
+  padding: 13px;
+  margin-top: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-weak);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.showMore:hover {
+  background: var(--surface-2);
+}
+
+@media (max-width: 380px) {
+  .profileBtn {
+    font-size: 12.5px;
+  }
+  .tileValue {
+    font-size: 14px;
+  }
+}

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-labelledby="iv-favicon-t">
+  <title id="iv-favicon-t">INTOVILL favicon — simplified two-tone silhouette, legible at 16px</title>
+  <!-- The lens ring collapses below 24px, so small sizes use the solid silhouette
+       and keep only the diagonal two-circle composition. Source of truth: brand/intovill/favicon.svg -->
+  <g transform="translate(-6.08 -6.08) scale(1.19)">
+    <circle cx="27.25" cy="27.25" r="20" fill="#12B896"/>
+    <circle cx="43.75" cy="43.75" r="13" fill="#0C1E1A"/>
+  </g>
+</svg>

@@ -4,6 +4,7 @@ import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getManualJudgmentQueue } from "@/server/manualJudgmentService";
 import { getSessionUserId } from "@/server/session";
+import { AppHeader } from "../../AppHeader";
 import styles from "../../researcher/researcher.module.css";
 import { ManualJudgeForm } from "./ManualJudgeForm";
 
@@ -21,10 +22,11 @@ export default async function AdminJudgmentsPage() {
   const queue = await getManualJudgmentQueue(prisma);
 
   return (
-    <main className={styles.page}>
+    <>
+      <AppHeader title="판정 보류 큐" backHref="/my" />
+      <main className={styles.page}>
       <div className={styles.header}>
         <div>
-          <h1>판정 보류 큐</h1>
           <p className={styles.sub}>
             자동 판정이 7일 이상 이월된 카드입니다. 검증된 시세를 입력해 수동 판정하면
             점수·에스크로 정산까지 자동 경로와 동일하게 실행됩니다. 입력값과 사유는 감사
@@ -70,6 +72,7 @@ export default async function AdminJudgmentsPage() {
           </div>
         ))
       )}
-    </main>
+      </main>
+    </>
   );
 }

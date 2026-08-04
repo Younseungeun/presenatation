@@ -1,27 +1,30 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
-import { AppBarUser } from "./AppBarUser";
+import { AppLaunch } from "./AppLaunch";
+import { BottomNav } from "./BottomNav";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "리서치 마켓플레이스",
+  title: "INTOVILL",
   description:
-    "성과 검증형 리서치 마켓플레이스 — 예측이 시장 데이터로 자동 검증되는 리포트 플랫폼",
+    "인투빌(INTOVILL) — 성과 검증형 리서치 마켓플레이스. 예측이 시장 데이터로 자동 검증되는 리포트 플랫폼",
+  icons: { icon: "/icon.svg", apple: "/apple-touch-icon.png" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "INTOVILL" },
 };
 
-async function currentUser() {
+export const viewport: Viewport = {
+  themeColor: "#ffffff",
+  viewportFit: "cover",
+};
+
+// 상단 헤더는 없다 — 하단 탭바(홈·리더보드·랭킹·MY)가 유일한 최상위 내비게이션이다.
+// 로그인·로그아웃·알림·리서처 전환은 전부 MY 화면에 모여 있다(app/my/page.tsx).
+async function unreadNotificationCount(): Promise<number> {
   const userId = await getSessionUserId();
-  if (!userId) return null;
-  const [user, unreadCount] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { penName: true, researcherProfile: { select: { id: true } } },
-    }),
-    prisma.notification.count({ where: { userId, readAt: null } }),
-  ]);
-  return user ? { ...user, unreadCount } : null;
+  if (!userId) return 0;
+  return prisma.notification.count({ where: { userId, readAt: null } });
 }
 
 export default async function RootLayout({
@@ -29,34 +32,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const user = await currentUser();
+  const unreadCount = await unreadNotificationCount();
 
   return (
     <html lang="ko">
       <body>
-        <header className="appbar">
-          <div className="appbarInner">
-            <Link href="/" className="brandMark">
-              <span className="brandDot" />
-              리서치마켓
-            </Link>
-            <div style={{ flex: 1 }} />
-            {user ? (
-              <AppBarUser
-                penName={user.penName}
-                researcherId={user.researcherProfile?.id ?? null}
-                unreadCount={user.unreadCount}
-              />
-            ) : (
-              <Link
-                href="/login"
-                style={{ fontSize: 14, fontWeight: 700, color: "var(--brand-strong)" }}
-              >
-                로그인
-              </Link>
-            )}
-          </div>
-        </header>
+        <AppLaunch />
         {children}
         <footer className="siteFooter">
           <div className="siteFooterInner">
@@ -71,6 +52,7 @@ export default async function RootLayout({
             </p>
           </div>
         </footer>
+        <BottomNav unreadCount={unreadCount} />
       </body>
     </html>
   );

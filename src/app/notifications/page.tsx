@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
 import { getNotifications } from "@/server/notificationService";
 import { getSessionUserId } from "@/server/session";
+import { AppHeader } from "../AppHeader";
 import styles from "../market.module.css";
 import { MarkAllRead } from "./MarkAllRead";
 
@@ -17,8 +18,9 @@ export default async function NotificationsPage() {
   const notifications = await getNotifications(prisma, userId);
 
   return (
-    <main className={styles.page}>
-      <h1 className={styles.h}>알림</h1>
+    <>
+      <AppHeader title="알림" backHref="/my" />
+      <main className={styles.page}>
       <p className={styles.sub}>예측 카드가 판정되면 결과와 환불·정산 내역을 알려드립니다.</p>
       <MarkAllRead />
 
@@ -58,6 +60,7 @@ export default async function NotificationsPage() {
           })}
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

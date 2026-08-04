@@ -115,6 +115,412 @@
   color: var(--text-weak);
 }
 
+/* ── 로그인 홈 ─────────────────────────────────────────────── */
+
+.appHome {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 20px 40px;
+  width: 100%;
+}
+
+.greeting {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+  margin-bottom: 4px;
+}
+.greetingSub {
+  font-size: 14px;
+  color: var(--text-weak);
+  line-height: 1.6;
+  margin-bottom: 18px;
+}
+
+/* 내 검증 현황 요약 */
+.statusCard {
+  display: block;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+  background: var(--bg);
+  margin-bottom: 10px;
+}
+.statusCard:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
+}
+.statusRow {
+  display: flex;
+  align-items: stretch;
+}
+.statusItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+.statusItem + .statusItem::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 2px;
+  bottom: 2px;
+  width: 1px;
+  background: var(--border);
+}
+.statusValue {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+.statusLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+/* 가장 가까운 시한 안내 */
+.nextUp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+  margin-bottom: 26px;
+}
+.nextUp:hover {
+  background: color-mix(in srgb, var(--brand-strong) 12%, var(--brand-soft));
+}
+.nextUpText {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--brand-ink);
+  line-height: 1.5;
+  min-width: 0;
+}
+.nextUpDday {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--brand-strong);
+  white-space: nowrap;
+}
+
+/* 섹션 머리 */
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 26px 0 12px;
+}
+.sectionTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.sectionMore {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* 예측 히트맵 — 트레이딩뷰 주식 히트맵 라이트 테마 양식.
+   박스 밖 자산군 탭(앱 공통 세그먼트 컨트롤) → 흰 캔버스 블록 하나(맵만) */
+.heatTabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  margin-bottom: 10px;
+}
+.heatTab {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 7px 14px;
+  border-radius: 9px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-weak);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.heatTabActive {
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+/* 코스피 박스(캔버스) — 사각형, 섹터 구획으로 빈틈 없이 나뉜다 */
+.heatWrap {
+  /* 원본처럼 각진 캔버스 — 라운드 없음, 스크롤 없이 전체가 한 화면에 */
+  overflow: hidden;
+  background: var(--bg);
+}
+.heatCanvas {
+  position: relative;
+}
+/* 섹터 구획 — 구획 면적 ∝ 섹터 시총 합, 좌상단에 "섹터명 ›" 라벨 */
+.heatGroup {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.heatGroupLabel {
+  flex: none;
+  height: 20px;
+  line-height: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: var(--text-weak);
+  padding: 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.heatGroupBody {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.heatEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-weak);
+  padding: 0 20px;
+  text-align: center;
+}
+/* 종목 박스 — squarified 트리맵이 정사각형에 최대한 가깝게 나눈 사각형.
+   글자색은 타일 밝기에 따라 인라인으로 정한다 (연한 타일 = 어두운 글자) */
+.heatTile {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  text-align: center;
+  padding: 2px;
+  overflow: hidden;
+  /* 인접 타일 사이 얇은 경계 — 캔버스색(흰) 틈 */
+  border: 1px solid var(--bg);
+  -webkit-tap-highlight-color: transparent;
+}
+.heatTile:hover {
+  filter: brightness(1.05) saturate(1.1);
+}
+/* 큰 타일의 회사 로고 (StockLogo — 파비콘 해석 체인 + 이니셜 폴백) */
+.heatLogo {
+  display: flex;
+  margin-bottom: 2px;
+  flex: none;
+}
+.heatName {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 색만으로 뜻을 전하지 않도록 우세율(▲75% 등)을 숫자로 함께 쓴다 — 큰 타일은 건수 병기 */
+.heatDirs {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.92;
+}
+/* 타일 면적별 표시 단계 — 과소 박스는 색만 남긴다 */
+.heatTileXl .heatName {
+  font-size: 16px;
+}
+.heatTileXl .heatDirs {
+  font-size: 12px;
+}
+.heatTileLg .heatName {
+  font-size: 13px;
+}
+.heatTileLg .heatDirs {
+  font-size: 11px;
+}
+.heatTileMd .heatName {
+  font-size: 10.5px;
+}
+.heatTileMd .heatDirs {
+  display: none;
+}
+.heatTileSm .heatName,
+.heatTileSm .heatDirs {
+  display: none;
+}
+/* 생략 안내 — 캔버스 밑 각주 */
+.heatFootnote {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-faint);
+  margin-top: 6px;
+}
+
+/* 리서처 컨센서스 */
+.consensus {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.consensusRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.consensusRow:last-child {
+  border-bottom: none;
+}
+.consensusName {
+  flex: 1;
+  min-width: 0;
+  font-size: 14.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.consensusAsset {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  margin-left: 6px;
+}
+/* 상승·하락 비율 막대 — 색만으로 뜻을 전하지 않도록 숫자를 함께 쓴다 */
+.consensusBar {
+  width: 88px;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--neg) 30%, transparent);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.consensusFill {
+  height: 100%;
+  background: var(--pos);
+}
+.consensusCount {
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.consensusNote {
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-faint);
+  margin-top: 8px;
+}
+
+/* 무료 리포트 */
+.freeItem {
+  display: block;
+  padding: 14px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.freeItem:last-child {
+  border-bottom: none;
+}
+.freeTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.freeBadge {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+.freeTitle {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.freeSummary {
+  font-size: 13px;
+  color: var(--text-weak);
+  line-height: 1.6;
+  margin-top: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.freeMeta {
+  font-size: 12px;
+  color: var(--text-faint);
+  margin-top: 6px;
+}
+
+/* 판정 피드 */
+.feedItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 2px;
+  border-bottom: 1px solid var(--border);
+}
+.feedItem:last-child {
+  border-bottom: none;
+}
+.feedMain {
+  flex: 1;
+  min-width: 0;
+}
+.feedTitle {
+  font-size: 14.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feedMeta {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+.feedResult {
+  text-align: right;
+  flex-shrink: 0;
+}
+.feedReturn {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.feedWhen {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin-top: 2px;
+}
+
 @media (max-width: 600px) {
   .hero {
     padding: 44px 20px 28px;

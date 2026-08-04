@@ -38,7 +38,9 @@ html {
 html,
 body {
   max-width: 100vw;
-  overflow-x: hidden;
+  /* clip이어야 한다 — overflow-x: hidden은 스크롤 컨테이너를 만들어
+     하위의 position: sticky(상단 헤더)를 무력화한다 */
+  overflow-x: clip;
 }
 
 body {
@@ -75,41 +77,84 @@ h3 {
   font-weight: 700;
 }
 
-/* App shell top bar */
+/* 화면별 상단 헤더 (AppHeader) — 레이아웃이 아니라 하위 화면이 직접 렌더한다 */
 .appbar {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.92);
   backdrop-filter: saturate(180%) blur(16px);
   -webkit-backdrop-filter: saturate(180%) blur(16px);
   border-bottom: 1px solid var(--border);
+  padding-top: env(safe-area-inset-top, 0px);
+}
+/* 본문과 이어 붙은 헤더 — 구분선·블러 제거, 배경을 본문과 동일하게 */
+.appbarSeamless {
+  border-bottom: none;
+  background: var(--bg);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .appbarInner {
-  max-width: 960px;
-  margin: 0 auto;
-  height: 56px;
+  display: grid;
+  grid-template-columns: 44px 1fr 44px;
+  align-items: center;
+  height: 52px;
+  padding: 0 6px;
+}
+.appbarSide {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 20px;
 }
-.brandMark {
+.appbarSideRight {
+  justify-content: flex-end;
+}
+/* 헤더 아이콘 버튼 — 아이콘은 24px이지만 탭 영역은 44px을 확보한다 */
+.appbarIconBtn {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  font-weight: 800;
-  font-size: 16px;
-  letter-spacing: -0.03em;
-  white-space: nowrap;
-  flex-shrink: 0;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
 }
-.brandDot {
-  width: 18px;
-  height: 18px;
-  border-radius: 7px;
-  background: var(--brand);
-  box-shadow: inset 0 0 0 1px rgba(5, 73, 58, 0.12);
+.appbarBadge {
+  position: absolute;
+  top: 4px;
+  right: 2px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--neg);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 17px;
+  text-align: center;
+}
+/* 화면에는 안 보이지만 스크린리더·문서 구조에는 남는 제목 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.appbarTitle {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* keep the white/premium look regardless of OS dark mode */
@@ -150,146 +195,62 @@ h3 {
   max-width: 640px;
 }
 
-/* 앱바 내비게이션 — 데스크톱 가로, 모바일 햄버거 시트 */
-.navDesktop {
+/* 하단 탭바 — 최상위 내비게이션(홈·리더보드·랭킹·MY). 모바일 기준으로만 맞춘다.
+   항목은 래퍼 없이 .tabbar 바로 아래에 둔다(래퍼를 넣으면 예전 CSS가 캐시된 클라이언트에서
+   탭이 세로로 쌓인다). */
+.tabbar {
   display: flex;
-  align-items: center;
-  gap: 14px;
-}
-.navLink {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-weak);
-  position: relative;
-  background: none;
-  border: none;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.navName {
-  font-size: 14px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-.navNoti {
-  position: relative;
-}
-.navBadge {
-  position: absolute;
-  top: -7px;
-  right: -14px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
-  border-radius: 8px;
-  background: var(--brand-strong);
-  color: #fff;
-  font-size: 10.5px;
-  font-weight: 800;
-  line-height: 16px;
-  text-align: center;
-}
-
-/* 햄버거 버튼 (모바일에서만 표시) */
-.navToggle {
-  display: none;
-  position: relative;
-  width: 40px;
-  height: 40px;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-.navToggleBars {
-  position: relative;
-  width: 18px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--text);
-}
-.navToggleBars::before,
-.navToggleBars::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  width: 18px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--text);
-}
-.navToggleBars::before {
-  top: -6px;
-}
-.navToggleBars::after {
-  top: 6px;
-}
-.navToggleBadge {
-  top: 4px;
-  right: 2px;
-}
-
-/* 모바일 드롭다운 시트 */
-.navScrim {
   position: fixed;
-  inset: 56px 0 0;
-  z-index: 18;
-  background: rgba(0, 0, 0, 0.05);
-  border: none;
-  cursor: default;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  border-top: 1px solid var(--border);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
-.navSheet {
-  position: absolute;
-  top: 56px;
-  right: 12px;
-  z-index: 19;
-  min-width: 180px;
+.tabItem {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
-  padding: 8px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: 0 12px 32px rgba(25, 31, 40, 0.14);
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-faint);
+  transition: color 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.navSheet .navLink {
-  padding: 10px 12px;
-  border-radius: 10px;
-  text-align: left;
+.tabItemActive {
+  color: var(--brand-strong);
 }
-.navSheet .navLink:hover {
-  background: var(--brand-soft);
+.tabIcon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
 }
-.navSheet .navNoti .navBadge {
-  position: static;
-  display: inline-block;
-  margin-left: 8px;
+.tabLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
-.navSheetName {
-  padding: 8px 12px 6px;
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--text);
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 4px;
-}
-.navSheetLogout {
-  color: var(--neg);
-  border-top: 1px solid var(--border);
-  margin-top: 4px;
+.tabDot {
+  position: absolute;
+  top: -1px;
+  right: -3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--neg);
+  box-shadow: 0 0 0 2px var(--bg);
 }
 
-@media (max-width: 720px) {
-  .navDesktop {
-    display: none;
-  }
-  .navToggle {
-    display: inline-flex;
-  }
-  .appbarInner {
-    padding: 0 16px;
-  }
+/* 고정된 탭바에 콘텐츠가 가리지 않도록 여백 확보 (모바일·데스크톱 공통) */
+body {
+  padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
 }

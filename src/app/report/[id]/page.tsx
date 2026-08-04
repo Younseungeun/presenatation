@@ -1,11 +1,15 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
+import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/server/purchaseService";
+import { isFreeReport } from "@/server/freeReportService";
 import { getSessionUserId } from "@/server/session";
+import { TOSS_CLIENT_KEY } from "@/server/tossPayments";
+import { AppHeader } from "../../AppHeader";
 import { Disclaimer } from "../../Disclaimer";
 import { PurchaseButton } from "./PurchaseButton";
+import { TossCheckoutButton } from "./TossCheckoutButton";
 import styles from "../../market.module.css";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +29,28 @@ export default async function ReportDetail({
   const judgment = card?.judgment;
   const researcherName = report.researcher.user.penName ?? report.researcher.user.email;
   const purchased = !!purchase;
+  // 무료 글은 예측 카드가 없어 결제·판정 흐름을 타지 않는다
+  const free = isFreeReport(report);
+
+  const fmtDateTime = (d: Date) =>
+    new Date(d).toLocaleString("ko-KR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  // 구매 진행 상태 — 에스크로 상태 + 환불 실행 여부를 구매자 언어로
+  const purchaseStatus = purchase
+    ? purchase.escrowStatus === "HELD"
+      ? { label: "판정 대기 · 에스크로 보관 중", cls: styles.badgeUndecidable }
+      : purchase.escrowStatus === "REFUNDED"
+        ? purchase.settlement?.refundExecutedAt
+          ? { label: "환불 완료", cls: styles.badgeMiss }
+          : { label: "환불 확정 · 지급 준비 중", cls: styles.badgeMiss }
+        : { label: "적중 · 정산 완료", cls: styles.badgeHit }
+    : null;
 
   const dir = card?.direction === "UP" ? "▲ 상승 (buy)" : "▼ 하락 (sell)";
   const size =
@@ -33,14 +59,13 @@ export default async function ReportDetail({
       : `목표가 ${card?.targetValue.toLocaleString()}`;
 
   return (
-    <main className={styles.page}>
-      <Link href={`/r/${report.researcherId}`} className={styles.backLink}>
-        ← {researcherName}
-      </Link>
-      <h1 className={styles.h1} style={{ marginTop: 12 }}>
-        {report.title}
-      </h1>
-      <p className={styles.sub}>{report.summary}</p>
+    <>
+      <AppHeader title="리포트" titleAs="span" backHref={`/r/${report.researcherId}`} />
+      <main className={styles.page}>
+      <h1 className={styles.h1}>{report.title}</h1>
+      <p className={styles.sub}>
+        {researcherName} · {report.summary}
+      </p>
 
       {card && (
         <div className={styles.cardBox}>
@@ -92,8 +117,68 @@ export default async function ReportDetail({
         </div>
       )}
 
-      {purchased ? (
+      {free ? (
         <>
+          <div className={styles.section}>리포트 본문</div>
+          <div className={styles.content}>{report.content}</div>
+          <p className={styles.sub}>
+            무료로 공개된 시황 리포트입니다. 예측 카드가 없어 판정·환불 대상이 아닙니다.
+          </p>
+        </>
+      ) : purchased ? (
+        <>
+          <div className={styles.section}>구매 정보</div>
+          <div className={styles.cardBox}>
+            <div className={styles.cardRow}>
+              <span className={styles.cardKey}>결제 일시</span>
+              <span className={styles.cardVal}>{fmtDateTime(purchase.paidAt)}</span>
+            </div>
+            <div className={styles.cardRow}>
+              <span className={styles.cardKey}>결제 금액</span>
+              <span className={styles.cardVal}>{purchase.amountKrw.toLocaleString()}원</span>
+            </div>
+            <div className={styles.cardRow}>
+              <span className={styles.cardKey}>결제 수단</span>
+              <span className={styles.cardVal}>
+                {PAYMENT_METHOD_LABEL[purchase.paymentMethod as PaymentMethod] ??
+                  purchase.paymentMethod}
+                {purchase.paymentInfo && (
+                  <>
+                    <br />
+                    <small style={{ fontWeight: 500, color: "var(--text-weak)" }}>
+                      {purchase.paymentInfo}
+                    </small>
+                  </>
+                )}
+              </span>
+            </div>
+            <div className={styles.cardRow}>
+              <span className={styles.cardKey}>진행 상태</span>
+              <span className={`${styles.cardVal} ${purchaseStatus!.cls}`}>
+                {purchaseStatus!.label}
+              </span>
+            </div>
+            {purchase.settlement && (
+              <div className={styles.cardRow}>
+                <span className={styles.cardKey}>판정 일시</span>
+                <span className={styles.cardVal}>
+                  {fmtDateTime(purchase.settlement.settledAt)}
+                </span>
+              </div>
+            )}
+            {purchase.settlement && purchase.settlement.buyerRefundKrw > 0 && (
+              <div className={styles.cardRow}>
+                <span className={styles.cardKey}>환불 금액</span>
+                <span className={styles.cardVal}>
+                  {purchase.settlement.buyerRefundKrw.toLocaleString()}원
+                  {purchase.settlement.refundExecutedAt
+                    ? ` (${fmtDateTime(purchase.settlement.refundExecutedAt)} 실행)`
+                    : " (PG 취소·계좌이체로 지급 예정)"}
+                </span>
+              </div>
+            )}
+          </div>
+
           <div className={styles.section}>리포트 본문</div>
           <div className={styles.content}>{report.content}</div>
           {purchase.settlement && (
@@ -115,12 +200,16 @@ export default async function ReportDetail({
             priceKrw={report.priceKrw}
             hasIdentity={!!viewerId}
           />
+          {viewerId && (
+            <TossCheckoutButton reportId={report.id} clientKey={TOSS_CLIENT_KEY} buyerId={viewerId} />
+          )}
         </>
       ) : (
         <div className={styles.locked}>현재 판매 중인 리포트가 아닙니다.</div>
       )}
 
       <Disclaimer />
-    </main>
+      </main>
+    </>
   );
 }

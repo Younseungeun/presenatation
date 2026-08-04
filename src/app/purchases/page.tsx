@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
 import { getBuyerPurchases, type BuyerPurchase } from "@/server/financeQueries";
 import { getSessionUserId } from "@/server/session";
+import { AppHeader } from "../AppHeader";
 import styles from "../market.module.css";
 
 export const dynamic = "force-dynamic";
@@ -32,8 +33,9 @@ export default async function PurchasesPage() {
   const purchases = await getBuyerPurchases(prisma, userId);
 
   return (
-    <main className={styles.page}>
-      <h1 className={styles.h1}>구매 내역</h1>
+    <>
+      <AppHeader title="구매 내역" backHref="/my" />
+      <main className={styles.page}>
       <p className={styles.sub}>
         결제 금액은 판정 전까지 에스크로에 보관되고, 예측이 틀리면 성과 연동분이 현금으로
         환불됩니다.
@@ -71,6 +73,7 @@ export default async function PurchasesPage() {
           );
         })
       )}
-    </main>
+      </main>
+    </>
   );
 }

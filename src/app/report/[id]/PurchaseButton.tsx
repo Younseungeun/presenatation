@@ -24,6 +24,37 @@ export function PurchaseButton({
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cartBusy, setCartBusy] = useState(false);
+  const [added, setAdded] = useState(false);
+  const [method, setMethod] = useState<"CARD" | "VBANK">("CARD");
+
+  // 장바구니 담기는 결제가 아니므로 환불 규정 동의를 받지 않는다(동의는 결제 시점에 받는다)
+  async function addToCart() {
+    if (!hasIdentity) {
+      router.push(`/login?next=/report/${reportId}`);
+      return;
+    }
+    setCartBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/cart", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reportId }),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setError(body.error ?? "장바구니 담기 실패");
+        return;
+      }
+      setAdded(true);
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setCartBusy(false);
+    }
+  }
 
   async function purchase() {
     if (!hasIdentity) {
@@ -40,7 +71,7 @@ export function PurchaseButton({
       const res = await fetch(`/api/reports/${reportId}/purchase`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agreedRefund: true }),
+        body: JSON.stringify({ agreedRefund: true, paymentMethod: method }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -60,6 +91,28 @@ export function PurchaseButton({
       {hasIdentity && (
         <>
           <p className={styles.refundNotice}>{REFUND_POLICY_SUMMARY}</p>
+          <div className={styles.payMethods} role="radiogroup" aria-label="결제 수단">
+            {(
+              [
+                ["CARD", "카드"],
+                ["VBANK", "무통장입금"],
+              ] as const
+            ).map(([key, label]) => (
+              <label
+                key={key}
+                className={`${styles.payMethod} ${method === key ? styles.payMethodActive : ""}`}
+              >
+                <input
+                  type="radio"
+                  name="paymentMethod"
+                  value={key}
+                  checked={method === key}
+                  onChange={() => setMethod(key)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
           <label className={styles.consent}>
             <input
               type="checkbox"
@@ -86,6 +139,14 @@ export function PurchaseButton({
           : hasIdentity
             ? `${priceKrw.toLocaleString()}원 결제하고 열람`
             : "본인 인증하고 구매하기"}
+      </button>
+      <button
+        type="button"
+        className={styles.secondaryBtn}
+        onClick={addToCart}
+        disabled={cartBusy || added}
+      >
+        {added ? "장바구니에 담김" : cartBusy ? "담는 중…" : "장바구니에 담기"}
       </button>
       {error && <p className={styles.err}>{error}</p>}
     </div>

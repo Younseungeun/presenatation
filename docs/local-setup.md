@@ -53,6 +53,12 @@ npm run seed:demo               # (선택) 데모 리서처·리포트·판정 �
 npm run dev     # http://localhost:3000
 ```
 
+같은 Wi-Fi의 핸드폰에서 확인하려면 PC의 사설 IP로 접속한다(`ipconfig`로 확인,
+예: `http://192.168.0.10:3000`). 이때 `next.config.ts`의 `allowedDevOrigins`에 해당
+대역이 포함되어 있어야 한다 — 없으면 `/_next/*` dev 리소스가 차단되어 **화면은 뜨지만
+스크립트가 로드되지 않는다**(버튼·온보딩 등 클라이언트 동작 전부 무반응). 설정 변경 후에는
+dev 서버를 재시작한다. 접속이 안 되면 Windows 방화벽에서 Node.js의 개인 네트워크 접근 허용.
+
 ## 5. 검증 명령
 
 ```bash
@@ -71,6 +77,7 @@ npx eslint src scripts  # 린트
 | `npm run sync:instruments` | 종목 마스터 동기화 (`-- --fixture`로 오프라인 시드) |
 | `npm run op:grant -- <email>` | 운영자 권한 부여 (`--revoke`로 회수) |
 | `npm run seed:dev` / `seed:demo` | 개발·데모 데이터 시드 |
+| `npm run seed:login` | **로그인 가능한 데모 계정** 생성 (휴대폰 `010-1234-5678`, 필명 데모유저) |
 
 ## 운영자 화면 접근
 
@@ -84,6 +91,18 @@ npm run op:grant -- <가입된 이메일>
 
 가입 계정의 이메일은 본인인증 스텁이 자동 생성한다(`<해시>@identity.local`).
 Prisma Studio(`npx prisma studio`)에서 User 테이블을 열어 확인하면 편하다.
+
+## 로그인 데모 계정
+
+본인인증 스텁은 휴대폰 번호로 결정적 CI를 만들어 **같은 번호 = 같은 계정**으로 연결한다.
+화면 확인용 계정은 `npm run seed:login`으로 만든다 (구매·판정·환불·작성 카드까지 채워진다).
+
+```
+/login → 이름 아무거나 / 휴대폰 010-1234-5678 → "데모유저"로 로그인
+```
+
+`seed:demo`가 먼저 실행되어 있어야 한다(구매 대상 리포트를 그 리서처가 쓴다).
+이미 계정이 있으면 다시 만들지 않고 안내만 출력한다.
 
 ## 참고
 

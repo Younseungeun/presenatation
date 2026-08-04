@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getLegalDoc } from "@/domain/legalDocs";
+import { AppHeader } from "../../AppHeader";
 import styles from "../../market.module.css";
 
 export function generateStaticParams() {
@@ -21,13 +21,9 @@ export default async function TermsDocPage({
   if (!doc) notFound();
 
   return (
-    <main className={styles.page} style={{ maxWidth: 720 }}>
-      <Link href="/terms" className={styles.backLink}>
-        ← 약관·정책
-      </Link>
-      <h1 className={styles.h1} style={{ marginTop: 12 }}>
-        {doc.title}
-      </h1>
+    <>
+      <AppHeader title={doc.title} backHref="/terms" />
+      <main className={styles.page} style={{ maxWidth: 720 }}>
       <p className={styles.sub}>
         버전 {doc.version} · 시행일 {doc.effectiveDate}
         {doc.draft && " · 변호사 검토 전 초안"}
@@ -48,6 +44,7 @@ export default async function TermsDocPage({
           </section>
         ))}
       </div>
-    </main>
+      </main>
+    </>
   );
 }

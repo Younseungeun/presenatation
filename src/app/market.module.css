@@ -40,6 +40,43 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* 종목 필터 칩 — 가로 스크롤 (모바일에서 넘칠 때) */
+.chipRow {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  margin-bottom: 18px;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.chipRow::-webkit-scrollbar {
+  display: none;
+}
+.chip {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-weak);
+  white-space: nowrap;
+}
+.chip:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
+}
+.chipActive {
+  background: var(--brand-soft);
+  border-color: color-mix(in srgb, var(--brand-strong) 35%, transparent);
+  color: var(--brand-strong);
+}
+.chipCount {
+  font-weight: 500;
+  opacity: 0.65;
+}
+
 /* leaderboard as rows (app-like list) */
 .list {
   display: flex;
@@ -81,6 +118,13 @@
   color: var(--text-faint);
   margin-top: 2px;
 }
+.rowArrow {
+  color: var(--text-faint);
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 .rowScore {
   text-align: right;
   font-weight: 800;
@@ -280,6 +324,299 @@
   transform: none;
   box-shadow: none;
 }
+/* 리더보드 — 추천 카드 가로 레일 */
+.railHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 26px 0 12px;
+}
+.railTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.railNote {
+  font-size: 12px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.rail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  /* 카드 그림자가 잘리지 않게 상하 여백을 준다 */
+  padding: 2px 0 6px;
+  margin: 0 -20px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+.rail::-webkit-scrollbar {
+  display: none;
+}
+.railCard {
+  flex: 0 0 auto;
+  width: 250px;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+}
+.railCard:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
+}
+.railTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.railAsset {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.railDir {
+  font-size: 12px;
+  font-weight: 700;
+}
+.railCardTitle {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.railMeta {
+  font-size: 12.5px;
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.railFoot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 4px;
+}
+.railPrice {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.railDday {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-weak);
+}
+
+/* 정렬 — "마감 임박순 ▾" 버튼 + 하단 시트 */
+.sortRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 36px;
+  padding: 0 4px 0 10px;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-weak);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.sortButton:hover {
+  color: var(--text);
+}
+
+.sheetScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.32);
+  border: none;
+  cursor: default;
+}
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 41;
+  background: var(--bg);
+  border-radius: 20px 20px 0 0;
+  padding: 10px 8px calc(16px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 32px rgba(25, 31, 40, 0.16);
+  animation: sheetUp 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+@keyframes sheetUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+.sheetHandle {
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  margin: 0 auto 12px;
+}
+.sheetTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-faint);
+  padding: 0 14px 8px;
+}
+.sheetOption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 52px;
+  padding: 0 14px;
+  border-radius: var(--radius);
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+.sheetOption:hover {
+  background: var(--surface);
+}
+.sheetOptionActive {
+  color: var(--brand-strong);
+  font-weight: 800;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}
+
+/* 결제 버튼 아래 보조 액션 (장바구니 담기) */
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 50px;
+  margin-top: 10px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 700;
+  font-size: 15px;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.secondaryBtn:hover {
+  background: var(--border);
+}
+.secondaryBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* 결제 수단 선택 (카드 / 무통장입금) */
+.payMethods {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+.payMethod {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-weak);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.payMethod input {
+  accent-color: var(--brand-strong);
+}
+.payMethodActive {
+  border-color: color-mix(in srgb, var(--brand-strong) 45%, transparent);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
+/* 장바구니 */
+.cartRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+}
+.cartPrice {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.cartRemove {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-faint);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 7px 14px;
+  cursor: pointer;
+}
+.cartRemove:hover {
+  color: var(--neg);
+  border-color: color-mix(in srgb, var(--neg) 30%, transparent);
+}
+.cartRemove:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.cartIssue {
+  margin-top: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--neg);
+}
+.cartCheckout {
+  margin-top: 24px;
+}
+
 .err {
   color: var(--neg);
   font-size: 13px;

@@ -4,7 +4,11 @@ import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { getBuyerPurchases, getResearcherFinance } from '../financeQueries';
-import { getLeaderboard } from '../leaderboardQueries';
+import {
+  getAllTimeRanking,
+  getJudgedInstruments,
+  getLeaderboard,
+} from '../leaderboardQueries';
 import { judgeAndSettleDueCards } from '../judgmentBatch';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
@@ -121,6 +125,49 @@ describe('getLeaderboard — 판정 기반 집계', () => {
 
     // 판정 없는 자산군은 빈 리더보드
     expect(await getLeaderboard(prisma, 'KR_EQUITY', BATCH_NOW)).toEqual([]);
+  });
+});
+
+describe('종목별 리더보드', () => {
+  it('판정 이력이 있는 종목만 나열한다 (미판정 종목 제외)', async () => {
+    const list = await getJudgedInstruments(prisma, 'CRYPTO');
+    expect(list.map((i) => i.ticker).sort()).toEqual(['KRW-AAA', 'KRW-BBB']);
+    expect(list.every((i) => i.judgedCount === 1)).toBe(true);
+    // 미판정(KRW-CCC)은 제외, 판정 없는 자산군은 빈 목록
+    expect(await getJudgedInstruments(prisma, 'KR_EQUITY')).toEqual([]);
+  });
+
+  it('ticker를 주면 그 종목 판정만으로 집계한다', async () => {
+    const hitOnly = await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW, 'KRW-AAA');
+    expect(hitOnly).toHaveLength(1);
+    expect(hitOnly[0].sampleSize).toBe(1);
+    expect(hitOnly[0].hitRate).toBe(1);
+    expect(hitOnly[0].seasonScore).toBe(500); // HIT 건만
+
+    const missOnly = await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW, 'KRW-BBB');
+    expect(missOnly[0].sampleSize).toBe(1);
+    expect(missOnly[0].hitRate).toBe(0);
+    expect(missOnly[0].seasonScore).toBe(-750); // MISS 건만
+
+    // 판정 없는 종목은 빈 리더보드
+    expect(await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW, 'KRW-CCC')).toEqual([]);
+  });
+});
+
+describe('getAllTimeRanking — 전 기간·전 자산군 통합 랭킹', () => {
+  it('자산군 구분 없이 누적 점수를 합산하고 정렬 기준을 바꿀 수 있다', async () => {
+    const byScore = await getAllTimeRanking(prisma, 'SCORE', BATCH_NOW);
+    expect(byScore).toHaveLength(1);
+    expect(byScore[0].researcherId).toBe(researcherId);
+    // 시즌 필터가 없을 뿐 같은 판정 2건이므로 리더보드 시즌 점수와 동일
+    expect(byScore[0].totalScore).toBe(-250);
+    expect(byScore[0].sampleSize).toBe(2);
+    expect(byScore[0].hitRate).toBe(0.5);
+
+    // 정렬 기준만 바뀌고 집계값은 같다
+    const byHitRate = await getAllTimeRanking(prisma, 'HIT_RATE', BATCH_NOW);
+    expect(byHitRate[0].hitRate).toBe(0.5);
+    expect(byHitRate[0].totalScore).toBe(-250);
   });
 });
 

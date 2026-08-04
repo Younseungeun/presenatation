@@ -23,6 +23,8 @@ model User {
 
   researcherProfile ResearcherProfile?
   purchases         Purchase[]
+  cartItems         CartItem[]
+  paymentIntents    PaymentIntent[]
 }
 
 // 리서처 프로필: 등급·경력 배지·신고 여부
@@ -57,6 +59,8 @@ model Report {
 
   predictionCard PredictionCard?
   purchases      Purchase[]
+  cartItems      CartItem[]
+  paymentIntents PaymentIntent[]
 }
 
 // 예측 카드: 게시 후 수정·삭제 불가. 철회는 가능하되 기록에 남김.
@@ -124,6 +128,8 @@ model Purchase {
   buyerId    String
   buyer      User     @relation(fields: [buyerId], references: [id])
   amountKrw  Int // 결제 총액
+  paymentMethod String @default("CARD") // CARD | VBANK(무통장입금·가상계좌) — PG 스텁 단계에서는 모의 기록
+  paymentInfo   String? // 마스킹된 표시용 결제 정보(카드 끝 4자리·가상계좌 은행/번호). 카드번호 원문은 절대 저장 금지
   escrowStatus String @default("HELD") // HELD | SETTLED | REFUNDED
   paidAt     DateTime @default(now())
 
@@ -194,4 +200,36 @@ model TierHistory {
   toTier       String
   reason       String // PROMOTION | DEMOTION | SEASON_RESET
   createdAt    DateTime @default(now())
+}
+
+// 장바구니 — 담아두고 한 번에 결제하기 위한 대기 목록.
+// 결제 전 상태이므로 금액을 저장하지 않는다: 가격은 항상 Report에서 읽어
+// 결제 시점 가격으로 청구된다(담은 뒤 가격이 바뀌어도 어긋나지 않는다).
+model CartItem {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id])
+  reportId String
+  report   Report   @relation(fields: [reportId], references: [id])
+  addedAt  DateTime @default(now())
+
+  @@unique([userId, reportId]) // 같은 리포트 중복 담기 방지
+  @@index([userId])
+}
+
+// 토스페이먼츠 결제 요청 — 결제창을 띄우기 전에 orderId·금액을 서버에 먼저 기록해둔다.
+// 승인(confirm) 시점에 이 값과 PG 응답을 대조해 클라이언트의 금액 조작을 막는다
+// (토스페이먼츠 연동 가이드가 명시하는 필수 절차).
+model PaymentIntent {
+  id        String   @id @default(cuid())
+  orderId   String   @unique // 토스페이먼츠 orderId (6~64자)
+  buyerId   String
+  buyer     User     @relation(fields: [buyerId], references: [id])
+  reportId  String
+  report    Report   @relation(fields: [reportId], references: [id])
+  amountKrw Int
+  status    String   @default("PENDING") // PENDING | CONFIRMED | FAILED
+  createdAt DateTime @default(now())
+
+  @@index([buyerId])
 }

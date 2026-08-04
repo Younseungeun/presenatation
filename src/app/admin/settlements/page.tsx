@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/server/db";
 import { getPendingPayouts, getPendingRefunds } from "@/server/settlementOpsService";
 import { getSessionUserId } from "@/server/session";
+import { AppHeader } from "../../AppHeader";
 import styles from "../../researcher/researcher.module.css";
 import { ExecuteButton } from "./ExecuteButton";
 
@@ -29,10 +30,11 @@ export default async function AdminSettlementsPage() {
   const payoutTotal = payouts.reduce((a, s) => a + s.researcherPayoutKrw, 0);
 
   return (
-    <main className={styles.page}>
+    <>
+      <AppHeader title="정산 지시서" backHref="/my" />
+      <main className={styles.page}>
       <div className={styles.header}>
         <div>
-          <h1>정산 지시서</h1>
           <p className={styles.sub}>
             판정이 확정한 환불·지급을 실행하고 기록합니다. 실행 즉시 당사자에게 알림이
             갑니다. <Link href="/admin/judgments">판정 보류 큐 →</Link>
@@ -103,6 +105,7 @@ export default async function AdminSettlementsPage() {
           </div>
         ))
       )}
-    </main>
+      </main>
+    </>
   );
 }

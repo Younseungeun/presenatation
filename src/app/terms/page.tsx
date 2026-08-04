@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { LEGAL_DOCS, LEGAL_DOC_KEYS } from "@/domain/legalDocs";
+import { AppHeader } from "../AppHeader";
 import styles from "../market.module.css";
 
 export default function TermsIndexPage() {
   return (
-    <main className={styles.page} style={{ maxWidth: 640 }}>
-      <h1 className={styles.h1}>약관·정책</h1>
+    <>
+      <AppHeader title="약관·정책" backHref="/my" />
+      <main className={styles.page} style={{ maxWidth: 640 }}>
       <p className={styles.sub}>서비스 이용에 적용되는 약관과 정책입니다.</p>
 
       <div className={styles.list} style={{ marginTop: 16 }}>
@@ -22,6 +24,7 @@ export default function TermsIndexPage() {
           );
         })}
       </div>
-    </main>
+      </main>
+    </>
   );
 }

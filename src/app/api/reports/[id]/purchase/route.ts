@@ -14,11 +14,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const buyerId = await requireUserId();
     const { id } = await ctx.params;
-    const body = (await req.json().catch(() => ({}))) as { agreedRefund?: boolean };
+    const body = (await req.json().catch(() => ({}))) as {
+      agreedRefund?: boolean;
+      paymentMethod?: string;
+    };
     if (!body.agreedRefund) {
       throw new HttpError(400, '환불 규정 확인·동의가 필요합니다');
     }
-    const purchase = await purchaseReport(prisma, id, buyerId);
+    const method = body.paymentMethod === 'VBANK' ? 'VBANK' : 'CARD';
+    const purchase = await purchaseReport(prisma, id, buyerId, new Date(), { method });
     // 구매 시점 환불 규정 동의 이력 (이용약관 버전 기준, 대상 리포트 기록)
     await recordConsentEvent(
       prisma,

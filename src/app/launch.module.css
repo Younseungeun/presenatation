@@ -1,0 +1,222 @@
+/* 앱 실행 경험 — 로고 스플래시 + 첫 실행 1회성 온보딩 */
+
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  transition: opacity 0.32s ease;
+  /* JS가 실행되지 않는 환경에서도 스플래시에 갇히지 않도록 CSS만으로 사라진다 */
+  animation: splashOut 0.35s ease 0.9s forwards;
+}
+.splashHiding {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes splashOut {
+  from {
+    opacity: 1;
+    visibility: visible;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+.splashLogo {
+  width: 96px;
+  height: 96px;
+  animation: logoIn 0.5s cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+.splashName {
+  position: absolute;
+  bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  opacity: 0.82;
+  animation: fadeIn 0.5s ease 0.15s both;
+}
+
+@keyframes logoIn {
+  from {
+    opacity: 0;
+    transform: scale(0.84);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* 온보딩 */
+.onboarding {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  animation: fadeIn 0.28s ease both;
+}
+
+.skipRow {
+  display: flex;
+  justify-content: flex-end;
+  padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 0;
+  flex-shrink: 0;
+}
+.skip {
+  background: none;
+  border: none;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+
+.track {
+  flex: 1;
+  display: flex;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.track::-webkit-scrollbar {
+  display: none;
+}
+
+.slide {
+  flex: 0 0 100%;
+  width: 100%;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 32px 24px;
+  text-align: center;
+}
+.art {
+  width: 132px;
+  height: 132px;
+  margin-bottom: 24px;
+  border-radius: 32px;
+  background: var(--brand-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.step {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--brand-strong);
+}
+.slideTitle {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+.slideText {
+  margin-top: 6px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text-weak);
+  max-width: 320px;
+  text-wrap: balance;
+}
+
+.footer {
+  flex-shrink: 0;
+  padding: 0 24px calc(28px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+.dots {
+  display: flex;
+  gap: 7px;
+}
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  transition: width 0.24s ease, background 0.24s ease;
+}
+.dotActive {
+  width: 22px;
+  border-radius: 4px;
+  background: var(--brand-strong);
+}
+.cta {
+  width: 100%;
+  max-width: 420px;
+  height: 54px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--brand);
+  color: var(--brand-ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+.cta:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow);
+}
+
+@media (max-height: 680px) {
+  .art {
+    width: 104px;
+    height: 104px;
+    margin-bottom: 16px;
+  }
+  .slideTitle {
+    font-size: 21px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splashLogo,
+  .splashName,
+  .onboarding {
+    animation: none;
+  }
+  /* splashOut은 끄지 않는다 — 이 애니메이션이 스플래시를 걷어내는 안전장치다 */
+  .splash {
+    animation-duration: 0.01s;
+    transition: none;
+  }
+  .dot,
+  .cta {
+    transition: none;
+  }
+  .track {
+    scroll-behavior: auto;
+  }
+}

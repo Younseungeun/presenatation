@@ -1,5 +1,21 @@
 import Link from "next/link";
+import { prisma } from "@/server/db";
+import { getBuyerPurchases } from "@/server/financeQueries";
+import { getFreeReports } from "@/server/freeReportService";
+import {
+  getRecentJudgments,
+  getResearcherConsensus,
+  getUpcomingDeadlineCards,
+} from "@/server/marketQueries";
+import { getSessionUserId } from "@/server/session";
+import { HomeSignedIn } from "./HomeSignedIn";
 import styles from "./page.module.css";
+
+export const dynamic = "force-dynamic";
+
+// 홈은 로그인 여부로 완전히 갈린다.
+// - 비로그인: 서비스 가치를 설명하는 랜딩 (검증 중 0건 같은 개인 지표는 의미가 없다)
+// - 로그인: 내 검증 현황 + 방금 판정된 카드 + 마감 임박 (HomeSignedIn)
 
 const FEATURES = [
   {
@@ -19,7 +35,38 @@ const FEATURES = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const userId = await getSessionUserId();
+  const now = new Date();
+
+  if (userId) {
+    const [user, purchases, consensus, freeReports, feed, upcoming] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { penName: true, email: true },
+      }),
+      getBuyerPurchases(prisma, userId),
+      getResearcherConsensus(prisma, 12, now),
+      getFreeReports(prisma, 4),
+      getRecentJudgments(prisma, 6),
+      getUpcomingDeadlineCards(prisma, 5, now),
+    ]);
+
+    if (user) {
+      return (
+        <HomeSignedIn
+          name={user.penName ?? user.email}
+          purchases={purchases}
+          consensus={consensus}
+          freeReports={freeReports}
+          feed={feed}
+          upcoming={upcoming}
+          now={now}
+        />
+      );
+    }
+  }
+
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
@@ -34,6 +81,9 @@ export default function Home() {
         <div className={styles.ctas}>
           <Link className={styles.primary} href="/leaderboard">
             리더보드 둘러보기
+          </Link>
+          <Link className={styles.secondary} href="/login">
+            로그인
           </Link>
         </div>
       </section>
