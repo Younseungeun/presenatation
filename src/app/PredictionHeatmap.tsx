@@ -5,8 +5,10 @@ import { useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { squarify } from "@/lib/treemap";
 import type { ConsensusRow } from "@/server/marketQueries";
+import cryptoSnapshot from "../data/crypto-heatmap.json";
 import kospi from "../data/kospi-heatmap.json";
-import { heatmapMeta, heatmapUniverse } from "./heatmapMeta";
+import usSnapshot from "../data/us-heatmap.json";
+import { heatmapMeta } from "./heatmapMeta";
 import { StockLogo } from "./StockLogo";
 import styles from "./page.module.css";
 
@@ -22,19 +24,18 @@ import styles from "./page.module.css";
 // 색은 우리 예측 데이터 — 검증 중 컨센서스 방향(상승 초록/하락 빨강/팽팽 진회색),
 // 예측 없는 종목은 연회색. 시세·외부 API 호출이 없는 정적 스냅샷 기반이다.
 
-/** 우세 쪽 비율(0.5~1)을 색으로 — 약하면 파스텔, 강할수록 진하게. 어두우면 흰 글자 */
+/**
+ * 우세율로 색을 정한다 (확정 — 구 V2): 상승 초록(120°)/하락 빨강(0°) 계열에서
+ * 명도는 고정하고 **채도만 연속 변화** — 우세율 50%(팽팽 직후)면 회색빛,
+ * 100%면 완전 포화. 팽팽(50:50)은 무채색 회색, 예측 없는 종목은 연회색.
+ */
 function tileStyle(row: ConsensusRow | undefined): { background: string; color: string } {
   if (!row) return { background: "hsl(220 14% 91%)", color: "#565d69" };
-  const strength = row.total > 0 ? Math.max(row.up, row.down) / row.total : 0.5;
-  const t = Math.max(0, Math.min(1, (strength - 0.5) * 2));
-  if (row.lean === "UP") {
-    const l = Math.round(62 - 22 * t);
-    return { background: `hsl(147 52% ${l}%)`, color: l < 50 ? "#fff" : "#0c2418" };
-  }
-  if (row.lean === "DOWN") {
-    const l = Math.round(72 - 30 * t);
-    return { background: `hsl(354 64% ${l}%)`, color: l < 55 ? "#fff" : "#4a0e15" };
-  }
+  const share = Math.max(row.up, row.down) / row.total;
+  const t = Math.max(0, Math.min(1, (share - 0.5) * 2));
+  const s = Math.round(15 + 85 * t);
+  if (row.lean === "UP") return { background: `hsl(120 ${s}% 40%)`, color: "#fff" };
+  if (row.lean === "DOWN") return { background: `hsl(0 ${s}% 47%)`, color: "#fff" };
   return { background: "hsl(220 10% 81%)", color: "#3d434d" };
 }
 
@@ -103,23 +104,21 @@ export function PredictionHeatmap({ consensus }: { consensus: ConsensusRow[] }) 
   const rows = byClass.get(selected) ?? [];
   const rowByTicker = new Map(rows.map((r) => [r.ticker, r]));
 
-  // 국내주식은 코스피 전 종목, 그 외 자산군은 데모 유니버스
-  const tiles: Tile[] =
+  // 자산군별 전 종목 스냅샷: 국내주식 = 코스피, 미국주식 = S&P 500,
+  // 코인 = 업비트 KRW 마켓 거래 가능 종목 (모두 같은 형식)
+  const snapshot =
     selected === "KR_EQUITY"
-      ? kospi.stocks.map((s) => ({
-          ticker: s.code,
-          name: s.name,
-          sector: s.sector,
-          cap: s.capT,
-          row: rowByTicker.get(s.code),
-        }))
-      : heatmapUniverse(selected).map((u) => ({
-          ticker: u.ticker,
-          name: u.name,
-          sector: u.sector,
-          cap: u.capTrillionKrw,
-          row: rowByTicker.get(u.ticker),
-        }));
+      ? kospi.stocks
+      : selected === "US_EQUITY"
+        ? usSnapshot.stocks
+        : cryptoSnapshot.stocks;
+  const tiles: Tile[] = snapshot.map((s) => ({
+    ticker: s.code,
+    name: s.name,
+    sector: s.sector,
+    cap: s.capT,
+    row: rowByTicker.get(s.code),
+  }));
   // 유니버스 밖인데 예측은 있는 종목 합류 (상폐 직전 등 경계 사례)
   for (const r of rows) {
     if (!tiles.some((t) => t.ticker === r.ticker)) {

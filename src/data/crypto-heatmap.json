@@ -1,0 +1,1656 @@
+{
+ "snapshotDate": "2026-08-04",
+ "count": 275,
+ "stocks": [
+  {
+   "code": "KRW-BTC",
+   "name": "비트코인",
+   "sector": "가치 저장·결제",
+   "capT": 1831.94
+  },
+  {
+   "code": "KRW-ETH",
+   "name": "이더리움",
+   "sector": "스마트 컨트랙트",
+   "capT": 322.146
+  },
+  {
+   "code": "KRW-USDT",
+   "name": "테더",
+   "sector": "스테이블코인",
+   "capT": 262.092
+  },
+  {
+   "code": "KRW-USDC",
+   "name": "유에스디코인",
+   "sector": "스테이블코인",
+   "capT": 103.1
+  },
+  {
+   "code": "KRW-XRP",
+   "name": "엑스알피(리플)",
+   "sector": "결제·송금",
+   "capT": 96.246
+  },
+  {
+   "code": "KRW-SOL",
+   "name": "솔라나",
+   "sector": "스마트 컨트랙트",
+   "capT": 61.348
+  },
+  {
+   "code": "KRW-TRX",
+   "name": "트론",
+   "sector": "스마트 컨트랙트",
+   "capT": 44.629
+  },
+  {
+   "code": "KRW-DOGE",
+   "name": "도지코인",
+   "sector": "밈",
+   "capT": 17.215
+  },
+  {
+   "code": "KRW-USDS",
+   "name": "유에스디에스",
+   "sector": "기타 알트코인",
+   "capT": 13.916
+  },
+  {
+   "code": "KRW-ADA",
+   "name": "에이다",
+   "sector": "스마트 컨트랙트",
+   "capT": 10.47
+  },
+  {
+   "code": "KRW-LINK",
+   "name": "체인링크",
+   "sector": "인프라·오라클",
+   "capT": 8.763
+  },
+  {
+   "code": "KRW-XLM",
+   "name": "스텔라루멘",
+   "sector": "결제·송금",
+   "capT": 8.412
+  },
+  {
+   "code": "KRW-CC",
+   "name": "캔톤",
+   "sector": "기타 알트코인",
+   "capT": 6.392
+  },
+  {
+   "code": "KRW-BCH",
+   "name": "비트코인캐시",
+   "sector": "가치 저장·결제",
+   "capT": 6.139
+  },
+  {
+   "code": "KRW-USD1",
+   "name": "월드리버티파이낸셜유에스디",
+   "sector": "기타 알트코인",
+   "capT": 5.704
+  },
+  {
+   "code": "KRW-USDE",
+   "name": "유에스디이",
+   "sector": "기타 알트코인",
+   "capT": 5.52
+  },
+  {
+   "code": "KRW-USDG",
+   "name": "글로벌달러",
+   "sector": "기타 알트코인",
+   "capT": 4.924
+  },
+  {
+   "code": "KRW-HBAR",
+   "name": "헤데라",
+   "sector": "스마트 컨트랙트",
+   "capT": 4.433
+  },
+  {
+   "code": "KRW-AVAX",
+   "name": "아발란체",
+   "sector": "스마트 컨트랙트",
+   "capT": 4.224
+  },
+  {
+   "code": "KRW-SHIB",
+   "name": "시바이누",
+   "sector": "밈",
+   "capT": 4.178
+  },
+  {
+   "code": "KRW-SUI",
+   "name": "수이",
+   "sector": "스마트 컨트랙트",
+   "capT": 4.049
+  },
+  {
+   "code": "KRW-CRO",
+   "name": "크로노스",
+   "sector": "기타 알트코인",
+   "capT": 3.717
+  },
+  {
+   "code": "KRW-XAUT",
+   "name": "테더골드",
+   "sector": "기타 알트코인",
+   "capT": 3.549
+  },
+  {
+   "code": "KRW-UNI",
+   "name": "유니스왑",
+   "sector": "디파이",
+   "capT": 3.507
+  },
+  {
+   "code": "KRW-NEAR",
+   "name": "니어프로토콜",
+   "sector": "스마트 컨트랙트",
+   "capT": 3.28
+  },
+  {
+   "code": "KRW-TAO",
+   "name": "비트텐서",
+   "sector": "AI",
+   "capT": 2.628
+  },
+  {
+   "code": "KRW-ONDO",
+   "name": "온도파이낸스",
+   "sector": "디파이",
+   "capT": 2.581
+  },
+  {
+   "code": "KRW-WLFI",
+   "name": "월드리버티파이낸셜",
+   "sector": "기타 알트코인",
+   "capT": 2.493
+  },
+  {
+   "code": "KRW-RLUSD",
+   "name": "리플유에스디",
+   "sector": "기타 알트코인",
+   "capT": 2.22
+  },
+  {
+   "code": "KRW-AAVE",
+   "name": "에이브",
+   "sector": "디파이",
+   "capT": 2.054
+  },
+  {
+   "code": "KRW-DOT",
+   "name": "폴카닷",
+   "sector": "스마트 컨트랙트",
+   "capT": 2.031
+  },
+  {
+   "code": "KRW-SKY",
+   "name": "스카이프로토콜",
+   "sector": "기타 알트코인",
+   "capT": 1.891
+  },
+  {
+   "code": "KRW-MNT",
+   "name": "맨틀",
+   "sector": "레이어2·확장",
+   "capT": 1.869
+  },
+  {
+   "code": "KRW-MORPHO",
+   "name": "모포",
+   "sector": "기타 알트코인",
+   "capT": 1.809
+  },
+  {
+   "code": "KRW-PEPE",
+   "name": "페페",
+   "sector": "밈",
+   "capT": 1.767
+  },
+  {
+   "code": "KRW-ICP",
+   "name": "인터넷컴퓨터",
+   "sector": "기타 알트코인",
+   "capT": 1.682
+  },
+  {
+   "code": "KRW-WLD",
+   "name": "월드코인",
+   "sector": "기타 알트코인",
+   "capT": 1.666
+  },
+  {
+   "code": "KRW-ETC",
+   "name": "이더리움클래식",
+   "sector": "스마트 컨트랙트",
+   "capT": 1.491
+  },
+  {
+   "code": "KRW-ENA",
+   "name": "에테나",
+   "sector": "디파이",
+   "capT": 1.266
+  },
+  {
+   "code": "KRW-PUMP",
+   "name": "펌프펀",
+   "sector": "기타 알트코인",
+   "capT": 1.266
+  },
+  {
+   "code": "KRW-JST",
+   "name": "저스트",
+   "sector": "기타 알트코인",
+   "capT": 1.24
+  },
+  {
+   "code": "KRW-ALGO",
+   "name": "알고랜드",
+   "sector": "스마트 컨트랙트",
+   "capT": 1.163
+  },
+  {
+   "code": "KRW-POL",
+   "name": "폴리곤에코시스템토큰",
+   "sector": "레이어2·확장",
+   "capT": 1.123
+  },
+  {
+   "code": "KRW-ATOM",
+   "name": "코스모스",
+   "sector": "스마트 컨트랙트",
+   "capT": 1.029
+  },
+  {
+   "code": "KRW-RENDER",
+   "name": "렌더토큰",
+   "sector": "AI",
+   "capT": 1.01
+  },
+  {
+   "code": "KRW-JUP",
+   "name": "주피터",
+   "sector": "디파이",
+   "capT": 0.921
+  },
+  {
+   "code": "KRW-FIL",
+   "name": "파일코인",
+   "sector": "인프라·오라클",
+   "capT": 0.842
+  },
+  {
+   "code": "KRW-VVV",
+   "name": "베니스토큰",
+   "sector": "기타 알트코인",
+   "capT": 0.833
+  },
+  {
+   "code": "KRW-ARB",
+   "name": "아비트럼",
+   "sector": "레이어2·확장",
+   "capT": 0.788
+  },
+  {
+   "code": "KRW-INJ",
+   "name": "인젝티브",
+   "sector": "디파이",
+   "capT": 0.718
+  },
+  {
+   "code": "KRW-APT",
+   "name": "앱토스",
+   "sector": "스마트 컨트랙트",
+   "capT": 0.698
+  },
+  {
+   "code": "KRW-VET",
+   "name": "비체인",
+   "sector": "스마트 컨트랙트",
+   "capT": 0.581
+  },
+  {
+   "code": "KRW-AERO",
+   "name": "에어로드롬파이낸스",
+   "sector": "기타 알트코인",
+   "capT": 0.57
+  },
+  {
+   "code": "KRW-PENGU",
+   "name": "펏지펭귄",
+   "sector": "밈",
+   "capT": 0.557
+  },
+  {
+   "code": "KRW-ETHFI",
+   "name": "이더파이",
+   "sector": "기타 알트코인",
+   "capT": 0.55
+  },
+  {
+   "code": "KRW-VIRTUAL",
+   "name": "버추얼프로토콜",
+   "sector": "AI",
+   "capT": 0.532
+  },
+  {
+   "code": "KRW-TRUMP",
+   "name": "오피셜트럼프",
+   "sector": "밈",
+   "capT": 0.523
+  },
+  {
+   "code": "KRW-SUN",
+   "name": "썬",
+   "sector": "기타 알트코인",
+   "capT": 0.494
+  },
+  {
+   "code": "KRW-TIA",
+   "name": "셀레스티아",
+   "sector": "기타 알트코인",
+   "capT": 0.462
+  },
+  {
+   "code": "KRW-PYTH",
+   "name": "피스네트워크",
+   "sector": "인프라·오라클",
+   "capT": 0.442
+  },
+  {
+   "code": "KRW-SPX",
+   "name": "에스피엑스6900",
+   "sector": "기타 알트코인",
+   "capT": 0.428
+  },
+  {
+   "code": "KRW-SEI",
+   "name": "세이",
+   "sector": "스마트 컨트랙트",
+   "capT": 0.402
+  },
+  {
+   "code": "KRW-ZRO",
+   "name": "레이어제로",
+   "sector": "기타 알트코인",
+   "capT": 0.375
+  },
+  {
+   "code": "KRW-BTT",
+   "name": "비트토렌트",
+   "sector": "기타 알트코인",
+   "capT": 0.372
+  },
+  {
+   "code": "KRW-JTO",
+   "name": "지토",
+   "sector": "기타 알트코인",
+   "capT": 0.369
+  },
+  {
+   "code": "KRW-STX",
+   "name": "스택스",
+   "sector": "기타 알트코인",
+   "capT": 0.366
+  },
+  {
+   "code": "KRW-BSV",
+   "name": "비트코인에스브이",
+   "sector": "가치 저장·결제",
+   "capT": 0.366
+  },
+  {
+   "code": "KRW-BONK",
+   "name": "봉크",
+   "sector": "밈",
+   "capT": 0.359
+  },
+  {
+   "code": "KRW-MON",
+   "name": "모나드",
+   "sector": "기타 알트코인",
+   "capT": 0.356
+  },
+  {
+   "code": "KRW-PENDLE",
+   "name": "펜들",
+   "sector": "기타 알트코인",
+   "capT": 0.335
+  },
+  {
+   "code": "KRW-KITE",
+   "name": "카이트",
+   "sector": "기타 알트코인",
+   "capT": 0.329
+  },
+  {
+   "code": "KRW-IMX",
+   "name": "이뮤터블엑스",
+   "sector": "게임·메타버스",
+   "capT": 0.318
+  },
+  {
+   "code": "KRW-XTZ",
+   "name": "테조스",
+   "sector": "기타 알트코인",
+   "capT": 0.312
+  },
+  {
+   "code": "KRW-KAITO",
+   "name": "카이토",
+   "sector": "기타 알트코인",
+   "capT": 0.311
+  },
+  {
+   "code": "KRW-XPL",
+   "name": "플라즈마",
+   "sector": "기타 알트코인",
+   "capT": 0.3
+  },
+  {
+   "code": "KRW-OP",
+   "name": "옵티미즘",
+   "sector": "레이어2·확장",
+   "capT": 0.292
+  },
+  {
+   "code": "KRW-CFX",
+   "name": "콘플럭스",
+   "sector": "기타 알트코인",
+   "capT": 0.292
+  },
+  {
+   "code": "KRW-PIEVERSE",
+   "name": "파이버스",
+   "sector": "기타 알트코인",
+   "capT": 0.29
+  },
+  {
+   "code": "KRW-SYRUP",
+   "name": "메이플파이낸스",
+   "sector": "기타 알트코인",
+   "capT": 0.285
+  },
+  {
+   "code": "KRW-2Z",
+   "name": "더블제로",
+   "sector": "기타 알트코인",
+   "capT": 0.277
+  },
+  {
+   "code": "KRW-FF",
+   "name": "팔콘파이낸스",
+   "sector": "기타 알트코인",
+   "capT": 0.272
+  },
+  {
+   "code": "KRW-ENS",
+   "name": "이더리움네임서비스",
+   "sector": "기타 알트코인",
+   "capT": 0.25
+  },
+  {
+   "code": "KRW-RAY",
+   "name": "레이디움",
+   "sector": "기타 알트코인",
+   "capT": 0.237
+  },
+  {
+   "code": "KRW-COMP",
+   "name": "컴파운드",
+   "sector": "디파이",
+   "capT": 0.237
+  },
+  {
+   "code": "KRW-GRT",
+   "name": "더그래프",
+   "sector": "인프라·오라클",
+   "capT": 0.229
+  },
+  {
+   "code": "KRW-AKT",
+   "name": "아카시네트워크",
+   "sector": "AI",
+   "capT": 0.222
+  },
+  {
+   "code": "KRW-IOTA",
+   "name": "아이오타",
+   "sector": "기타 알트코인",
+   "capT": 0.217
+  },
+  {
+   "code": "KRW-AXS",
+   "name": "엑시인피니티",
+   "sector": "게임·메타버스",
+   "capT": 0.207
+  },
+  {
+   "code": "KRW-META",
+   "name": "메타디움",
+   "sector": "기타 알트코인",
+   "capT": 0.207
+  },
+  {
+   "code": "KRW-WIF",
+   "name": "도그위프햇",
+   "sector": "밈",
+   "capT": 0.203
+  },
+  {
+   "code": "KRW-HOLO",
+   "name": "홀로월드에이아이",
+   "sector": "기타 알트코인",
+   "capT": 0.198
+  },
+  {
+   "code": "KRW-CHZ",
+   "name": "칠리즈",
+   "sector": "기타 알트코인",
+   "capT": 0.19
+  },
+  {
+   "code": "KRW-MANA",
+   "name": "디센트럴랜드",
+   "sector": "게임·메타버스",
+   "capT": 0.189
+  },
+  {
+   "code": "KRW-NEO",
+   "name": "네오",
+   "sector": "스마트 컨트랙트",
+   "capT": 0.188
+  },
+  {
+   "code": "KRW-THETA",
+   "name": "쎄타토큰",
+   "sector": "인프라·오라클",
+   "capT": 0.185
+  },
+  {
+   "code": "KRW-TRAC",
+   "name": "오리진트레일",
+   "sector": "기타 알트코인",
+   "capT": 0.183
+  },
+  {
+   "code": "KRW-SAND",
+   "name": "샌드박스",
+   "sector": "게임·메타버스",
+   "capT": 0.181
+  },
+  {
+   "code": "KRW-XEC",
+   "name": "이캐시",
+   "sector": "기타 알트코인",
+   "capT": 0.181
+  },
+  {
+   "code": "KRW-EDGE",
+   "name": "디피니티브",
+   "sector": "기타 알트코인",
+   "capT": 0.179
+  },
+  {
+   "code": "KRW-XCN",
+   "name": "오닉스코인",
+   "sector": "기타 알트코인",
+   "capT": 0.179
+  },
+  {
+   "code": "KRW-1INCH",
+   "name": "1인치네트워크",
+   "sector": "디파이",
+   "capT": 0.164
+  },
+  {
+   "code": "KRW-ZBT",
+   "name": "제로베이스",
+   "sector": "기타 알트코인",
+   "capT": 0.162
+  },
+  {
+   "code": "KRW-A",
+   "name": "볼타",
+   "sector": "기타 알트코인",
+   "capT": 0.156
+  },
+  {
+   "code": "KRW-AWE",
+   "name": "에이더블유이",
+   "sector": "기타 알트코인",
+   "capT": 0.155
+  },
+  {
+   "code": "KRW-ZAMA",
+   "name": "자마",
+   "sector": "기타 알트코인",
+   "capT": 0.154
+  },
+  {
+   "code": "KRW-FLUID",
+   "name": "플루이드",
+   "sector": "기타 알트코인",
+   "capT": 0.144
+  },
+  {
+   "code": "KRW-BAT",
+   "name": "베이직어텐션토큰",
+   "sector": "기타 알트코인",
+   "capT": 0.142
+  },
+  {
+   "code": "KRW-SENT",
+   "name": "센티언트",
+   "sector": "기타 알트코인",
+   "capT": 0.14
+  },
+  {
+   "code": "KRW-DRV",
+   "name": "디라이브",
+   "sector": "기타 알트코인",
+   "capT": 0.14
+  },
+  {
+   "code": "KRW-GLM",
+   "name": "골렘",
+   "sector": "기타 알트코인",
+   "capT": 0.132
+  },
+  {
+   "code": "KRW-GEOD",
+   "name": "지오드넷",
+   "sector": "기타 알트코인",
+   "capT": 0.13
+  },
+  {
+   "code": "KRW-EGLD",
+   "name": "멀티버스엑스",
+   "sector": "스마트 컨트랙트",
+   "capT": 0.125
+  },
+  {
+   "code": "KRW-ZK",
+   "name": "지케이싱크",
+   "sector": "레이어2·확장",
+   "capT": 0.116
+  },
+  {
+   "code": "KRW-O",
+   "name": "오원익스체인지",
+   "sector": "기타 알트코인",
+   "capT": 0.115
+  },
+  {
+   "code": "KRW-ATH",
+   "name": "에이셔",
+   "sector": "기타 알트코인",
+   "capT": 0.113
+  },
+  {
+   "code": "KRW-DATA",
+   "name": "데이터네트워크",
+   "sector": "기타 알트코인",
+   "capT": 0.11
+  },
+  {
+   "code": "KRW-SAFE",
+   "name": "세이프",
+   "sector": "기타 알트코인",
+   "capT": 0.108
+  },
+  {
+   "code": "KRW-BEAM",
+   "name": "빔",
+   "sector": "기타 알트코인",
+   "capT": 0.106
+  },
+  {
+   "code": "KRW-SOON",
+   "name": "쑨",
+   "sector": "기타 알트코인",
+   "capT": 0.105
+  },
+  {
+   "code": "KRW-NXPC",
+   "name": "넥스페이스",
+   "sector": "기타 알트코인",
+   "capT": 0.101
+  },
+  {
+   "code": "KRW-PRL",
+   "name": "펄",
+   "sector": "기타 알트코인",
+   "capT": 0.099
+  },
+  {
+   "code": "KRW-QTUM",
+   "name": "퀀텀",
+   "sector": "스마트 컨트랙트",
+   "capT": 0.098
+  },
+  {
+   "code": "KRW-ZRX",
+   "name": "제로엑스",
+   "sector": "기타 알트코인",
+   "capT": 0.097
+  },
+  {
+   "code": "KRW-PLUME",
+   "name": "플룸",
+   "sector": "기타 알트코인",
+   "capT": 0.096
+  },
+  {
+   "code": "KRW-CFG",
+   "name": "센트리퓨즈",
+   "sector": "기타 알트코인",
+   "capT": 0.095
+  },
+  {
+   "code": "KRW-ORCA",
+   "name": "오르카",
+   "sector": "기타 알트코인",
+   "capT": 0.094
+  },
+  {
+   "code": "KRW-LPT",
+   "name": "라이브피어",
+   "sector": "기타 알트코인",
+   "capT": 0.092
+  },
+  {
+   "code": "KRW-ARKM",
+   "name": "아캄",
+   "sector": "기타 알트코인",
+   "capT": 0.092
+  },
+  {
+   "code": "KRW-COW",
+   "name": "카우프로토콜",
+   "sector": "기타 알트코인",
+   "capT": 0.092
+  },
+  {
+   "code": "KRW-RE",
+   "name": "리",
+   "sector": "기타 알트코인",
+   "capT": 0.092
+  },
+  {
+   "code": "KRW-WAL",
+   "name": "월러스",
+   "sector": "기타 알트코인",
+   "capT": 0.09
+  },
+  {
+   "code": "KRW-GAS",
+   "name": "가스",
+   "sector": "기타 알트코인",
+   "capT": 0.087
+  },
+  {
+   "code": "KRW-RVN",
+   "name": "레이븐코인",
+   "sector": "기타 알트코인",
+   "capT": 0.083
+  },
+  {
+   "code": "KRW-LINEA",
+   "name": "리네아",
+   "sector": "기타 알트코인",
+   "capT": 0.08
+  },
+  {
+   "code": "KRW-ARX",
+   "name": "아르키움",
+   "sector": "기타 알트코인",
+   "capT": 0.079
+  },
+  {
+   "code": "KRW-TFUEL",
+   "name": "쎄타퓨엘",
+   "sector": "기타 알트코인",
+   "capT": 0.079
+  },
+  {
+   "code": "KRW-PROS",
+   "name": "파로스",
+   "sector": "기타 알트코인",
+   "capT": 0.078
+  },
+  {
+   "code": "KRW-MINA",
+   "name": "미나",
+   "sector": "기타 알트코인",
+   "capT": 0.076
+  },
+  {
+   "code": "KRW-W",
+   "name": "웜홀",
+   "sector": "기타 알트코인",
+   "capT": 0.075
+  },
+  {
+   "code": "KRW-SUPER",
+   "name": "슈퍼버스",
+   "sector": "기타 알트코인",
+   "capT": 0.075
+  },
+  {
+   "code": "KRW-ZIL",
+   "name": "질리카",
+   "sector": "기타 알트코인",
+   "capT": 0.071
+  },
+  {
+   "code": "KRW-ELF",
+   "name": "엘프",
+   "sector": "기타 알트코인",
+   "capT": 0.07
+  },
+  {
+   "code": "KRW-CHIP",
+   "name": "유에스디에이아이",
+   "sector": "기타 알트코인",
+   "capT": 0.07
+  },
+  {
+   "code": "KRW-BIO",
+   "name": "바이오프로토콜",
+   "sector": "기타 알트코인",
+   "capT": 0.068
+  },
+  {
+   "code": "KRW-IO",
+   "name": "아이오넷",
+   "sector": "기타 알트코인",
+   "capT": 0.068
+  },
+  {
+   "code": "KRW-BERA",
+   "name": "베라체인",
+   "sector": "기타 알트코인",
+   "capT": 0.068
+  },
+  {
+   "code": "KRW-SPK",
+   "name": "스파크",
+   "sector": "기타 알트코인",
+   "capT": 0.067
+  },
+  {
+   "code": "KRW-BABY",
+   "name": "바빌론",
+   "sector": "기타 알트코인",
+   "capT": 0.065
+  },
+  {
+   "code": "KRW-ZETA",
+   "name": "제타체인",
+   "sector": "기타 알트코인",
+   "capT": 0.064
+  },
+  {
+   "code": "KRW-AXL",
+   "name": "엑셀라",
+   "sector": "기타 알트코인",
+   "capT": 0.063
+  },
+  {
+   "code": "KRW-KAVA",
+   "name": "카바",
+   "sector": "기타 알트코인",
+   "capT": 0.063
+  },
+  {
+   "code": "KRW-TOSHI",
+   "name": "토시",
+   "sector": "기타 알트코인",
+   "capT": 0.063
+  },
+  {
+   "code": "KRW-SKR",
+   "name": "시커",
+   "sector": "기타 알트코인",
+   "capT": 0.061
+  },
+  {
+   "code": "KRW-ASTR",
+   "name": "아스타",
+   "sector": "기타 알트코인",
+   "capT": 0.06
+  },
+  {
+   "code": "KRW-POLYX",
+   "name": "폴리매쉬",
+   "sector": "기타 알트코인",
+   "capT": 0.06
+  },
+  {
+   "code": "KRW-MEGA",
+   "name": "메가이더",
+   "sector": "기타 알트코인",
+   "capT": 0.059
+  },
+  {
+   "code": "KRW-OPEN",
+   "name": "오픈렛저",
+   "sector": "기타 알트코인",
+   "capT": 0.058
+  },
+  {
+   "code": "KRW-CKB",
+   "name": "너보스",
+   "sector": "기타 알트코인",
+   "capT": 0.058
+  },
+  {
+   "code": "KRW-AZTEC",
+   "name": "아즈텍",
+   "sector": "기타 알트코인",
+   "capT": 0.058
+  },
+  {
+   "code": "KRW-RED",
+   "name": "레드스톤",
+   "sector": "기타 알트코인",
+   "capT": 0.058
+  },
+  {
+   "code": "KRW-ESP",
+   "name": "에스프레소",
+   "sector": "기타 알트코인",
+   "capT": 0.057
+  },
+  {
+   "code": "KRW-SNT",
+   "name": "스테이터스네트워크토큰",
+   "sector": "기타 알트코인",
+   "capT": 0.057
+  },
+  {
+   "code": "KRW-ALT",
+   "name": "알트레이어",
+   "sector": "기타 알트코인",
+   "capT": 0.056
+  },
+  {
+   "code": "KRW-POWR",
+   "name": "파워렛저",
+   "sector": "기타 알트코인",
+   "capT": 0.056
+  },
+  {
+   "code": "KRW-EUL",
+   "name": "오일러",
+   "sector": "기타 알트코인",
+   "capT": 0.056
+  },
+  {
+   "code": "KRW-DEEP",
+   "name": "딥북",
+   "sector": "기타 알트코인",
+   "capT": 0.056
+  },
+  {
+   "code": "KRW-CTC",
+   "name": "크레딧코인",
+   "sector": "기타 알트코인",
+   "capT": 0.055
+  },
+  {
+   "code": "KRW-BLUR",
+   "name": "블러",
+   "sector": "기타 알트코인",
+   "capT": 0.055
+  },
+  {
+   "code": "KRW-BARD",
+   "name": "롬바드",
+   "sector": "기타 알트코인",
+   "capT": 0.055
+  },
+  {
+   "code": "KRW-ONT",
+   "name": "온톨로지",
+   "sector": "기타 알트코인",
+   "capT": 0.054
+  },
+  {
+   "code": "KRW-CELO",
+   "name": "셀로",
+   "sector": "스마트 컨트랙트",
+   "capT": 0.053
+  },
+  {
+   "code": "KRW-T",
+   "name": "쓰레스홀드",
+   "sector": "기타 알트코인",
+   "capT": 0.053
+  },
+  {
+   "code": "KRW-ME",
+   "name": "매직에덴",
+   "sector": "기타 알트코인",
+   "capT": 0.052
+  },
+  {
+   "code": "KRW-MOODENG",
+   "name": "무뎅",
+   "sector": "기타 알트코인",
+   "capT": 0.051
+  },
+  {
+   "code": "KRW-MASK",
+   "name": "마스크네트워크",
+   "sector": "기타 알트코인",
+   "capT": 0.05
+  },
+  {
+   "code": "KRW-ANKR",
+   "name": "앵커",
+   "sector": "인프라·오라클",
+   "capT": 0.049
+  },
+  {
+   "code": "KRW-VTHO",
+   "name": "비토르토큰",
+   "sector": "기타 알트코인",
+   "capT": 0.048
+  },
+  {
+   "code": "KRW-PROVE",
+   "name": "서싱트",
+   "sector": "기타 알트코인",
+   "capT": 0.047
+  },
+  {
+   "code": "KRW-MOVE",
+   "name": "무브먼트",
+   "sector": "기타 알트코인",
+   "capT": 0.046
+  },
+  {
+   "code": "KRW-MOCA",
+   "name": "모카네트워크",
+   "sector": "기타 알트코인",
+   "capT": 0.046
+  },
+  {
+   "code": "KRW-MMT",
+   "name": "모멘텀",
+   "sector": "기타 알트코인",
+   "capT": 0.046
+  },
+  {
+   "code": "KRW-0G",
+   "name": "제로지",
+   "sector": "기타 알트코인",
+   "capT": 0.043
+  },
+  {
+   "code": "KRW-MEW",
+   "name": "캣인어독스월드",
+   "sector": "밈",
+   "capT": 0.043
+  },
+  {
+   "code": "KRW-MANTRA",
+   "name": "만트라",
+   "sector": "기타 알트코인",
+   "capT": 0.042
+  },
+  {
+   "code": "KRW-IRYS",
+   "name": "아이리스",
+   "sector": "기타 알트코인",
+   "capT": 0.042
+  },
+  {
+   "code": "KRW-AI",
+   "name": "젠신",
+   "sector": "기타 알트코인",
+   "capT": 0.041
+  },
+  {
+   "code": "KRW-SAHARA",
+   "name": "사하라에이아이",
+   "sector": "기타 알트코인",
+   "capT": 0.041
+  },
+  {
+   "code": "KRW-API3",
+   "name": "에이피아이쓰리",
+   "sector": "기타 알트코인",
+   "capT": 0.04
+  },
+  {
+   "code": "KRW-AVNT",
+   "name": "아반티스",
+   "sector": "기타 알트코인",
+   "capT": 0.039
+  },
+  {
+   "code": "KRW-ORBS",
+   "name": "오브스",
+   "sector": "기타 알트코인",
+   "capT": 0.039
+  },
+  {
+   "code": "KRW-BIGTIME",
+   "name": "빅타임",
+   "sector": "기타 알트코인",
+   "capT": 0.039
+  },
+  {
+   "code": "KRW-BORA",
+   "name": "보라",
+   "sector": "게임·메타버스",
+   "capT": 0.038
+  },
+  {
+   "code": "KRW-G",
+   "name": "그래비티",
+   "sector": "기타 알트코인",
+   "capT": 0.037
+  },
+  {
+   "code": "KRW-VANA",
+   "name": "바나",
+   "sector": "기타 알트코인",
+   "capT": 0.037
+  },
+  {
+   "code": "KRW-SC",
+   "name": "시아코인",
+   "sector": "기타 알트코인",
+   "capT": 0.036
+  },
+  {
+   "code": "KRW-KNC",
+   "name": "카이버네트워크",
+   "sector": "기타 알트코인",
+   "capT": 0.036
+  },
+  {
+   "code": "KRW-ZORA",
+   "name": "조라",
+   "sector": "기타 알트코인",
+   "capT": 0.036
+  },
+  {
+   "code": "KRW-WAXP",
+   "name": "왁스",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-CARV",
+   "name": "카브",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-LSK",
+   "name": "리스크",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-PUNDIX",
+   "name": "펀디엑스",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-HUNT",
+   "name": "헌트",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-META2",
+   "name": "메타다오",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-DOOD",
+   "name": "두들즈",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-WAVES",
+   "name": "웨이브",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-TREE",
+   "name": "트리하우스",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-WET",
+   "name": "휴미디파이",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-BOUNTY",
+   "name": "체인바운티",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-BLAST",
+   "name": "블라스트",
+   "sector": "레이어2·확장",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-DKA",
+   "name": "디카르고",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-UP2",
+   "name": "슈퍼폼",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-TOKAMAK",
+   "name": "토카막네트워크",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-CYBER",
+   "name": "사이버",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-NEWT",
+   "name": "뉴턴프로토콜",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-B3",
+   "name": "비쓰리",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-LAYER",
+   "name": "솔레이어",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-F",
+   "name": "신퓨처스",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ANIME",
+   "name": "애니메코인",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-AHT",
+   "name": "아하토큰",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-BLEND",
+   "name": "플루언트",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ERA",
+   "name": "칼데라",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-IOST",
+   "name": "아이오에스티",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-IQ",
+   "name": "아이큐",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-AGLD",
+   "name": "어드벤처골드",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ID",
+   "name": "스페이스아이디",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-IN",
+   "name": "인피닛",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-HP",
+   "name": "히포프로토콜",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-WCT",
+   "name": "월렛커넥트",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-YGG",
+   "name": "일드길드게임즈",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ARDR",
+   "name": "아더",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-TRUST",
+   "name": "인튜이션",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-SONIC",
+   "name": "소닉SVM",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-CVC",
+   "name": "시빅",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ARK",
+   "name": "아크",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-LA",
+   "name": "라그랑주",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-HYPER",
+   "name": "하이퍼레인",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-TAIKO",
+   "name": "타이코",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-CPOOL",
+   "name": "클리어풀",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-MVL",
+   "name": "엠블",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-HIVE",
+   "name": "하이브",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-CBK",
+   "name": "코박토큰",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-KERNEL",
+   "name": "커널다오",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-POKT",
+   "name": "포켓네트워크",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ZKC",
+   "name": "바운드리스",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ZKP",
+   "name": "지케이패스",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-AUCTION",
+   "name": "바운스토큰",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ORDER",
+   "name": "오덜리",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-FCT2",
+   "name": "피르마체인",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-MTL",
+   "name": "메탈",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-TT",
+   "name": "썬더코어",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-STORJ",
+   "name": "스토리지",
+   "sector": "인프라·오라클",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-GMT",
+   "name": "스테픈",
+   "sector": "게임·메타버스",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-STEEM",
+   "name": "스팀",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ELSA",
+   "name": "헤이엘사",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-SOPH",
+   "name": "소폰",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-MED",
+   "name": "메디블록",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-KAT",
+   "name": "카타나",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-SIGN",
+   "name": "사인",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-SLX",
+   "name": "솔스티스",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-MET2",
+   "name": "메테오라",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-MBL",
+   "name": "무비블록",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-QKC",
+   "name": "쿼크체인",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-MLK",
+   "name": "밀크",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-MOC",
+   "name": "모스코인",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-GAME2",
+   "name": "게임빌드",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-FLOCK",
+   "name": "플록",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-MIRA",
+   "name": "미라네트워크",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ONG",
+   "name": "온톨로지가스",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ENSO",
+   "name": "엔소",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-BIRB",
+   "name": "문버드",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-SOMI",
+   "name": "솜니아",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-STRAX",
+   "name": "저트라",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-OPG",
+   "name": "오픈그라디언트",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-BREV",
+   "name": "브레비스",
+   "sector": "기타 알트코인",
+   "capT": 0.01
+  },
+  {
+   "code": "KRW-ICX",
+   "name": "아이콘",
+   "sector": "스마트 컨트랙트",
+   "capT": 0.01
+  }
+ ]
+}

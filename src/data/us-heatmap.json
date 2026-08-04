@@ -1,0 +1,2982 @@
+{
+ "snapshotDate": "2026-08-04",
+ "count": 496,
+ "stocks": [
+  {
+   "code": "NVDA",
+   "name": "Nvidia",
+   "sector": "전자 기술",
+   "capT": 7000
+  },
+  {
+   "code": "GOOGL",
+   "name": "Alphabet Inc.",
+   "sector": "커뮤니케이션",
+   "capT": 6398
+  },
+  {
+   "code": "AAPL",
+   "name": "Apple Inc.",
+   "sector": "전자 기술",
+   "capT": 6202
+  },
+  {
+   "code": "MSFT",
+   "name": "Microsoft",
+   "sector": "전자 기술",
+   "capT": 5068
+  },
+  {
+   "code": "AMZN",
+   "name": "Amazon",
+   "sector": "소비자 내구재",
+   "capT": 4284
+  },
+  {
+   "code": "AVGO",
+   "name": "Broadcom",
+   "sector": "전자 기술",
+   "capT": 2618
+  },
+  {
+   "code": "META",
+   "name": "Meta Platforms",
+   "sector": "커뮤니케이션",
+   "capT": 2100
+  },
+  {
+   "code": "TSLA",
+   "name": "Tesla, Inc.",
+   "sector": "소비자 내구재",
+   "capT": 1778
+  },
+  {
+   "code": "BRK.B",
+   "name": "Berkshire Hathaway",
+   "sector": "금융",
+   "capT": 1554
+  },
+  {
+   "code": "LLY",
+   "name": "Lilly (Eli)",
+   "sector": "의료 기술",
+   "capT": 1399.94
+  },
+  {
+   "code": "JPM",
+   "name": "JPMorgan Chase",
+   "sector": "금융",
+   "capT": 1312.35
+  },
+  {
+   "code": "MU",
+   "name": "Micron Technology",
+   "sector": "전자 기술",
+   "capT": 1311.56
+  },
+  {
+   "code": "WMT",
+   "name": "Walmart",
+   "sector": "소비재 비내구재",
+   "capT": 1233.46
+  },
+  {
+   "code": "AMD",
+   "name": "Advanced Micro Devices",
+   "sector": "전자 기술",
+   "capT": 1106.35
+  },
+  {
+   "code": "V",
+   "name": "Visa Inc.",
+   "sector": "금융",
+   "capT": 939.72
+  },
+  {
+   "code": "XOM",
+   "name": "ExxonMobil",
+   "sector": "에너지 미네랄",
+   "capT": 892.65
+  },
+  {
+   "code": "JNJ",
+   "name": "Johnson & Johnson",
+   "sector": "의료 기술",
+   "capT": 858.34
+  },
+  {
+   "code": "MA",
+   "name": "Mastercard",
+   "sector": "금융",
+   "capT": 700.25
+  },
+  {
+   "code": "INTC",
+   "name": "Intel",
+   "sector": "전자 기술",
+   "capT": 642.6
+  },
+  {
+   "code": "CSCO",
+   "name": "Cisco",
+   "sector": "전자 기술",
+   "capT": 639.31
+  },
+  {
+   "code": "BAC",
+   "name": "Bank of America",
+   "sector": "금융",
+   "capT": 611.67
+  },
+  {
+   "code": "ABBV",
+   "name": "AbbVie",
+   "sector": "의료 기술",
+   "capT": 606.37
+  },
+  {
+   "code": "COST",
+   "name": "Costco",
+   "sector": "소비재 비내구재",
+   "capT": 592.35
+  },
+  {
+   "code": "AMAT",
+   "name": "Applied Materials",
+   "sector": "전자 기술",
+   "capT": 576.02
+  },
+  {
+   "code": "ORCL",
+   "name": "Oracle Corporation",
+   "sector": "전자 기술",
+   "capT": 572.03
+  },
+  {
+   "code": "GE",
+   "name": "GE Aerospace",
+   "sector": "생산자 제조",
+   "capT": 535.91
+  },
+  {
+   "code": "CAT",
+   "name": "Caterpillar Inc.",
+   "sector": "생산자 제조",
+   "capT": 535.23
+  },
+  {
+   "code": "CVX",
+   "name": "Chevron Corporation",
+   "sector": "에너지 미네랄",
+   "capT": 530.63
+  },
+  {
+   "code": "UNH",
+   "name": "UnitedHealth Group",
+   "sector": "의료 기술",
+   "capT": 528.09
+  },
+  {
+   "code": "KO",
+   "name": "Coca-Cola Company (The)",
+   "sector": "소비재 비내구재",
+   "capT": 523.21
+  },
+  {
+   "code": "LRCX",
+   "name": "Lam Research",
+   "sector": "전자 기술",
+   "capT": 516.1
+  },
+  {
+   "code": "HD",
+   "name": "Home Depot (The)",
+   "sector": "소비자 내구재",
+   "capT": 474.66
+  },
+  {
+   "code": "PG",
+   "name": "Procter & Gamble",
+   "sector": "소비재 비내구재",
+   "capT": 472.61
+  },
+  {
+   "code": "MS",
+   "name": "Morgan Stanley",
+   "sector": "금융",
+   "capT": 464.87
+  },
+  {
+   "code": "MRK",
+   "name": "Merck & Co.",
+   "sector": "의료 기술",
+   "capT": 441.8
+  },
+  {
+   "code": "GS",
+   "name": "Goldman Sachs",
+   "sector": "금융",
+   "capT": 440.86
+  },
+  {
+   "code": "NFLX",
+   "name": "Netflix",
+   "sector": "커뮤니케이션",
+   "capT": 427.48
+  },
+  {
+   "code": "PLTR",
+   "name": "Palantir Technologies",
+   "sector": "전자 기술",
+   "capT": 421.71
+  },
+  {
+   "code": "PM",
+   "name": "Philip Morris International",
+   "sector": "소비재 비내구재",
+   "capT": 408.94
+  },
+  {
+   "code": "RTX",
+   "name": "RTX Corporation",
+   "sector": "생산자 제조",
+   "capT": 408.79
+  },
+  {
+   "code": "PANW",
+   "name": "Palo Alto Networks",
+   "sector": "전자 기술",
+   "capT": 396.07
+  },
+  {
+   "code": "DELL",
+   "name": "Dell Technologies",
+   "sector": "전자 기술",
+   "capT": 388.09
+  },
+  {
+   "code": "GEV",
+   "name": "GE Vernova",
+   "sector": "생산자 제조",
+   "capT": 375.38
+  },
+  {
+   "code": "WFC",
+   "name": "Wells Fargo",
+   "sector": "금융",
+   "capT": 372.09
+  },
+  {
+   "code": "TXN",
+   "name": "Texas Instruments",
+   "sector": "전자 기술",
+   "capT": 343.98
+  },
+  {
+   "code": "KLAC",
+   "name": "KLA Corporation",
+   "sector": "전자 기술",
+   "capT": 334.21
+  },
+  {
+   "code": "ANET",
+   "name": "Arista Networks",
+   "sector": "전자 기술",
+   "capT": 325.93
+  },
+  {
+   "code": "AXP",
+   "name": "American Express",
+   "sector": "금융",
+   "capT": 325.91
+  },
+  {
+   "code": "C",
+   "name": "Citigroup",
+   "sector": "금융",
+   "capT": 313.67
+  },
+  {
+   "code": "LIN",
+   "name": "Linde plc",
+   "sector": "공정 산업",
+   "capT": 310.07
+  },
+  {
+   "code": "IBM",
+   "name": "IBM",
+   "sector": "전자 기술",
+   "capT": 298.49
+  },
+  {
+   "code": "TMO",
+   "name": "Thermo Fisher Scientific",
+   "sector": "의료 기술",
+   "capT": 297.15
+  },
+  {
+   "code": "CRWD",
+   "name": "CrowdStrike",
+   "sector": "전자 기술",
+   "capT": 288.74
+  },
+  {
+   "code": "AMGN",
+   "name": "Amgen",
+   "sector": "의료 기술",
+   "capT": 286.27
+  },
+  {
+   "code": "APH",
+   "name": "Amphenol",
+   "sector": "전자 기술",
+   "capT": 281.96
+  },
+  {
+   "code": "VZ",
+   "name": "Verizon",
+   "sector": "커뮤니케이션",
+   "capT": 275.48
+  },
+  {
+   "code": "SNDK",
+   "name": "Sandisk",
+   "sector": "전자 기술",
+   "capT": 267.04
+  },
+  {
+   "code": "PEP",
+   "name": "PepsiCo",
+   "sector": "소비재 비내구재",
+   "capT": 266.81
+  },
+  {
+   "code": "TMUS",
+   "name": "T-Mobile US",
+   "sector": "커뮤니케이션",
+   "capT": 265.94
+  },
+  {
+   "code": "STX",
+   "name": "Seagate Technology",
+   "sector": "전자 기술",
+   "capT": 264.11
+  },
+  {
+   "code": "MCD",
+   "name": "McDonald's",
+   "sector": "소비자 내구재",
+   "capT": 263.83
+  },
+  {
+   "code": "ABT",
+   "name": "Abbott Laboratories",
+   "sector": "의료 기술",
+   "capT": 259.5
+  },
+  {
+   "code": "BA",
+   "name": "Boeing",
+   "sector": "생산자 제조",
+   "capT": 258.36
+  },
+  {
+   "code": "SCHW",
+   "name": "Charles Schwab Corporation",
+   "sector": "금융",
+   "capT": 257.77
+  },
+  {
+   "code": "BLK",
+   "name": "BlackRock",
+   "sector": "금융",
+   "capT": 256.47
+  },
+  {
+   "code": "WDC",
+   "name": "Western Digital",
+   "sector": "전자 기술",
+   "capT": 254.41
+  },
+  {
+   "code": "NEE",
+   "name": "NextEra Energy",
+   "sector": "유틸리티",
+   "capT": 252.74
+  },
+  {
+   "code": "ADI",
+   "name": "Analog Devices",
+   "sector": "전자 기술",
+   "capT": 246.78
+  },
+  {
+   "code": "TJX",
+   "name": "TJX Companies",
+   "sector": "소비자 내구재",
+   "capT": 243.59
+  },
+  {
+   "code": "UNP",
+   "name": "Union Pacific Corporation",
+   "sector": "생산자 제조",
+   "capT": 242.21
+  },
+  {
+   "code": "DIS",
+   "name": "Walt Disney Company (The)",
+   "sector": "커뮤니케이션",
+   "capT": 238.59
+  },
+  {
+   "code": "ETN",
+   "name": "Eaton Corporation",
+   "sector": "생산자 제조",
+   "capT": 238.29
+  },
+  {
+   "code": "WELL",
+   "name": "Welltower",
+   "sector": "부동산",
+   "capT": 235.21
+  },
+  {
+   "code": "BX",
+   "name": "Blackstone Inc.",
+   "sector": "금융",
+   "capT": 234.53
+  },
+  {
+   "code": "DE",
+   "name": "Deere & Company",
+   "sector": "생산자 제조",
+   "capT": 228.66
+  },
+  {
+   "code": "GILD",
+   "name": "Gilead Sciences",
+   "sector": "의료 기술",
+   "capT": 227.96
+  },
+  {
+   "code": "QCOM",
+   "name": "Qualcomm",
+   "sector": "전자 기술",
+   "capT": 226.65
+  },
+  {
+   "code": "T",
+   "name": "AT&T",
+   "sector": "커뮤니케이션",
+   "capT": 226.31
+  },
+  {
+   "code": "CRM",
+   "name": "Salesforce",
+   "sector": "전자 기술",
+   "capT": 213.21
+  },
+  {
+   "code": "BKNG",
+   "name": "Booking Holdings",
+   "sector": "소비자 내구재",
+   "capT": 209.06
+  },
+  {
+   "code": "UBER",
+   "name": "Uber",
+   "sector": "생산자 제조",
+   "capT": 204.08
+  },
+  {
+   "code": "COP",
+   "name": "ConocoPhillips",
+   "sector": "에너지 미네랄",
+   "capT": 203.24
+  },
+  {
+   "code": "PFE",
+   "name": "Pfizer",
+   "sector": "의료 기술",
+   "capT": 199.72
+  },
+  {
+   "code": "DHR",
+   "name": "Danaher Corporation",
+   "sector": "의료 기술",
+   "capT": 194.38
+  },
+  {
+   "code": "PLD",
+   "name": "Prologis",
+   "sector": "부동산",
+   "capT": 192.19
+  },
+  {
+   "code": "APP",
+   "name": "AppLovin",
+   "sector": "전자 기술",
+   "capT": 191.03
+  },
+  {
+   "code": "LMT",
+   "name": "Lockheed Martin",
+   "sector": "생산자 제조",
+   "capT": 189.43
+  },
+  {
+   "code": "CVS",
+   "name": "CVS Health",
+   "sector": "의료 기술",
+   "capT": 188.22
+  },
+  {
+   "code": "CB",
+   "name": "Chubb Limited",
+   "sector": "금융",
+   "capT": 188.09
+  },
+  {
+   "code": "BMY",
+   "name": "Bristol Myers Squibb",
+   "sector": "의료 기술",
+   "capT": 187.24
+  },
+  {
+   "code": "COF",
+   "name": "Capital One",
+   "sector": "금융",
+   "capT": 186.96
+  },
+  {
+   "code": "ISRG",
+   "name": "Intuitive Surgical",
+   "sector": "의료 기술",
+   "capT": 185.67
+  },
+  {
+   "code": "SYK",
+   "name": "Stryker Corporation",
+   "sector": "의료 기술",
+   "capT": 183.23
+  },
+  {
+   "code": "GLW",
+   "name": "Corning Inc.",
+   "sector": "전자 기술",
+   "capT": 176.83
+  },
+  {
+   "code": "PH",
+   "name": "Parker Hannifin",
+   "sector": "생산자 제조",
+   "capT": 176.08
+  },
+  {
+   "code": "SPGI",
+   "name": "S&P Global",
+   "sector": "금융",
+   "capT": 171.78
+  },
+  {
+   "code": "PGR",
+   "name": "Progressive Corporation",
+   "sector": "금융",
+   "capT": 171.3
+  },
+  {
+   "code": "FTNT",
+   "name": "Fortinet",
+   "sector": "전자 기술",
+   "capT": 167.65
+  },
+  {
+   "code": "VRTX",
+   "name": "Vertex Pharmaceuticals",
+   "sector": "의료 기술",
+   "capT": 167.26
+  },
+  {
+   "code": "LOW",
+   "name": "Lowe's",
+   "sector": "소비자 내구재",
+   "capT": 166.46
+  },
+  {
+   "code": "NOW",
+   "name": "ServiceNow",
+   "sector": "전자 기술",
+   "capT": 165.28
+  },
+  {
+   "code": "SBUX",
+   "name": "Starbucks",
+   "sector": "소비자 내구재",
+   "capT": 164.95
+  },
+  {
+   "code": "HWM",
+   "name": "Howmet Aerospace",
+   "sector": "생산자 제조",
+   "capT": 160.4
+  },
+  {
+   "code": "MO",
+   "name": "Altria",
+   "sector": "소비재 비내구재",
+   "capT": 159.57
+  },
+  {
+   "code": "MDT",
+   "name": "Medtronic",
+   "sector": "의료 기술",
+   "capT": 155.33
+  },
+  {
+   "code": "ADP",
+   "name": "Automatic Data Processing",
+   "sector": "생산자 제조",
+   "capT": 150.25
+  },
+  {
+   "code": "SO",
+   "name": "Southern Company",
+   "sector": "유틸리티",
+   "capT": 149.67
+  },
+  {
+   "code": "BNY",
+   "name": "BNY Mellon",
+   "sector": "금융",
+   "capT": 148.37
+  },
+  {
+   "code": "GD",
+   "name": "General Dynamics",
+   "sector": "생산자 제조",
+   "capT": 144.63
+  },
+  {
+   "code": "PWR",
+   "name": "Quanta Services",
+   "sector": "생산자 제조",
+   "capT": 143.16
+  },
+  {
+   "code": "EQIX",
+   "name": "Equinix",
+   "sector": "부동산",
+   "capT": 142.48
+  },
+  {
+   "code": "TT",
+   "name": "Trane Technologies",
+   "sector": "생산자 제조",
+   "capT": 142.07
+  },
+  {
+   "code": "ACN",
+   "name": "Accenture",
+   "sector": "전자 기술",
+   "capT": 142.02
+  },
+  {
+   "code": "VRT",
+   "name": "Vertiv",
+   "sector": "생산자 제조",
+   "capT": 141.78
+  },
+  {
+   "code": "PNC",
+   "name": "PNC Financial Services",
+   "sector": "금융",
+   "capT": 140.77
+  },
+  {
+   "code": "NEM",
+   "name": "Newmont",
+   "sector": "공정 산업",
+   "capT": 140.69
+  },
+  {
+   "code": "ADBE",
+   "name": "Adobe Inc.",
+   "sector": "전자 기술",
+   "capT": 139.87
+  },
+  {
+   "code": "USB",
+   "name": "U.S. Bancorp",
+   "sector": "금융",
+   "capT": 139.44
+  },
+  {
+   "code": "CEG",
+   "name": "Constellation Energy",
+   "sector": "유틸리티",
+   "capT": 136.84
+  },
+  {
+   "code": "DDOG",
+   "name": "Datadog",
+   "sector": "전자 기술",
+   "capT": 136.35
+  },
+  {
+   "code": "DUK",
+   "name": "Duke Energy",
+   "sector": "유틸리티",
+   "capT": 135.65
+  },
+  {
+   "code": "MCK",
+   "name": "McKesson Corporation",
+   "sector": "의료 기술",
+   "capT": 135.58
+  },
+  {
+   "code": "CME",
+   "name": "CME Group",
+   "sector": "금융",
+   "capT": 133.99
+  },
+  {
+   "code": "KKR",
+   "name": "KKR & Co.",
+   "sector": "금융",
+   "capT": 133.94
+  },
+  {
+   "code": "CDNS",
+   "name": "Cadence Design Systems",
+   "sector": "전자 기술",
+   "capT": 129.6
+  },
+  {
+   "code": "CSX",
+   "name": "CSX Corporation",
+   "sector": "생산자 제조",
+   "capT": 129.22
+  },
+  {
+   "code": "MRSH",
+   "name": "Marsh McLennan",
+   "sector": "금융",
+   "capT": 128.84
+  },
+  {
+   "code": "FCX",
+   "name": "Freeport-McMoRan",
+   "sector": "공정 산업",
+   "capT": 128.09
+  },
+  {
+   "code": "MNST",
+   "name": "Monster Beverage",
+   "sector": "소비재 비내구재",
+   "capT": 128.09
+  },
+  {
+   "code": "MMM",
+   "name": "3M",
+   "sector": "생산자 제조",
+   "capT": 127.96
+  },
+  {
+   "code": "UPS",
+   "name": "United Parcel Service",
+   "sector": "생산자 제조",
+   "capT": 127.18
+  },
+  {
+   "code": "WM",
+   "name": "Waste Management",
+   "sector": "생산자 제조",
+   "capT": 126.71
+  },
+  {
+   "code": "MAR",
+   "name": "Marriott International",
+   "sector": "소비자 내구재",
+   "capT": 126.62
+  },
+  {
+   "code": "MPC",
+   "name": "Marathon Petroleum",
+   "sector": "에너지 미네랄",
+   "capT": 125.48
+  },
+  {
+   "code": "CMI",
+   "name": "Cummins",
+   "sector": "생산자 제조",
+   "capT": 125.34
+  },
+  {
+   "code": "ABNB",
+   "name": "Airbnb",
+   "sector": "소비자 내구재",
+   "capT": 125.17
+  },
+  {
+   "code": "JCI",
+   "name": "Johnson Controls",
+   "sector": "생산자 제조",
+   "capT": 124.14
+  },
+  {
+   "code": "VLO",
+   "name": "Valero Energy",
+   "sector": "에너지 미네랄",
+   "capT": 123.97
+  },
+  {
+   "code": "HCA",
+   "name": "HCA Healthcare",
+   "sector": "의료 기술",
+   "capT": 123.24
+  },
+  {
+   "code": "DASH",
+   "name": "DoorDash",
+   "sector": "소비자 내구재",
+   "capT": 122.3
+  },
+  {
+   "code": "SPG",
+   "name": "Simon Property Group",
+   "sector": "부동산",
+   "capT": 122.02
+  },
+  {
+   "code": "CMCSA",
+   "name": "Comcast",
+   "sector": "커뮤니케이션",
+   "capT": 122.01
+  },
+  {
+   "code": "INTU",
+   "name": "Intuit",
+   "sector": "전자 기술",
+   "capT": 121.93
+  },
+  {
+   "code": "EMR",
+   "name": "Emerson Electric",
+   "sector": "생산자 제조",
+   "capT": 121.42
+  },
+  {
+   "code": "RCL",
+   "name": "Royal Caribbean Group",
+   "sector": "소비자 내구재",
+   "capT": 121.31
+  },
+  {
+   "code": "WMB",
+   "name": "Williams Companies",
+   "sector": "에너지 미네랄",
+   "capT": 120.6
+  },
+  {
+   "code": "SHW",
+   "name": "Sherwin-Williams",
+   "sector": "공정 산업",
+   "capT": 119.67
+  },
+  {
+   "code": "ICE",
+   "name": "Intercontinental Exchange",
+   "sector": "금융",
+   "capT": 119.31
+  },
+  {
+   "code": "MCO",
+   "name": "Moody's Corporation",
+   "sector": "금융",
+   "capT": 117.19
+  },
+  {
+   "code": "ELV",
+   "name": "Elevance Health",
+   "sector": "의료 기술",
+   "capT": 116.21
+  },
+  {
+   "code": "ITW",
+   "name": "Illinois Tool Works",
+   "sector": "생산자 제조",
+   "capT": 116.2
+  },
+  {
+   "code": "PSX",
+   "name": "Phillips 66",
+   "sector": "에너지 미네랄",
+   "capT": 115.74
+  },
+  {
+   "code": "CTAS",
+   "name": "Cintas",
+   "sector": "생산자 제조",
+   "capT": 114.3
+  },
+  {
+   "code": "HOOD",
+   "name": "Robinhood Markets",
+   "sector": "금융",
+   "capT": 113.71
+  },
+  {
+   "code": "ROST",
+   "name": "Ross Stores",
+   "sector": "소비자 내구재",
+   "capT": 113.58
+  },
+  {
+   "code": "AMT",
+   "name": "American Tower",
+   "sector": "부동산",
+   "capT": 112.85
+  },
+  {
+   "code": "MDLZ",
+   "name": "Mondelez International",
+   "sector": "소비재 비내구재",
+   "capT": 110.31
+  },
+  {
+   "code": "ECL",
+   "name": "Ecolab",
+   "sector": "공정 산업",
+   "capT": 110.1
+  },
+  {
+   "code": "HON",
+   "name": "Honeywell Technologies",
+   "sector": "생산자 제조",
+   "capT": 109.49
+  },
+  {
+   "code": "TRV",
+   "name": "Travelers Companies (The)",
+   "sector": "금융",
+   "capT": 109.16
+  },
+  {
+   "code": "NOC",
+   "name": "Northrop Grumman",
+   "sector": "생산자 제조",
+   "capT": 109.09
+  },
+  {
+   "code": "EOG",
+   "name": "EOG Resources",
+   "sector": "에너지 미네랄",
+   "capT": 108.63
+  },
+  {
+   "code": "GM",
+   "name": "General Motors",
+   "sector": "소비자 내구재",
+   "capT": 107.7
+  },
+  {
+   "code": "AON",
+   "name": "Aon plc",
+   "sector": "금융",
+   "capT": 106.2
+  },
+  {
+   "code": "REGN",
+   "name": "Regeneron Pharmaceuticals",
+   "sector": "의료 기술",
+   "capT": 106.13
+  },
+  {
+   "code": "NSC",
+   "name": "Norfolk Southern",
+   "sector": "생산자 제조",
+   "capT": 105.85
+  },
+  {
+   "code": "SNPS",
+   "name": "Synopsys",
+   "sector": "전자 기술",
+   "capT": 105.1
+  },
+  {
+   "code": "APO",
+   "name": "Apollo Global Management",
+   "sector": "금융",
+   "capT": 104.45
+  },
+  {
+   "code": "CI",
+   "name": "Cigna",
+   "sector": "의료 기술",
+   "capT": 104.34
+  },
+  {
+   "code": "CVNA",
+   "name": "Carvana",
+   "sector": "소비자 내구재",
+   "capT": 103.15
+  },
+  {
+   "code": "ORLY",
+   "name": "O’Reilly Automotive",
+   "sector": "소비자 내구재",
+   "capT": 102.56
+  },
+  {
+   "code": "SLB",
+   "name": "Schlumberger",
+   "sector": "에너지 미네랄",
+   "capT": 102.45
+  },
+  {
+   "code": "FDX",
+   "name": "FedEx",
+   "sector": "생산자 제조",
+   "capT": 102.42
+  },
+  {
+   "code": "MSI",
+   "name": "Motorola Solutions",
+   "sector": "전자 기술",
+   "capT": 101.6
+  },
+  {
+   "code": "DLR",
+   "name": "Digital Realty",
+   "sector": "부동산",
+   "capT": 100.84
+  },
+  {
+   "code": "TDG",
+   "name": "TransDigm Group",
+   "sector": "생산자 제조",
+   "capT": 100.67
+  },
+  {
+   "code": "CL",
+   "name": "Colgate-Palmolive",
+   "sector": "소비재 비내구재",
+   "capT": 100.31
+  },
+  {
+   "code": "HLT",
+   "name": "Hilton Worldwide",
+   "sector": "소비자 내구재",
+   "capT": 99.05
+  },
+  {
+   "code": "BSX",
+   "name": "Boston Scientific",
+   "sector": "의료 기술",
+   "capT": 98.27
+  },
+  {
+   "code": "KMI",
+   "name": "Kinder Morgan",
+   "sector": "에너지 미네랄",
+   "capT": 97.89
+  },
+  {
+   "code": "AEP",
+   "name": "American Electric Power",
+   "sector": "유틸리티",
+   "capT": 97.8
+  },
+  {
+   "code": "PCAR",
+   "name": "Paccar",
+   "sector": "생산자 제조",
+   "capT": 97.31
+  },
+  {
+   "code": "URI",
+   "name": "United Rentals",
+   "sector": "생산자 제조",
+   "capT": 97.24
+  },
+  {
+   "code": "TGT",
+   "name": "Target Corporation",
+   "sector": "소비재 비내구재",
+   "capT": 94.96
+  },
+  {
+   "code": "ALL",
+   "name": "Allstate",
+   "sector": "금융",
+   "capT": 94.67
+  },
+  {
+   "code": "HPE",
+   "name": "Hewlett Packard Enterprise",
+   "sector": "전자 기술",
+   "capT": 93.14
+  },
+  {
+   "code": "MPWR",
+   "name": "Monolithic Power Systems",
+   "sector": "전자 기술",
+   "capT": 92.5
+  },
+  {
+   "code": "CRH",
+   "name": "CRH plc",
+   "sector": "공정 산업",
+   "capT": 91.83
+  },
+  {
+   "code": "WBD",
+   "name": "Warner Bros. Discovery",
+   "sector": "커뮤니케이션",
+   "capT": 91.56
+  },
+  {
+   "code": "APD",
+   "name": "Air Products",
+   "sector": "공정 산업",
+   "capT": 91.32
+  },
+  {
+   "code": "GWW",
+   "name": "W. W. Grainger",
+   "sector": "생산자 제조",
+   "capT": 90.64
+  },
+  {
+   "code": "AFL",
+   "name": "Aflac",
+   "sector": "금융",
+   "capT": 90.29
+  },
+  {
+   "code": "RSG",
+   "name": "Republic Services",
+   "sector": "생산자 제조",
+   "capT": 90.29
+  },
+  {
+   "code": "AJG",
+   "name": "Arthur J. Gallagher & Co.",
+   "sector": "금융",
+   "capT": 88.93
+  },
+  {
+   "code": "TFC",
+   "name": "Truist Financial",
+   "sector": "금융",
+   "capT": 88.8
+  },
+  {
+   "code": "NKE",
+   "name": "Nike, Inc.",
+   "sector": "소비자 내구재",
+   "capT": 88.56
+  },
+  {
+   "code": "FIX",
+   "name": "Comfort Systems USA",
+   "sector": "생산자 제조",
+   "capT": 87.12
+  },
+  {
+   "code": "MET",
+   "name": "MetLife",
+   "sector": "금융",
+   "capT": 86.76
+  },
+  {
+   "code": "PSA",
+   "name": "Public Storage",
+   "sector": "부동산",
+   "capT": 85.25
+  },
+  {
+   "code": "LITE",
+   "name": "Lumentum",
+   "sector": "전자 기술",
+   "capT": 84.95
+  },
+  {
+   "code": "D",
+   "name": "Dominion Energy",
+   "sector": "유틸리티",
+   "capT": 84.66
+  },
+  {
+   "code": "BKR",
+   "name": "Baker Hughes",
+   "sector": "에너지 미네랄",
+   "capT": 84.5
+  },
+  {
+   "code": "COR",
+   "name": "Cencora",
+   "sector": "의료 기술",
+   "capT": 84
+  },
+  {
+   "code": "DAL",
+   "name": "Delta Air Lines",
+   "sector": "생산자 제조",
+   "capT": 83.87
+  },
+  {
+   "code": "NUE",
+   "name": "Nucor",
+   "sector": "공정 산업",
+   "capT": 83.3
+  },
+  {
+   "code": "O",
+   "name": "Realty Income",
+   "sector": "부동산",
+   "capT": 83.1
+  },
+  {
+   "code": "TEL",
+   "name": "TE Connectivity",
+   "sector": "전자 기술",
+   "capT": 83.08
+  },
+  {
+   "code": "GRMN",
+   "name": "Garmin",
+   "sector": "소비자 내구재",
+   "capT": 82.28
+  },
+  {
+   "code": "F",
+   "name": "Ford Motor Company",
+   "sector": "소비자 내구재",
+   "capT": 80.56
+  },
+  {
+   "code": "SRE",
+   "name": "Sempra",
+   "sector": "유틸리티",
+   "capT": 80.29
+  },
+  {
+   "code": "TER",
+   "name": "Teradyne",
+   "sector": "전자 기술",
+   "capT": 80.07
+  },
+  {
+   "code": "TRGP",
+   "name": "Targa Resources",
+   "sector": "에너지 미네랄",
+   "capT": 79.51
+  },
+  {
+   "code": "NXPI",
+   "name": "NXP Semiconductors",
+   "sector": "전자 기술",
+   "capT": 79.14
+  },
+  {
+   "code": "COHR",
+   "name": "Coherent Corp.",
+   "sector": "전자 기술",
+   "capT": 78.92
+  },
+  {
+   "code": "FANG",
+   "name": "Diamondback Energy",
+   "sector": "에너지 미네랄",
+   "capT": 78.27
+  },
+  {
+   "code": "AME",
+   "name": "Ametek",
+   "sector": "생산자 제조",
+   "capT": 78.22
+  },
+  {
+   "code": "OKE",
+   "name": "Oneok",
+   "sector": "에너지 미네랄",
+   "capT": 77.84
+  },
+  {
+   "code": "CIEN",
+   "name": "Ciena",
+   "sector": "전자 기술",
+   "capT": 77.43
+  },
+  {
+   "code": "FAST",
+   "name": "Fastenal",
+   "sector": "생산자 제조",
+   "capT": 77.29
+  },
+  {
+   "code": "CAH",
+   "name": "Cardinal Health",
+   "sector": "의료 기술",
+   "capT": 77.25
+  },
+  {
+   "code": "OXY",
+   "name": "Occidental Petroleum",
+   "sector": "에너지 미네랄",
+   "capT": 77.24
+  },
+  {
+   "code": "KEYS",
+   "name": "Keysight Technologies",
+   "sector": "전자 기술",
+   "capT": 77.01
+  },
+  {
+   "code": "ROK",
+   "name": "Rockwell Automation",
+   "sector": "생산자 제조",
+   "capT": 74.93
+  },
+  {
+   "code": "EA",
+   "name": "Electronic Arts",
+   "sector": "커뮤니케이션",
+   "capT": 73.7
+  },
+  {
+   "code": "NDAQ",
+   "name": "Nasdaq, Inc.",
+   "sector": "금융",
+   "capT": 73.67
+  },
+  {
+   "code": "VST",
+   "name": "Vistra Corp.",
+   "sector": "유틸리티",
+   "capT": 73.61
+  },
+  {
+   "code": "CARR",
+   "name": "Carrier Global",
+   "sector": "생산자 제조",
+   "capT": 72.9
+  },
+  {
+   "code": "LHX",
+   "name": "L3Harris",
+   "sector": "생산자 제조",
+   "capT": 72.44
+  },
+  {
+   "code": "FITB",
+   "name": "Fifth Third Bancorp",
+   "sector": "금융",
+   "capT": 72.21
+  },
+  {
+   "code": "DVN",
+   "name": "Devon Energy",
+   "sector": "에너지 미네랄",
+   "capT": 71.97
+  },
+  {
+   "code": "EW",
+   "name": "Edwards Lifesciences",
+   "sector": "의료 기술",
+   "capT": 71.6
+  },
+  {
+   "code": "CTVA",
+   "name": "Corteva",
+   "sector": "공정 산업",
+   "capT": 71.02
+  },
+  {
+   "code": "STT",
+   "name": "State Street Corporation",
+   "sector": "금융",
+   "capT": 70.63
+  },
+  {
+   "code": "ETR",
+   "name": "Entergy",
+   "sector": "유틸리티",
+   "capT": 70.59
+  },
+  {
+   "code": "WAB",
+   "name": "Wabtec",
+   "sector": "생산자 제조",
+   "capT": 70.11
+  },
+  {
+   "code": "ADSK",
+   "name": "Autodesk",
+   "sector": "전자 기술",
+   "capT": 69.38
+  },
+  {
+   "code": "PYPL",
+   "name": "PayPal",
+   "sector": "금융",
+   "capT": 69.31
+  },
+  {
+   "code": "XYZ",
+   "name": "Block, Inc.",
+   "sector": "금융",
+   "capT": 69.05
+  },
+  {
+   "code": "AZO",
+   "name": "AutoZone",
+   "sector": "소비자 내구재",
+   "capT": 68.35
+  },
+  {
+   "code": "AMP",
+   "name": "Ameriprise Financial",
+   "sector": "금융",
+   "capT": 68.32
+  },
+  {
+   "code": "XEL",
+   "name": "Xcel Energy",
+   "sector": "유틸리티",
+   "capT": 67.94
+  },
+  {
+   "code": "EBAY",
+   "name": "eBay Inc.",
+   "sector": "소비자 내구재",
+   "capT": 66.6
+  },
+  {
+   "code": "CMG",
+   "name": "Chipotle Mexican Grill",
+   "sector": "소비자 내구재",
+   "capT": 66.36
+  },
+  {
+   "code": "EXC",
+   "name": "Exelon",
+   "sector": "유틸리티",
+   "capT": 65.94
+  },
+  {
+   "code": "VTR",
+   "name": "Ventas",
+   "sector": "부동산",
+   "capT": 65.67
+  },
+  {
+   "code": "BDX",
+   "name": "Becton Dickinson",
+   "sector": "의료 기술",
+   "capT": 65.66
+  },
+  {
+   "code": "AXON",
+   "name": "Axon Enterprise",
+   "sector": "생산자 제조",
+   "capT": 64.99
+  },
+  {
+   "code": "TTWO",
+   "name": "Take-Two Interactive",
+   "sector": "커뮤니케이션",
+   "capT": 64.18
+  },
+  {
+   "code": "ARES",
+   "name": "Ares Management",
+   "sector": "금융",
+   "capT": 63.99
+  },
+  {
+   "code": "HUM",
+   "name": "Humana",
+   "sector": "의료 기술",
+   "capT": 62.96
+  },
+  {
+   "code": "IDXX",
+   "name": "Idexx Laboratories",
+   "sector": "의료 기술",
+   "capT": 62.71
+  },
+  {
+   "code": "ODFL",
+   "name": "Old Dominion",
+   "sector": "생산자 제조",
+   "capT": 61.59
+  },
+  {
+   "code": "CBRE",
+   "name": "CBRE Group",
+   "sector": "부동산",
+   "capT": 60.17
+  },
+  {
+   "code": "PRU",
+   "name": "Prudential Financial",
+   "sector": "금융",
+   "capT": 59.79
+  },
+  {
+   "code": "LYV",
+   "name": "Live Nation Entertainment",
+   "sector": "커뮤니케이션",
+   "capT": 59.26
+  },
+  {
+   "code": "KDP",
+   "name": "Keurig Dr Pepper",
+   "sector": "소비재 비내구재",
+   "capT": 58.87
+  },
+  {
+   "code": "PAYX",
+   "name": "Paychex",
+   "sector": "생산자 제조",
+   "capT": 58.59
+  },
+  {
+   "code": "AIG",
+   "name": "American International Group",
+   "sector": "금융",
+   "capT": 58.48
+  },
+  {
+   "code": "MSCI",
+   "name": "MSCI Inc.",
+   "sector": "금융",
+   "capT": 58.46
+  },
+  {
+   "code": "UAL",
+   "name": "United Airlines Holdings",
+   "sector": "생산자 제조",
+   "capT": 58.34
+  },
+  {
+   "code": "DHI",
+   "name": "D. R. Horton",
+   "sector": "소비자 내구재",
+   "capT": 57.43
+  },
+  {
+   "code": "MCHP",
+   "name": "Microchip Technology",
+   "sector": "전자 기술",
+   "capT": 57.19
+  },
+  {
+   "code": "WDAY",
+   "name": "Workday, Inc.",
+   "sector": "전자 기술",
+   "capT": 57.06
+  },
+  {
+   "code": "SYY",
+   "name": "Sysco",
+   "sector": "소비재 비내구재",
+   "capT": 56.9
+  },
+  {
+   "code": "YUM",
+   "name": "Yum! Brands",
+   "sector": "소비자 내구재",
+   "capT": 56.87
+  },
+  {
+   "code": "ED",
+   "name": "Consolidated Edison",
+   "sector": "유틸리티",
+   "capT": 55.69
+  },
+  {
+   "code": "IBKR",
+   "name": "Interactive Brokers",
+   "sector": "금융",
+   "capT": 55.66
+  },
+  {
+   "code": "A",
+   "name": "Agilent Technologies",
+   "sector": "의료 기술",
+   "capT": 55.27
+  },
+  {
+   "code": "CCL",
+   "name": "Carnival Corporation",
+   "sector": "소비자 내구재",
+   "capT": 55.1
+  },
+  {
+   "code": "ROP",
+   "name": "Roper Technologies",
+   "sector": "전자 기술",
+   "capT": 54.36
+  },
+  {
+   "code": "HIG",
+   "name": "Hartford (The)",
+   "sector": "금융",
+   "capT": 54.19
+  },
+  {
+   "code": "COIN",
+   "name": "Coinbase",
+   "sector": "금융",
+   "capT": 54.11
+  },
+  {
+   "code": "IQV",
+   "name": "IQVIA",
+   "sector": "의료 기술",
+   "capT": 53.77
+  },
+  {
+   "code": "PCG",
+   "name": "PG&E Corporation",
+   "sector": "유틸리티",
+   "capT": 53.73
+  },
+  {
+   "code": "PEG",
+   "name": "Public Service Enterprise Group",
+   "sector": "유틸리티",
+   "capT": 53.45
+  },
+  {
+   "code": "ADM",
+   "name": "Archer Daniels Midland",
+   "sector": "소비재 비내구재",
+   "capT": 52.67
+  },
+  {
+   "code": "STLD",
+   "name": "Steel Dynamics",
+   "sector": "공정 산업",
+   "capT": 51.84
+  },
+  {
+   "code": "IRM",
+   "name": "Iron Mountain",
+   "sector": "부동산",
+   "capT": 51.69
+  },
+  {
+   "code": "WAT",
+   "name": "Waters Corporation",
+   "sector": "의료 기술",
+   "capT": 51.51
+  },
+  {
+   "code": "VMC",
+   "name": "Vulcan Materials Company",
+   "sector": "공정 산업",
+   "capT": 51.45
+  },
+  {
+   "code": "KVUE",
+   "name": "Kenvue",
+   "sector": "소비재 비내구재",
+   "capT": 51.1
+  },
+  {
+   "code": "MTB",
+   "name": "M&T Bank",
+   "sector": "금융",
+   "capT": 50.62
+  },
+  {
+   "code": "EME",
+   "name": "Emcor",
+   "sector": "생산자 제조",
+   "capT": 50.48
+  },
+  {
+   "code": "NTAP",
+   "name": "NetApp",
+   "sector": "전자 기술",
+   "capT": 50.26
+  },
+  {
+   "code": "EXPE",
+   "name": "Expedia Group",
+   "sector": "소비자 내구재",
+   "capT": 50.08
+  },
+  {
+   "code": "HSY",
+   "name": "Hershey Company (The)",
+   "sector": "소비재 비내구재",
+   "capT": 49.98
+  },
+  {
+   "code": "KMB",
+   "name": "Kimberly-Clark",
+   "sector": "소비재 비내구재",
+   "capT": 49.98
+  },
+  {
+   "code": "KR",
+   "name": "Kroger",
+   "sector": "소비재 비내구재",
+   "capT": 49.94
+  },
+  {
+   "code": "WEC",
+   "name": "WEC Energy Group",
+   "sector": "유틸리티",
+   "capT": 49.85
+  },
+  {
+   "code": "HBAN",
+   "name": "Huntington Bancshares",
+   "sector": "금융",
+   "capT": 49.1
+  },
+  {
+   "code": "TKO",
+   "name": "TKO Group Holdings",
+   "sector": "커뮤니케이션",
+   "capT": 48.94
+  },
+  {
+   "code": "ACGL",
+   "name": "Arch Capital Group",
+   "sector": "금융",
+   "capT": 48.08
+  },
+  {
+   "code": "RJF",
+   "name": "Raymond James Financial",
+   "sector": "금융",
+   "capT": 47.78
+  },
+  {
+   "code": "IR",
+   "name": "Ingersoll Rand",
+   "sector": "생산자 제조",
+   "capT": 47.68
+  },
+  {
+   "code": "EQT",
+   "name": "EQT Corporation",
+   "sector": "에너지 미네랄",
+   "capT": 46.9
+  },
+  {
+   "code": "VEEV",
+   "name": "Veeva Systems",
+   "sector": "의료 기술",
+   "capT": 46.9
+  },
+  {
+   "code": "JBL",
+   "name": "Jabil",
+   "sector": "전자 기술",
+   "capT": 46.7
+  },
+  {
+   "code": "NTRS",
+   "name": "Northern Trust",
+   "sector": "금융",
+   "capT": 46.66
+  },
+  {
+   "code": "EXR",
+   "name": "Extra Space Storage",
+   "sector": "부동산",
+   "capT": 46.26
+  },
+  {
+   "code": "DXCM",
+   "name": "Dexcom",
+   "sector": "의료 기술",
+   "capT": 46.13
+  },
+  {
+   "code": "CCI",
+   "name": "Crown Castle",
+   "sector": "부동산",
+   "capT": 45.77
+  },
+  {
+   "code": "MLM",
+   "name": "Martin Marietta Materials",
+   "sector": "공정 산업",
+   "capT": 45.6
+  },
+  {
+   "code": "ZTS",
+   "name": "Zoetis",
+   "sector": "의료 기술",
+   "capT": 45.25
+  },
+  {
+   "code": "CASY",
+   "name": "Casey's",
+   "sector": "소비재 비내구재",
+   "capT": 44.58
+  },
+  {
+   "code": "WTW",
+   "name": "Willis Towers Watson",
+   "sector": "금융",
+   "capT": 44.42
+  },
+  {
+   "code": "CNC",
+   "name": "Centene Corporation",
+   "sector": "의료 기술",
+   "capT": 44.1
+  },
+  {
+   "code": "GEHC",
+   "name": "GE HealthCare",
+   "sector": "의료 기술",
+   "capT": 44.1
+  },
+  {
+   "code": "TPR",
+   "name": "Tapestry, Inc.",
+   "sector": "소비자 내구재",
+   "capT": 44.02
+  },
+  {
+   "code": "KHC",
+   "name": "Kraft Heinz",
+   "sector": "소비재 비내구재",
+   "capT": 43.86
+  },
+  {
+   "code": "ON",
+   "name": "ON Semiconductor",
+   "sector": "전자 기술",
+   "capT": 43.81
+  },
+  {
+   "code": "CBOE",
+   "name": "Cboe Global Markets",
+   "sector": "금융",
+   "capT": 43.54
+  },
+  {
+   "code": "TDY",
+   "name": "Teledyne Technologies",
+   "sector": "전자 기술",
+   "capT": 43.51
+  },
+  {
+   "code": "RMD",
+   "name": "ResMed",
+   "sector": "의료 기술",
+   "capT": 43.46
+  },
+  {
+   "code": "CFG",
+   "name": "Citizens Financial Group",
+   "sector": "금융",
+   "capT": 43.02
+  },
+  {
+   "code": "EL",
+   "name": "Estée Lauder Companies (The)",
+   "sector": "소비재 비내구재",
+   "capT": 42.9
+  },
+  {
+   "code": "LVS",
+   "name": "Las Vegas Sands",
+   "sector": "소비자 내구재",
+   "capT": 42.87
+  },
+  {
+   "code": "AEE",
+   "name": "Ameren",
+   "sector": "유틸리티",
+   "capT": 42.42
+  },
+  {
+   "code": "BIIB",
+   "name": "Biogen",
+   "sector": "의료 기술",
+   "capT": 41.75
+  },
+  {
+   "code": "DTE",
+   "name": "DTE Energy",
+   "sector": "유틸리티",
+   "capT": 41.29
+  },
+  {
+   "code": "NRG",
+   "name": "NRG Energy",
+   "sector": "유틸리티",
+   "capT": 40.91
+  },
+  {
+   "code": "VICI",
+   "name": "Vici Properties",
+   "sector": "부동산",
+   "capT": 40.91
+  },
+  {
+   "code": "FISV",
+   "name": "Fiserv",
+   "sector": "금융",
+   "capT": 40.57
+  },
+  {
+   "code": "MTD",
+   "name": "Mettler Toledo",
+   "sector": "의료 기술",
+   "capT": 40.53
+  },
+  {
+   "code": "ATO",
+   "name": "Atmos Energy",
+   "sector": "유틸리티",
+   "capT": 40.4
+  },
+  {
+   "code": "WSM",
+   "name": "Williams-Sonoma, Inc.",
+   "sector": "소비자 내구재",
+   "capT": 39.54
+  },
+  {
+   "code": "DG",
+   "name": "Dollar General",
+   "sector": "소비재 비내구재",
+   "capT": 39.44
+  },
+  {
+   "code": "FE",
+   "name": "FirstEnergy",
+   "sector": "유틸리티",
+   "capT": 39.23
+  },
+  {
+   "code": "TPL",
+   "name": "Texas Pacific Land Corporation",
+   "sector": "에너지 미네랄",
+   "capT": 39.21
+  },
+  {
+   "code": "WRB",
+   "name": "W. R. Berkley Corporation",
+   "sector": "금융",
+   "capT": 39.21
+  },
+  {
+   "code": "Q",
+   "name": "Qnity Electronics",
+   "sector": "전자 기술",
+   "capT": 39.06
+  },
+  {
+   "code": "XYL",
+   "name": "Xylem Inc.",
+   "sector": "생산자 제조",
+   "capT": 38.92
+  },
+  {
+   "code": "DOV",
+   "name": "Dover Corporation",
+   "sector": "생산자 제조",
+   "capT": 38.79
+  },
+  {
+   "code": "CNP",
+   "name": "CenterPoint Energy",
+   "sector": "유틸리티",
+   "capT": 38.65
+  },
+  {
+   "code": "EIX",
+   "name": "Edison International",
+   "sector": "유틸리티",
+   "capT": 38.5
+  },
+  {
+   "code": "OTIS",
+   "name": "Otis Worldwide",
+   "sector": "생산자 제조",
+   "capT": 38.47
+  },
+  {
+   "code": "CINF",
+   "name": "Cincinnati Financial",
+   "sector": "금융",
+   "capT": 38.25
+  },
+  {
+   "code": "CPRT",
+   "name": "Copart",
+   "sector": "생산자 제조",
+   "capT": 38.04
+  },
+  {
+   "code": "ES",
+   "name": "Eversource Energy",
+   "sector": "유틸리티",
+   "capT": 37.98
+  },
+  {
+   "code": "AVB",
+   "name": "AvalonBay Communities",
+   "sector": "부동산",
+   "capT": 37.95
+  },
+  {
+   "code": "VRSN",
+   "name": "Verisign",
+   "sector": "전자 기술",
+   "capT": 37.79
+  },
+  {
+   "code": "RF",
+   "name": "Regions Financial Corporation",
+   "sector": "금융",
+   "capT": 37.6
+  },
+  {
+   "code": "HAL",
+   "name": "Halliburton",
+   "sector": "에너지 미네랄",
+   "capT": 37.2
+  },
+  {
+   "code": "PPL",
+   "name": "PPL Corporation",
+   "sector": "유틸리티",
+   "capT": 37.07
+  },
+  {
+   "code": "AWK",
+   "name": "American Water Works",
+   "sector": "유틸리티",
+   "capT": 36.53
+  },
+  {
+   "code": "EQR",
+   "name": "Equity Residential",
+   "sector": "부동산",
+   "capT": 36.34
+  },
+  {
+   "code": "DGX",
+   "name": "Quest Diagnostics",
+   "sector": "의료 기술",
+   "capT": 35.84
+  },
+  {
+   "code": "PPG",
+   "name": "PPG Industries",
+   "sector": "공정 산업",
+   "capT": 35.48
+  },
+  {
+   "code": "SYF",
+   "name": "Synchrony Financial",
+   "sector": "금융",
+   "capT": 35.46
+  },
+  {
+   "code": "CPAY",
+   "name": "Corpay",
+   "sector": "금융",
+   "capT": 35.31
+  },
+  {
+   "code": "HUBB",
+   "name": "Hubbell Incorporated",
+   "sector": "생산자 제조",
+   "capT": 35.21
+  },
+  {
+   "code": "VRSK",
+   "name": "Verisk Analytics",
+   "sector": "생산자 제조",
+   "capT": 35.18
+  },
+  {
+   "code": "JBHT",
+   "name": "J.B. Hunt",
+   "sector": "생산자 제조",
+   "capT": 35.1
+  },
+  {
+   "code": "FSLR",
+   "name": "First Solar",
+   "sector": "전자 기술",
+   "capT": 35.01
+  },
+  {
+   "code": "LH",
+   "name": "Labcorp",
+   "sector": "의료 기술",
+   "capT": 34.82
+  },
+  {
+   "code": "DLTR",
+   "name": "Dollar Tree",
+   "sector": "소비재 비내구재",
+   "capT": 34.8
+  },
+  {
+   "code": "CTSH",
+   "name": "Cognizant",
+   "sector": "전자 기술",
+   "capT": 34.79
+  },
+  {
+   "code": "HPQ",
+   "name": "HP Inc.",
+   "sector": "전자 기술",
+   "capT": 34.72
+  },
+  {
+   "code": "FOXA",
+   "name": "Fox Corporation",
+   "sector": "커뮤니케이션",
+   "capT": 34.51
+  },
+  {
+   "code": "PFG",
+   "name": "Principal Financial Group",
+   "sector": "금융",
+   "capT": 34.51
+  },
+  {
+   "code": "SW",
+   "name": "Smurfit Westrock",
+   "sector": "공정 산업",
+   "capT": 34.38
+  },
+  {
+   "code": "WST",
+   "name": "West Pharmaceutical Services",
+   "sector": "의료 기술",
+   "capT": 34.29
+  },
+  {
+   "code": "KEY",
+   "name": "KeyCorp",
+   "sector": "금융",
+   "capT": 34.23
+  },
+  {
+   "code": "PHM",
+   "name": "PulteGroup",
+   "sector": "소비자 내구재",
+   "capT": 33.94
+  },
+  {
+   "code": "TROW",
+   "name": "T. Rowe Price",
+   "sector": "금융",
+   "capT": 33.89
+  },
+  {
+   "code": "BRO",
+   "name": "Brown & Brown",
+   "sector": "금융",
+   "capT": 33.63
+  },
+  {
+   "code": "INCY",
+   "name": "Incyte",
+   "sector": "의료 기술",
+   "capT": 33.61
+  },
+  {
+   "code": "L",
+   "name": "Loews Corporation",
+   "sector": "금융",
+   "capT": 33.26
+  },
+  {
+   "code": "CHD",
+   "name": "Church & Dwight",
+   "sector": "소비재 비내구재",
+   "capT": 33.21
+  },
+  {
+   "code": "GPN",
+   "name": "Global Payments",
+   "sector": "금융",
+   "capT": 33.01
+  },
+  {
+   "code": "DRI",
+   "name": "Darden Restaurants",
+   "sector": "소비자 내구재",
+   "capT": 32.94
+  },
+  {
+   "code": "FIS",
+   "name": "Fidelity National Information Services",
+   "sector": "금융",
+   "capT": 32.41
+  },
+  {
+   "code": "VLTO",
+   "name": "Veralto",
+   "sector": "생산자 제조",
+   "capT": 32.37
+  },
+  {
+   "code": "FFIV",
+   "name": "F5, Inc.",
+   "sector": "전자 기술",
+   "capT": 32.33
+  },
+  {
+   "code": "LUV",
+   "name": "Southwest Airlines",
+   "sector": "생산자 제조",
+   "capT": 32.24
+  },
+  {
+   "code": "ULTA",
+   "name": "Ulta Beauty",
+   "sector": "소비자 내구재",
+   "capT": 32.16
+  },
+  {
+   "code": "STE",
+   "name": "Steris",
+   "sector": "의료 기술",
+   "capT": 31.74
+  },
+  {
+   "code": "RL",
+   "name": "Ralph Lauren Corporation",
+   "sector": "소비자 내구재",
+   "capT": 31.68
+  },
+  {
+   "code": "FICO",
+   "name": "Fair Isaac",
+   "sector": "전자 기술",
+   "capT": 31.61
+  },
+  {
+   "code": "CMS",
+   "name": "CMS Energy",
+   "sector": "유틸리티",
+   "capT": 31.5
+  },
+  {
+   "code": "STZ",
+   "name": "Constellation Brands",
+   "sector": "소비재 비내구재",
+   "capT": 31.4
+  },
+  {
+   "code": "EXPD",
+   "name": "Expeditors International",
+   "sector": "생산자 제조",
+   "capT": 31.23
+  },
+  {
+   "code": "PKG",
+   "name": "Packaging Corporation of America",
+   "sector": "공정 산업",
+   "capT": 31.12
+  },
+  {
+   "code": "MRNA",
+   "name": "Moderna",
+   "sector": "의료 기술",
+   "capT": 30.81
+  },
+  {
+   "code": "IP",
+   "name": "International Paper",
+   "sector": "공정 산업",
+   "capT": 30.73
+  },
+  {
+   "code": "EXE",
+   "name": "Expand Energy",
+   "sector": "에너지 미네랄",
+   "capT": 30.67
+  },
+  {
+   "code": "OMC",
+   "name": "Omnicom Group",
+   "sector": "커뮤니케이션",
+   "capT": 30.45
+  },
+  {
+   "code": "DOW",
+   "name": "Dow Inc.",
+   "sector": "공정 산업",
+   "capT": 30.23
+  },
+  {
+   "code": "NI",
+   "name": "NiSource",
+   "sector": "유틸리티",
+   "capT": 29.89
+  },
+  {
+   "code": "AMCR",
+   "name": "Amcor",
+   "sector": "공정 산업",
+   "capT": 29.78
+  },
+  {
+   "code": "SNA",
+   "name": "Snap-on",
+   "sector": "생산자 제조",
+   "capT": 29.65
+  },
+  {
+   "code": "TSN",
+   "name": "Tyson Foods",
+   "sector": "소비재 비내구재",
+   "capT": 29.29
+  },
+  {
+   "code": "FDXF",
+   "name": "FedEx Freight",
+   "sector": "생산자 제조",
+   "capT": 29.09
+  },
+  {
+   "code": "IFF",
+   "name": "International Flavors & Fragrances",
+   "sector": "공정 산업",
+   "capT": 28.8
+  },
+  {
+   "code": "VTRS",
+   "name": "Viatris",
+   "sector": "의료 기술",
+   "capT": 28.74
+  },
+  {
+   "code": "LEN",
+   "name": "Lennar",
+   "sector": "소비자 내구재",
+   "capT": 28.73
+  },
+  {
+   "code": "EFX",
+   "name": "Equifax",
+   "sector": "생산자 제조",
+   "capT": 28.64
+  },
+  {
+   "code": "BG",
+   "name": "Bunge Global",
+   "sector": "소비재 비내구재",
+   "capT": 28.35
+  },
+  {
+   "code": "LYB",
+   "name": "LyondellBasell",
+   "sector": "공정 산업",
+   "capT": 27.41
+  },
+  {
+   "code": "CHTR",
+   "name": "Charter Communications",
+   "sector": "커뮤니케이션",
+   "capT": 27.19
+  },
+  {
+   "code": "GIS",
+   "name": "General Mills",
+   "sector": "소비재 비내구재",
+   "capT": 26.89
+  },
+  {
+   "code": "EVRG",
+   "name": "Evergy",
+   "sector": "유틸리티",
+   "capT": 26.87
+  },
+  {
+   "code": "DD",
+   "name": "DuPont",
+   "sector": "공정 산업",
+   "capT": 26.71
+  },
+  {
+   "code": "SBAC",
+   "name": "SBA Communications",
+   "sector": "부동산",
+   "capT": 26.66
+  },
+  {
+   "code": "ESS",
+   "name": "Essex Property Trust",
+   "sector": "부동산",
+   "capT": 26.6
+  },
+  {
+   "code": "CDW",
+   "name": "CDW Corporation",
+   "sector": "전자 기술",
+   "capT": 26.42
+  },
+  {
+   "code": "ZBH",
+   "name": "Zimmer Biomet",
+   "sector": "의료 기술",
+   "capT": 26.26
+  },
+  {
+   "code": "SMCI",
+   "name": "Supermicro",
+   "sector": "전자 기술",
+   "capT": 25.94
+  },
+  {
+   "code": "LNT",
+   "name": "Alliant Energy",
+   "sector": "유틸리티",
+   "capT": 25.87
+  },
+  {
+   "code": "ROL",
+   "name": "Rollins, Inc.",
+   "sector": "생산자 제조",
+   "capT": 25.72
+  },
+  {
+   "code": "BR",
+   "name": "Broadridge Financial Solutions",
+   "sector": "생산자 제조",
+   "capT": 25.48
+  },
+  {
+   "code": "WY",
+   "name": "Weyerhaeuser",
+   "sector": "부동산",
+   "capT": 25.45
+  },
+  {
+   "code": "CF",
+   "name": "CF Industries",
+   "sector": "공정 산업",
+   "capT": 25.44
+  },
+  {
+   "code": "INVH",
+   "name": "Invitation Homes",
+   "sector": "부동산",
+   "capT": 25.31
+  },
+  {
+   "code": "BBY",
+   "name": "Best Buy",
+   "sector": "소비자 내구재",
+   "capT": 25.16
+  },
+  {
+   "code": "FTV",
+   "name": "Fortive",
+   "sector": "생산자 제조",
+   "capT": 25.14
+  },
+  {
+   "code": "BEN",
+   "name": "Franklin Resources",
+   "sector": "금융",
+   "capT": 25.06
+  },
+  {
+   "code": "GPC",
+   "name": "Genuine Parts Company",
+   "sector": "소비자 내구재",
+   "capT": 24.81
+  },
+  {
+   "code": "HST",
+   "name": "Host Hotels & Resorts",
+   "sector": "부동산",
+   "capT": 24.4
+  },
+  {
+   "code": "BALL",
+   "name": "Ball Corporation",
+   "sector": "공정 산업",
+   "capT": 24.29
+  },
+  {
+   "code": "CHRW",
+   "name": "C.H. Robinson",
+   "sector": "생산자 제조",
+   "capT": 24.05
+  },
+  {
+   "code": "KIM",
+   "name": "Kimco Realty",
+   "sector": "부동산",
+   "capT": 24.05
+  },
+  {
+   "code": "IEX",
+   "name": "IDEX Corporation",
+   "sector": "생산자 제조",
+   "capT": 24.01
+  },
+  {
+   "code": "AKAM",
+   "name": "Akamai Technologies",
+   "sector": "전자 기술",
+   "capT": 24
+  },
+  {
+   "code": "GEN",
+   "name": "Gen Digital",
+   "sector": "전자 기술",
+   "capT": 23.6
+  },
+  {
+   "code": "NDSN",
+   "name": "Nordson Corporation",
+   "sector": "생산자 제조",
+   "capT": 23.6
+  },
+  {
+   "code": "TSCO",
+   "name": "Tractor Supply",
+   "sector": "소비자 내구재",
+   "capT": 23.58
+  },
+  {
+   "code": "NVR",
+   "name": "NVR, Inc.",
+   "sector": "소비자 내구재",
+   "capT": 23.27
+  },
+  {
+   "code": "J",
+   "name": "Jacobs Solutions",
+   "sector": "생산자 제조",
+   "capT": 22.93
+  },
+  {
+   "code": "MAA",
+   "name": "Mid-America Apartment Communities",
+   "sector": "부동산",
+   "capT": 22.23
+  },
+  {
+   "code": "NWS",
+   "name": "News Corp",
+   "sector": "커뮤니케이션",
+   "capT": 22.13
+  },
+  {
+   "code": "SOLV",
+   "name": "Solventum",
+   "sector": "의료 기술",
+   "capT": 21.35
+  },
+  {
+   "code": "DOC",
+   "name": "Healthpeak Properties",
+   "sector": "부동산",
+   "capT": 21.28
+  },
+  {
+   "code": "PTC",
+   "name": "PTC Inc.",
+   "sector": "전자 기술",
+   "capT": 21.25
+  },
+  {
+   "code": "LII",
+   "name": "Lennox International",
+   "sector": "생산자 제조",
+   "capT": 21.04
+  },
+  {
+   "code": "DVA",
+   "name": "DaVita",
+   "sector": "의료 기술",
+   "capT": 21
+  },
+  {
+   "code": "REG",
+   "name": "Regency Centers",
+   "sector": "부동산",
+   "capT": 20.96
+  },
+  {
+   "code": "LDOS",
+   "name": "Leidos",
+   "sector": "생산자 제조",
+   "capT": 20.9
+  },
+  {
+   "code": "TXT",
+   "name": "Textron",
+   "sector": "생산자 제조",
+   "capT": 20.8
+  },
+  {
+   "code": "SWK",
+   "name": "Stanley Black & Decker",
+   "sector": "생산자 제조",
+   "capT": 20.75
+  },
+  {
+   "code": "MAS",
+   "name": "Masco",
+   "sector": "생산자 제조",
+   "capT": 20.55
+  },
+  {
+   "code": "BAX",
+   "name": "Baxter International",
+   "sector": "의료 기술",
+   "capT": 20.34
+  },
+  {
+   "code": "COO",
+   "name": "Cooper Companies (The)",
+   "sector": "의료 기술",
+   "capT": 20.27
+  },
+  {
+   "code": "GL",
+   "name": "Globe Life",
+   "sector": "금융",
+   "capT": 20.01
+  },
+  {
+   "code": "EG",
+   "name": "Everest Group",
+   "sector": "금융",
+   "capT": 19.98
+  },
+  {
+   "code": "LULU",
+   "name": "Lululemon Athletica",
+   "sector": "소비자 내구재",
+   "capT": 19.66
+  },
+  {
+   "code": "ALB",
+   "name": "Albemarle Corporation",
+   "sector": "공정 산업",
+   "capT": 19.6
+  },
+  {
+   "code": "AIZ",
+   "name": "Assurant",
+   "sector": "금융",
+   "capT": 19.59
+  },
+  {
+   "code": "ZBRA",
+   "name": "Zebra Technologies",
+   "sector": "전자 기술",
+   "capT": 19.45
+  },
+  {
+   "code": "HRL",
+   "name": "Hormel Foods",
+   "sector": "소비재 비내구재",
+   "capT": 19.43
+  },
+  {
+   "code": "MKC",
+   "name": "McCormick & Company",
+   "sector": "소비재 비내구재",
+   "capT": 19.39
+  },
+  {
+   "code": "ALLE",
+   "name": "Allegion",
+   "sector": "생산자 제조",
+   "capT": 19.19
+  },
+  {
+   "code": "IVZ",
+   "name": "Invesco",
+   "sector": "금융",
+   "capT": 19.11
+  },
+  {
+   "code": "DECK",
+   "name": "Deckers Brands",
+   "sector": "소비자 내구재",
+   "capT": 18.97
+  },
+  {
+   "code": "TRMB",
+   "name": "Trimble Inc.",
+   "sector": "전자 기술",
+   "capT": 18.86
+  },
+  {
+   "code": "UDR",
+   "name": "UDR, Inc.",
+   "sector": "부동산",
+   "capT": 18.59
+  },
+  {
+   "code": "AVY",
+   "name": "Avery Dennison",
+   "sector": "공정 산업",
+   "capT": 18.45
+  },
+  {
+   "code": "APA",
+   "name": "APA Corporation",
+   "sector": "에너지 미네랄",
+   "capT": 18.24
+  },
+  {
+   "code": "HAS",
+   "name": "Hasbro",
+   "sector": "소비자 내구재",
+   "capT": 18.06
+  },
+  {
+   "code": "RVTY",
+   "name": "Revvity",
+   "sector": "의료 기술",
+   "capT": 17.99
+  },
+  {
+   "code": "HII",
+   "name": "Huntington Ingalls Industries",
+   "sector": "생산자 제조",
+   "capT": 17.98
+  },
+  {
+   "code": "BF.B",
+   "name": "Brown–Forman",
+   "sector": "소비재 비내구재",
+   "capT": 17.86
+  },
+  {
+   "code": "SJM",
+   "name": "J.M. Smucker Company (The)",
+   "sector": "소비재 비내구재",
+   "capT": 17.58
+  },
+  {
+   "code": "BXP",
+   "name": "BXP, Inc.",
+   "sector": "부동산",
+   "capT": 17.57
+  },
+  {
+   "code": "TYL",
+   "name": "Tyler Technologies",
+   "sector": "전자 기술",
+   "capT": 17.51
+  },
+  {
+   "code": "ERIE",
+   "name": "Erie Indemnity",
+   "sector": "금융",
+   "capT": 17.35
+  },
+  {
+   "code": "ALGN",
+   "name": "Align Technology",
+   "sector": "의료 기술",
+   "capT": 17.33
+  },
+  {
+   "code": "PNW",
+   "name": "Pinnacle West Capital",
+   "sector": "유틸리티",
+   "capT": 17.11
+  },
+  {
+   "code": "CSGP",
+   "name": "CoStar Group",
+   "sector": "부동산",
+   "capT": 17.04
+  },
+  {
+   "code": "APTV",
+   "name": "Aptiv",
+   "sector": "소비자 내구재",
+   "capT": 16.95
+  },
+  {
+   "code": "DPZ",
+   "name": "Domino's",
+   "sector": "소비자 내구재",
+   "capT": 16.88
+  },
+  {
+   "code": "CLX",
+   "name": "Clorox",
+   "sector": "소비재 비내구재",
+   "capT": 16.63
+  },
+  {
+   "code": "GNRC",
+   "name": "Generac",
+   "sector": "생산자 제조",
+   "capT": 16.62
+  },
+  {
+   "code": "PODD",
+   "name": "Insulet Corporation",
+   "sector": "의료 기술",
+   "capT": 16.45
+  },
+  {
+   "code": "CPT",
+   "name": "Camden Property Trust",
+   "sector": "부동산",
+   "capT": 16.14
+  },
+  {
+   "code": "TECH",
+   "name": "Bio-Techne",
+   "sector": "의료 기술",
+   "capT": 15.74
+  },
+  {
+   "code": "GDDY",
+   "name": "GoDaddy",
+   "sector": "전자 기술",
+   "capT": 15.68
+  },
+  {
+   "code": "MGM",
+   "name": "MGM Resorts",
+   "sector": "소비자 내구재",
+   "capT": 15.68
+  },
+  {
+   "code": "CRL",
+   "name": "Charles River Laboratories",
+   "sector": "의료 기술",
+   "capT": 15.57
+  },
+  {
+   "code": "JKHY",
+   "name": "Jack Henry & Associates",
+   "sector": "금융",
+   "capT": 15.57
+  },
+  {
+   "code": "FRT",
+   "name": "Federal Realty Investment Trust",
+   "sector": "부동산",
+   "capT": 15.13
+  },
+  {
+   "code": "PNR",
+   "name": "Pentair",
+   "sector": "생산자 제조",
+   "capT": 14.99
+  },
+  {
+   "code": "AES",
+   "name": "AES Corporation",
+   "sector": "유틸리티",
+   "capT": 14.69
+  },
+  {
+   "code": "UHS",
+   "name": "Universal Health Services",
+   "sector": "의료 기술",
+   "capT": 14.32
+  },
+  {
+   "code": "IT",
+   "name": "Gartner",
+   "sector": "전자 기술",
+   "capT": 14.21
+  },
+  {
+   "code": "WYNN",
+   "name": "Wynn Resorts",
+   "sector": "소비자 내구재",
+   "capT": 14.08
+  },
+  {
+   "code": "HSIC",
+   "name": "Henry Schein",
+   "sector": "의료 기술",
+   "capT": 13.79
+  },
+  {
+   "code": "FDS",
+   "name": "FactSet",
+   "sector": "금융",
+   "capT": 13.43
+  },
+  {
+   "code": "ARE",
+   "name": "Alexandria Real Estate Equities",
+   "sector": "부동산",
+   "capT": 12.94
+  },
+  {
+   "code": "SWKS",
+   "name": "Skyworks Solutions",
+   "sector": "전자 기술",
+   "capT": 12.91
+  },
+  {
+   "code": "PSKY",
+   "name": "Paramount Skydance Corporation",
+   "sector": "커뮤니케이션",
+   "capT": 12.88
+  },
+  {
+   "code": "NCLH",
+   "name": "Norwegian Cruise Line Holdings",
+   "sector": "소비자 내구재",
+   "capT": 12.7
+  },
+  {
+   "code": "TTD",
+   "name": "Trade Desk (The)",
+   "sector": "커뮤니케이션",
+   "capT": 12.04
+  },
+  {
+   "code": "AOS",
+   "name": "A. O. Smith",
+   "sector": "생산자 제조",
+   "capT": 11.55
+  },
+  {
+   "code": "TAP",
+   "name": "Molson Coors Beverage Company",
+   "sector": "소비재 비내구재",
+   "capT": 11
+  },
+  {
+   "code": "BLDR",
+   "name": "Builders FirstSource",
+   "sector": "생산자 제조",
+   "capT": 10.92
+  },
+  {
+   "code": "MOS",
+   "name": "Mosaic Company (The)",
+   "sector": "공정 산업",
+   "capT": 9.7
+  }
+ ]
+}

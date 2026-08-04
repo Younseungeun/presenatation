@@ -46,7 +46,8 @@ export default async function Home() {
         select: { penName: true, email: true },
       }),
       getBuyerPurchases(prisma, userId),
-      getResearcherConsensus(prisma, 12, now),
+      // 히트맵이 코스피 전 종목을 그리므로 컨센서스 표본도 넉넉히 (종목 수 기준)
+      getResearcherConsensus(prisma, 100, now),
       getFreeReports(prisma, 4),
       getRecentJudgments(prisma, 6),
       getUpcomingDeadlineCards(prisma, 5, now),

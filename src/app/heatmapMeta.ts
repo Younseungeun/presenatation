@@ -69,16 +69,8 @@ const META: Record<string, HeatmapMeta> = {
   'CRYPTO:KRW-SOL': { name: '솔라나', sector: '스마트 컨트랙트', capTrillionKrw: 100 },
 };
 
+// 유니버스는 자산군별 전 종목 스냅샷(src/data/*-heatmap.json)이 담당하고,
+// 이 메타는 스냅샷에 없는 티커(상폐 직전 등 경계 사례)의 폴백으로만 쓰인다.
 export function heatmapMeta(assetClass: string, ticker: string): HeatmapMeta | undefined {
   return META[`${assetClass}:${ticker}`];
-}
-
-/** 자산군의 전체 유니버스 — 예측 유무와 무관하게 히트맵에 깔리는 종목들 */
-export function heatmapUniverse(
-  assetClass: string,
-): (HeatmapMeta & { ticker: string })[] {
-  const prefix = `${assetClass}:`;
-  return Object.entries(META)
-    .filter(([key]) => key.startsWith(prefix))
-    .map(([key, meta]) => ({ ...meta, ticker: key.slice(prefix.length) }));
 }
