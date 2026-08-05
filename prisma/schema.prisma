@@ -233,3 +233,23 @@ model PaymentIntent {
 
   @@index([buyerId])
 }
+
+// 클린 리서치 신고 — 1:1 상담·투자 권유 등 유사투자자문업 범위 초과 행위 신고.
+// 보상(리포트 구매 쿠폰)은 운영자 검토로 확인된 신고에만, 선착순 쿼터 안에서 지급.
+model AbuseReport {
+  id         String    @id @default(cuid())
+  reporterId String // 신고자 (User.id)
+  reportId   String? // 신고 대상 리포트 (선택 — 링크를 아는 경우)
+  targetName String // 대상 리서처 필명 또는 리포트 제목
+  category   String // ONE_ON_ONE / SOLICIT / OUTSIDE_CHANNEL / OTHER
+  detail     String // 신고 내용 (정황·근거)
+  status     String    @default("PENDING") // PENDING / CONFIRMED / REJECTED
+  rewarded   Boolean   @default(false) // 확인 + 선착순 쿼터 내 → 쿠폰 지급 대상
+  reviewedAt DateTime?
+  reviewerId String? // 검토 운영자 (User.id)
+  reviewNote String? // 확인·기각 사유 (반복 무고 제재 근거로도 사용)
+  createdAt  DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@index([reporterId, createdAt])
+}

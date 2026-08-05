@@ -1,0 +1,83 @@
+/* 클린 리서치 신고 배너 — 흰 화면의 유일한 다크 슬랩 (브랜드 Deep Ink #0C1E1A).
+   장식 없이 카피 + 잔여 쿠폰 숫자(민트)가 전부다. emphasis는 리더보드용 강조형. */
+.banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  background: #0c1e1a;
+  transition: background 0.15s ease;
+}
+.banner:hover {
+  background: #143128;
+}
+
+/* 강조형(리더보드) — 더 큰 여백 + 민트 좌측 띠로 존재감을 키운다 */
+.emphasis {
+  padding: 18px 18px 18px 16px;
+  border-left: 3px solid #12b896;
+  border-radius: var(--radius-lg);
+}
+
+/* 리포트 검수 일러스트 — 문구 왼쪽 */
+.icon {
+  flex: none;
+  display: block;
+}
+.copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.eyebrow {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #12b896;
+  margin-bottom: 2px;
+}
+.title {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  line-height: 1.35;
+}
+.emphasis .title {
+  font-size: 16.5px;
+}
+.sub {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1.4;
+}
+
+.count {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  color: #9febd6; /* 브랜드 Mint 200 — 다크 위 유일한 컬러 포인트 */
+  flex-shrink: 0;
+}
+.count strong {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.emphasis .count strong {
+  font-size: 26px;
+}
+.count span {
+  font-size: 11px;
+  font-weight: 700;
+  opacity: 0.85;
+}
+.chevron {
+  color: rgba(255, 255, 255, 0.4);
+  flex-shrink: 0;
+}

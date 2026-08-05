@@ -9,6 +9,7 @@ import {
   type MarketCard,
   type MarketSort,
 } from "@/server/marketQueries";
+import { CleanBanner } from "../CleanBanner";
 import { SortPicker } from "./SortPicker";
 import styles from "../market.module.css";
 
@@ -149,6 +150,11 @@ export default async function LeaderboardPage({
           </div>
         </>
       )}
+
+      {/* 클린 리서치 신고 — 카드를 사는 화면이 위반을 목격하는 자리라 여기서 강조한다 */}
+      <div className={styles.cleanSlot}>
+        <CleanBanner emphasis />
+      </div>
 
       <div className={styles.railHead}>
         <span className={styles.railTitle}>자산군별 찾기</span>

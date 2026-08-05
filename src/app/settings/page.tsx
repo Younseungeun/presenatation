@@ -85,6 +85,7 @@ export default async function SettingsPage() {
             <div className={styles.list}>
               <Row href="/admin/judgments" label="판정 보류 큐" sub="수동 판정 대기 카드" />
               <Row href="/admin/settlements" label="정산 지시서" sub="환불·지급 실행 기록" />
+              <Row href="/admin/abuse-reports" label="신고 검토" sub="클린 리서치 신고 확인·기각" />
             </div>
           </>
         )}
