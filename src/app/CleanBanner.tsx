@@ -17,8 +17,9 @@ export async function CleanBanner({ emphasis = false }: { emphasis?: boolean }) 
       href="/clean"
       className={`${styles.banner} ${emphasis ? styles.emphasis : ""}`}
     >
-      {/* 리포트 검수 일러스트 — 소형 전용(20~40px) 파일. 다크 배경에서 민트가 또렷하다 */}
-      <ReportReviewIcon size={emphasis ? 44 : 40} className={styles.icon} />
+      {/* 리포트 검수 일러스트 — 소형 컷(48px 미만) 기본형.
+          다크 배경 전용 컷도 있지만, 어두운 띠지 위에서 밝은 카드가 더 또렷해 기본형을 쓴다 */}
+      <ReportReviewIcon size={emphasis ? 44 : 40} tone="light" className={styles.icon} />
       <span className={styles.copy}>
         {emphasis && <span className={styles.eyebrow}>클린 리서치</span>}
         <strong className={styles.title}>리포트 신고하고 쿠폰 받기</strong>
