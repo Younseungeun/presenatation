@@ -693,3 +693,112 @@
     gap: 2px;
   }
 }
+
+/* 클린 리서치 신고 배너 자리 — 리더보드에서는 추천 레일과 자산군 목록 사이 강조 위치 */
+.cleanSlot {
+  margin: 26px 0 4px;
+}
+
+/* ── 판정 근거 영수증 — 기준가→판정 가격→실현 등락→결과 사슬 ── */
+.receipt {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--brand-strong);
+  border-radius: var(--radius);
+  padding: 4px 16px 12px;
+  background: var(--bg);
+}
+.receiptRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px dashed var(--border);
+}
+.receiptKey {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  flex-shrink: 0;
+}
+.receiptVal {
+  font-size: 14.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.receiptVal small,
+.receiptHit small,
+.receiptMiss small {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-faint);
+}
+.receiptResult {
+  border-bottom: none;
+}
+.receiptHit {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--pos);
+  text-align: right;
+}
+.receiptMiss {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--neg);
+  text-align: right;
+}
+.receiptFoot {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--text-faint);
+  margin-top: 8px;
+}
+
+/* ── 트랙레코드 시각화 — 누적 수익 곡선 + 판정 스트립 ── */
+.trackChart {
+  margin-top: 12px;
+}
+.trackCurveWrap {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px 8px;
+}
+.trackCurve {
+  display: block;
+  width: 100%;
+  height: 96px;
+}
+.trackCurveMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.trackCurveMeta strong {
+  font-size: 14px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.trackStrip {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.trackDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.trackStripLabel {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-left: 4px;
+}

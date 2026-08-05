@@ -8,6 +8,7 @@ import { getSessionUserId } from "@/server/session";
 import { TOSS_CLIENT_KEY } from "@/server/tossPayments";
 import { AppHeader } from "../../AppHeader";
 import { Disclaimer } from "../../Disclaimer";
+import { JudgmentReceipt } from "./JudgmentReceipt";
 import { PurchaseButton } from "./PurchaseButton";
 import { TossCheckoutButton } from "./TossCheckoutButton";
 import styles from "../../market.module.css";
@@ -116,6 +117,9 @@ export default async function ReportDetail({
           )}
         </div>
       )}
+
+      {/* 판정 근거 영수증 — 기준가→판정 가격→실현 등락→결과. 조작 불가능한 평판의 물증 */}
+      {card && judgment && <JudgmentReceipt card={card} judgment={judgment} />}
 
       {free ? (
         <>

@@ -4,6 +4,7 @@ import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getPublicProfile } from "@/server/leaderboardQueries";
 import { AppHeader } from "../../AppHeader";
+import { TrackRecordChart, type TrackPoint } from "./TrackRecordChart";
 import styles from "../../market.module.css";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,23 @@ export default async function PublicProfile({
 
   const { profile, trackRecords, buyable, history } = data;
   const name = profile.user.penName ?? profile.user.email;
+
+  // 자산군별 곡선·스트립 입력 — 방향 반영 실현 수익률(하락 적중 = 양수)
+  const pointsByAsset = new Map<string, TrackPoint[]>();
+  for (const r of history) {
+    const card = r.predictionCard!;
+    const j = card.judgment!;
+    if (j.outcome !== "HIT" && j.outcome !== "MISS") continue;
+    if (j.settledPrice == null || card.basePrice == null || card.basePrice <= 0) continue;
+    const raw = ((j.settledPrice - card.basePrice) / card.basePrice) * 100;
+    const list = pointsByAsset.get(card.assetClass) ?? [];
+    list.push({
+      judgedAt: j.judgedAt,
+      adjReturnPct: card.direction === "UP" ? raw : -raw,
+      outcome: j.outcome,
+    });
+    pointsByAsset.set(card.assetClass, list);
+  }
 
   return (
     <>
@@ -76,6 +94,7 @@ export default async function PublicProfile({
                 </div>
               </div>
             </div>
+            <TrackRecordChart points={pointsByAsset.get(tr.assetClass) ?? []} />
           </div>
         ))
       )}
