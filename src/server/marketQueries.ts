@@ -309,6 +309,27 @@ export async function getRecentJudgments(
   });
 }
 
+/**
+ * 팔로우한 리서처의 카드 — 리더보드 최상단 레일.
+ * 자산군을 가리지 않는다: "이 사람이 뭘 냈나"가 관심사라 자산군은 부차적이다.
+ * 최신순 — 팔로우의 목적이 새 카드를 놓치지 않는 것이기 때문.
+ */
+export async function getFollowedResearcherCards(
+  prisma: PrismaClient,
+  researcherIds: string[],
+  limit = 10,
+  now = new Date(),
+): Promise<MarketCard[]> {
+  if (researcherIds.length === 0) return [];
+  const reports = await prisma.report.findMany({
+    where: { ...buyableWhere(now), researcherId: { in: researcherIds } },
+    include: cardInclude,
+    orderBy: { publishedAt: 'desc' },
+    take: limit,
+  });
+  return reports.map(toMarketCard);
+}
+
 /** 자산군별 카드 목록 — 하단 탭에서 쓴다 */
 export async function getCardsByAssetClass(
   prisma: PrismaClient,

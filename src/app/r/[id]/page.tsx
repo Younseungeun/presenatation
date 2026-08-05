@@ -2,8 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
+import { getFollowStats } from "@/server/followService";
 import { getPublicProfile } from "@/server/leaderboardQueries";
+import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
+import { FollowButton } from "./FollowButton";
 import { EmptyState } from "../../EmptyState";
 import { StatusChip, outcomeStatus } from "../../StatusChip";
 import { TierChip } from "../../TierChip";
@@ -20,6 +23,8 @@ export default async function PublicProfile({
   const { id } = await params;
   const data = await getPublicProfile(prisma, id);
   if (!data) notFound();
+  const viewerId = await getSessionUserId();
+  const follow = await getFollowStats(prisma, id, viewerId);
 
   const { profile, trackRecords, buyable, history } = data;
   const name = profile.user.penName ?? profile.user.email;
@@ -51,6 +56,23 @@ export default async function PublicProfile({
         <TierChip tier={profile.tier} />
         {profile.advisoryRegistered && (
           <small style={{ opacity: 0.6 }}>유사투자자문업 신고</small>
+        )}
+      </div>
+
+      {/* 팔로우 — 새 예측 카드 알림을 받고 리더보드에서 모아 본다 */}
+      <div className={styles.followRow}>
+        <span className={styles.followCount}>
+          <strong>{follow.followers.toLocaleString()}</strong> 팔로워
+        </span>
+        <span className={styles.followCount}>
+          <strong>{follow.following.toLocaleString()}</strong> 팔로잉
+        </span>
+        {!follow.isSelf && (
+          <FollowButton
+            researcherId={id}
+            initialFollowing={follow.isFollowing}
+            signedIn={viewerId !== null}
+          />
         )}
       </div>
 

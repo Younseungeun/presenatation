@@ -10,6 +10,7 @@ import {
   type CardDraft,
 } from '@/domain/publishReport';
 import { toCardDraft } from './cardMapper';
+import { buildNewCardNotificationWrites } from './followService';
 import { validateListedInstrument } from './instrumentService';
 import { researcherSeasonScores } from './scoreService';
 
@@ -105,7 +106,10 @@ export async function publishReport(
 ) {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
-    include: { predictionCard: true, researcher: true },
+    include: {
+      predictionCard: true,
+      researcher: { include: { user: { select: { penName: true, email: true } } } },
+    },
   });
 
   if (report.researcherId !== researcherId) {
@@ -165,6 +169,24 @@ export async function publishReport(
     now,
   );
 
+  // 팔로워 알림 — 게시와 같은 트랜잭션에 넣어 "게시는 됐는데 알림만 누락"을 막는다
+  const followerNotifications = await buildNewCardNotificationWrites(
+    prisma,
+    {
+      researcherId: report.researcherId,
+      researcherName: report.researcher.user.penName ?? report.researcher.user.email,
+      reportId,
+      reportTitle: report.title,
+      assetName: card.assetName,
+      direction: card.direction,
+      sizeLabel:
+        card.targetType === 'RETURN_PCT'
+          ? `${card.targetValue}%`
+          : `목표가 ${card.targetValue.toLocaleString()}`,
+    },
+    snapshot.publishedAt,
+  );
+
   const [updated] = await prisma.$transaction([
     prisma.report.update({
       // 동시 게시 요청 대비: DRAFT 조건을 다시 걸어 원자적으로 전이
@@ -179,6 +201,7 @@ export async function publishReport(
       where: { id: card.id },
       data: { basePrice: snapshot.basePrice, baseMode: snapshot.baseMode },
     }),
+    ...followerNotifications,
   ]);
 
   return { ...updated, basePrice: snapshot.basePrice };

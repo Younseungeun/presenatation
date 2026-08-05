@@ -25,6 +25,7 @@ model User {
   purchases         Purchase[]
   cartItems         CartItem[]
   paymentIntents    PaymentIntent[]
+  follows           Follow[] // 내가 팔로우한 리서처들
 }
 
 // 리서처 프로필: 등급·경력 배지·신고 여부
@@ -40,6 +41,22 @@ model ResearcherProfile {
 
   reports       Report[]
   tierHistories TierHistory[]
+  followers     Follow[] // 나를 팔로우한 사용자들
+}
+
+// 팔로우: 사용자 → 리서처 (단방향 구독).
+// 새 예측 카드가 게시되면 팔로워에게 알림이 가고, 리더보드에서 팔로우한 리서처의
+// 카드만 모아 볼 수 있다. 자기 자신(같은 계정의 리서처 프로필)은 팔로우할 수 없다.
+model Follow {
+  id           String            @id @default(cuid())
+  followerId   String // User.id — 팔로우하는 쪽
+  follower     User              @relation(fields: [followerId], references: [id])
+  researcherId String // ResearcherProfile.id — 팔로우당하는 쪽
+  researcher   ResearcherProfile @relation(fields: [researcherId], references: [id])
+  createdAt    DateTime          @default(now())
+
+  @@unique([followerId, researcherId]) // 중복 팔로우 차단
+  @@index([researcherId]) // 팔로워 수·알림 대상 조회
 }
 
 // 리포트: 건별 판매 단위. 리포트 1건 = 예측 카드 1건 = 판정 1건

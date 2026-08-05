@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
+import { getFollowedResearcherIds } from "@/server/followService";
 import {
   getBestSellingCards,
   getCardsByAssetClass,
+  getFollowedResearcherCards,
   getTopTierCards,
   MARKET_SORTS,
   type MarketCard,
   type MarketSort,
 } from "@/server/marketQueries";
+import { getSessionUserId } from "@/server/session";
 import { CleanBanner } from "../CleanBanner";
 import { EmptyState } from "../EmptyState";
 import { TierChip } from "../TierChip";
@@ -111,10 +114,14 @@ export default async function LeaderboardPage({
     : "DEADLINE") as MarketSort;
   const now = new Date();
 
-  const [bestSelling, topTier, cards] = await Promise.all([
+  const viewerId = await getSessionUserId();
+  const followedIds = viewerId ? await getFollowedResearcherIds(prisma, viewerId) : [];
+
+  const [bestSelling, topTier, cards, followed] = await Promise.all([
     getBestSellingCards(prisma, 5, now),
     getTopTierCards(prisma, 5, now),
     getCardsByAssetClass(prisma, asset, sort, now),
+    getFollowedResearcherCards(prisma, followedIds, 10, now),
   ]);
 
   return (
@@ -124,6 +131,29 @@ export default async function LeaderboardPage({
         지금 살 수 있는 예측 카드입니다. 모든 카드는 시한이 지나면 시장 데이터로 자동
         판정되고, 틀리면 성과 연동분이 현금으로 환불됩니다.
       </p>
+
+      {/* 팔로우한 리서처의 카드 — 내가 고른 사람들이라 가장 위에 둔다 */}
+      {followed.length > 0 && (
+        <>
+          <div className={styles.railHead}>
+            <span className={styles.railTitle}>팔로우한 리서처의 카드</span>
+            <span className={styles.railNote}>최신순</span>
+          </div>
+          <div className={styles.rail}>
+            {followed.map((c) => (
+              <RailCard key={c.reportId} c={c} now={now} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* 팔로우는 했지만 지금 파는 카드가 없을 때 — 빈 레일 대신 한 줄로 알린다 */}
+      {followedIds.length > 0 && followed.length === 0 && (
+        <p className={styles.sub}>
+          팔로우한 리서처가 지금 판매 중인 카드는 없습니다. 새 카드가 올라오면 알림으로
+          알려드릴게요.
+        </p>
+      )}
 
       {bestSelling.length > 0 && (
         <>

@@ -8,6 +8,7 @@ import {
   type BuyerPurchase,
 } from "@/server/financeQueries";
 import { countCart } from "@/server/cartService";
+import { getFollowerList, getFollowingList } from "@/server/followService";
 import { getResearcherDashboard, type DashboardReport } from "@/server/reportQueries";
 import { researcherSeasonScores } from "@/server/scoreService";
 import { getSessionUserId } from "@/server/session";
@@ -258,13 +259,26 @@ async function loadMe(mode: Mode) {
 
   const researcherId = user.researcherProfile?.id ?? null;
   const sellerMode = mode === "seller" && researcherId !== null;
-  const [unreadCount, cartCount, purchases, dashboard, finance, seasonScores] = await Promise.all([
+  const [
+    unreadCount,
+    cartCount,
+    purchases,
+    dashboard,
+    finance,
+    seasonScores,
+    following,
+    followers,
+  ] = await Promise.all([
     prisma.notification.count({ where: { userId, readAt: null } }),
     countCart(prisma, userId),
     getBuyerPurchases(prisma, userId),
     sellerMode ? getResearcherDashboard(prisma, researcherId!) : Promise.resolve(null),
     sellerMode ? getResearcherFinance(prisma, researcherId!) : Promise.resolve(null),
     sellerMode ? researcherSeasonScores(prisma, researcherId!) : Promise.resolve(null),
+    // 팔로잉은 누구나 가질 수 있다 (구매자 관점) — '내 구매'에서 본다
+    sellerMode ? Promise.resolve([]) : getFollowingList(prisma, userId),
+    // 팔로워는 리서처만 가진다 (Follow는 사용자→리서처) — '내 리서치'에서 본다
+    sellerMode ? getFollowerList(prisma, researcherId!) : Promise.resolve([]),
   ]);
 
   const judged = purchases.filter((p) => p.report.predictionCard?.judgment);
@@ -295,6 +309,8 @@ async function loadMe(mode: Mode) {
     researcherId,
     unreadCount,
     cartCount,
+    following,
+    followers,
     purchases,
     active: purchases.filter((p) => !p.report.predictionCard?.judgment),
     done: judged,
@@ -544,6 +560,33 @@ export default async function MyPage({
               ))}
             </CollapsedList>
           )}
+
+          {/* 팔로잉 — 새 카드 알림을 받는 리서처들. 구매자 관점이라 '내 구매'에 둔다 */}
+          <div className={s.stripTitle}>팔로잉 {me.following.length}</div>
+          {me.following.length === 0 ? (
+            <EmptyState
+              compact
+              title="아직 팔로우한 리서처가 없어요"
+              body="팔로우하면 새 예측 카드가 올라올 때 알림을 받고, 리더보드에서 모아 볼 수 있어요."
+              actionHref="/ranking"
+              actionLabel="랭킹에서 리서처 찾기"
+            />
+          ) : (
+            <CollapsedList limit={3}>
+              {me.following.map((f) => (
+                <Link key={f.researcherId} href={`/r/${f.researcherId}`} className={styles.row}>
+                  <div className={styles.rowMain}>
+                    <span className={styles.rowName}>
+                      {f.name}
+                      <TierChip tier={f.tier} />
+                      {f.careerBadge && <span className={styles.pill}>인증</span>}
+                    </span>
+                    <span className={styles.rowSub}>{fmtDate(f.followedAt)}부터 팔로우</span>
+                  </div>
+                </Link>
+              ))}
+            </CollapsedList>
+          )}
         </>
       ) : (
         <>
@@ -630,6 +673,27 @@ export default async function MyPage({
                 )
               ) : (
                 sellerShown.map((r) => <AuthoredCard key={r.id} r={r} now={now} />)
+              )}
+
+              {/* 팔로워 — 내 새 카드 알림을 받는 사람들. 리서처에게만 존재한다 */}
+              <div className={s.stripTitle}>팔로워 {me.followers.length}</div>
+              {me.followers.length === 0 ? (
+                <EmptyState
+                  compact
+                  title="아직 팔로워가 없어요"
+                  body="카드를 꾸준히 게시하면 팔로워가 쌓이고, 새 카드마다 알림이 전해집니다."
+                />
+              ) : (
+                <CollapsedList limit={3}>
+                  {me.followers.map((f, i) => (
+                    <div key={i} className={styles.row}>
+                      <div className={styles.rowMain}>
+                        <span className={styles.rowName}>{f.name}</span>
+                        <span className={styles.rowSub}>{fmtDate(f.followedAt)}부터 팔로우</span>
+                      </div>
+                    </div>
+                  ))}
+                </CollapsedList>
               )}
             </>
           ) : (
