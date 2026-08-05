@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { squarify } from "@/lib/treemap";
 import type { ConsensusRow } from "@/server/marketQueries";
@@ -87,6 +87,27 @@ export function PredictionHeatmap({ consensus }: { consensus: ConsensusRow[] }) 
     byClass.set(key, list);
   }
 
+  // 자산군 인라인 드롭다운 개폐 — 시트·팝업 없이 버튼 자리에서 바로 펼친다.
+  // 바깥 클릭·Escape로 닫는다 (드롭다운 영역은 data 속성으로 구분)
+  const [pickerOpen, setPickerOpen] = useState(false);
+  useEffect(() => {
+    if (!pickerOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!(e.target as Element | null)?.closest("[data-heat-asset-picker]")) {
+        setPickerOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPickerOpen(false);
+    };
+    document.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [pickerOpen]);
+
   // 첫 표시는 활성 예측이 가장 많은 자산군
   const [selected, setSelected] = useState<AssetClass>(() => {
     let best: AssetClass = ASSET_CLASSES[0];
@@ -136,10 +157,8 @@ export function PredictionHeatmap({ consensus }: { consensus: ConsensusRow[] }) 
   // 너무 작은 회사는 뺀다 (확정 — 실낱 타일이 섹터 내부를 지저분하게 만들어서).
   // 기준: 캔버스에서 차지할 면적이 약 10px 변 미만. 활성 예측이 있는 종목은 작아도 남긴다.
   const allCap = tiles.reduce((s, t) => s + t.cap, 0);
-  const totalShown = tiles.length;
   const pxPerCap = allCap > 0 ? (CANVAS_W * 560) / allCap : 0; // 높이는 상한 근사
   const visible = tiles.filter((t) => t.row || t.cap * pxPerCap >= 100);
-  const dropped = totalShown - visible.length;
 
   // 섹터 구획: 구획 면적 = 섹터 시총 합 (코스피 박스를 빈틈 없이 나눈다)
   const sectors = new Map<string, SectorGroup>();
@@ -165,19 +184,59 @@ export function PredictionHeatmap({ consensus }: { consensus: ConsensusRow[] }) 
 
   return (
     <div>
-      <div className={styles.heatTabs} role="tablist" aria-label="히트맵 자산군">
-        {ASSET_CLASSES.map((assetClass) => (
-          <button
-            key={assetClass}
-            type="button"
-            role="tab"
-            aria-selected={assetClass === selected}
-            className={`${styles.heatTab} ${assetClass === selected ? styles.heatTabActive : ""}`}
-            onClick={() => setSelected(assetClass)}
-          >
-            {ASSET_CLASS_LABEL[assetClass]}
-          </button>
-        ))}
+      {/* 섹션 머리 — "[국내주식 ▼] 예측 히트맵" 형태. 자산군 버튼이 제목 맨 앞이고,
+          누르면 ▼가 ▲로 바뀌며 그 자리 아래로 나머지 항목이 인라인 드롭다운으로 펼쳐진다 */}
+      <div className={styles.sectionHead}>
+        <span className={styles.heatHeadLeft}>
+          <span className={styles.heatAssetWrap} data-heat-asset-picker>
+            <button
+              type="button"
+              className={styles.heatAssetBtn}
+              onClick={() => setPickerOpen((o) => !o)}
+              aria-expanded={pickerOpen}
+              aria-label={`자산군 선택 — 현재 ${ASSET_CLASS_LABEL[selected]}`}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+                className={pickerOpen ? styles.heatAssetChevronUp : undefined}
+              >
+                <path
+                  d="M6 9l6 6 6-6"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <span data-heat-asset-label>{ASSET_CLASS_LABEL[selected]}</span>
+            </button>
+            {pickerOpen && (
+              <div className={styles.heatAssetMenu}>
+                {ASSET_CLASSES.filter((a) => a !== selected).map((assetClass) => (
+                  <button
+                    key={assetClass}
+                    type="button"
+                    className={styles.heatAssetOption}
+                    onClick={() => {
+                      setSelected(assetClass);
+                      setPickerOpen(false);
+                    }}
+                  >
+                    {ASSET_CLASS_LABEL[assetClass]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </span>
+          <span className={styles.sectionTitle}>예측 히트맵</span>
+        </span>
+        <Link href="/leaderboard" className={styles.sectionMore}>
+          카드 보기 →
+        </Link>
       </div>
       <div
         className={`${styles.heatWrap} ${styles.heatCanvas}`}
@@ -255,12 +314,6 @@ export function PredictionHeatmap({ consensus }: { consensus: ConsensusRow[] }) 
           );
         })}
       </div>
-      {dropped > 0 && (
-        <p className={styles.heatFootnote}>
-          시가총액이 작은 {dropped.toLocaleString()}개 종목은 표시 공간 관계로 생략했습니다
-          (활성 예측이 있는 종목은 항상 표시).
-        </p>
-      )}
     </div>
   );
 }

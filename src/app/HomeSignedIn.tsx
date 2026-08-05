@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
-import type { BuyerPurchase } from "@/server/financeQueries";
+import { IntovillLockup } from "./brand/Logo";
+import { CleanBanner } from "./CleanBanner";
 import type { FreeReportSummary } from "@/server/freeReportService";
 import type { ConsensusRow, JudgedFeedItem, MarketCard } from "@/server/marketQueries";
 import { PredictionHeatmap } from "./PredictionHeatmap";
@@ -33,7 +34,6 @@ function outcomeLabel(outcome: string): { text: string; color: string } {
 
 export function HomeSignedIn({
   name,
-  purchases,
   consensus,
   freeReports,
   feed,
@@ -41,78 +41,40 @@ export function HomeSignedIn({
   now,
 }: {
   name: string;
-  purchases: BuyerPurchase[];
   consensus: ConsensusRow[];
   freeReports: FreeReportSummary[];
   feed: JudgedFeedItem[];
   upcoming: MarketCard[];
   now: Date;
 }) {
-  const active = purchases.filter((p) => !p.report.predictionCard?.judgment);
-  const done = purchases.filter((p) => p.report.predictionCard?.judgment);
-  const refundedKrw = purchases.reduce((a, p) => a + (p.settlement?.buyerRefundKrw ?? 0), 0);
-
-  // 검증 중인 것 가운데 시한이 가장 가까운 카드 — 다시 들어올 이유를 만든다
-  const nextUp = active
-    .filter((p) => p.report.predictionCard)
-    .sort(
-      (a, b) =>
-        a.report.predictionCard!.deadline.getTime() - b.report.predictionCard!.deadline.getTime(),
-    )[0];
-
+  // 내 검증 현황(검증 중 건수·누적 환불)은 MY와 전역 판정 팝업이 담당한다 —
+  // 홈 본문은 히트맵·리포트·카드 탐색만 다룬다
   return (
     <main className={styles.appHome}>
-      <h1 className={styles.greeting}>{name}님</h1>
-      <p className={styles.greetingSub}>
-        {active.length > 0
-          ? `검증 중인 예측이 ${active.length}건 있습니다.`
-          : "지금 검증 중인 예측이 없습니다. 리더보드에서 카드를 찾아보세요."}
-      </p>
+      {/* 좌측 상단 브랜드 — 축소판 +25% (height 22.5, 락업 최소폭 155px 규정 예외).
+          태그라인은 락업 폭에 쏙 들어가는 크기 */}
+      <div className={styles.brandRow}>
+        {/* 심볼은 원위치, 워드마크(INTOVILL)만 살짝 위로 — 아래 태그라인과 한 덩어리 */}
+        <IntovillLockup height={22.5} wordmarkOffsetY={-5} />
+        <p className={styles.brandTagline}>맞히는 리서처만 살아남는 리포트 마켓</p>
+      </div>
 
-      <Link href="/my" className={styles.statusCard}>
-        <div className={styles.statusRow}>
-          <div className={styles.statusItem}>
-            <span className={styles.statusValue}>{active.length}</span>
-            <span className={styles.statusLabel}>검증 중</span>
-          </div>
-          <div className={styles.statusItem}>
-            <span className={styles.statusValue}>{done.length}</span>
-            <span className={styles.statusLabel}>검증 완료</span>
-          </div>
-          <div className={styles.statusItem}>
-            <span className={styles.statusValue}>{refundedKrw.toLocaleString()}</span>
-            <span className={styles.statusLabel}>누적 환불(원)</span>
-          </div>
-        </div>
-      </Link>
-
-      {nextUp && (
-        <Link href="/my?mode=buyer&tab=active" className={styles.nextUp}>
-          <span className={styles.nextUpText}>
-            가장 가까운 판정 · {nextUp.report.title}
-          </span>
-          <span className={styles.nextUpDday}>
-            {dday(nextUp.report.predictionCard!.deadline, now)}
-          </span>
-        </Link>
-      )}
+      {/* 인사말은 화면에서 뺐지만 페이지 h1은 하나 필요해 스크린리더용으로만 남긴다 */}
+      <h1 className="srOnly">{name}님의 홈</h1>
 
       {consensus.length > 0 && (
         <>
-          <div className={styles.sectionHead}>
-            <span className={styles.sectionTitle}>예측 히트맵</span>
-            <Link href="/leaderboard" className={styles.sectionMore}>
-              카드 보기 →
-            </Link>
-          </div>
+          {/* 섹션 머리(제목·자산군 선택·카드 보기)는 히트맵 컴포넌트가 함께 그린다 */}
           <PredictionHeatmap consensus={consensus} />
+          {/* 법적 방어 문구 — 시세·전망 화면으로 오해되지 않게 "예측의 집계"임을 명시 */}
           <p className={styles.consensusNote}>
-            검증 중인 예측 카드의 종목별 방향 분포입니다. 타일 색은 상승·하락 우세, 진하기는
-            쏠린 정도입니다. 플랫폼의 전망이 아니라 집계된 사실이며, 투자 판단의 근거로 삼기에
-            충분한 표본이 아닐 수 있습니다.
+            예측 히트맵은 리서처들이 게시한 예측을 종목별로 집계해 색으로 나타낸 것입니다.
+            시세나 플랫폼의 전망·투자 권유가 아니며, 투자 판단의 책임은 이용자 본인에게
+            있습니다.
           </p>
         </>
       )}
+
 
       {freeReports.length > 0 && (
         <>
@@ -213,6 +175,12 @@ export function HomeSignedIn({
           </div>
         </>
       )}
+
+      {/* 신고 배너는 홈에서 잔잔하게 맨 아래 — 강조는 리더보드(카드를 사는 자리)가 맡는다 */}
+      <div className={styles.cleanBannerSlot}>
+        <CleanBanner />
+      </div>
+
     </main>
   );
 }

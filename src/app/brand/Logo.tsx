@@ -40,9 +40,16 @@ export function IntovillMark({
 export function IntovillLockup({
   height = 32,
   className,
+  wordmarkOffsetY = 0,
 }: {
   height?: number;
   className?: string;
+  /**
+   * 워드마크(INTOVILL 글자)만 수직으로 미세 이동 — viewBox 단위(40 = 락업 높이).
+   * 심볼 위치·원본 좌표는 그대로 두고 감싸는 그룹만 옮기므로 브랜드 자산 규칙에 어긋나지
+   * 않는다. 기본 0 = 원본 락업. 홈 상단처럼 워드마크 아래에 문구를 붙일 때만 쓴다.
+   */
+  wordmarkOffsetY?: number;
 }) {
   const width = (height * 213.8) / 40;
   return (
@@ -62,26 +69,29 @@ export function IntovillLockup({
         />
         <circle cx="43.75" cy="43.75" r="10" fill="none" stroke="#12B896" strokeWidth="6" />
       </g>
-      <g
-        transform="translate(54 8)"
-        fill="none"
-        stroke="#0C1E1A"
-        strokeLinecap="butt"
-        strokeLinejoin="miter"
-        strokeMiterlimit="2"
-      >
-        <g strokeWidth="2.8">
-          <path d="M1.4 0 L1.4 24" />
-          <path d="M8.2 24 L8.2 0 L26.4 24 L26.4 0" />
-          <path d="M30.8 1.4 L51.8 1.4" />
-          <path d="M41.3 0 L41.3 24" />
-          <circle cx="66.3" cy="12" r="11.1" />
-        </g>
-        <g strokeWidth="7">
-          <path d="M85.3 0 L93.8 24 L102.3 0" />
-          <path d="M111.3 0 L111.3 24" />
-          <path d="M122.3 0 L122.3 20.5 L138.8 20.5" />
-          <path d="M143.3 0 L143.3 20.5 L159.8 20.5" />
+      {/* 감싸는 그룹은 미세 이동 전용 — 안쪽 워드마크 좌표는 원본 그대로 */}
+      <g transform={`translate(0 ${wordmarkOffsetY})`}>
+        <g
+          transform="translate(54 8)"
+          fill="none"
+          stroke="#0C1E1A"
+          strokeLinecap="butt"
+          strokeLinejoin="miter"
+          strokeMiterlimit="2"
+        >
+          <g strokeWidth="2.8">
+            <path d="M1.4 0 L1.4 24" />
+            <path d="M8.2 24 L8.2 0 L26.4 24 L26.4 0" />
+            <path d="M30.8 1.4 L51.8 1.4" />
+            <path d="M41.3 0 L41.3 24" />
+            <circle cx="66.3" cy="12" r="11.1" />
+          </g>
+          <g strokeWidth="7">
+            <path d="M85.3 0 L93.8 24 L102.3 0" />
+            <path d="M111.3 0 L111.3 24" />
+            <path d="M122.3 0 L122.3 20.5 L138.8 20.5" />
+            <path d="M143.3 0 L143.3 20.5 L159.8 20.5" />
+          </g>
         </g>
       </g>
     </svg>

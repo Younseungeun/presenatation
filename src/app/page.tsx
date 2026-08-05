@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { prisma } from "@/server/db";
-import { getBuyerPurchases } from "@/server/financeQueries";
 import { getFreeReports } from "@/server/freeReportService";
 import {
   getRecentJudgments,
@@ -40,12 +39,11 @@ export default async function Home() {
   const now = new Date();
 
   if (userId) {
-    const [user, purchases, consensus, freeReports, feed, upcoming] = await Promise.all([
+    const [user, consensus, freeReports, feed, upcoming] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: { penName: true, email: true },
       }),
-      getBuyerPurchases(prisma, userId),
       // 히트맵이 코스피 전 종목을 그리므로 컨센서스 표본도 넉넉히 (종목 수 기준)
       getResearcherConsensus(prisma, 100, now),
       getFreeReports(prisma, 4),
@@ -57,7 +55,6 @@ export default async function Home() {
       return (
         <HomeSignedIn
           name={user.penName ?? user.email}
-          purchases={purchases}
           consensus={consensus}
           freeReports={freeReports}
           feed={feed}
