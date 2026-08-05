@@ -1,10 +1,11 @@
-import type {
-  AssetClass,
-  BaseMode,
-  Direction,
-  PrepaymentRatio,
-  TargetType,
-  Tier,
+import {
+  TIER_NAME,
+  type AssetClass,
+  type BaseMode,
+  type Direction,
+  type PrepaymentRatio,
+  type TargetType,
+  type Tier,
 } from './constants';
 import { calcFeeRateBp } from './fees';
 import { marketClock } from './marketData';
@@ -22,7 +23,7 @@ export const PRICE_GUIDE_KRW = { min: 5_000, max: 50_000 } as const;
  * 목적: 신뢰도 1 저품질 대량 게시의 마지막 구멍 차단 (docs/score-discipline-sim.md).
  * 마이너스 규율은 기대 점수 ≈ 0인 신뢰도 1 스팸에 발동하지 않는데, 그 동기는
  * 점수가 아니라 판매 수익이므로 노출 총량 자체를 제한한다.
- * 검증 전 신규(브론즈)는 소수의 카드에 집중하게 좁게 열고,
+ * 검증 전 신규(무표기)는 소수의 카드에 집중하게 좁게 열고,
  * 검증된 상위 등급일수록 슬롯이 늘어난다.
  * 판정·철회로 카드가 닫히면 슬롯이 즉시 회수된다.
  */
@@ -274,7 +275,7 @@ export function preparePublish(
   const maxActive = MAX_ACTIVE_CARDS[cond.tier];
   if ((cond.activeCardCount ?? 0) >= maxActive) {
     issues.push(
-      `${card.assetClass} 동시 활성 카드가 상한(${cond.tier} ${maxActive}건)에 도달했습니다 — 기존 카드가 판정되거나 철회되면 다시 게시할 수 있습니다`,
+      `${card.assetClass} 동시 활성 카드가 상한(${TIER_NAME[cond.tier]} 등급 ${maxActive}건)에 도달했습니다 — 기존 카드가 판정되거나 철회되면 다시 게시할 수 있습니다`,
     );
   }
 

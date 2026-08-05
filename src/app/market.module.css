@@ -140,15 +140,7 @@
 .nameLink {
   color: inherit;
 }
-.tier {
-  font-size: 11px;
-  font-weight: 800;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: var(--brand-soft);
-  color: var(--brand-ink);
-  letter-spacing: 0.02em;
-}
+/* 등급 표시는 TierChip(tierChip.module.css)으로 일원화됐다 — 민트 칩 폐기(브랜드 §4-4) */
 .pos {
   color: var(--pos);
 }
@@ -236,21 +228,7 @@
   color: var(--brand-ink);
 }
 
-.badgeHit {
-  color: var(--pos);
-  font-weight: 800;
-  font-size: 13px;
-}
-.badgeMiss {
-  color: var(--neg);
-  font-weight: 800;
-  font-size: 13px;
-}
-.badgeUndecidable {
-  color: var(--warn);
-  font-weight: 800;
-  font-size: 13px;
-}
+/* 판정 결과·검증 중 배지는 StatusChip(statusChip.module.css)으로 일원화됐다 */
 
 /* report detail */
 .cardBox {

@@ -1,0 +1,63 @@
+/* 빈 상태 — EmptyState.tsx 전용 */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 36px 20px 32px;
+}
+.compact {
+  padding: 22px 16px 20px;
+}
+
+/* 아직 채워지지 않은 자리 — 점선 실루엣, 살짝 기울여 도장 찍기 전의 여백처럼 */
+.mark {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed rgba(18, 184, 134, 0.45);
+  border-radius: 14px;
+  background: var(--brand-soft);
+  color: #0b7a66; /* 브랜드 Mint 700 */
+  transform: rotate(-4deg);
+  margin-bottom: 4px;
+}
+.compact .mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text, #191f28);
+}
+.compact .title {
+  font-size: 13px;
+}
+.body {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-faint);
+  max-width: 300px;
+}
+.action {
+  margin-top: 8px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: #0b7a66;
+  font-size: 13px;
+  font-weight: 800;
+}
+.compact .action {
+  margin-top: 6px;
+  padding: 6px 13px;
+  font-size: 12px;
+}

@@ -10,6 +10,8 @@ import {
   type MarketSort,
 } from "@/server/marketQueries";
 import { CleanBanner } from "../CleanBanner";
+import { EmptyState } from "../EmptyState";
+import { TierChip } from "../TierChip";
 import { SortPicker } from "./SortPicker";
 import styles from "../market.module.css";
 
@@ -54,7 +56,7 @@ function RailCard({ c, now, showSales }: { c: MarketCard; now: Date; showSales?:
       <div className={styles.railCardTitle}>{c.title}</div>
       <div className={styles.railMeta}>
         <span>{c.researcherName}</span>
-        <span className={styles.tier}>{c.tier}</span>
+        <TierChip tier={c.tier} />
         {showSales && c.salesCount > 0 && <span>· {c.salesCount}명 구매</span>}
       </div>
       <div className={styles.railFoot}>
@@ -72,7 +74,7 @@ function ListCard({ c, now }: { c: MarketCard; now: Date }) {
       <div className={styles.reportTitle}>{c.title}</div>
       <div className={styles.meta}>
         <span>{c.researcherName}</span>
-        <span className={styles.tier}>{c.tier}</span>
+        <TierChip tier={c.tier} />
         {c.careerBadge && <span className={styles.pill}>인증</span>}
       </div>
       <div className={styles.meta}>
@@ -175,9 +177,11 @@ export default async function LeaderboardPage({
       </div>
 
       {cards.length === 0 ? (
-        <p className={styles.sub}>
-          이 자산군에는 지금 판매 중인 카드가 없습니다. 다른 자산군을 확인해보세요.
-        </p>
+        <EmptyState
+          compact
+          title="이 자산군에는 판매 중인 카드가 없어요"
+          body="다른 자산군 탭을 확인해보세요."
+        />
       ) : (
         cards.map((c) => <ListCard key={c.reportId} c={c} now={now} />)
       )}

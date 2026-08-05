@@ -5,6 +5,8 @@ import { prisma } from "@/server/db";
 import { getManualJudgmentQueue } from "@/server/manualJudgmentService";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
+import { EmptyState } from "../../EmptyState";
+import { StatusChip } from "../../StatusChip";
 import styles from "../../researcher/researcher.module.css";
 import { ManualJudgeForm } from "./ManualJudgeForm";
 
@@ -36,15 +38,13 @@ export default async function AdminJudgmentsPage() {
       </div>
 
       {queue.length === 0 ? (
-        <p className={styles.empty}>보류 중인 카드가 없습니다.</p>
+        <EmptyState compact glyph="inbox" title="보류 중인 카드가 없어요" />
       ) : (
         queue.map((entry) => (
           <div key={entry.cardId} className={styles.card}>
             <div className={styles.cardTop}>
               <div className={styles.cardTitle}>{entry.reportTitle}</div>
-              <span className={`${styles.badge} ${styles.undecidable}`}>
-                시한 경과 {entry.staleDays}일
-              </span>
+              <StatusChip status="UNDECIDABLE" label={`시한 경과 ${entry.staleDays}일`} />
             </div>
             <div className={styles.meta}>
               <span>{ASSET_CLASS_LABEL[entry.assetClass as AssetClass]}</span>

@@ -12,6 +12,9 @@ import { getResearcherDashboard, type DashboardReport } from "@/server/reportQue
 import { researcherSeasonScores } from "@/server/scoreService";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
+import { EmptyState } from "../EmptyState";
+import { StatusChip, outcomeStatus, type StatusKind } from "../StatusChip";
+import { TierChip } from "../TierChip";
 import styles from "../market.module.css";
 import {
   BagIcon,
@@ -98,9 +101,7 @@ function dday(deadline: Date | string, now: Date): string {
 }
 
 function outcomeBadge(outcome: string) {
-  if (outcome === "HIT") return <span className={styles.badgeHit}>적중</span>;
-  if (outcome === "MISS") return <span className={styles.badgeMiss}>실패</span>;
-  return <span className={styles.badgeUndecidable}>판정 불가</span>;
+  return <StatusChip status={outcomeStatus(outcome)} />;
 }
 
 function Tile({
@@ -164,7 +165,7 @@ function PurchasedCard({ p, now }: { p: BuyerPurchase; now: Date }) {
           <>
             {card && <span>{dday(card.deadline, now)}</span>}
             {card && <span>시한 {fmtDate(card.deadline)}</span>}
-            <span className={styles.pill}>에스크로 보관 중</span>
+            <StatusChip status="VERIFYING" label="검증 중 · 에스크로" />
           </>
         )}
       </div>
@@ -176,22 +177,18 @@ function PurchasedCard({ p, now }: { p: BuyerPurchase; now: Date }) {
 function AuthoredCard({ r, now }: { r: DashboardReport; now: Date }) {
   const card = r.predictionCard;
   const judgment = card?.judgment;
-  const statusLabel =
-    r.status === "DRAFT" ? "초안" : r.status === "PUBLISHED" ? "판매 중" : "종료";
+  const status: StatusKind =
+    r.status === "DRAFT" ? "DRAFT" : r.status === "PUBLISHED" ? "SELLING" : "ENDED";
 
   return (
     <Link href={`/report/${r.id}`} className={styles.reportCard}>
       <div className={styles.reportTitle}>
         {r.title}
-        {judgment ? (
-          outcomeBadge(judgment.outcome)
-        ) : (
-          <span className={styles.pill}>{statusLabel}</span>
-        )}
+        {judgment ? outcomeBadge(judgment.outcome) : <StatusChip status={status} />}
       </div>
       <div className={styles.meta}>
         {card ? <span>{cardLine(card)}</span> : <span>예측 카드 없음</span>}
-        {card?.withdrawnAt && <span className={styles.badgeUndecidable}>철회</span>}
+        {card?.withdrawnAt && <StatusChip status="WITHDRAWN" />}
       </div>
       <div className={styles.meta}>
         <span>{r.priceKrw.toLocaleString()}원</span>
@@ -430,9 +427,7 @@ export default async function MyPage({
         <div className={s.profileMain}>
           <h1 className={s.profileName}>{name}</h1>
           <div className={s.profileMeta}>
-            {me.researcherProfile && (
-              <span className={styles.tier}>{me.researcherProfile.tier}</span>
-            )}
+            {me.researcherProfile && <TierChip tier={me.researcherProfile.tier} />}
             {me.identityVerified && <span className={styles.pill}>본인 인증</span>}
             {!me.researcherProfile && (
               <span className={styles.rowSub} style={{ marginTop: 0 }}>
@@ -522,13 +517,26 @@ export default async function MyPage({
           </div>
 
           {shown.length === 0 ? (
-            <p className={styles.sub}>
-              {tab === "done"
-                ? "아직 판정이 끝난 카드가 없습니다."
-                : tab === "active"
-                  ? "검증을 기다리는 카드가 없습니다."
-                  : "아직 구매한 예측 카드가 없습니다. 리더보드에서 리서처를 살펴보세요."}
-            </p>
+            tab === "done" ? (
+              <EmptyState
+                compact
+                title="아직 판정이 끝난 카드가 없어요"
+                body="검증 시한이 도래하면 시장 데이터로 자동 판정되어 이곳에 쌓입니다."
+              />
+            ) : tab === "active" ? (
+              <EmptyState
+                compact
+                title="검증을 기다리는 카드가 없어요"
+                body="구매한 예측 카드는 판정 전까지 여기에서 검증 중으로 표시됩니다."
+              />
+            ) : (
+              <EmptyState
+                compact
+                title="아직 구매한 예측 카드가 없어요"
+                actionHref="/leaderboard"
+                actionLabel="리더보드에서 리서처 살펴보기"
+              />
+            )
           ) : (
             <CollapsedList limit={3}>
               {shown.map((p) => (
@@ -599,13 +607,27 @@ export default async function MyPage({
               </div>
 
               {sellerShown.length === 0 ? (
-                <p className={styles.sub}>
-                  {sellerTab === "live"
-                    ? "판매 중인 카드가 없습니다."
-                    : sellerTab === "settled"
-                      ? "아직 판정이 끝난 카드가 없습니다."
-                      : "아직 작성한 예측 카드가 없습니다."}
-                </p>
+                sellerTab === "live" ? (
+                  <EmptyState
+                    compact
+                    title="판매 중인 카드가 없어요"
+                    actionHref={`/researcher/${me.researcherId}/new`}
+                    actionLabel="새 리포트 쓰기"
+                  />
+                ) : sellerTab === "settled" ? (
+                  <EmptyState
+                    compact
+                    title="아직 판정이 끝난 카드가 없어요"
+                    body="게시한 카드가 검증 시한에 도달하면 자동 판정됩니다."
+                  />
+                ) : (
+                  <EmptyState
+                    compact
+                    title="아직 작성한 예측 카드가 없어요"
+                    actionHref={`/researcher/${me.researcherId}/new`}
+                    actionLabel="첫 리포트 쓰기"
+                  />
+                )
               ) : (
                 sellerShown.map((r) => <AuthoredCard key={r.id} r={r} now={now} />)
               )}

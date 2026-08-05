@@ -10,6 +10,7 @@ import {
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
+import { EmptyState } from "../../EmptyState";
 import styles from "../../researcher/researcher.module.css";
 import { ReviewForm } from "./ReviewForm";
 
@@ -44,7 +45,7 @@ export default async function AdminAbuseReportsPage() {
         </div>
 
         {pending.length === 0 ? (
-          <p className={styles.empty}>대기 중인 신고가 없습니다.</p>
+          <EmptyState compact glyph="inbox" title="대기 중인 신고가 없어요" />
         ) : (
           pending.map((r) => (
             <div key={r.id} className={styles.card}>

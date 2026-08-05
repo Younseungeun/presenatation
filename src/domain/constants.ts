@@ -17,6 +17,19 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const TIERS = ['BRONZE', 'SILVER', 'GOLD', 'PLATINUM', 'CHALLENGER'] as const;
 export type Tier = (typeof TIERS)[number];
 
+// 등급 명칭 (2026-08-05 확정 — 브랜드 규정 brand/intovill/README.md §4-4 준용).
+// 내부 키(BRONZE~CHALLENGER)는 DB·TierHistory에 저장돼 있어 그대로 두고 표시만 바꾼다.
+/** 배지(등급 칩) 표시 명칭 — BRONZE는 무표기: 칩을 그리지 않는다 (신입 딱지 방지) */
+export const TIER_LABEL: Record<Tier, string> = {
+  BRONZE: '',
+  SILVER: '시니어',
+  GOLD: '마스터',
+  PLATINUM: '펠로우',
+  CHALLENGER: '인투빌 펠로우',
+};
+/** 문장 속 지칭용 이름 — 무표기 등급도 문장에서는 이름이 필요하다 */
+export const TIER_NAME: Record<Tier, string> = { ...TIER_LABEL, BRONZE: '무표기' };
+
 export const OUTCOMES = ['HIT', 'MISS', 'UNDECIDABLE'] as const;
 export type Outcome = (typeof OUTCOMES)[number];
 

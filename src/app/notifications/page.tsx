@@ -4,6 +4,7 @@ import { prisma } from "@/server/db";
 import { getNotifications } from "@/server/notificationService";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
+import { EmptyState } from "../EmptyState";
 import styles from "../market.module.css";
 import { MarkAllRead } from "./MarkAllRead";
 
@@ -25,7 +26,11 @@ export default async function NotificationsPage() {
       <MarkAllRead />
 
       {notifications.length === 0 ? (
-        <p className={styles.sub}>아직 알림이 없습니다.</p>
+        <EmptyState
+          glyph="bell"
+          title="아직 알림이 없어요"
+          body="구매하거나 게시한 카드가 판정되면 결과가 이곳에 도착합니다."
+        />
       ) : (
         <div className={styles.list}>
           {notifications.map((n) => {

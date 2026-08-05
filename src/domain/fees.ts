@@ -1,11 +1,12 @@
-import type { PrepaymentRatio, Tier } from './constants';
+import { TIER_NAME, type PrepaymentRatio, type Tier } from './constants';
 
 // 수수료는 basis point(1bp = 0.01%)로 계산해 부동소수점 오차를 배제한다.
 // "PG 포함 총 20%" 단순 고지 정책에 따라 이 값이 구매자·리서처에게 보이는 총 수수료다.
 
 // 등급 사다리 원칙: 등급마다 "새로 열리는 것"이 하나씩 —
-// 실버 = 수수료 인하(20→15%), 골드 = 선결제 해금, 플래티넘 = 구독, 챌린저 = 최저 수수료.
-// 실버까지는 100% 성과 연동 유지 → 구매자 무위험 진입이 리서처 대다수에 적용 (1단계 신뢰 축적 우선)
+// 시니어 = 수수료 인하(20→15%), 마스터 = 선결제 해금, 펠로우 = 구독, 인투빌 펠로우 = 최저 수수료.
+// 시니어까지는 100% 성과 연동 유지 → 구매자 무위험 진입이 리서처 대다수에 적용 (1단계 신뢰 축적 우선)
+// (내부 키 BRONZE~CHALLENGER는 DB 저장값이라 유지 — 표시 명칭은 constants.TIER_LABEL/TIER_NAME)
 export const TIER_BASE_FEE_BP: Record<Tier, number> = {
   BRONZE: 2000,
   SILVER: 1500,
@@ -14,7 +15,7 @@ export const TIER_BASE_FEE_BP: Record<Tier, number> = {
   CHALLENGER: 1000,
 };
 
-// 등급별 선결제 비율 상한 (골드부터 해금, 상위 등급마다 +10%p)
+// 등급별 선결제 비율 상한 (마스터부터 해금, 상위 등급마다 +10%p)
 export const TIER_MAX_PREPAYMENT: Record<Tier, PrepaymentRatio> = {
   BRONZE: 0,
   SILVER: 0,
@@ -48,7 +49,7 @@ export interface FeeInput {
 export function calcFeeRateBp({ tier, prepaymentRatio, promoActive = false }: FeeInput): number {
   if (prepaymentRatio > TIER_MAX_PREPAYMENT[tier]) {
     throw new Error(
-      `${tier} 등급은 선결제 ${TIER_MAX_PREPAYMENT[tier]}%까지만 허용됩니다 (요청: ${prepaymentRatio}%)`,
+      `${TIER_NAME[tier]} 등급은 선결제 ${TIER_MAX_PREPAYMENT[tier]}%까지만 허용됩니다 (요청: ${prepaymentRatio}%)`,
     );
   }
   const base = promoActive ? PROMO_BASE_FEE_BP : TIER_BASE_FEE_BP[tier];

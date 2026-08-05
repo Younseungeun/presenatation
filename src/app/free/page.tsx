@@ -2,6 +2,8 @@ import Link from "next/link";
 import { prisma } from "@/server/db";
 import { getFreeReports } from "@/server/freeReportService";
 import { AppHeader } from "../AppHeader";
+import { EmptyState } from "../EmptyState";
+import { TierChip } from "../TierChip";
 import styles from "../market.module.css";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +32,7 @@ export default async function FreeReportsPage() {
         </p>
 
         {reports.length === 0 ? (
-          <p className={styles.sub}>아직 공개된 무료 리포트가 없습니다.</p>
+          <EmptyState glyph="doc" title="아직 공개된 무료 리포트가 없어요" />
         ) : (
           reports.map((r) => (
             <Link key={r.reportId} href={`/report/${r.reportId}`} className={styles.reportCard}>
@@ -43,7 +45,7 @@ export default async function FreeReportsPage() {
               </div>
               <div className={styles.meta}>
                 <span>{r.researcherName}</span>
-                <span className={styles.tier}>{r.tier}</span>
+                <TierChip tier={r.tier} />
                 {r.careerBadge && <span className={styles.pill}>인증</span>}
                 <span>{fmtDate(r.publishedAt)}</span>
               </div>

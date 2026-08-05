@@ -8,6 +8,7 @@ import { getSessionUserId } from "@/server/session";
 import { TOSS_CLIENT_KEY } from "@/server/tossPayments";
 import { AppHeader } from "../../AppHeader";
 import { Disclaimer } from "../../Disclaimer";
+import { StatusChip, type StatusKind } from "../../StatusChip";
 import { JudgmentReceipt } from "./JudgmentReceipt";
 import { PurchaseButton } from "./PurchaseButton";
 import { TossCheckoutButton } from "./TossCheckoutButton";
@@ -42,15 +43,18 @@ export default async function ReportDetail({
       minute: "2-digit",
     });
 
-  // 구매 진행 상태 — 에스크로 상태 + 환불 실행 여부를 구매자 언어로
-  const purchaseStatus = purchase
+  // 구매 진행 상태 — 에스크로 상태 + 환불 실행 여부를 구매자 언어로.
+  // 환불 색은 판정 결과를 따른다 (실패 → 빨강, 판정 불가 → 주황)
+  const refundStatus: StatusKind =
+    judgment?.outcome === "UNDECIDABLE" ? "UNDECIDABLE" : "MISS";
+  const purchaseStatus: { label: string; status: StatusKind } | null = purchase
     ? purchase.escrowStatus === "HELD"
-      ? { label: "판정 대기 · 에스크로 보관 중", cls: styles.badgeUndecidable }
+      ? { label: "판정 대기 · 에스크로 보관 중", status: "VERIFYING" }
       : purchase.escrowStatus === "REFUNDED"
         ? purchase.settlement?.refundExecutedAt
-          ? { label: "환불 완료", cls: styles.badgeMiss }
-          : { label: "환불 확정 · 지급 준비 중", cls: styles.badgeMiss }
-        : { label: "적중 · 정산 완료", cls: styles.badgeHit }
+          ? { label: "환불 완료", status: refundStatus }
+          : { label: "환불 확정 · 지급 준비 중", status: refundStatus }
+        : { label: "적중 · 정산 완료", status: "HIT" }
     : null;
 
   const dir = card?.direction === "UP" ? "▲ 상승 (buy)" : "▼ 하락 (sell)";
@@ -105,13 +109,17 @@ export default async function ReportDetail({
             <div className={styles.cardRow}>
               <span className={styles.cardKey}>판정 결과</span>
               <span className={styles.cardVal}>
-                {judgment.outcome === "HIT"
-                  ? "적중"
-                  : judgment.outcome === "MISS"
-                    ? "실패"
-                    : "판정 불가"}
+                <StatusChip
+                  status={
+                    judgment.outcome === "HIT"
+                      ? "HIT"
+                      : judgment.outcome === "MISS"
+                        ? "MISS"
+                        : "UNDECIDABLE"
+                  }
+                />
                 {judgment.realizedReturnPct != null &&
-                  ` (실현 ${judgment.realizedReturnPct >= 0 ? "+" : ""}${judgment.realizedReturnPct.toFixed(1)}%)`}
+                  ` 실현 ${judgment.realizedReturnPct >= 0 ? "+" : ""}${judgment.realizedReturnPct.toFixed(1)}%`}
               </span>
             </div>
           )}
@@ -158,8 +166,8 @@ export default async function ReportDetail({
             </div>
             <div className={styles.cardRow}>
               <span className={styles.cardKey}>진행 상태</span>
-              <span className={`${styles.cardVal} ${purchaseStatus!.cls}`}>
-                {purchaseStatus!.label}
+              <span className={styles.cardVal}>
+                <StatusChip status={purchaseStatus!.status} label={purchaseStatus!.label} />
               </span>
             </div>
             {purchase.settlement && (

@@ -5,6 +5,9 @@ import { prisma } from "@/server/db";
 import { getResearcherFinance } from "@/server/financeQueries";
 import { getResearcherDashboard, type DashboardReport } from "@/server/reportQueries";
 import { AppHeader } from "../../AppHeader";
+import { EmptyState } from "../../EmptyState";
+import { StatusChip, outcomeStatus } from "../../StatusChip";
+import { TierChip } from "../../TierChip";
 import { ReportActions } from "./ReportActions";
 import styles from "../researcher.module.css";
 
@@ -12,19 +15,10 @@ export const dynamic = "force-dynamic";
 
 function StatusBadge({ report }: { report: DashboardReport }) {
   const j = report.predictionCard?.judgment;
-  if (j) {
-    const cls =
-      j.outcome === "HIT" ? styles.hit : j.outcome === "MISS" ? styles.miss : styles.undecidable;
-    const label = j.outcome === "HIT" ? "적중" : j.outcome === "MISS" ? "실패" : "판정 불가";
-    return <span className={`${styles.badge} ${cls}`}>{label}</span>;
-  }
-  const map: Record<string, [string, string]> = {
-    DRAFT: [styles.draft, "초안"],
-    PUBLISHED: [styles.published, "판매 중"],
-    CLOSED: [styles.closed, "종료"],
-  };
-  const [cls, label] = map[report.status] ?? [styles.draft, report.status];
-  return <span className={`${styles.badge} ${cls}`}>{label}</span>;
+  if (j) return <StatusChip status={outcomeStatus(j.outcome)} />;
+  const status =
+    report.status === "DRAFT" ? "DRAFT" : report.status === "PUBLISHED" ? "SELLING" : "ENDED";
+  return <StatusChip status={status} />;
 }
 
 function cardSummary(report: DashboardReport): string | null {
@@ -59,7 +53,7 @@ export default async function ResearcherDashboard({
       <div className={styles.header}>
         <div>
           <h1>{name}</h1>
-          <span className={styles.tier}>{data.tier}</span>
+          <TierChip tier={data.tier} />
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <Link className={styles.actionBtn} href={`/researcher/${id}/free`}>
@@ -97,9 +91,12 @@ export default async function ResearcherDashboard({
       </div>
 
       {data.reports.length === 0 ? (
-        <div className={styles.empty}>
-          아직 작성한 리포트가 없습니다. 첫 리포트를 작성해보세요.
-        </div>
+        <EmptyState
+          title="아직 작성한 리포트가 없어요"
+          body="예측 카드를 붙여 게시하면 판정 결과가 트랙레코드로 쌓입니다."
+          actionHref={`/researcher/${id}/new`}
+          actionLabel="첫 리포트 쓰기"
+        />
       ) : (
         data.reports.map((report) => (
           <div key={report.id} className={styles.card}>

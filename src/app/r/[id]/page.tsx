@@ -4,16 +4,13 @@ import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getPublicProfile } from "@/server/leaderboardQueries";
 import { AppHeader } from "../../AppHeader";
+import { EmptyState } from "../../EmptyState";
+import { StatusChip, outcomeStatus } from "../../StatusChip";
+import { TierChip } from "../../TierChip";
 import { TrackRecordChart, type TrackPoint } from "./TrackRecordChart";
 import styles from "../../market.module.css";
 
 export const dynamic = "force-dynamic";
-
-function outcomeBadge(outcome: string) {
-  if (outcome === "HIT") return <span className={styles.badgeHit}>적중</span>;
-  if (outcome === "MISS") return <span className={styles.badgeMiss}>실패</span>;
-  return <span className={styles.badgeUndecidable}>판정 불가</span>;
-}
 
 export default async function PublicProfile({
   params,
@@ -51,22 +48,23 @@ export default async function PublicProfile({
       <div className={styles.profileHead}>
         <h1 className={styles.h1}>{name}</h1>
         {profile.careerBadge && <span>🎖️ {profile.careerBadge}</span>}
-        <span className={styles.tier}>{profile.tier}</span>
+        <TierChip tier={profile.tier} />
         {profile.advisoryRegistered && (
           <small style={{ opacity: 0.6 }}>유사투자자문업 신고</small>
         )}
       </div>
 
       {trackRecords.length === 0 ? (
-        <p className={styles.sub} style={{ marginTop: 16 }}>
-          아직 판정된 예측이 없습니다 (검증 중).
-        </p>
+        <EmptyState
+          title="아직 판정된 예측이 없어요"
+          body="게시된 카드가 검증 시한에 도달하면 시장 데이터로 자동 판정되어 트랙레코드가 쌓입니다."
+        />
       ) : (
         trackRecords.map((tr) => (
           <div key={tr.assetClass} style={{ marginTop: 20 }}>
             <div className={styles.section}>
-              {ASSET_CLASS_LABEL[tr.assetClass as AssetClass]} 트랙레코드
-              {tr.verifying && <small style={{ opacity: 0.6 }}> · 검증 중</small>}
+              {ASSET_CLASS_LABEL[tr.assetClass as AssetClass]} 트랙레코드{" "}
+              {tr.verifying && <StatusChip status="VERIFYING" label="표본 부족 · 검증 중" />}
             </div>
             <div className={styles.statGrid}>
               <div className={styles.stat}>
@@ -101,7 +99,7 @@ export default async function PublicProfile({
 
       <div className={styles.section}>판매 중인 리포트</div>
       {buyable.length === 0 ? (
-        <p className={styles.sub}>현재 판매 중인 리포트가 없습니다.</p>
+        <EmptyState compact glyph="doc" title="현재 판매 중인 리포트가 없어요" />
       ) : (
         buyable.map((r) => (
           <Link key={r.id} href={`/report/${r.id}`} className={styles.reportCard}>
@@ -124,7 +122,8 @@ export default async function PublicProfile({
           {history.map((r) => (
             <Link key={r.id} href={`/report/${r.id}`} className={styles.reportCard}>
               <div className={styles.reportTitle}>
-                {r.title} {outcomeBadge(r.predictionCard!.judgment!.outcome)}
+                {r.title}{" "}
+                <StatusChip status={outcomeStatus(r.predictionCard!.judgment!.outcome)} />
               </div>
               <div className={styles.meta}>
                 <span>

@@ -4,6 +4,8 @@ import { prisma } from "@/server/db";
 import { getPendingPayouts, getPendingRefunds } from "@/server/settlementOpsService";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
+import { EmptyState } from "../../EmptyState";
+import { StatusChip } from "../../StatusChip";
 import styles from "../../researcher/researcher.module.css";
 import { ExecuteButton } from "./ExecuteButton";
 
@@ -59,7 +61,7 @@ export default async function AdminSettlementsPage() {
 
       <h3>환불 지시서 (구매자 현금 환불)</h3>
       {refunds.length === 0 ? (
-        <p className={styles.empty}>실행할 환불이 없습니다.</p>
+        <EmptyState compact glyph="inbox" title="실행할 환불이 없어요" />
       ) : (
         refunds.map((s) => (
           <div key={s.id} className={styles.card}>
@@ -68,9 +70,10 @@ export default async function AdminSettlementsPage() {
                 {s.buyerRefundKrw.toLocaleString()}원 →{" "}
                 {s.purchase.buyer.penName ?? s.purchase.buyer.email}
               </div>
-              <span className={`${styles.badge} ${s.outcome === "MISS" ? styles.miss : styles.undecidable}`}>
-                {s.outcome === "MISS" ? "예측 실패" : "판정 불가"}
-              </span>
+              <StatusChip
+                status={s.outcome === "MISS" ? "MISS" : "UNDECIDABLE"}
+                label={s.outcome === "MISS" ? "예측 실패" : "판정 불가"}
+              />
             </div>
             <div className={styles.meta}>
               <span>{s.purchase.report.title}</span>
@@ -84,7 +87,7 @@ export default async function AdminSettlementsPage() {
 
       <h3>지급 지시서 (리서처 정산금)</h3>
       {payouts.length === 0 ? (
-        <p className={styles.empty}>지급할 정산이 없습니다.</p>
+        <EmptyState compact glyph="inbox" title="지급할 정산이 없어요" />
       ) : (
         payouts.map((s) => (
           <div key={s.id} className={styles.card}>
@@ -94,7 +97,7 @@ export default async function AdminSettlementsPage() {
                 {s.purchase.report.researcher.user.penName ??
                   s.purchase.report.researcher.user.email}
               </div>
-              <span className={`${styles.badge} ${styles.hit}`}>적중 정산</span>
+              <StatusChip status="HIT" label="적중 정산" />
             </div>
             <div className={styles.meta}>
               <span>{s.purchase.report.title}</span>

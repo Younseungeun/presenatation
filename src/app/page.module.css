@@ -502,6 +502,10 @@
   flex-shrink: 0;
 }
 .feedReturn {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
   font-size: 15px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;

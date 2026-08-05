@@ -22,15 +22,7 @@
   gap: 10px;
 }
 
-.tier {
-  font-size: 12px;
-  font-weight: 800;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: var(--brand-soft);
-  color: var(--brand-ink);
-  letter-spacing: 0.02em;
-}
+/* 등급 표시는 TierChip(tierChip.module.css)으로 일원화됐다 */
 
 .sub {
   color: var(--text-weak);

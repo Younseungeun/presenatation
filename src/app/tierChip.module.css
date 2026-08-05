@@ -1,0 +1,33 @@
+/* 리서처 등급 칩 — TierChip.tsx 전용 (브랜드 §4-4: 높이 20px 모바일, 필, 12px w500) */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  line-height: 1;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* 시니어 — 아웃라인 */
+.outline {
+  border: 1px solid rgba(12, 30, 26, 0.25);
+  color: #0c1e1a;
+  background: transparent;
+}
+
+/* 마스터 — 틴트 */
+.tint {
+  background: rgba(12, 30, 26, 0.08);
+  color: #0c1e1a;
+}
+
+/* 펠로우·인투빌 펠로우 — 솔리드 (Deep Ink 위 Paper) */
+.solid {
+  background: #0c1e1a;
+  color: #fff;
+}

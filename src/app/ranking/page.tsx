@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/server/db";
 import { getAllTimeRanking, type RankingSort } from "@/server/leaderboardQueries";
+import { EmptyState } from "../EmptyState";
+import { StatusChip } from "../StatusChip";
+import { TierChip } from "../TierChip";
 import styles from "../market.module.css";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +52,11 @@ export default async function RankingPage({
       </div>
 
       {rows.length === 0 ? (
-        <p className={styles.sub}>아직 판정이 쌓인 리서처가 없습니다.</p>
+        <EmptyState
+          glyph="rank"
+          title="아직 판정이 쌓인 리서처가 없어요"
+          body="카드가 판정되기 시작하면 누적 점수·적중률·가상 수익률 순위가 이곳에 집계됩니다."
+        />
       ) : (
         <div className={styles.list}>
           {rows.map((r, i) => (
@@ -59,10 +66,8 @@ export default async function RankingPage({
                 <div className={styles.rowName}>
                   {r.name}
                   {r.careerBadge && <span className={styles.pill}>인증</span>}
-                  <span className={styles.tier}>{r.tier}</span>
-                  {r.verifying && (
-                    <small style={{ color: "var(--text-faint)", fontWeight: 500 }}>검증 중</small>
-                  )}
+                  <TierChip tier={r.tier} />
+                  {r.verifying && <StatusChip status="VERIFYING" />}
                 </div>
                 <div className={styles.rowSub}>
                   {sort === "SCORE"

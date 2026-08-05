@@ -4,6 +4,7 @@ import { getCart, issueMessage } from "@/server/cartService";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
+import { EmptyState } from "../EmptyState";
 import { CheckoutButton, RemoveButton } from "./CartActions";
 import styles from "../market.module.css";
 
@@ -32,12 +33,11 @@ export default async function CartPage() {
       <AppHeader title="장바구니" backHref="/my" />
       <main className={styles.page}>
         {entries.length === 0 ? (
-          <p className={styles.sub}>
-            장바구니가 비어 있습니다.{" "}
-            <Link href="/leaderboard" style={{ color: "var(--brand-strong)", fontWeight: 700 }}>
-              리더보드에서 리서처 둘러보기 →
-            </Link>
-          </p>
+          <EmptyState
+            title="장바구니가 비어 있어요"
+            actionHref="/leaderboard"
+            actionLabel="리더보드에서 리서처 둘러보기"
+          />
         ) : (
           <>
             <p className={styles.sub}>

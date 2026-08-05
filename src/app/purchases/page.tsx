@@ -4,26 +4,28 @@ import { prisma } from "@/server/db";
 import { getBuyerPurchases, type BuyerPurchase } from "@/server/financeQueries";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
+import { EmptyState } from "../EmptyState";
+import { StatusChip, type StatusKind } from "../StatusChip";
 import styles from "../market.module.css";
 
 export const dynamic = "force-dynamic";
 
 // 구매 상태를 사용자 언어로: 보관 중 → 판정 결과 → 환불/정산
-function statusOf(p: BuyerPurchase): { label: string; cls: string } {
+function statusOf(p: BuyerPurchase): { label: string; status: StatusKind } {
   const judgment = p.report.predictionCard?.judgment;
   if (!p.settlement || !judgment) {
-    return { label: "판정 대기 (에스크로 보관 중)", cls: styles.badgeUndecidable };
+    return { label: "판정 대기 · 에스크로 보관 중", status: "VERIFYING" };
   }
   if (judgment.outcome === "HIT") {
-    return { label: "적중 — 정산 완료", cls: styles.badgeHit };
+    return { label: "적중 · 정산 완료", status: "HIT" };
   }
   if (judgment.outcome === "MISS") {
     return {
-      label: `실패 — ${p.settlement.buyerRefundKrw.toLocaleString()}원 환불`,
-      cls: styles.badgeMiss,
+      label: `실패 · ${p.settlement.buyerRefundKrw.toLocaleString()}원 환불`,
+      status: "MISS",
     };
   }
-  return { label: "판정 불가 — 전액 환불", cls: styles.badgeUndecidable };
+  return { label: "판정 불가 · 전액 환불", status: "UNDECIDABLE" };
 }
 
 export default async function PurchasesPage() {
@@ -42,12 +44,12 @@ export default async function PurchasesPage() {
       </p>
 
       {purchases.length === 0 ? (
-        <p className={styles.sub}>
-          아직 구매한 리포트가 없습니다.{" "}
-          <Link href="/leaderboard" style={{ color: "var(--brand-strong)", fontWeight: 700 }}>
-            리더보드에서 리서처 찾기 →
-          </Link>
-        </p>
+        <EmptyState
+          title="아직 구매한 리포트가 없어요"
+          body="예측이 틀리면 성과 연동분이 현금으로 환불되는, 무위험에 가까운 구매입니다."
+          actionHref="/leaderboard"
+          actionLabel="리더보드에서 리서처 찾기"
+        />
       ) : (
         purchases.map((p) => {
           const s = statusOf(p);
@@ -56,7 +58,7 @@ export default async function PurchasesPage() {
           return (
             <Link key={p.id} href={`/report/${p.reportId}`} className={styles.reportCard}>
               <div className={styles.reportTitle}>
-                {p.report.title} <span className={s.cls}>{s.label}</span>
+                {p.report.title} <StatusChip status={s.status} label={s.label} />
               </div>
               <div className={styles.meta}>
                 <span>{researcherName}</span>

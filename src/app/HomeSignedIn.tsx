@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
+import { ASSET_CLASS_LABEL, TIER_LABEL, type AssetClass, type Tier } from "@/domain/constants";
 import { IntovillLockup } from "./brand/Logo";
 import { CleanBanner } from "./CleanBanner";
+import { StatusChip, outcomeStatus } from "./StatusChip";
+import { TierChip } from "./TierChip";
 import type { FreeReportSummary } from "@/server/freeReportService";
 import type { ConsensusRow, JudgedFeedItem, MarketCard } from "@/server/marketQueries";
 import { PredictionHeatmap } from "./PredictionHeatmap";
@@ -93,7 +95,8 @@ export function HomeSignedIn({
                 </div>
                 <div className={styles.freeSummary}>{r.summary}</div>
                 <div className={styles.freeMeta}>
-                  {r.researcherName} · {r.tier}
+                  {r.researcherName}
+                  {TIER_LABEL[r.tier as Tier] && ` · ${TIER_LABEL[r.tier as Tier]}`}
                   {r.publishedAt && ` · ${sinceLabel(r.publishedAt, now)}`}
                 </div>
               </Link>
@@ -124,10 +127,14 @@ export function HomeSignedIn({
                     </div>
                   </div>
                   <div className={styles.feedResult}>
-                    <div className={styles.feedReturn} style={{ color: o.color }}>
-                      {o.text}
-                      {f.realizedReturnPct != null &&
-                        ` ${f.realizedReturnPct >= 0 ? "+" : ""}${f.realizedReturnPct.toFixed(1)}%`}
+                    <div className={styles.feedReturn}>
+                      <StatusChip status={outcomeStatus(f.outcome)} />
+                      {f.realizedReturnPct != null && (
+                        <span style={{ color: o.color }}>
+                          {f.realizedReturnPct >= 0 ? "+" : ""}
+                          {f.realizedReturnPct.toFixed(1)}%
+                        </span>
+                      )}
                     </div>
                     <div className={styles.feedWhen}>{sinceLabel(f.judgedAt, now)}</div>
                   </div>
@@ -162,7 +169,7 @@ export function HomeSignedIn({
                 <div className={market.railCardTitle}>{c.title}</div>
                 <div className={market.railMeta}>
                   <span>{c.researcherName}</span>
-                  <span className={market.tier}>{c.tier}</span>
+                  <TierChip tier={c.tier} />
                 </div>
                 <div className={market.railFoot}>
                   <span className={market.railPrice}>{c.priceKrw.toLocaleString()}원</span>
