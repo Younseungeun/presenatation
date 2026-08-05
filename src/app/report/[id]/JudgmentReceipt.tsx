@@ -1,4 +1,5 @@
 import type { Judgment, PredictionCard } from "@prisma/client";
+import { fmtDateTime } from "../../format";
 import styles from "../../market.module.css";
 
 // 판정 근거 영수증 — "사람이 아니라 시장이 채점했다"는 물증.
@@ -33,16 +34,6 @@ function sourceLabel(dataSource: string | null): string {
 
 function fmtPrice(v: number, currency: string): string {
   return currency === "USD" ? `$${v.toLocaleString()}` : `${v.toLocaleString()}원`;
-}
-
-function fmtDateTime(d: Date): string {
-  return new Date(d).toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 export function JudgmentReceipt({

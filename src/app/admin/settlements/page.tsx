@@ -5,6 +5,7 @@ import { getPendingPayouts, getPendingRefunds } from "@/server/settlementOpsServ
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
 import { EmptyState } from "../../EmptyState";
+import { fmtDayMonth as fmtDate } from "../../format";
 import { StatusChip } from "../../StatusChip";
 import styles from "../../researcher/researcher.module.css";
 import { ExecuteButton } from "./ExecuteButton";
@@ -13,10 +14,6 @@ export const dynamic = "force-dynamic";
 
 // 운영자 정산 콘솔: 판정이 만든 환불·지급 지시서를 실행하고 기록한다.
 // PG 취소·지급이체 자동화 전의 수동 운영 화면 — 비운영자에게는 404.
-
-function fmtDate(d: Date) {
-  return new Date(d).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
-}
 
 export default async function AdminSettlementsPage() {
   const userId = await getSessionUserId();

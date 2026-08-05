@@ -14,6 +14,7 @@ import {
 import { getSessionUserId } from "@/server/session";
 import { CleanBanner } from "../CleanBanner";
 import { EmptyState } from "../EmptyState";
+import { dday, predictionLabel } from "../format";
 import { TierChip } from "../TierChip";
 import { SortPicker } from "./SortPicker";
 import styles from "../market.module.css";
@@ -23,25 +24,6 @@ export const dynamic = "force-dynamic";
 // 리더보드 — "지금 살 수 있는 예측 카드"를 탐색하는 화면.
 // 리서처 순위(사람)는 랭킹 화면이 담당한다. 여기서는 카드가 주인공이다:
 // 상단은 추천 레일(잘 팔리는 / 상위 등급), 하단은 자산군별 목록.
-
-function dday(deadline: Date | null, now: Date): string {
-  if (!deadline) return "—";
-  const days = Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000);
-  if (days <= 0) return "오늘 마감";
-  return `D-${days}`;
-}
-
-function sizeLabel(c: MarketCard): string {
-  if (c.targetValue === null) return "";
-  return c.targetType === "RETURN_PCT"
-    ? `${c.targetValue}%`
-    : `목표가 ${c.targetValue.toLocaleString()}`;
-}
-
-function dirLabel(c: MarketCard): string {
-  if (!c.direction) return "";
-  return c.direction === "UP" ? "▲ 상승" : "▼ 하락";
-}
 
 /** 가로 레일용 카드 */
 function RailCard({ c, now, showSales }: { c: MarketCard; now: Date; showSales?: boolean }) {
@@ -53,7 +35,7 @@ function RailCard({ c, now, showSales }: { c: MarketCard; now: Date; showSales?:
           className={styles.railDir}
           style={{ color: c.direction === "UP" ? "var(--pos)" : "var(--neg)" }}
         >
-          {dirLabel(c)} {sizeLabel(c)}
+          {predictionLabel(c.direction, c.targetType, c.targetValue)}
         </span>
       </div>
       <div className={styles.railCardTitle}>{c.title}</div>
@@ -87,7 +69,7 @@ function ListCard({ c, now }: { c: MarketCard; now: Date }) {
           </span>
         )}
         <span style={{ color: c.direction === "UP" ? "var(--pos)" : "var(--neg)", fontWeight: 700 }}>
-          {dirLabel(c)} {sizeLabel(c)}
+          {predictionLabel(c.direction, c.targetType, c.targetValue)}
         </span>
       </div>
       <div className={styles.meta}>

@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getResearcherFinance } from "@/server/financeQueries";
 import { getResearcherDashboard, type DashboardReport } from "@/server/reportQueries";
 import { AppHeader } from "../../AppHeader";
 import { EmptyState } from "../../EmptyState";
+import { cardLine, fmtDate } from "../../format";
 import { StatusChip, outcomeStatus } from "../../StatusChip";
 import { TierChip } from "../../TierChip";
 import { ReportActions } from "./ReportActions";
@@ -24,13 +24,7 @@ function StatusBadge({ report }: { report: DashboardReport }) {
 function cardSummary(report: DashboardReport): string | null {
   const c = report.predictionCard;
   if (!c) return null;
-  const dir = c.direction === "UP" ? "▲ 상승" : "▼ 하락";
-  const size =
-    c.targetType === "RETURN_PCT"
-      ? `${c.targetValue}%`
-      : `목표가 ${c.targetValue.toLocaleString()}`;
-  const deadline = new Date(c.deadline).toLocaleDateString("ko-KR");
-  return `${ASSET_CLASS_LABEL[c.assetClass as AssetClass] ?? c.assetClass} ${c.assetName}(${c.ticker}) · ${dir} ${size} · 시한 ${deadline} · 신뢰도 ${c.confidence}`;
+  return `${cardLine(c)} (${c.ticker}) · 시한 ${fmtDate(c.deadline)} · 신뢰도 ${c.confidence}`;
 }
 
 export default async function ResearcherDashboard({

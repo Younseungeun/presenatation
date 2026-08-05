@@ -119,11 +119,6 @@ export async function getFollowedResearcherIds(
   return rows.map((r) => r.researcherId);
 }
 
-/** 내가 팔로우한 리서처 수 (MY·요약 표시용) */
-export function countFollowing(prisma: PrismaClient, followerId: string): Promise<number> {
-  return prisma.follow.count({ where: { followerId } });
-}
-
 export interface FollowingRow {
   researcherId: string;
   name: string;

@@ -4,7 +4,6 @@ import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import {
-  countFollowing,
   followResearcher,
   FollowError,
   getFollowedResearcherIds,
@@ -191,9 +190,6 @@ describe('getFollowedResearcherCards — 리더보드 모아보기', () => {
     ).toEqual([]);
   });
 
-  it('countFollowing — 내가 팔로우한 수', async () => {
-    expect(await countFollowing(prisma, followerId)).toBe(1);
-  });
 });
 
 describe('MY 화면 목록 — getFollowingList / getFollowerList', () => {

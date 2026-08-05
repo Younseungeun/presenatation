@@ -119,26 +119,8 @@
   border-radius: 999px;
   white-space: nowrap;
 }
-.draft {
-  background: var(--surface-2);
-  color: var(--text-weak);
-}
-.published {
-  background: var(--brand);
-  color: var(--brand-ink);
-}
-.closed {
-  background: var(--surface-2);
-  color: var(--text-faint);
-}
-.hit {
-  background: color-mix(in srgb, var(--pos) 16%, transparent);
-  color: var(--pos);
-}
-.miss {
-  background: color-mix(in srgb, var(--neg) 14%, transparent);
-  color: var(--neg);
-}
+/* 판정·게시 상태 배지는 StatusChip으로 일원화됐다. 남은 .badge는 그 어휘에
+   속하지 않는 표식(신고 카테고리, 약관 초안 표시)에만 쓴다 */
 .undecidable {
   background: color-mix(in srgb, var(--warn) 18%, transparent);
   color: var(--warn);
@@ -170,15 +152,6 @@
 .danger {
   color: var(--neg);
   border-color: color-mix(in srgb, var(--neg) 30%, transparent);
-}
-
-.empty {
-  background: var(--surface);
-  border: 1px dashed color-mix(in srgb, var(--text-faint) 35%, transparent);
-  border-radius: var(--radius-lg);
-  padding: 44px;
-  text-align: center;
-  color: var(--text-weak);
 }
 
 /* form */

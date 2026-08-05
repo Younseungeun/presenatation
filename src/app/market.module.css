@@ -40,43 +40,6 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* 종목 필터 칩 — 가로 스크롤 (모바일에서 넘칠 때) */
-.chipRow {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  margin-bottom: 18px;
-  padding-bottom: 2px;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.chipRow::-webkit-scrollbar {
-  display: none;
-}
-.chip {
-  flex-shrink: 0;
-  padding: 7px 14px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--text-weak);
-  white-space: nowrap;
-}
-.chip:hover {
-  border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
-}
-.chipActive {
-  background: var(--brand-soft);
-  border-color: color-mix(in srgb, var(--brand-strong) 35%, transparent);
-  color: var(--brand-strong);
-}
-.chipCount {
-  font-weight: 500;
-  opacity: 0.65;
-}
-
 /* leaderboard as rows (app-like list) */
 .list {
   display: flex;
@@ -137,9 +100,6 @@
   font-weight: 600;
 }
 
-.nameLink {
-  color: inherit;
-}
 /* 등급 표시는 TierChip(tierChip.module.css)으로 일원화됐다 — 민트 칩 폐기(브랜드 §4-4) */
 .pos {
   color: var(--pos);
@@ -149,11 +109,6 @@
 }
 
 /* profile */
-.backLink {
-  font-size: 13px;
-  color: var(--text-faint);
-  font-weight: 600;
-}
 .profileHead {
   display: flex;
   align-items: center;

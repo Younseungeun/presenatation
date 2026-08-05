@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ASSET_CLASS_LABEL, TIER_LABEL, type AssetClass, type Tier } from "@/domain/constants";
 import { IntovillLockup } from "./brand/Logo";
 import { CleanBanner } from "./CleanBanner";
+import { dday, directionLabel, predictionLabel, sinceLabel } from "./format";
 import { StatusChip, outcomeStatus } from "./StatusChip";
 import { TierChip } from "./TierChip";
 import type { FreeReportSummary } from "@/server/freeReportService";
@@ -13,25 +14,11 @@ import market from "./market.module.css";
 // 로그인 홈 — "내 것"과 "방금 일어난 일"을 보여준다.
 // 카드 탐색은 리더보드, 사람 순위는 랭킹이 담당하므로 여기서는 요약만 하고 넘긴다.
 
-function dday(deadline: Date, now: Date): string {
-  const days = Math.ceil((deadline.getTime() - now.getTime()) / 86_400_000);
-  if (days < 0) return "시한 지남";
-  if (days === 0) return "오늘 마감";
-  return `D-${days}`;
-}
-
-function sinceLabel(d: Date, now: Date): string {
-  const days = Math.floor((now.getTime() - d.getTime()) / 86_400_000);
-  if (days <= 0) return "오늘";
-  if (days === 1) return "어제";
-  if (days < 7) return `${days}일 전`;
-  return new Date(d).toLocaleDateString("ko-KR", { month: "short", day: "numeric" });
-}
-
-function outcomeLabel(outcome: string): { text: string; color: string } {
-  if (outcome === "HIT") return { text: "적중", color: "var(--pos)" };
-  if (outcome === "MISS") return { text: "실패", color: "var(--neg)" };
-  return { text: "판정 불가", color: "var(--warn)" };
+/** 실현 등락 수치의 색 — 칩은 결과를, 숫자는 부호를 말한다 */
+function returnColor(outcome: string): string {
+  if (outcome === "HIT") return "var(--pos)";
+  if (outcome === "MISS") return "var(--neg)";
+  return "var(--warn)";
 }
 
 export function HomeSignedIn({
@@ -115,7 +102,7 @@ export function HomeSignedIn({
           </div>
           <div>
             {feed.map((f) => {
-              const o = outcomeLabel(f.outcome);
+              const color = returnColor(f.outcome);
               return (
                 <Link key={f.reportId} href={`/report/${f.reportId}`} className={styles.feedItem}>
                   <div className={styles.feedMain}>
@@ -123,14 +110,14 @@ export function HomeSignedIn({
                     <div className={styles.feedMeta}>
                       {f.researcherName} ·{" "}
                       {ASSET_CLASS_LABEL[f.assetClass as AssetClass] ?? f.assetClass} {f.assetName}{" "}
-                      · {f.direction === "UP" ? "▲ 상승" : "▼ 하락"}
+                      · {directionLabel(f.direction)}
                     </div>
                   </div>
                   <div className={styles.feedResult}>
                     <div className={styles.feedReturn}>
                       <StatusChip status={outcomeStatus(f.outcome)} />
                       {f.realizedReturnPct != null && (
-                        <span style={{ color: o.color }}>
+                        <span style={{ color }}>
                           {f.realizedReturnPct >= 0 ? "+" : ""}
                           {f.realizedReturnPct.toFixed(1)}%
                         </span>
@@ -162,8 +149,7 @@ export function HomeSignedIn({
                     className={market.railDir}
                     style={{ color: c.direction === "UP" ? "var(--pos)" : "var(--neg)" }}
                   >
-                    {c.direction === "UP" ? "▲ 상승" : "▼ 하락"}{" "}
-                    {c.targetType === "RETURN_PCT" ? `${c.targetValue}%` : ""}
+                    {predictionLabel(c.direction, c.targetType, c.targetValue)}
                   </span>
                 </div>
                 <div className={market.railCardTitle}>{c.title}</div>

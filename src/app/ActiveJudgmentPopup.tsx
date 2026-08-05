@@ -55,6 +55,10 @@ export function ActiveJudgmentPopup({
   // 이 컴포넌트는 레이아웃에 있어 화면을 옮겨도 살아 있고, 앱을 새로 실행할 때만 다시 붙는다.
   // 그래서 "처음 붙는 순간 = 앱 실행"으로 보고 닫았던 기록을 지운다 (실행할 때마다 다시 알림).
   const freshLaunch = useRef(true);
+  // sessionStorage는 서버에 없어 렌더 중에는 읽을 수 없다(하이드레이션 불일치).
+  // 마운트 후 한 번 읽어 상태를 맞추는 것이 이 값의 유일한 동기화 경로다 —
+  // set-state-in-effect 규칙이 겨냥하는 연쇄 렌더가 아니라 외부 저장소 구독에 해당한다.
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (freshLaunch.current) {
       freshLaunch.current = false;
@@ -70,6 +74,7 @@ export function ActiveJudgmentPopup({
     }
     setReady(true);
   }, [pathname, onMyScreen]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const close = () => {
     sessionStorage.setItem(DISMISS_KEY, "1");

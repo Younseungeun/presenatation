@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ASSET_CLASS_LABEL, type AssetClass, type Tier } from "@/domain/constants";
+import type { Tier } from "@/domain/constants";
 import { MAX_ACTIVE_CARDS } from "@/domain/publishReport";
 import { prisma } from "@/server/db";
 import {
@@ -14,6 +14,7 @@ import { researcherSeasonScores } from "@/server/scoreService";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
 import { EmptyState } from "../EmptyState";
+import { cardLine, dday, fmtDate } from "../format";
 import { StatusChip, outcomeStatus, type StatusKind } from "../StatusChip";
 import { TierChip } from "../TierChip";
 import styles from "../market.module.css";
@@ -65,40 +66,6 @@ const SELLER_TABS: { key: SellerTab; label: string }[] = [
 function formatKrw(n: number): string {
   if (n >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}억원`;
   return `${n.toLocaleString()}원`;
-}
-
-interface CardLike {
-  assetClass: string;
-  assetName: string;
-  ticker: string;
-  direction: string;
-  targetType: string;
-  targetValue: number;
-}
-
-function cardLine(c: CardLike): string {
-  const dir = c.direction === "UP" ? "▲ 상승" : "▼ 하락";
-  const size =
-    c.targetType === "RETURN_PCT"
-      ? `${c.targetValue}%`
-      : `목표가 ${c.targetValue.toLocaleString()}`;
-  const asset = ASSET_CLASS_LABEL[c.assetClass as AssetClass] ?? c.assetClass;
-  return `${asset} ${c.assetName} · ${dir} ${size}`;
-}
-
-function fmtDate(d: Date | string): string {
-  return new Date(d).toLocaleDateString("ko-KR", {
-    year: "2-digit",
-    month: "short",
-    day: "numeric",
-  });
-}
-
-function dday(deadline: Date | string, now: Date): string {
-  const days = Math.ceil((new Date(deadline).getTime() - now.getTime()) / 86_400_000);
-  if (days < 0) return "시한 지남 · 판정 대기";
-  if (days === 0) return "오늘 시한";
-  return `D-${days}`;
 }
 
 function outcomeBadge(outcome: string) {

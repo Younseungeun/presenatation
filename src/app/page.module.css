@@ -368,57 +368,7 @@
   display: none;
 }
 
-/* 리서처 컨센서스 */
-.consensus {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
-.consensusRow {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 13px 16px;
-  border-bottom: 1px solid var(--border);
-}
-.consensusRow:last-child {
-  border-bottom: none;
-}
-.consensusName {
-  flex: 1;
-  min-width: 0;
-  font-size: 14.5px;
-  font-weight: 700;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.consensusAsset {
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--text-faint);
-  margin-left: 6px;
-}
-/* 상승·하락 비율 막대 — 색만으로 뜻을 전하지 않도록 숫자를 함께 쓴다 */
-.consensusBar {
-  width: 88px;
-  height: 6px;
-  border-radius: 3px;
-  background: color-mix(in srgb, var(--neg) 30%, transparent);
-  overflow: hidden;
-  flex-shrink: 0;
-}
-.consensusFill {
-  height: 100%;
-  background: var(--pos);
-}
-.consensusCount {
-  font-size: 12.5px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
+/* 컨센서스는 목록(막대 그래프)에서 예측 히트맵으로 대체됐다 — 남은 것은 주의 문구뿐 */
 .consensusNote {
   font-size: 11.5px;
   line-height: 1.6;

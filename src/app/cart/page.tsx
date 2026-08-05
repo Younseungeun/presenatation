@@ -5,6 +5,7 @@ import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
 import { EmptyState } from "../EmptyState";
+import { fmtDate } from "../format";
 import { CheckoutButton, RemoveButton } from "./CartActions";
 import styles from "../market.module.css";
 
@@ -12,14 +13,6 @@ export const dynamic = "force-dynamic";
 
 // 장바구니 — 담아둔 리포트를 한 번에 결제한다.
 // 담은 뒤 상태가 바뀐 건(시한 경과·판매 종료·이미 구매)은 결제 대상에서 빠지고 사유를 보여준다.
-
-function fmtDate(d: Date): string {
-  return new Date(d).toLocaleDateString("ko-KR", {
-    year: "2-digit",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export default async function CartPage() {
   const userId = await getSessionUserId();

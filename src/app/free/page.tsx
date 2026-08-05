@@ -3,21 +3,13 @@ import { prisma } from "@/server/db";
 import { getFreeReports } from "@/server/freeReportService";
 import { AppHeader } from "../AppHeader";
 import { EmptyState } from "../EmptyState";
+import { fmtDate } from "../format";
 import { TierChip } from "../TierChip";
 import styles from "../market.module.css";
 
 export const dynamic = "force-dynamic";
 
 // 무료 시황·증시 리포트 전체 목록. 홈 섹션의 "더 보기" 목적지.
-
-function fmtDate(d: Date | null): string {
-  if (!d) return "";
-  return new Date(d).toLocaleDateString("ko-KR", {
-    year: "2-digit",
-    month: "short",
-    day: "numeric",
-  });
-}
 
 export default async function FreeReportsPage() {
   const reports = await getFreeReports(prisma, 50);

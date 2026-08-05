@@ -8,6 +8,7 @@ import { getSessionUserId } from "@/server/session";
 import { TOSS_CLIENT_KEY } from "@/server/tossPayments";
 import { AppHeader } from "../../AppHeader";
 import { Disclaimer } from "../../Disclaimer";
+import { fmtDateTime } from "../../format";
 import { StatusChip, type StatusKind } from "../../StatusChip";
 import { JudgmentReceipt } from "./JudgmentReceipt";
 import { PurchaseButton } from "./PurchaseButton";
@@ -33,15 +34,6 @@ export default async function ReportDetail({
   const purchased = !!purchase;
   // 무료 글은 예측 카드가 없어 결제·판정 흐름을 타지 않는다
   const free = isFreeReport(report);
-
-  const fmtDateTime = (d: Date) =>
-    new Date(d).toLocaleString("ko-KR", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
 
   // 구매 진행 상태 — 에스크로 상태 + 환불 실행 여부를 구매자 언어로.
   // 환불 색은 판정 결과를 따른다 (실패 → 빨강, 판정 불가 → 주황)
