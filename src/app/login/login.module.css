@@ -1,0 +1,48 @@
+/* 가입 갈래 선택 — 사는 사람 / 쓰는 사람 */
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+@media (max-width: 380px) {
+  .choices {
+    grid-template-columns: 1fr;
+  }
+}
+
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 13px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+}
+.choice:hover {
+  border-color: var(--brand-soft);
+}
+.choiceOn {
+  border-color: var(--brand-strong);
+  background-color: var(--brand-soft);
+}
+
+.choiceLabel {
+  font-size: 13.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text, #191f28);
+}
+.choiceOn .choiceLabel {
+  color: #0b7a66; /* 브랜드 Mint 700 — 흰 배경 위 텍스트 */
+}
+.choiceDesc {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}

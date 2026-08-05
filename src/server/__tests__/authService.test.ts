@@ -1,7 +1,12 @@
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb } from './helpers/testDb';
-import { ensureResearcherProfile, hashCi, verifyAndSignIn } from '../authService';
+import {
+  ensureResearcherProfile,
+  hashCi,
+  signUpAndSignIn,
+  verifyAndSignIn,
+} from '../authService';
 import { StubIdentityProvider } from '../identityProvider';
 
 let prisma: PrismaClient;
@@ -75,5 +80,66 @@ describe('ensureResearcherProfile', () => {
     const p2 = await ensureResearcherProfile(prisma, signIn.userId);
     expect(p1.id).toBe(p2.id);
     expect(p1.tier).toBe('BRONZE');
+  });
+});
+
+describe('signUpAndSignIn — 가입 갈래 (단순 이용자 / 리서처)', () => {
+  it('USER로 시작하면 리서처 프로필이 생기지 않는다 (팔로우 대상도 아니다)', async () => {
+    const r = await signUpAndSignIn(prisma, provider, {
+      name: '이용자',
+      phone: '010-1000-0001',
+      accountType: 'USER',
+    });
+    expect(r.researcherId).toBeNull();
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: r.userId },
+      include: { researcherProfile: true },
+    });
+    expect(user.researcherProfile).toBeNull();
+    // 필수 약관만 동의 기록 — 리서처 이용계약은 받지 않는다
+    const docs = await prisma.consent.findMany({ where: { userId: r.userId } });
+    expect(docs.map((c) => c.docKey).sort()).toEqual(['PRIVACY_POLICY', 'TERMS_OF_SERVICE']);
+  });
+
+  it('RESEARCHER로 시작하면 계정 생성과 동시에 프로필 + 리서처 이용계약 동의까지', async () => {
+    const r = await signUpAndSignIn(prisma, provider, {
+      name: '리서처',
+      phone: '010-1000-0002',
+      accountType: 'RESEARCHER',
+    });
+    expect(r.researcherId).not.toBeNull();
+    const profile = await prisma.researcherProfile.findUniqueOrThrow({
+      where: { id: r.researcherId! },
+    });
+    expect(profile.userId).toBe(r.userId);
+    expect(profile.tier).toBe('BRONZE'); // 무표기에서 시작
+
+    const docs = await prisma.consent.findMany({ where: { userId: r.userId } });
+    expect(docs.map((c) => c.docKey).sort()).toEqual([
+      'PRIVACY_POLICY',
+      'RESEARCHER_AGREEMENT',
+      'TERMS_OF_SERVICE',
+    ]);
+  });
+
+  it('이미 리서처인 계정이 다시 리서처로 들어와도 프로필은 하나 (멱등)', async () => {
+    const again = await signUpAndSignIn(prisma, provider, {
+      name: '리서처',
+      phone: '01010000002',
+      accountType: 'RESEARCHER',
+    });
+    expect(again.isNewUser).toBe(false);
+    expect(await prisma.researcherProfile.count({ where: { userId: again.userId } })).toBe(1);
+  });
+
+  it('USER로 시작한 계정도 나중에 리서처로 전환할 수 있다 (되돌릴 수 없는 선택이 아니다)', async () => {
+    const first = await signUpAndSignIn(prisma, provider, {
+      name: '전환자',
+      phone: '010-1000-0003',
+      accountType: 'USER',
+    });
+    expect(first.researcherId).toBeNull();
+    const profile = await ensureResearcherProfile(prisma, first.userId);
+    expect(profile.userId).toBe(first.userId);
   });
 });

@@ -56,6 +56,11 @@ export default async function SettingsPage() {
                   <div className={styles.rowSub}>휴대폰 본인 인증 완료 · 1인 1계정</div>
                 </div>
               </div>
+              <Row
+                href="/settings/profile"
+                label="프로필 설정"
+                sub={user.penName ? `필명 ${user.penName}` : "필명이 아직 없습니다"}
+              />
             </div>
           </>
         )}
