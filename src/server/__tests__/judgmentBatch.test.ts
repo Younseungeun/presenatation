@@ -130,7 +130,8 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
     });
     expect(judgment.outcome).toBe('HIT');
     expect(judgment.realizedReturnPct).toBeCloseTo(12);
-    expect(judgment.score).toBeCloseTo(100 * 5); // 기본 100(컷) × 신뢰도 5
+    // v3: 방향 +500 (거리 10 ×스케일10 ×c5) + 안정성 +164.44 (초과 δ=0.2 관대 오차 램프)
+    expect(judgment.score).toBeCloseTo(664.44, 1);
     expect(judgment.dataSource).toBe('fixture');
     expect(JSON.parse(judgment.marketSnapshotJson!).quotes).toHaveLength(2);
 
@@ -156,8 +157,8 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
       where: { predictionCard: { ticker: 'KRW-BBB' } },
     });
     expect(judgment.outcome).toBe('MISS');
-    // 기본 = 5/10×100 = 50, 실패 증폭 c(c+1)/2 = 15 → -750
-    expect(judgment.score).toBeCloseTo(-750);
+    // v3: 방향 −1500 (거리 −10 ×10 ×벌점15) + 안정성 −500 (ε=1.5=2T 최대 벌점)
+    expect(judgment.score).toBeCloseTo(-2000);
 
     const purchases = await prisma.purchase.findMany({
       where: { report: { predictionCard: { ticker: 'KRW-BBB' } } },
@@ -179,7 +180,7 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
     expect(researcherNotis.some((n) => n.title.includes('적중'))).toBe(true);
     expect(researcherNotis.some((n) => n.title.includes('실패'))).toBe(true);
     const hit = researcherNotis.find((n) => n.title.includes('적중'))!;
-    expect(hit.body).toContain('+500점');
+    expect(hit.body).toContain('+664점');
     expect(hit.body).toContain('16,000원'); // 구매 2건 × 8,000원 정산
 
     const buyerNotis = await prisma.notification.findMany({ where: { userId: buyerAId } });
@@ -247,9 +248,9 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
 });
 
 describe('점수 집계 → 규율 연동', () => {
-  it('시즌·자산군별 점수 합산 (HIT +500, MISS -750, 불가 0 → CRYPTO -250)', async () => {
+  it('시즌·자산군별 점수 합산 (HIT +664.4, MISS -2000, 불가 0 → CRYPTO -1335.6)', async () => {
     const scores = await researcherSeasonScores(prisma, researcherId, BATCH_NOW);
-    expect(scores.CRYPTO).toBeCloseTo(500 - 750);
+    expect(scores.CRYPTO).toBeCloseTo(664.44 - 2000, 1);
     expect(scores.KR_EQUITY).toBe(0);
   });
 

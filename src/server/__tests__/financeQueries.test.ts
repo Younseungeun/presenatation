@@ -114,14 +114,14 @@ describe('getBuyerPurchases — 구매 내역', () => {
 });
 
 describe('getLeaderboard — 판정 기반 집계', () => {
-  it('판정된 자산군만 집계: HIT +500, MISS −750 → 시즌 점수 −250', async () => {
+  it('판정된 자산군만 집계: HIT +664.4, MISS −2000 → 시즌 점수 −1335.6', async () => {
     const rows = await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW);
     expect(rows).toHaveLength(1);
     expect(rows[0].researcherId).toBe(researcherId);
     expect(rows[0].sampleSize).toBe(2);
-    // HIT: 실현 +12% ÷ 예측 10% → 기본 100(컷) × c5 = +500
-    // MISS: 실현 −5% ÷ 예측 10% → 기본 50 × c(c+1)/2=15 = −750
-    expect(rows[0].seasonScore).toBe(-250);
+    // v3 HIT: 방향 거리10×10×c5=+500 + 안정성 +164.44 → +664.44
+    // v3 MISS: 방향 거리−10×10×15=−1500 + 안정성 최대 벌점 −500 → −2000
+    expect(rows[0].seasonScore).toBeCloseTo(664.44 - 2000, 1);
 
     // 판정 없는 자산군은 빈 리더보드
     expect(await getLeaderboard(prisma, 'KR_EQUITY', BATCH_NOW)).toEqual([]);
@@ -142,12 +142,12 @@ describe('종목별 리더보드', () => {
     expect(hitOnly).toHaveLength(1);
     expect(hitOnly[0].sampleSize).toBe(1);
     expect(hitOnly[0].hitRate).toBe(1);
-    expect(hitOnly[0].seasonScore).toBe(500); // HIT 건만
+    expect(hitOnly[0].seasonScore).toBeCloseTo(664.44, 1); // HIT 건만
 
     const missOnly = await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW, 'KRW-BBB');
     expect(missOnly[0].sampleSize).toBe(1);
     expect(missOnly[0].hitRate).toBe(0);
-    expect(missOnly[0].seasonScore).toBe(-750); // MISS 건만
+    expect(missOnly[0].seasonScore).toBeCloseTo(-2000); // MISS 건만
 
     // 판정 없는 종목은 빈 리더보드
     expect(await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW, 'KRW-CCC')).toEqual([]);
@@ -160,14 +160,14 @@ describe('getAllTimeRanking — 전 기간·전 자산군 통합 랭킹', () => 
     expect(byScore).toHaveLength(1);
     expect(byScore[0].researcherId).toBe(researcherId);
     // 시즌 필터가 없을 뿐 같은 판정 2건이므로 리더보드 시즌 점수와 동일
-    expect(byScore[0].totalScore).toBe(-250);
+    expect(byScore[0].totalScore).toBeCloseTo(-1335.56, 1);
     expect(byScore[0].sampleSize).toBe(2);
     expect(byScore[0].hitRate).toBe(0.5);
 
     // 정렬 기준만 바뀌고 집계값은 같다
     const byHitRate = await getAllTimeRanking(prisma, 'HIT_RATE', BATCH_NOW);
     expect(byHitRate[0].hitRate).toBe(0.5);
-    expect(byHitRate[0].totalScore).toBe(-250);
+    expect(byHitRate[0].totalScore).toBeCloseTo(-1335.56, 1);
   });
 });
 

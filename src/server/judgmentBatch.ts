@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import type { Direction, TargetType } from '@/domain/constants';
+import type { AssetClass, Direction, TargetType } from '@/domain/constants';
 import { JudgmentDeferredError, runJudgmentFromRegistry } from '@/domain/judgmentPipeline';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { scoreJudgedCard } from '@/domain/scoring';
@@ -64,6 +64,8 @@ export async function judgeAndSettleDueCards(
         targetType: card.targetType as TargetType,
         targetValue: card.targetValue,
         confidence: card.confidence,
+        stability: card.selfStability,
+        assetClass: card.assetClass as AssetClass,
         basePrice,
         settledPrice: result.settledPrice,
         outcome: result.outcome,

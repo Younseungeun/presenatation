@@ -79,7 +79,7 @@ model PredictionCard {
   basePrice     Float? // 기준가. FIXED_AT_PUBLISH는 게시 시 확정, AT_JUDGMENT는 판정 시 소급 기록
   deadline      DateTime // 검증 시한
   confidence    Int       @default(5) // 신뢰도 1~10 (필수) — 점수 증폭 배율 (scoring.ts)
-  selfStability Int       @default(5) // 자기 평가 안정성 1~10 (표시용)
+  selfStability Int       @default(1) // 자기 평가 안정성 1~10 — 정밀도 배팅 (1 = 불참이 기본: 모르고 배팅당하는 사고 방지, scoring.ts)
   selfProfitability Int   @default(5) // 자기 평가 수익성 1~10 (표시용)
   withdrawnAt   DateTime? // 철회 시각 (철회해도 기록 유지)
   createdAt     DateTime  @default(now())

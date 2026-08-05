@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import type { Direction, TargetType, UndecidableReason } from '@/domain/constants';
+import type { AssetClass, Direction, TargetType, UndecidableReason } from '@/domain/constants';
 import { UNDECIDABLE_REASONS } from '@/domain/constants';
 import { judge, type JudgmentResult, type MarketSnapshot } from '@/domain/judgment';
 import { scoreJudgedCard } from '@/domain/scoring';
@@ -191,6 +191,8 @@ export async function manualJudgeCard(
     targetType: card.targetType as TargetType,
     targetValue: card.targetValue,
     confidence: card.confidence,
+    stability: card.selfStability,
+    assetClass: card.assetClass as AssetClass,
     basePrice: resolvedBasePrice ?? card.basePrice,
     settledPrice: result.settledPrice,
     outcome: result.outcome,

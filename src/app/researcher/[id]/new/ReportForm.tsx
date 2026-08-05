@@ -266,13 +266,16 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
         </div>
         <div className={styles.field}>
           <label className={styles.label}>안정성 (자기평가 1~10)</label>
-          <select className={styles.select} name="selfStability" defaultValue="5">
+          <select className={styles.select} name="selfStability" defaultValue="1">
             {RATING.map((n) => (
               <option key={n} value={n}>
                 {n}
               </option>
             ))}
           </select>
+          <span className={styles.hint}>
+            정밀도 배팅 — 실현이 예측 수익률에 가까울수록 가점, 멀수록 감점 (초과는 관대). 1은 불참
+          </span>
         </div>
         <div className={styles.field}>
           <label className={styles.label}>수익성 (자기평가 1~10)</label>
@@ -310,7 +313,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
               </option>
             ))}
           </select>
-          <span className={styles.hint}>골드 등급부터 해금 (브론즈·실버는 0%만)</span>
+          <span className={styles.hint}>마스터 등급부터 해금 (무표기·시니어는 0%만)</span>
         </div>
       </div>
 

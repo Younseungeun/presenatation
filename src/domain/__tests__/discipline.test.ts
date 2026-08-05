@@ -34,8 +34,8 @@ describe('disciplineFor — 마이너스 점수 규율 래더', () => {
     expect(disciplineFor(-999)).toEqual({ minConfidence: 1, publishSuspended: false });
   });
 
-  it('마이너스가 깊어질수록 최소 신뢰도 상승', () => {
-    expect(disciplineFor(-1_000).minConfidence).toBe(3);
+  it('마이너스가 깊어질수록 최소 신뢰도 상승 (1단은 v3 완화: 3→2)', () => {
+    expect(disciplineFor(-1_000).minConfidence).toBe(2);
     expect(disciplineFor(-3_000).minConfidence).toBe(5);
     expect(disciplineFor(-6_000).minConfidence).toBe(7);
   });
@@ -45,17 +45,17 @@ describe('disciplineFor — 마이너스 점수 규율 래더', () => {
   });
 
   it('점수가 회복되면 자동 완화 (현재 점수의 함수)', () => {
-    expect(disciplineFor(-2_999).minConfidence).toBe(3);
+    expect(disciplineFor(-2_999).minConfidence).toBe(2);
     expect(disciplineFor(-500).minConfidence).toBe(1);
   });
 });
 
 describe('규율의 경제적 효과 — 저품질 대량 게시 차단', () => {
-  it('승률 55% 스패머: 신뢰도 1에서는 기대 점수 +, 강제 신뢰도 3에서는 −', () => {
+  it('승률 55% 스패머: 신뢰도 1에서는 기대 점수 +, 강제 신뢰도 2에서도 −', () => {
     const p = 0.55;
     const evAt = (c: number) => p * winAmplifier(c) - (1 - p) * lossAmplifier(c);
     expect(evAt(1)).toBeGreaterThan(0); // 규율 전: 은신처 존재
-    expect(evAt(3)).toBeLessThan(0); // 규율 후: 시행할수록 손해
+    expect(evAt(2)).toBeLessThan(0); // 완화된 1단(c≥2)만으로도 시행할수록 손해
   });
 
   it('실력자(승률 85%)는 강제 신뢰도 5에서도 기대 점수 + (하한의 선별성)', () => {
@@ -66,13 +66,13 @@ describe('규율의 경제적 효과 — 저품질 대량 게시 차단', () => 
 });
 
 describe('preparePublish 규율 연동', () => {
-  it('점수 -1,000 이하: 신뢰도 1 카드 게시 거부, 신뢰도 3이면 허용', () => {
+  it('점수 -1,000 이하: 신뢰도 1 카드 게시 거부, 신뢰도 2면 허용', () => {
     expect(() =>
       preparePublish(card, { ...cond, assetClassScore: -1_500 }, 70_000, NOW),
-    ).toThrow(/신뢰도 3 이상/);
+    ).toThrow(/신뢰도 2 이상/);
     expect(
       preparePublish(
-        { ...card, confidence: 3 },
+        { ...card, confidence: 2 },
         { ...cond, assetClassScore: -1_500 },
         70_000,
         NOW,
