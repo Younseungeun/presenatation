@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { JUDGMENT_POPUP_DISMISS_KEY } from "../ActiveJudgmentPopup";
 import styles from "../researcher/researcher.module.css";
 
 /**
@@ -42,6 +43,8 @@ export function LoginForm() {
         setError(body.error ?? "인증 실패");
         return;
       }
+      // 새로 로그인했으면 검증 현황을 다시 알린다 (이전 방문에서 닫았더라도)
+      sessionStorage.removeItem(JUDGMENT_POPUP_DISMISS_KEY);
       router.push(next);
       router.refresh();
     } catch (err) {

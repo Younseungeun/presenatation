@@ -2,8 +2,10 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
+import { ActiveJudgmentPopupHost } from "./ActiveJudgmentPopupHost";
 import { AppLaunch } from "./AppLaunch";
 import { BottomNav } from "./BottomNav";
+import { ScrollMemory } from "./ScrollMemory";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -52,6 +54,10 @@ export default async function RootLayout({
             </p>
           </div>
         </footer>
+        {/* 탭 화면 스크롤 위치 기억 — 다른 탭에 갔다 오면 보던 자리로 */}
+        <ScrollMemory />
+        {/* 진행 중인 판정 팝업 — 홈·리더보드·랭킹 어디서나 유지된다 (MY에서는 숨김) */}
+        <ActiveJudgmentPopupHost />
         <BottomNav unreadCount={unreadCount} />
       </body>
     </html>

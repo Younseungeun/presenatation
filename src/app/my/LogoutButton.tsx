@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { JUDGMENT_POPUP_DISMISS_KEY } from "../ActiveJudgmentPopup";
 import styles from "../researcher/researcher.module.css";
 
 export function LogoutButton() {
@@ -11,6 +12,8 @@ export function LogoutButton() {
   async function logout() {
     setBusy(true);
     await fetch("/api/auth/logout", { method: "POST" });
+    // 다음 사람이 로그인하면 그 사람의 검증 현황을 처음부터 알린다
+    sessionStorage.removeItem(JUDGMENT_POPUP_DISMISS_KEY);
     router.push("/");
     router.refresh();
   }

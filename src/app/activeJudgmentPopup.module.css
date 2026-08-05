@@ -1,0 +1,146 @@
+/* 진행 중인 판정 팝업 — 하단 탭바(57px + safe area) 바로 위에 뜨는 민트 스트립.
+   홈의 '가장 가까운 판정' 박스를 그대로 살린 모양이라 앱 안에서 낯설지 않다.
+   닫기는 왼쪽으로 밀기: 살짝 밀면 '지우기'가 드러나고 많이 밀면 바로 사라진다. */
+.wrap {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  /* 탭바 실제 높이 57px(56 + 위 테두리 1) + safe area + 여백 12 */
+  bottom: calc(57px + env(safe-area-inset-bottom, 0px) + 12px);
+  z-index: 29; /* 탭바(30)보다 아래 — 탭 전환은 항상 우선 */
+  max-width: 696px;
+  margin: 0 auto;
+  animation: popupUp 0.24s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+/* to를 명시하고 forwards로 끝 상태를 고정 — 렌더링이 지연돼도 위치가 어긋나지 않는다 */
+@keyframes popupUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wrap {
+    animation: none;
+  }
+}
+
+/* 밀기 무대 — 카드가 왼쪽으로 밀리면 오른쪽에서 '지우기' 카드가 따라 들어온다.
+   두 요소는 붙어 있지 않고 12px 사이를 두고 나란한 별개의 카드다. */
+.swipe {
+  position: relative;
+}
+/* '지우기' — 카드가 밀려나며 생긴 빈 공간을 그대로 채우는 박스.
+   폭은 밀린 거리만큼 인라인으로 정해지므로, 많이 밀수록 커지고 되돌리면 작아진다. */
+.delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--neg) 14%, var(--bg));
+  color: var(--neg);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    width 0.22s cubic-bezier(0.2, 0.8, 0.3, 1),
+    background 0.15s ease,
+    color 0.15s ease;
+}
+/* 박스가 좁을 때는 글자를 감춘다 (잘린 글자가 보이지 않게) */
+.deleteLabel {
+  transition: opacity 0.12s ease;
+}
+.delete:hover {
+  background: color-mix(in srgb, var(--neg) 22%, var(--bg));
+}
+/* 절반을 넘겼다 — 손을 떼면 삭제된다는 걸 색으로 알린다 */
+.armed {
+  background: var(--neg);
+  color: #fff;
+}
+.armed:hover {
+  background: var(--neg);
+}
+
+.card {
+  position: relative; /* '지우기'와 같은 무대 위 */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 12px 16px;
+  border-radius: var(--radius);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  box-shadow: 0 6px 20px rgba(12, 30, 26, 0.14);
+  /* 팝업에서 시작한 터치는 전부 스와이프 — 브라우저가 스크롤로 가져가며
+     pointercancel을 쏘지 않게 해, 손가락이 박스 밖으로 벗어나도 추적이 유지된다 */
+  touch-action: none;
+  /* 미리 합성 레이어로 올려 미는 동안 다시 그리지 않게 한다 */
+  will-change: transform;
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+/* 손가락을 따라갈 때는 지연 없이 즉시 반응 */
+/* 손가락을 따라가는 동안에는 지연 없이 즉시 반응 (색 변화만 부드럽게) */
+.dragging {
+  transition: none;
+}
+.delete.dragging {
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+.card:hover {
+  background: color-mix(in srgb, var(--brand-strong) 12%, var(--brand-soft));
+}
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}
+
+.copy {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.title {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--brand-ink);
+  line-height: 1.35;
+}
+.sub {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--brand-ink) 62%, transparent);
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dday {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--brand-strong);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
