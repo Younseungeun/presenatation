@@ -54,7 +54,16 @@ export interface Finding {
   quote: string;
   /** 왜 문제인지 — 리서처가 수정할 수 있게 설명 */
   reason: string;
+  /**
+   * 이 소견을 낸 주체. 오탐이 발생했을 때 고쳐야 할 곳이 정규식인지 프롬프트인지
+   * 구분하기 위해 남긴다 (screeningAccuracy의 출처별 집계 근거).
+   * 이 필드가 생기기 전 기록에는 없으므로 선택 필드다.
+   */
+  source?: FindingSource;
 }
+
+/** 소견 출처 — 'rule' 결정적 규칙 / 'ai' 2차 AI 검수 */
+export type FindingSource = 'rule' | 'ai';
 
 /**
  * 검수에서 발견된 위험 수준 (무엇을 찾았는가).
@@ -242,6 +251,7 @@ export function applyRules(input: ScreeningInput): Finding[] {
       severity: rule.severity,
       quote: quoteAround(text, match.index, match[0].length),
       reason: rule.reason,
+      source: 'rule',
     });
   }
 
@@ -262,6 +272,7 @@ export function applyRules(input: ScreeningInput): Finding[] {
       severity: 'WARN', // 회피 추정 — 사람이 확인
       quote: quoteAround(text, start, endIndex - start + 1),
       reason: `${rule.reason} (글자 사이를 띄우거나 기호로 나눈 표현이 탐지되었습니다)`,
+      source: 'rule',
     });
   }
 
@@ -280,6 +291,7 @@ export function applyRules(input: ScreeningInput): Finding[] {
       severity: 'WARN',
       quote: input.assetName,
       reason: r.message,
+      source: 'rule',
     });
   }
 
@@ -296,6 +308,7 @@ export function applyRules(input: ScreeningInput): Finding[] {
       quote: `${input.assetName} (${RISK_LEVEL_LABEL[input.riskLevel]}${input.riskNote ? ` · ${input.riskNote}` : ''})`,
       reason:
         '거래소가 위험을 경고한 종목인데 본문에 리스크 언급이 없습니다. 변동성·거래 제한 가능성을 함께 설명해주세요.',
+      source: 'rule',
     });
   }
   return findings;

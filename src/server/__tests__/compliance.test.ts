@@ -7,7 +7,9 @@ import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import {
   ComplianceTakedownError,
   forceWithdrawReport,
+  getCalibrationExamples,
   getPendingComplianceReviews,
+  getScreeningAccuracy,
   runScreening,
 } from '../complianceService';
 import { setInstrumentRisk } from '../instrumentService';
@@ -615,5 +617,135 @@ describe('forceWithdrawReport — 운영자 강제 철회', () => {
     await expect(
       forceWithdrawReport(prisma, { reportId: draft.id, operatorUserId: OPERATOR, reason: '위반' }),
     ).rejects.toThrow(/초안/);
+  });
+});
+
+describe('운영자 판정 기록 — 검수 정확도 측정의 원천', () => {
+  const NOW = new Date('2026-07-14T00:00:00Z');
+  // 자산군별 동시 활성 카드 상한(브론즈 5)에 걸리지 않도록 이 블록 전용 리서처를 쓴다
+  let labelResearcherId: string;
+
+  beforeAll(async () => {
+    const u = await prisma.user.create({
+      data: { email: 'label@c.io', identityVerified: true, researcherProfile: { create: {} } },
+      include: { researcherProfile: true },
+    });
+    labelResearcherId = u.researcherProfile!.id;
+  });
+
+  const reviewOf = (reportId: string) =>
+    prisma.complianceReview.findFirstOrThrow({
+      where: { reportId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+  /** 규칙이 잡는 표현(카더라)으로 보류시킨다 — 소견 출처는 rule */
+  async function held(title: string) {
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', title, labelResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, labelResearcherId, PUBLISH_NOW);
+    return draft.id;
+  }
+
+  it('승인은 기본적으로 오탐으로 기록된다', async () => {
+    const reportId = await held('라벨 승인');
+    await approvePendingReport(prisma, registry, reportId, OPERATOR, NOW);
+
+    const review = await reviewOf(reportId);
+    expect(review.operatorVerdict).toBe('APPROVED');
+    expect(review.aiFindingsValid).toBe(false); // 오탐 라벨
+    expect(review.operatorReviewedBy).toBe(OPERATOR);
+  });
+
+  it('"지적은 타당했음"을 표시하면 오탐이 아니라 경미로 남는다', async () => {
+    const reportId = await held('라벨 경미');
+    await approvePendingReport(prisma, registry, reportId, OPERATOR, NOW, true);
+    expect((await reviewOf(reportId)).aiFindingsValid).toBe(true);
+  });
+
+  it('반려는 사유·실제 위반 유형과 함께 정탐으로 기록된다', async () => {
+    const reportId = await held('라벨 반려');
+    await rejectPendingReport(prisma, reportId, OPERATOR, '풍문 근거', NOW, ['RUMOR']);
+
+    const review = await reviewOf(reportId);
+    expect(review.operatorVerdict).toBe('REJECTED');
+    expect(review.operatorReason).toBe('풍문 근거');
+    expect(JSON.parse(review.operatorCategories!)).toEqual(['RUMOR']);
+  });
+
+  it('검수를 통과한 리포트를 강제 철회하면 미탐으로 기록된다', async () => {
+    // 대기 중인 검토 건이 없는 경로 — 가장 최근 검수 기록에 라벨이 붙어야
+    // "놓친 위반"이 관측된다. 여기가 비면 미탐률은 영원히 0으로 보인다.
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('공개 실적 자료를 근거로 상승을 전망합니다.', '통과 후 철회', labelResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, labelResearcherId, PUBLISH_NOW);
+    const before = await reviewOf(draft.id);
+    expect(before.needsOperatorReview).toBe(false); // 보류 없이 통과했다
+
+    await forceWithdrawReport(
+      prisma,
+      {
+        reportId: draft.id,
+        operatorUserId: OPERATOR,
+        reason: '사후 확인 결과 미공개 정보 정황',
+        categories: ['PRIVATE_INFO'],
+      },
+      NOW,
+    );
+
+    const after = await reviewOf(draft.id);
+    expect(after.operatorVerdict).toBe('TAKEDOWN');
+    expect(JSON.parse(after.operatorCategories!)).toEqual(['PRIVATE_INFO']);
+
+    const accuracy = await getScreeningAccuracy(prisma);
+    expect(accuracy.falseNegative).toBeGreaterThanOrEqual(1);
+    expect(accuracy.byCategory.find((c) => c.key === 'PRIVATE_INFO')?.missed).toBeGreaterThanOrEqual(
+      1,
+    );
+    // 규칙이 잡은 카더라 건들은 정탐·오탐으로 이미 라벨이 붙어 있다
+    expect(accuracy.bySource.find((s) => s.key === 'rule')?.falsePositive).toBeGreaterThanOrEqual(1);
+  });
+
+  it('AI가 낸 오탐만 다음 검수 요청에 보정 자료로 실린다', async () => {
+    // 운영자 판정 → 프롬프트로 되돌아가는 되먹임 배선이 실제로 붙어 있는지.
+    // 규칙(정규식) 오탐은 프롬프트로 고칠 수 없으므로 제외되어야 한다.
+    const aiScreener = new FixtureComplianceScreener([
+      {
+        category: 'UNSUPPORTED_CLAIM',
+        severity: 'WARN',
+        quote: '실적 개선이 확실시된다',
+        reason: '근거 없는 단정',
+        source: 'ai',
+      },
+    ]);
+    const flagged = await createDraftReport(
+      prisma,
+      draftInput('실적 개선이 확실시된다고 봅니다.', 'AI 오탐 사례', labelResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, flagged.id, labelResearcherId, PUBLISH_NOW, aiScreener);
+    await approvePendingReport(prisma, registry, flagged.id, OPERATOR, NOW);
+
+    const examples = await getCalibrationExamples(prisma);
+    expect(examples).toContainEqual(
+      expect.objectContaining({ category: 'UNSUPPORTED_CLAIM', quote: '실적 개선이 확실시된다' }),
+    );
+    // 규칙이 낸 소견(카더라)은 보정 자료에 들어가지 않는다
+    expect(examples.some((e) => e.category === 'RUMOR')).toBe(false);
+
+    const next = new FixtureComplianceScreener();
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('공개 자료 기반 분석입니다.', '되먹임 확인', labelResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, labelResearcherId, PUBLISH_NOW, next);
+    expect(next.lastCalibration?.length).toBe(examples.length);
   });
 });

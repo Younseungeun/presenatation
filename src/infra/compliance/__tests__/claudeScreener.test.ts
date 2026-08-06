@@ -44,6 +44,23 @@ describe('buildUserMessage — 원문 경계', () => {
     expect(msg).toContain('SCREENING_EVASION');
   });
 
+  it('과거 오탐 사례는 경계 안에 들어간다 (그 문장도 사용자 입력이다)', () => {
+    // 오탐으로 판정된 문장 안에 지시가 섞여 있을 수 있다 —
+    // 보정 자료를 신뢰 구간에 두면 되먹임 경로가 새 주입 통로가 된다
+    const msg = buildUserMessage(input(), 'cafe01', [
+      { category: 'UNSUPPORTED_CLAIM', quote: '실적 개선이 확실시된다', note: '통상적 전망' },
+    ]);
+    expect(msg).toContain('[오탐사례 BOUNDARY-cafe01]');
+    expect(msg).toContain('[/오탐사례 BOUNDARY-cafe01]');
+    expect(msg.indexOf('실적 개선이 확실시된다')).toBeGreaterThan(
+      msg.indexOf('[오탐사례 BOUNDARY-cafe01]'),
+    );
+  });
+
+  it('보정 사례가 없으면 블록 자체가 붙지 않는다 (토큰 낭비 방지)', () => {
+    expect(buildUserMessage(input())).not.toContain('오탐사례');
+  });
+
   it('종목 위험 등급은 경계 밖(신뢰 구간)에 놓인다', () => {
     const msg = buildUserMessage(input({ riskLevel: 'WARNING', riskNote: 'KRX 투자경고' }));
     const firstBoundary = msg.indexOf('BOUNDARY-');

@@ -5,9 +5,19 @@ import {
   findingMessages,
   mergeFindings,
   resolveAction,
+  type ComplianceDecision,
   type ComplianceResult,
+  type Finding,
+  type RiskCategory,
   type ScreeningInput,
 } from '@/domain/compliance';
+import {
+  calibrationExamples,
+  summarizeAccuracy,
+  type CalibrationExample,
+  type LabeledReview,
+  type OperatorVerdict,
+} from '@/domain/screeningAccuracy';
 import {
   deliberationRatio,
   type ComplianceScreener,
@@ -25,6 +35,7 @@ import { buildJudgmentWrites } from './judgmentWriter';
 export async function runScreening(
   input: ScreeningInput,
   screener: ComplianceScreener | null,
+  calibration: CalibrationExample[] = [],
 ): Promise<ComplianceResult> {
   const ruleFindings = applyRules(input);
   const ruleDecision = decide(ruleFindings);
@@ -42,7 +53,7 @@ export async function runScreening(
 
   let output: ScreeningOutput;
   try {
-    output = await screener.screen(input);
+    output = await screener.screen(input, calibration);
   } catch (e) {
     // 검수 실패로 게시를 거절하지는 않는다 — 외부 장애로 정상 리포트가 반려되면 안 된다.
     // 대신 판매도 시작하지 않고 운영자 검토로 돌린다.
@@ -77,7 +88,15 @@ export async function screenAndRecord(
   screener: ComplianceScreener | null,
   now = new Date(),
 ): Promise<ComplianceResult> {
-  const result = await runScreening(input, screener);
+  // 과거 오탐 사례를 함께 넘긴다 — 운영자 판정이 다음 검수의 정확도로 되돌아오는 지점.
+  // 조회 실패가 게시를 막으면 안 되므로 실패해도 빈 배열로 진행한다.
+  const calibration = screener
+    ? await getCalibrationExamples(prisma).catch((e) => {
+        console.error('검수 보정 사례 조회 실패:', e);
+        return [];
+      })
+    : [];
+  const result = await runScreening(input, screener, calibration);
   const usage = result.usage as ScreeningUsage | undefined;
 
   const writes: Prisma.PrismaPromise<unknown>[] = [
@@ -239,25 +258,69 @@ export async function researcherSalesCounts(
   return counts;
 }
 
-/**
- * 리포트의 미확인 검토 건을 종결 처리하는 쓰기 (호출자의 트랜잭션에 합류).
- * 운영자가 어떤 결정(승인·반려·강제 철회)을 내리든 큐에서는 내려가야 한다.
- */
-export function closeComplianceReviewWrites(
-  prisma: PrismaClient,
-  reportId: string,
-  operatorUserId: string,
-  now: Date,
-): Prisma.PrismaPromise<unknown>[] {
-  return [
-    prisma.complianceReview.updateMany({
-      where: { reportId, needsOperatorReview: true, operatorReviewedAt: null },
-      data: { operatorReviewedAt: now, operatorReviewedBy: operatorUserId },
-    }),
-  ];
+// ── 운영자 판정 기록 (정답 라벨) ──────────────────────────────────────
+//
+// 운영자의 결정은 큐에서 건을 내리는 행위이자, 검수가 맞았는지에 대한 유일한 정답이다.
+// 그래서 종결 처리와 라벨 기록을 같은 쓰기로 묶는다 — 따로 두면 라벨이 비어 있는
+// 종결 건이 쌓여 측정이 불가능해진다.
+
+export interface VerdictLabel {
+  /** 반려·철회 사유 */
+  reason?: string;
+  /** 운영자가 확인한 실제 위반 유형 (비우면 검수 소견을 그대로 인정) */
+  categories?: RiskCategory[];
+  /** 승인 시: 지적 자체는 타당했는가 (경미해서 승인한 경우 true) */
+  findingsValid?: boolean;
 }
 
-/** 운영자 확인 처리 (큐에서 제거) */
+/**
+ * 리포트의 검수 건에 운영자 판정을 기록하는 쓰기 (호출자의 트랜잭션에 합류).
+ *
+ * 대기 중인 건이 있으면 그것들에, 없으면 **가장 최근 검수 건**에 기록한다.
+ * 후자가 중요하다: 검수를 통과(PASS)해 게시된 리포트가 나중에 강제 철회되면
+ * 대기 건이 없는데, 바로 그 경우가 미탐(놓친 위반)의 유일한 관측 경로다.
+ */
+export async function operatorVerdictWrites(
+  prisma: PrismaClient,
+  reportId: string,
+  verdict: OperatorVerdict,
+  operatorUserId: string,
+  now: Date,
+  label: VerdictLabel = {},
+): Promise<Prisma.PrismaPromise<unknown>[]> {
+  const data = {
+    operatorReviewedAt: now,
+    operatorReviewedBy: operatorUserId,
+    operatorVerdict: verdict,
+    operatorReason: label.reason?.trim() || null,
+    operatorCategories: label.categories?.length ? JSON.stringify(label.categories) : null,
+    aiFindingsValid: label.findingsValid ?? null,
+  };
+
+  const [pendingCount, latest] = await Promise.all([
+    prisma.complianceReview.count({
+      where: { reportId, needsOperatorReview: true, operatorReviewedAt: null },
+    }),
+    prisma.complianceReview.findFirst({
+      where: { reportId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    }),
+  ]);
+
+  if (pendingCount > 0) {
+    return [
+      prisma.complianceReview.updateMany({
+        where: { reportId, needsOperatorReview: true, operatorReviewedAt: null },
+        data,
+      }),
+    ];
+  }
+  if (!latest) return [];
+  return [prisma.complianceReview.update({ where: { id: latest.id }, data })];
+}
+
+/** 운영자 확인 처리 — 판매 중 리포트를 검토 후 유지 (큐에서 제거 + 라벨 기록) */
 export async function markComplianceReviewed(
   prisma: PrismaClient,
   reviewId: string,
@@ -266,8 +329,89 @@ export async function markComplianceReviewed(
 ) {
   await prisma.complianceReview.update({
     where: { id: reviewId, operatorReviewedAt: null },
-    data: { operatorReviewedAt: now, operatorReviewedBy: operatorUserId },
+    data: {
+      operatorReviewedAt: now,
+      operatorReviewedBy: operatorUserId,
+      operatorVerdict: 'KEPT',
+    },
   });
+}
+
+// ── 정확도 집계·되먹임 ────────────────────────────────────────────────
+
+type ReviewRow = {
+  decision: string;
+  findingsJson: string;
+  operatorVerdict: string | null;
+  operatorReason: string | null;
+  operatorCategories: string | null;
+  aiFindingsValid: boolean | null;
+};
+
+/** DB 행 → 도메인 표본. 저장된 JSON은 방어적으로 파싱한다 (구버전 행 존재) */
+function toLabeledReview(row: ReviewRow): LabeledReview {
+  const parse = <T>(json: string | null, fallback: T): T => {
+    if (!json) return fallback;
+    try {
+      const v = JSON.parse(json);
+      return Array.isArray(v) ? (v as T) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  return {
+    decision: row.decision as ComplianceDecision,
+    findings: parse<Finding[]>(row.findingsJson, []),
+    verdict: (row.operatorVerdict as OperatorVerdict | null) ?? null,
+    findingsValid: row.aiFindingsValid,
+    actualCategories: parse<RiskCategory[]>(row.operatorCategories, []),
+    operatorReason: row.operatorReason,
+  };
+}
+
+const LABEL_SELECT = {
+  decision: true,
+  findingsJson: true,
+  operatorVerdict: true,
+  operatorReason: true,
+  operatorCategories: true,
+  aiFindingsValid: true,
+} as const;
+
+/**
+ * 검수 정확도 — 운영자 판정이 붙은 건만 집계한다.
+ * 이 수치가 축 2(모델 캐스케이드)·축 3(리스크 기반 차등)의 판단 근거가 된다.
+ */
+export async function getScreeningAccuracy(prisma: PrismaClient, take = 500) {
+  const rows = await prisma.complianceReview.findMany({
+    where: { operatorVerdict: { not: null } },
+    select: LABEL_SELECT,
+    orderBy: { createdAt: 'desc' },
+    take,
+  });
+  return summarizeAccuracy(rows.map(toLabeledReview));
+}
+
+/**
+ * AI에게 되먹일 오탐 사례.
+ * 운영자가 "이건 지적할 게 아니었다"고 판정한 실제 문장을 프롬프트에 넣어
+ * 같은 오탐이 반복되지 않게 한다 — 모델을 바꾸지 않고 정확도를 올리는 가장 싼 수단.
+ */
+export async function getCalibrationExamples(
+  prisma: PrismaClient,
+  limit = 8,
+): Promise<CalibrationExample[]> {
+  const rows = await prisma.complianceReview.findMany({
+    // 오탐 후보: 승인·유지로 끝났는데 지적이 타당했다는 표시가 없는 건
+    where: {
+      operatorVerdict: { in: ['APPROVED', 'KEPT'] },
+      NOT: { aiFindingsValid: true },
+    },
+    select: LABEL_SELECT,
+    orderBy: { createdAt: 'desc' },
+    take: limit * 6, // 규칙 오탐·중복이 걸러지므로 넉넉히 조회한다
+  });
+  return calibrationExamples(rows.map(toLabeledReview), limit);
 }
 
 // ── 강제 철회 (운영자 집행 액션) ────────────────────────────────────────
@@ -296,6 +440,8 @@ export interface TakedownInput {
   operatorUserId: string;
   /** 강제 철회 사유 — 필수. 리서처 알림과 감사 스냅샷에 그대로 실린다 */
   reason: string;
+  /** 실제 위반 유형 (선택) — 통과된 건을 철회했다면 검수가 못 잡은 유형이 된다 */
+  categories?: RiskCategory[];
 }
 
 export interface TakedownSummary {
@@ -379,8 +525,12 @@ export async function forceWithdrawReport(
         createdAt: now,
       },
     }),
-    // 이 리포트의 미확인 검토 건은 집행으로 종결 처리 (큐에 남겨둘 이유가 없다)
-    ...closeComplianceReviewWrites(prisma, report.id, input.operatorUserId, now),
+    // 집행 결과를 검수 기록에 라벨로 남긴다.
+    // 검수를 통과했던 건이면 이것이 미탐(놓친 위반)의 기록이 된다.
+    ...(await operatorVerdictWrites(prisma, report.id, 'TAKEDOWN', input.operatorUserId, now, {
+      reason,
+      categories: input.categories,
+    })),
   ];
 
   await prisma.$transaction(writes);

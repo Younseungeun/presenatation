@@ -178,6 +178,15 @@ model ComplianceReview {
   needsOperatorReview Boolean   @default(false)
   operatorReviewedAt  DateTime? // 운영자가 확인한 시각
   operatorReviewedBy  String? // 확인한 운영자 userId
+  // ── 운영자 판정(정답 라벨) ─────────────────────────────────────────
+  // 검수가 맞았는지는 사람의 최종 결정으로만 알 수 있다. 이 네 칸이 없으면
+  // 오탐률·미탐률을 측정할 수 없고, 규칙·프롬프트·모델을 근거 있게 바꿀 수 없다.
+  operatorVerdict     String? // APPROVED | REJECTED | KEPT | TAKEDOWN (screeningAccuracy.ts)
+  operatorReason      String? // 반려·철회 사유 (오탐 사례 되먹임의 설명)
+  // 운영자가 지목한 실제 위반 유형 JSON — 비었으면 "검수 소견 그대로 인정"
+  operatorCategories  String?
+  // 승인 시: 지적 자체는 타당했는가 (경미해서 승인한 것과 오탐을 구분)
+  aiFindingsValid     Boolean?
   // AI 검수 토큰 사용량 — 실제 비용 측정 + 숙고량 신호 (규칙만 돌았으면 null).
   // 이 데이터가 쌓이면 ① 모델 선택 ② 에스컬레이션 임계값을 근거 있게 정할 수 있다.
   inputTokens         Int?

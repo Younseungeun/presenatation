@@ -10,10 +10,10 @@ import {
   validateReportText,
   type CardDraft,
 } from '@/domain/publishReport';
-import { findingMessages } from '@/domain/compliance';
+import { findingMessages, type RiskCategory } from '@/domain/compliance';
 import type { ComplianceScreener } from '@/infra/compliance/screener';
 import { toCardDraft } from './cardMapper';
-import { closeComplianceReviewWrites, screenAndRecord } from './complianceService';
+import { operatorVerdictWrites, screenAndRecord } from './complianceService';
 import { validateListedInstrument } from './instrumentService';
 import { researcherSeasonScores } from './scoreService';
 
@@ -280,6 +280,12 @@ export async function approvePendingReport(
   reportId: string,
   operatorUserId: string,
   now = new Date(),
+  /**
+   * 지적 자체는 타당했는가. 기본값 false가 곧 "오탐" 라벨이 된다 —
+   * 승인의 대다수는 과잉 지적이므로 예외(경미해서 승인)만 표시하게 두는 편이
+   * 운영자의 손이 덜 가고, 라벨이 비는 일도 없다 (screeningAccuracy.ts).
+   */
+  findingsValid = false,
 ) {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
@@ -292,7 +298,9 @@ export async function approvePendingReport(
   const published = await finalizePublish(prisma, registry, reportId, 'PENDING_REVIEW', now);
 
   await prisma.$transaction([
-    ...closeComplianceReviewWrites(prisma, reportId, operatorUserId, now),
+    ...(await operatorVerdictWrites(prisma, reportId, 'APPROVED', operatorUserId, now, {
+      findingsValid,
+    })),
     prisma.notification.create({
       data: {
         userId: report.researcher.userId,
@@ -319,6 +327,8 @@ export async function rejectPendingReport(
   operatorUserId: string,
   reason: string,
   now = new Date(),
+  /** 운영자가 확인한 실제 위반 유형 (선택) — 비우면 검수 소견을 그대로 인정한 것으로 본다 */
+  categories: RiskCategory[] = [],
 ) {
   const trimmed = reason.trim();
   if (!trimmed) throw new PublishValidationError(['반려 사유는 필수입니다']);
@@ -336,7 +346,10 @@ export async function rejectPendingReport(
       where: { id: reportId, status: 'PENDING_REVIEW' },
       data: { status: 'DRAFT' },
     }),
-    ...closeComplianceReviewWrites(prisma, reportId, operatorUserId, now),
+    ...(await operatorVerdictWrites(prisma, reportId, 'REJECTED', operatorUserId, now, {
+      reason: trimmed,
+      categories,
+    })),
     prisma.notification.create({
       data: {
         userId: report.researcher.userId,

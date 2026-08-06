@@ -12,9 +12,11 @@ import {
   type RiskCategory,
 } from "@/domain/compliance";
 import { TIERS, type Tier } from "@/domain/constants";
+import type { AccuracySummary } from "@/domain/screeningAccuracy";
 import {
   getPendingComplianceReviews,
   getPublishedReportsForOversight,
+  getScreeningAccuracy,
   researcherSalesCounts,
 } from "@/server/complianceService";
 import { prisma } from "@/server/db";
@@ -316,7 +318,66 @@ function ReviewCard({ review, now }: { review: PendingReview; now: Date }) {
         reportStatus={review.report.status}
         heldPurchases={held.length}
         heldAmountKrw={heldAmountKrw}
+        flaggedCategories={[...new Set(findings.map((f) => f.category))]}
       />
+    </div>
+  );
+}
+
+// 검수 정확도 패널 — 운영자 자신의 결정이 만들어낸 지표를 결정 화면 위에 둔다.
+// 여기 오탐률이 보이면 "왜 매번 멀쩡한 리포트가 올라오지"가 감이 아니라 수치가 된다.
+function pct(v: number | null) {
+  return v === null ? "-" : `${Math.round(v * 100)}%`;
+}
+
+function AccuracyPanel({ summary }: { summary: AccuracySummary }) {
+  if (summary.labeled === 0) {
+    return (
+      <p className={styles.hint} style={{ marginBottom: 14 }}>
+        아직 판정 표본이 없습니다. 승인·반려·철회를 내리면 그 결정이 검수의 정답 라벨이 되어
+        오탐률·미탐 건수가 여기 집계됩니다.
+      </p>
+    );
+  }
+  const worst = summary.byCategory.filter((c) => c.falsePositive > 0).slice(0, 3);
+  const missed = summary.byCategory.filter((c) => c.missed > 0).slice(0, 3);
+
+  return (
+    <div className={styles.card} style={{ marginBottom: 14 }}>
+      <div className={styles.cardTop}>
+        <div className={styles.cardTitle}>검수 정확도</div>
+        <span className={styles.badge}>표본 {summary.labeled}건</span>
+      </div>
+      <div className={styles.meta}>
+        <span>
+          정탐률 <strong>{pct(summary.precision)}</strong> (보류 {summary.held}건 중{" "}
+          {summary.truePositive}건이 실제 위반)
+        </span>
+        <span style={{ color: summary.falsePositive > 0 ? "var(--neg)" : undefined }}>
+          오탐률 <strong>{pct(summary.falsePositiveRate)}</strong> ({summary.falsePositive}건)
+        </span>
+        <span>경미 {summary.minor}건</span>
+        <span style={{ color: summary.falseNegative > 0 ? "var(--neg)" : undefined }}>
+          미탐 {summary.falseNegative}건 (통과 후 철회)
+        </span>
+      </div>
+      {worst.length > 0 && (
+        <p className={styles.hint} style={{ marginTop: 6 }}>
+          오탐이 많은 유형: {worst.map((c) => `${RISK_CATEGORY_LABEL[c.key]} ${c.falsePositive}건`).join(" · ")}
+          {" — "}
+          출처별{" "}
+          {summary.bySource
+            .map((s) => `${s.key === "rule" ? "규칙" : s.key === "ai" ? "AI" : "미상"} ${s.falsePositive}건`)
+            .join(" · ")}
+          . 규칙 오탐은 정규식을, AI 오탐은 프롬프트를 고쳐야 합니다 (AI 오탐 사례는 다음 검수
+          요청에 보정 자료로 자동 첨부됩니다).
+        </p>
+      )}
+      {missed.length > 0 && (
+        <p className={styles.hint} style={{ marginTop: 4 }}>
+          검수가 못 잡은 유형: {missed.map((c) => `${RISK_CATEGORY_LABEL[c.key]} ${c.missed}건`).join(" · ")}
+        </p>
+      )}
     </div>
   );
 }
@@ -331,9 +392,10 @@ export default async function AdminCompliancePage({
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role !== "OPERATOR") notFound();
 
-  const [pending, published] = await Promise.all([
+  const [pending, published, accuracy] = await Promise.all([
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
+    getScreeningAccuracy(prisma),
   ]);
 
   // 큐는 이미 오래된 순(= 대기가 긴 순)으로 온다. 정렬을 유지한 채 두 항목으로 나눈다.
@@ -372,6 +434,8 @@ export default async function AdminCompliancePage({
           </p>
         </div>
       </div>
+
+      <AccuracyPanel summary={accuracy} />
 
       {/* 보류 사유별로 화면을 분리한다 — 판단 기준이 다른 건을 한 화면에서 섞어 보지 않게 */}
       <div className={tabStyles.tabs}>

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { RISK_CATEGORIES, RISK_CATEGORY_LABEL, type RiskCategory } from "@/domain/compliance";
 import styles from "../../researcher/researcher.module.css";
 
 // 2단 검수로 결론이 나지 않은 건에 대한 운영자의 최종 결정.
@@ -11,6 +12,11 @@ import styles from "../../researcher/researcher.module.css";
 //   · 반려: 초안으로 되돌리고 사유 통지 (리서처가 고쳐서 재제출 가능)
 // 게시 중(PUBLISHED) — 승인 후 재검토·구버전 데이터
 //   · 게시 유지 / 강제 철회(전액 환불). 되돌릴 수 없어 사유·확인 단계를 거친다
+//
+// 이 결정은 동시에 **검수의 정답 라벨**이다 (screeningAccuracy.ts). 승인은 기본적으로
+// "오탐"으로, 반려·철회는 "정탐"으로 기록되고, 이 라벨이 없으면 오탐률을 알 수 없어
+// 규칙·프롬프트·모델을 근거 있게 바꿀 수 없다. 그래서 결정 화면에서 라벨을 함께 받되,
+// 기본값이 가장 흔한 경우가 되게 해 클릭 수를 늘리지 않는다.
 
 type Mode = "IDLE" | "REJECT" | "TAKEDOWN";
 
@@ -20,6 +26,7 @@ export function ResolveButton({
   reportStatus,
   heldPurchases,
   heldAmountKrw,
+  flaggedCategories = [],
 }: {
   /** 검토 큐 항목일 때만 존재 — 판매 중 목록에서 온 건은 없다 */
   reviewId?: string;
@@ -27,13 +34,23 @@ export function ResolveButton({
   reportStatus: string;
   heldPurchases: number;
   heldAmountKrw: number;
+  /** 검수가 지적한 유형 — 반려 시 실제 위반 유형의 기본 선택값이 된다 */
+  flaggedCategories?: RiskCategory[];
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("IDLE");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 승인 시 기본값 false = "지적이 부적절했다(오탐)". 승인의 대다수가 과잉 지적이므로
+  // 예외인 경우만 체크하게 둔다 — 라벨 정확도를 위해 클릭을 강제하지 않는다.
+  const [findingsValid, setFindingsValid] = useState(false);
+  const [categories, setCategories] = useState<RiskCategory[]>(flaggedCategories);
   const pending = reportStatus === "PENDING_REVIEW";
+
+  function toggle(c: RiskCategory) {
+    setCategories((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
+  }
 
   async function post(body: Record<string, unknown>, failMessage: string) {
     setBusy(true);
@@ -90,12 +107,42 @@ export function ResolveButton({
             placeholder="예: 출처 불명 풍문을 근거로 제시 — 공개 자료 확인 불가"
           />
         </label>
+
+        {/* 실제 위반 유형: 검수가 짚은 유형과 다를 수 있다.
+            여기서 고쳐줘야 "반려는 맞았지만 엉뚱한 유형을 짚었다"가 오탐으로 집계된다. */}
+        <div className={styles.field}>
+          <span className={styles.label}>
+            실제 위반 유형 (검수 정확도 측정용 · 그대로 두면 검수 소견을 인정)
+          </span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 4 }}>
+            {RISK_CATEGORIES.map((c) => (
+              <label
+                key={c}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  fontSize: 12.5,
+                  color: categories.includes(c) ? "var(--text)" : "var(--text-faint)",
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={categories.includes(c)}
+                  onChange={() => toggle(c)}
+                />
+                {RISK_CATEGORY_LABEL[c]}
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div className={styles.formActions}>
           <button
             className={`${styles.actionBtn} ${styles.danger}`}
             onClick={() =>
               post(
-                { action: takedown ? "TAKEDOWN" : "REJECT", reportId, reason },
+                { action: takedown ? "TAKEDOWN" : "REJECT", reportId, reason, categories },
                 takedown ? "철회 실패" : "반려 실패",
               )
             }
@@ -120,47 +167,68 @@ export function ResolveButton({
   }
 
   return (
-    <div className={styles.formActions}>
-      {pending ? (
-        <>
-          <button
-            className={styles.primaryBtn}
-            onClick={() => post({ action: "APPROVE", reportId }, "승인 실패")}
-            disabled={busy}
-          >
-            {busy ? "처리 중…" : "게시 승인"}
-          </button>
-          <button
-            className={`${styles.actionBtn} ${styles.danger}`}
-            onClick={() => setMode("REJECT")}
-            disabled={busy}
-          >
-            반려
-          </button>
-        </>
-      ) : (
-        <>
-          {reviewId && (
+    <div>
+      {pending && flaggedCategories.length > 0 && (
+        <label
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 12.5,
+            color: "var(--text-faint)",
+            margin: "8px 0 2px",
+          }}
+        >
+          <input
+            type="checkbox"
+            checked={findingsValid}
+            onChange={(e) => setFindingsValid(e.target.checked)}
+          />
+          지적 자체는 타당했음 (경미해서 승인) — 체크하지 않으면 오탐으로 기록됩니다
+        </label>
+      )}
+      <div className={styles.formActions}>
+        {pending ? (
+          <>
             <button
               className={styles.primaryBtn}
-              onClick={() => post({ action: "RESOLVE", reviewId }, "처리 실패")}
+              onClick={() => post({ action: "APPROVE", reportId, findingsValid }, "승인 실패")}
               disabled={busy}
             >
-              {busy ? "처리 중…" : "게시 유지"}
+              {busy ? "처리 중…" : "게시 승인"}
             </button>
-          )}
-          {reportStatus === "PUBLISHED" && (
             <button
               className={`${styles.actionBtn} ${styles.danger}`}
-              onClick={() => setMode("TAKEDOWN")}
+              onClick={() => setMode("REJECT")}
               disabled={busy}
             >
-              강제 철회
+              반려
             </button>
-          )}
-        </>
-      )}
-      {error && <p className={styles.error}>{error}</p>}
+          </>
+        ) : (
+          <>
+            {reviewId && (
+              <button
+                className={styles.primaryBtn}
+                onClick={() => post({ action: "RESOLVE", reviewId }, "처리 실패")}
+                disabled={busy}
+              >
+                {busy ? "처리 중…" : "게시 유지"}
+              </button>
+            )}
+            {reportStatus === "PUBLISHED" && (
+              <button
+                className={`${styles.actionBtn} ${styles.danger}`}
+                onClick={() => setMode("TAKEDOWN")}
+                disabled={busy}
+              >
+                강제 철회
+              </button>
+            )}
+          </>
+        )}
+        {error && <p className={styles.error}>{error}</p>}
+      </div>
     </div>
   );
 }

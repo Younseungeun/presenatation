@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { RISK_CATEGORIES } from '@/domain/compliance';
 import { createDefaultRegistry } from '@/infra/marketData/registry';
 import {
   forceWithdrawReport,
@@ -18,18 +19,29 @@ import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 //  - RESOLVE: 게시 유지 (큐에서 제거)
 //  - TAKEDOWN: 강제 철회 → 게시 중단 + 즉시 전액 환불
 
+// 운영자 결정에는 정답 라벨이 함께 실린다 (screeningAccuracy.ts):
+//  - 승인: findingsValid — 지적이 타당했는지 (기본 false = 오탐)
+//  - 반려·철회: categories — 실제 위반 유형 (비우면 검수 소견을 그대로 인정)
+const categories = z.array(z.enum(RISK_CATEGORIES)).max(RISK_CATEGORIES.length).optional();
+
 const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('RESOLVE'), reviewId: z.string().min(1) }),
-  z.object({ action: z.literal('APPROVE'), reportId: z.string().min(1) }),
+  z.object({
+    action: z.literal('APPROVE'),
+    reportId: z.string().min(1),
+    findingsValid: z.boolean().optional(),
+  }),
   z.object({
     action: z.literal('REJECT'),
     reportId: z.string().min(1),
     reason: z.string().trim().min(1).max(500),
+    categories,
   }),
   z.object({
     action: z.literal('TAKEDOWN'),
     reportId: z.string().min(1),
     reason: z.string().trim().min(1).max(500),
+    categories,
   }),
 ]);
 
@@ -56,17 +68,27 @@ export async function POST(req: NextRequest) {
           createDefaultRegistry(),
           body.reportId,
           operatorUserId,
+          new Date(),
+          body.findingsValid ?? false,
         );
         return NextResponse.json({ ok: true, status: published.status });
       }
       case 'REJECT':
-        await rejectPendingReport(prisma, body.reportId, operatorUserId, body.reason);
+        await rejectPendingReport(
+          prisma,
+          body.reportId,
+          operatorUserId,
+          body.reason,
+          new Date(),
+          body.categories ?? [],
+        );
         return NextResponse.json({ ok: true });
       case 'TAKEDOWN': {
         const summary = await forceWithdrawReport(prisma, {
           reportId: body.reportId,
           operatorUserId,
           reason: body.reason,
+          categories: body.categories ?? [],
         });
         return NextResponse.json({ ok: true, ...summary });
       }
