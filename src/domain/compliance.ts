@@ -269,6 +269,40 @@ export function normalizeForRules(text: string): NormalizedText {
   return { text: chars.join(''), origin };
 }
 
+
+// ── 부정 문맥 ─────────────────────────────────────────────────────────
+//
+// 평가셋을 돌려보니 규칙의 최대 결함이 여기였다: 금지 표현을 **부정한** 문장이
+// 그대로 걸린다. "과거 수익률이 미래 수익을 보장하지 않습니다"는 표준 면책 문구인데
+// PROFIT_GUARANTEE(BLOCK)에 걸려 사람 확인도 없이 즉시 거절됐다.
+// 정상 리포트 대부분이 이런 고지 문구를 담으므로, 이건 이론적 위험이 아니라 실제 결함이다.
+//
+// 한국어 부정의 범위(scope)를 정규식으로 정확히 잡는 것은 불가능하다. 그래서 확신의
+// 정도에 따라 처리를 나눈다 — 이 설계는 정규화 2차 패스(WARN 강등)와 같은 사고방식이다.
+//
+//  STRONG: 부정이 주장 동사에 **직접** 붙은 형태 ("보장하지 않", "제공하지 못")
+//          → 소견을 내지 않는다. 오탐이 거의 없고, 이걸 남겨두면 정상 고지 문구가 막힌다
+//  WEAK:   같은 문장 안 어딘가에 부정·금지 어휘가 있다 ("보장은 …할 수 없습니다")
+//          → 소견은 내되 **BLOCK을 WARN으로 낮춘다**. 즉시 거절만 막고 판단은 사람이 한다
+//
+// 남는 구멍: 이중 부정("보장하지 않을 이유가 없습니다")은 STRONG으로 오인돼 규칙을
+// 빠져나간다. 드물고 적대적인 형태이며, 2차 AI 검수가 여전히 본다.
+
+/** 주장 동사에 직접 붙은 부정 — 매칭 직후 짧은 구간 안의 "~지 않/못" 형태 */
+const STRONG_NEGATION = /^[^.!?\n]{0,6}(하지|되지|드리지|지)\s*(않|못)/;
+/** 같은 문장 안의 부정·금지 어휘 — 범위가 불확실하므로 강등에만 쓴다 */
+const WEAK_NEGATION = /(않|못\s*하|없|아니|금지|위법|불법|배제)/;
+
+type NegationStrength = 'STRONG' | 'WEAK' | null;
+
+function negationAfter(text: string, matchEnd: number): NegationStrength {
+  const rest = text.slice(matchEnd);
+  if (STRONG_NEGATION.test(rest)) return 'STRONG';
+  // 문장 경계를 넘으면 다른 주장이므로 보지 않는다
+  const sentence = rest.split(/[.!?\n]/)[0] ?? '';
+  return WEAK_NEGATION.test(sentence) ? 'WEAK' : null;
+}
+
 /** 결정적 규칙 검사 — API 호출 없이 즉시 실행 */
 /** 검사 대상 텍스트 — 제목·요약·본문을 이어 붙인다 (학습 표현 매칭도 같은 문자열을 쓴다) */
 export function screeningText(input: ScreeningInput): string {
@@ -280,14 +314,17 @@ export function applyRules(input: ScreeningInput): Finding[] {
   const findings: Finding[] = [];
   const matchedCategories = new Set<RiskCategory>();
 
-  // 1차: 원문 그대로 (기존 동작 — 심각도 유지)
+  // 1차: 원문 그대로
   for (const rule of RULES) {
     const match = rule.pattern.exec(text);
     if (!match) continue;
+    const negation = negationAfter(text, match.index + match[0].length);
+    if (negation === 'STRONG') continue; // "보장하지 않습니다" — 지적할 것이 없다
     matchedCategories.add(rule.category);
     findings.push({
       category: rule.category,
-      severity: rule.severity,
+      // 부정 어휘가 섞였으면 즉시 거절은 위험하다 — 보류시켜 사람이 읽게 한다
+      severity: negation === 'WEAK' ? 'WARN' : rule.severity,
       quote: quoteAround(text, match.index, match[0].length),
       reason: rule.reason,
       source: 'rule',
@@ -306,6 +343,7 @@ export function applyRules(input: ScreeningInput): Finding[] {
     // 문장 경계를 넘어 붙은 매칭은 우연이다 ("복원. 금보장 구역" → "복원금보장구역").
     // 회피는 한 표현 안에서 글자를 벌리지, 중간에 마침표를 찍지 않는다.
     if (/[.!?\n]/.test(text.slice(start, endIndex + 1))) continue;
+    if (negationAfter(text, endIndex + 1) === 'STRONG') continue;
     findings.push({
       category: rule.category,
       severity: 'WARN', // 회피 추정 — 사람이 확인
