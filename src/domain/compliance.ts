@@ -73,9 +73,10 @@ export interface Finding {
  * 소견 출처.
  * - 'rule': 코드에 박힌 결정적 규칙 (정규식)
  * - 'ai': 2차 AI 검수
- * - 'learned': 운영자가 반려하며 등록한 학습 표현 (learnedPhrases.ts)
+ * - 'learned': 운영자가 반려하며 등록한 학습 표현 — 글자 일치 (learnedPhrases.ts)
+ * - 'semantic': 같은 사전을 의미 벡터로 비교 — 다르게 쓴 같은 뜻 (semanticIndex.ts)
  */
-export type FindingSource = 'rule' | 'ai' | 'learned';
+export type FindingSource = 'rule' | 'ai' | 'learned' | 'semantic';
 
 /**
  * 검수에서 발견된 위험 수준 (무엇을 찾았는가).

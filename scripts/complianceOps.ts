@@ -22,6 +22,10 @@ async function main() {
       : '지연 재알림 대상 없음',
   );
 
+  if (summary.vectorsBackfilled !== null) {
+    console.log(`의미 인덱스 벡터 계산 ${summary.vectorsBackfilled}건`);
+  }
+
   await prisma.$disconnect();
 }
 

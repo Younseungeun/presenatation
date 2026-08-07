@@ -5,9 +5,11 @@ import { ASSET_CLASSES } from '@/domain/constants';
 import { RISK_LEVELS } from '@/domain/instrumentRisk';
 import { matchLearnedPhrases } from '@/domain/learnedPhrases';
 import { REPORT_TEXT_LIMITS } from '@/domain/publishReport';
+import { createEmbeddingProviderFromEnv } from '@/infra/embedding/provider';
 import { prisma } from '@/server/db';
-import { getActiveLearnedPhrases } from '@/server/learnedPhraseService';
 import { getCategoryOutcomeRates } from '@/server/complianceService';
+import { getActiveLearnedPhrases } from '@/server/learnedPhraseService';
+import { findSemanticFindings, loadSemanticIndex } from '@/server/semanticIndexService';
 import { requireResearcherId, toErrorResponse } from '../../_lib/http';
 
 // 작성 중 사전 검사 — 리서처가 제출하기 전에 1차 검수 결과를 미리 보여준다.
@@ -48,9 +50,23 @@ export async function POST(req: NextRequest) {
       getCategoryOutcomeRates(prisma),
     ]);
 
+    const phraseFindings = matchLearnedPhrases(input, phrases);
+    // 의미 검색은 공급자가 있을 때만. 게시 시 검수와 같은 판단을 보여줘야
+    // 화면과 실제 결과가 어긋나지 않는다.
+    const embedder = createEmbeddingProviderFromEnv();
+    const semanticFindings = embedder
+      ? await findSemanticFindings(
+          input,
+          await loadSemanticIndex(prisma, embedder),
+          embedder,
+          phraseFindings.flatMap((f) => (f.phraseId ? [f.phraseId] : [])),
+        ).catch(() => [])
+      : [];
+
     const findings: Finding[] = [
       ...applyRules(input),
-      ...matchLearnedPhrases(input, phrases),
+      ...phraseFindings,
+      ...semanticFindings,
     ];
 
     return NextResponse.json({ findings, categoryRates });

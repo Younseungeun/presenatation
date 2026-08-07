@@ -14,7 +14,13 @@ import {
   runScreening,
 } from '../complianceService';
 import { normalizePhrase } from '@/domain/learnedPhrases';
+import { FixtureEmbeddingProvider } from '@/infra/embedding/provider';
 import { escalateOverdueHolds, expireStaleHolds } from '../complianceOpsService';
+import {
+  backfillPhraseVectors,
+  findSemanticFindings,
+  loadSemanticIndex,
+} from '../semanticIndexService';
 import { setInstrumentRisk } from '../instrumentService';
 import {
   createLearnedPhrase,
@@ -997,5 +1003,144 @@ describe('보류 큐 운영 — 보류가 블랙홀이 되지 않게', () => {
     expect(
       (await prisma.report.findUniqueOrThrow({ where: { id: reportId } })).rejectionCount,
     ).toBe(1);
+  });
+});
+
+describe('의미 검색 — 다르게 쓴 같은 뜻', () => {
+  const PHRASE = '반드시 오릅니다';
+  const SIMILAR = '이 종목이 오르지 않을 이유가 없습니다.';
+  const UNRELATED = '반도체 업황 회복 국면에 진입했습니다.';
+
+  // 벡터는 테스트가 직접 지정한다 — 가짜 모델로 의미 유사도를 흉내 내면
+  // 통과해도 아무것도 증명하지 못하기 때문 (실제 성능은 eval:screening으로 잰다)
+  const provider = new FixtureEmbeddingProvider({
+    [PHRASE]: [1, 0],
+    [SIMILAR]: [0.99, 0.01],
+    [UNRELATED]: [0, 1],
+  });
+
+  let semanticResearcherId: string;
+
+  beforeAll(async () => {
+    const u = await prisma.user.create({
+      data: { email: 'sem@c.io', identityVerified: true, researcherProfile: { create: {} } },
+      include: { researcherProfile: true },
+    });
+    semanticResearcherId = u.researcherProfile!.id;
+    // 앞선 테스트가 등록한 표현은 이 픽스처에 벡터가 없다.
+    // 공급자를 관대하게 만드는 대신(가짜 의미를 지어내게 된다) 사전을 비워 범위를 좁힌다.
+    await prisma.learnedPhrase.updateMany({ data: { active: false } });
+  });
+
+  it('벡터를 저장하고 모델 식별자를 함께 남긴다', async () => {
+    await createLearnedPhrase(prisma, {
+      phrase: PHRASE,
+      category: 'UNSUPPORTED_CLAIM',
+      createdBy: OPERATOR,
+    });
+    const updated = await backfillPhraseVectors(prisma, provider);
+    expect(updated).toBeGreaterThanOrEqual(1);
+
+    const row = await prisma.learnedPhrase.findFirstOrThrow({
+      where: { normalized: normalizePhrase(PHRASE) },
+    });
+    expect(row.vectorModel).toBe(provider.id);
+    expect(JSON.parse(row.vectorJson!)).toEqual([1, 0]);
+  });
+
+  it('모델이 다른 벡터는 인덱스에서 제외한다', async () => {
+    // 좌표계가 달라 코사인 거리가 무의미해진다. 차원이 우연히 같으면 예외도 안 나고
+    // 조용히 틀린 답이 나오므로 아예 빼야 한다.
+    const other = new FixtureEmbeddingProvider({ [PHRASE]: [0, 1] }, 'fixture-v2');
+    expect(await loadSemanticIndex(prisma, other)).toHaveLength(0);
+    expect((await loadSemanticIndex(prisma, provider)).length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('글자가 달라도 뜻이 가까우면 소견을 낸다 (WARN)', async () => {
+    const entries = await loadSemanticIndex(prisma, provider);
+    const findings = await findSemanticFindings(
+      {
+        title: '',
+        summary: '',
+        content: SIMILAR,
+        assetClass: 'CRYPTO',
+        assetName: '비트코인',
+        direction: 'UP',
+      },
+      entries,
+      provider,
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]).toMatchObject({
+      category: 'UNSUPPORTED_CLAIM',
+      severity: 'WARN', // 임베딩은 부정을 구분 못 하므로 거절 판단에 쓸 수 없다
+      source: 'semantic',
+    });
+  });
+
+  it('무관한 문장은 건드리지 않는다', async () => {
+    const entries = await loadSemanticIndex(prisma, provider);
+    const findings = await findSemanticFindings(
+      {
+        title: '',
+        summary: '',
+        content: UNRELATED,
+        assetClass: 'CRYPTO',
+        assetName: '비트코인',
+        direction: 'UP',
+      },
+      entries,
+      provider,
+    );
+    expect(findings).toHaveLength(0);
+  });
+
+  it('글자 일치로 이미 잡힌 표현은 중복 지적하지 않는다', async () => {
+    const entries = await loadSemanticIndex(prisma, provider);
+    const findings = await findSemanticFindings(
+      {
+        title: '',
+        summary: '',
+        content: SIMILAR,
+        assetClass: 'CRYPTO',
+        assetName: '비트코인',
+        direction: 'UP',
+      },
+      entries,
+      provider,
+      entries.map((e) => e.id), // 전부 이미 매칭된 상태로 전달
+    );
+    expect(findings).toHaveLength(0);
+  });
+
+  it('공급자가 없으면 의미 검색은 완전히 비활성이다', async () => {
+    // 기능이 조용히 반쯤 켜지는 것보다 아예 꺼져 있는 편이 낫다
+    const draft = await createDraftReport(
+      prisma,
+      draftInput(SIMILAR, '공급자 없음', semanticResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, semanticResearcherId, PUBLISH_NOW);
+    expect((await prisma.report.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe(
+      'PUBLISHED',
+    );
+  });
+
+  it('공급자가 있으면 runScreening이 의미 소견을 포함한다', async () => {
+    const entries = await loadSemanticIndex(prisma, provider);
+    const result = await runScreening(
+      {
+        title: '',
+        summary: '',
+        content: SIMILAR,
+        assetClass: 'CRYPTO',
+        assetName: '비트코인',
+        direction: 'UP',
+      },
+      null,
+      { semantic: { entries, provider } },
+    );
+    expect(result.action).toBe('HOLD');
+    expect(result.findings.some((f) => f.source === 'semantic')).toBe(true);
   });
 });

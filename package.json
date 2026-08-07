@@ -18,7 +18,8 @@
     "risk:set": "tsx scripts/setInstrumentRisk.ts",
     "batch:season": "tsx scripts/runSeasonRecalc.ts",
     "eval:screening": "tsx scripts/evalScreening.ts",
-    "batch:compliance": "tsx scripts/complianceOps.ts"
+    "batch:compliance": "tsx scripts/complianceOps.ts",
+    "calibrate:semantic": "tsx scripts/calibrateSemantic.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

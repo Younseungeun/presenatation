@@ -220,6 +220,12 @@ model LearnedPhrase {
   confirmedCount Int       @default(0) // 그중 실제 반려·철회로 확정된 수
   lastMatchedAt  DateTime?
   createdAt      DateTime  @default(now())
+  // 의미 검색용 임베딩 벡터 (semanticIndex.ts). 등록 시 한 번 계산해 저장한다 —
+  // 검수마다 사전 전체를 다시 임베딩하면 비용이 사전 크기에 비례해 늘어난다.
+  vectorJson     String?
+  // 이 벡터를 만든 모델 식별자. 모델이 바뀌면 좌표계가 달라 비교가 무의미해지므로,
+  // 현재 모델과 다른 벡터는 인덱스에서 제외하고 재계산 대상으로 본다
+  vectorModel    String?
 
   @@index([active])
 }

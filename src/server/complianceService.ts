@@ -19,6 +19,11 @@ import {
   type OperatorVerdict,
 } from '@/domain/screeningAccuracy';
 import { matchLearnedPhrases, type LearnedPhrase } from '@/domain/learnedPhrases';
+import type { IndexedPhrase } from '@/domain/semanticIndex';
+import {
+  createEmbeddingProviderFromEnv,
+  type EmbeddingProvider,
+} from '@/infra/embedding/provider';
 import {
   deliberationRatio,
   type ComplianceScreener,
@@ -27,6 +32,7 @@ import {
 } from '@/infra/compliance/screener';
 import { buildJudgmentWrites } from './judgmentWriter';
 import { getActiveLearnedPhrases } from './learnedPhraseService';
+import { findSemanticFindings, loadSemanticIndex } from './semanticIndexService';
 
 // 게시 전 컴플라이언스 검수 실행·기록.
 //
@@ -42,6 +48,12 @@ export interface ScreeningContext {
   calibration?: CalibrationExample[];
   /** 운영자가 반려하며 등록한 학습 표현 (규칙과 동등하게 1차에서 적용) */
   phrases?: LearnedPhrase[];
+  /**
+   * 같은 사전의 의미 벡터 인덱스 + 임베딩 공급자.
+   * 둘 다 있을 때만 의미 검색이 돈다 — 공급자가 없으면 이 단계는 완전히 비활성이다
+   * (기능이 조용히 반쯤 켜지는 것보다 아예 꺼져 있는 편이 낫다).
+   */
+  semantic?: { entries: IndexedPhrase[]; provider: EmbeddingProvider };
 }
 
 /** 검수 실행 (기록 없음) — 순수 조합 로직이라 테스트가 쉽다 */
@@ -54,7 +66,21 @@ export async function runScreening(
   // 즉시 거절을 유발하지 않는다 (ruleDecision은 코드 규칙만으로 판단).
   const codeFindings = applyRules(input);
   const ruleDecision = decide(codeFindings);
-  const ruleFindings = [...codeFindings, ...matchLearnedPhrases(input, ctx.phrases ?? [])];
+  const phraseFindings = matchLearnedPhrases(input, ctx.phrases ?? []);
+  // 의미 검색: 글자가 달라도 뜻이 같은 표현. 실패해도 게시를 막지 않는다 —
+  // 보조 신호이므로 장애가 검수 전체를 세우면 안 된다.
+  const semanticFindings = ctx.semantic
+    ? await findSemanticFindings(
+        input,
+        ctx.semantic.entries,
+        ctx.semantic.provider,
+        phraseFindings.flatMap((f) => (f.phraseId ? [f.phraseId] : [])),
+      ).catch((e) => {
+        console.error('의미 검색 실패:', e);
+        return [];
+      })
+    : [];
+  const ruleFindings = [...codeFindings, ...phraseFindings, ...semanticFindings];
 
   // 규칙이 차단했거나 AI 검수기가 없으면 규칙 결과가 최종
   if (ruleDecision === 'BLOCK' || !screener) {
@@ -117,7 +143,17 @@ export async function screenAndRecord(
       : Promise.resolve([] as CalibrationExample[]),
     getActiveLearnedPhrases(prisma).catch((e) => fallback(e, [] as LearnedPhrase[])),
   ]);
-  const result = await runScreening(input, screener, { calibration, phrases });
+  const embedder = createEmbeddingProviderFromEnv();
+  const semantic = embedder
+    ? {
+        entries: await loadSemanticIndex(prisma, embedder).catch((e) =>
+          fallback(e, [] as IndexedPhrase[]),
+        ),
+        provider: embedder,
+      }
+    : undefined;
+
+  const result = await runScreening(input, screener, { calibration, phrases, semantic });
   const usage = result.usage as ScreeningUsage | undefined;
 
   const writes: Prisma.PrismaPromise<unknown>[] = [

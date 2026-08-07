@@ -1,5 +1,7 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import { HOLD_OVERDUE_HOURS } from '@/domain/compliance';
+import { createEmbeddingProviderFromEnv } from '@/infra/embedding/provider';
+import { backfillPhraseVectors } from './semanticIndexService';
 
 // 보류 큐 운영 배치.
 //
@@ -17,6 +19,8 @@ export interface ComplianceOpsSummary {
   expired: { reportId: string; title: string }[];
   escalated: number;
   notifiedOperators: number;
+  /** 의미 인덱스에 새로 계산한 벡터 수 (공급자가 없으면 null) */
+  vectorsBackfilled: number | null;
 }
 
 /**
@@ -144,5 +148,16 @@ export async function runComplianceOps(
   // 만료 정리를 먼저 해야 이미 처리 불가능한 건에 대해 재알림이 나가지 않는다
   const expired = await expireStaleHolds(prisma, now);
   const { escalated, notifiedOperators } = await escalateOverdueHolds(prisma, now);
-  return { expired, escalated, notifiedOperators };
+
+  // 새로 등록된 표현·모델 교체로 벡터가 없는 항목을 채운다.
+  // 실패해도 나머지 운영 처리는 이미 끝났으므로 배치를 세우지 않는다.
+  const embedder = createEmbeddingProviderFromEnv();
+  const vectorsBackfilled = embedder
+    ? await backfillPhraseVectors(prisma, embedder).catch((e) => {
+        console.error('의미 인덱스 벡터 계산 실패:', e);
+        return 0;
+      })
+    : null;
+
+  return { expired, escalated, notifiedOperators, vectorsBackfilled };
 }
