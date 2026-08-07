@@ -10,7 +10,12 @@ import {
   validateReportText,
   type CardDraft,
 } from '@/domain/publishReport';
-import { findingMessages, type RiskCategory } from '@/domain/compliance';
+import {
+  findingMessages,
+  REPUBLISH_REVIEW_THRESHOLD,
+  requiresReviewAfterRejections,
+  type RiskCategory,
+} from '@/domain/compliance';
 import type { ComplianceScreener } from '@/infra/compliance/screener';
 import { toCardDraft } from './cardMapper';
 import { operatorVerdictWrites, screenAndRecord } from './complianceService';
@@ -192,11 +197,15 @@ export async function publishReport(
   // AI 판단만으로 게시를 죽이지 않되(오탐 가능), 판매도 시작하지 않고 사람이 결정한다.
   // 기준가·수수료도 여기서 확정하지 않는다 — 승인 시점에 확정해야
   // 보류 기간 동안의 시세 변동이 기준가에 반영되어 정보 이점이 생기지 않는다.
-  if (compliance.action === 'HOLD') {
+  // 반복 반려된 리포트는 검수를 통과해도 자동 게시하지 않는다 (규칙 탐색 방어).
+  const repeatedRejection = requiresReviewAfterRejections(report.rejectionCount);
+  if (compliance.action === 'HOLD' || repeatedRejection) {
     const detail =
       compliance.decision === 'UNAVAILABLE'
         ? '자동 검수를 완료하지 못해(AI 일시 장애) 운영자 확인 대기 중입니다.'
-        : `사유: ${findingMessages(compliance.findings).join(' / ')}`;
+        : compliance.action === 'HOLD'
+          ? `사유: ${findingMessages(compliance.findings).join(' / ')}`
+          : `자동 검수에서는 문제가 발견되지 않았지만, 반려가 ${REPUBLISH_REVIEW_THRESHOLD}회 이상 누적된 리포트라 운영자가 직접 확인합니다.`;
     const held = await prisma.$transaction([
       prisma.report.update({
         where: { id: reportId, status: 'DRAFT' },
@@ -365,7 +374,8 @@ export async function rejectPendingReport(
   await prisma.$transaction([
     prisma.report.update({
       where: { id: reportId, status: 'PENDING_REVIEW' },
-      data: { status: 'DRAFT' },
+      // 누적 반려 횟수는 다음 제출이 자동 통과할 수 있는지를 가른다 (규칙 탐색 방어)
+      data: { status: 'DRAFT', rejectionCount: { increment: 1 } },
     }),
     ...(await operatorVerdictWrites(prisma, reportId, 'REJECTED', operatorUserId, now, {
       reason: trimmed,

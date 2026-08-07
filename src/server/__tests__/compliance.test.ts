@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb, seedTestInstruments } from './helpers/testDb';
+import { REPUBLISH_REVIEW_THRESHOLD } from '@/domain/compliance';
 import { PublishValidationError } from '@/domain/publishReport';
 import { FixtureComplianceScreener } from '@/infra/compliance/screener';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
@@ -13,6 +14,7 @@ import {
   runScreening,
 } from '../complianceService';
 import { normalizePhrase } from '@/domain/learnedPhrases';
+import { escalateOverdueHolds, expireStaleHolds } from '../complianceOpsService';
 import { setInstrumentRisk } from '../instrumentService';
 import {
   createLearnedPhrase,
@@ -876,5 +878,124 @@ describe('학습 표현 — 운영자 반려가 다음 리서처의 작성 화�
     await setLearnedPhraseActive(prisma, created.id, false);
     const active = await getActiveLearnedPhrases(prisma);
     expect(active.some((p) => p.id === created.id)).toBe(false);
+  });
+});
+
+describe('보류 큐 운영 — 보류가 블랙홀이 되지 않게', () => {
+  let opsResearcherId: string;
+  let opsUserId: string;
+
+  beforeAll(async () => {
+    const u = await prisma.user.create({
+      data: { email: 'ops@c.io', identityVerified: true, researcherProfile: { create: {} } },
+      include: { researcherProfile: true },
+    });
+    opsResearcherId = u.researcherProfile!.id;
+    opsUserId = u.id;
+  });
+
+  /** 규칙이 잡는 표현으로 보류 상태를 만든다 */
+  async function held(title: string) {
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('시장에 카더라가 돌고 있습니다. 상승을 전망합니다.', title, opsResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, opsResearcherId, PUBLISH_NOW);
+    return draft.id;
+  }
+
+  it('검증 시한이 지난 보류 건은 초안으로 되돌린다', async () => {
+    // 승인 시점에 게시 조건을 재검증하므로, 시한이 지나면 운영자가 승인해도 실패한다.
+    // 큐에 남겨두면 처리 불가능한 건이 쌓여 정말 봐야 할 건을 가린다.
+    const reportId = await held('시한 경과 건');
+    const afterDeadline = new Date('2026-10-02T00:00:00Z'); // 카드 시한(10/01) 이후
+
+    const expired = await expireStaleHolds(prisma, afterDeadline);
+    expect(expired.map((e) => e.reportId)).toContain(reportId);
+
+    const report = await prisma.report.findUniqueOrThrow({ where: { id: reportId } });
+    expect(report.status).toBe('DRAFT');
+    // 리서처 잘못이 아니므로 반려 횟수는 올리지 않는다
+    expect(report.rejectionCount).toBe(0);
+
+    expect((await getPendingComplianceReviews(prisma)).some((r) => r.report.id === reportId)).toBe(
+      false,
+    );
+    await prisma.notification.findFirstOrThrow({
+      where: { userId: opsUserId, title: { contains: '시한 경과' } },
+    });
+  });
+
+  it('자동 만료는 검수 정확도 라벨을 남기지 않는다', async () => {
+    // 시간이 만든 결과지 사람의 판단이 아니다 — 정탐·오탐 통계에 섞이면 지표가 오염된다
+    const reportId = await held('라벨 미오염 확인');
+    await expireStaleHolds(prisma, new Date('2026-10-02T00:00:00Z'));
+
+    const review = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(review.operatorReviewedAt).not.toBeNull(); // 큐에서는 내려간다
+    expect(review.operatorVerdict).toBeNull(); // 그러나 정답 라벨은 없다
+  });
+
+  it('오래 대기한 건은 운영자에게 다시 알린다 — 하루 한 번, 요약 1건', async () => {
+    const reportId = await held('지연 재알림 건');
+    // 보류 시점(PUBLISH_NOW)에서 30시간 뒤
+    const later = new Date(PUBLISH_NOW.getTime() + 30 * 3_600_000);
+
+    const first = await escalateOverdueHolds(prisma, later);
+    expect(first.escalated).toBeGreaterThanOrEqual(1);
+    const notice = await prisma.notification.findFirstOrThrow({
+      where: { type: 'COMPLIANCE_REVIEW', title: { contains: '[지연]' } },
+      orderBy: { createdAt: 'desc' },
+    });
+    // 건별로 쏘면 알림 폭탄이 되어 오히려 무시된다 — 요약 한 건으로 묶는다
+    expect(notice.title).toMatch(/검토 대기 \d+건/);
+
+    // 같은 건은 24시간 안에 다시 알리지 않는다
+    const soon = await escalateOverdueHolds(prisma, new Date(later.getTime() + 3_600_000));
+    expect(soon.escalated).toBe(0);
+
+    // 하루가 지나면 다시 알린다 (여전히 방치되고 있으므로)
+    const nextDay = await escalateOverdueHolds(prisma, new Date(later.getTime() + 25 * 3_600_000));
+    expect(nextDay.escalated).toBeGreaterThanOrEqual(1);
+
+    await rejectPendingReport(prisma, reportId, OPERATOR, '테스트 정리');
+  });
+
+  it('반려가 누적되면 검수를 통과해도 운영자 검토를 거친다', async () => {
+    // 반려 사유를 알려주는 설계라 문구만 바꿔 던지면 규칙을 이진 탐색할 수 있다.
+    // 게시를 막는 게 아니라 자동 통과 경로만 닫는다.
+    const clean = '공개된 실적 자료를 근거로 상승을 전망합니다.';
+    const draft = await createDraftReport(
+      prisma,
+      draftInput(clean, '반복 반려 건', opsResearcherId),
+      DRAFT_NOW,
+    );
+    await prisma.report.update({
+      where: { id: draft.id },
+      data: { rejectionCount: REPUBLISH_REVIEW_THRESHOLD },
+    });
+
+    await publishReport(prisma, registry, draft.id, opsResearcherId, PUBLISH_NOW);
+    const report = await prisma.report.findUniqueOrThrow({ where: { id: draft.id } });
+    expect(report.status).toBe('PENDING_REVIEW');
+
+    // 왜 보류됐는지 리서처가 알 수 있어야 한다 (숨기면 혼란만 커진다)
+    const noti = await prisma.notification.findFirstOrThrow({
+      where: { userId: opsUserId, title: { contains: '반복 반려 건' } },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(noti.body).toContain('반려가');
+  });
+
+  it('반려할 때마다 누적 횟수가 올라간다', async () => {
+    const reportId = await held('반려 카운트');
+    await rejectPendingReport(prisma, reportId, OPERATOR, '사유');
+    expect(
+      (await prisma.report.findUniqueOrThrow({ where: { id: reportId } })).rejectionCount,
+    ).toBe(1);
   });
 });

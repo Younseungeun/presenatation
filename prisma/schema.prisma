@@ -53,6 +53,9 @@ model Report {
   feeRateBp       Int? // 게시 시점 확정 총 수수료 (bp, 예: 2000 = 20%). 초안 단계엔 null
   // DRAFT | PENDING_REVIEW(컴플라이언스 검토 대기 — 판매 전) | PUBLISHED | CLOSED
   status          String   @default("DRAFT")
+  // 운영자 반려 횟수. 반복 반려된 리포트를 문구만 바꿔 통과시키는 것은 규칙 탐색이므로,
+  // 일정 횟수를 넘으면 검수를 통과해도 사람이 다시 본다 (compliance.ts)
+  rejectionCount  Int      @default(0)
   publishedAt     DateTime?
   createdAt       DateTime @default(now())
 
@@ -177,6 +180,8 @@ model ComplianceReview {
   findingsJson        String // Finding[] 직렬화 (감사·리서처 안내용)
   needsOperatorReview Boolean   @default(false)
   operatorReviewedAt  DateTime? // 운영자가 확인한 시각
+  // 대기가 길어져 운영자에게 다시 알린 시각 — 하루에 한 번만 재알림하기 위한 중복 방지
+  escalatedAt         DateTime?
   operatorReviewedBy  String? // 확인한 운영자 userId
   // ── 운영자 판정(정답 라벨) ─────────────────────────────────────────
   // 검수가 맞았는지는 사람의 최종 결정으로만 알 수 있다. 이 네 칸이 없으면

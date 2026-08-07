@@ -446,6 +446,22 @@ export function findingMessages(findings: Finding[], severity?: Severity): strin
     );
 }
 
+// ── 반복 반려 ─────────────────────────────────────────────────────────
+//
+// 반려된 리포트는 초안으로 돌아가 몇 번이든 다시 제출할 수 있다. 고쳐 쓰라는 뜻이지만,
+// 같은 리포트를 문구만 조금씩 바꿔 계속 던지면 **어디까지 걸리는지 이진 탐색**이 된다.
+// 검수 결과를 알려주는 설계(사유·인용문 공개)라 탐색이 특히 쉽다.
+//
+// 그래서 반려가 누적되면 검수를 통과해도 사람이 다시 본다. 게시를 막는 것이 아니라
+// 자동 통과 경로를 닫는 것이다 — 정상적으로 고쳐 쓴 리서처는 운영자 승인으로 게시된다.
+
+/** 이 횟수 이상 반려된 리포트는 검수 통과 여부와 무관하게 운영자 검토를 거친다 */
+export const REPUBLISH_REVIEW_THRESHOLD = 3;
+
+export function requiresReviewAfterRejections(rejectionCount: number): boolean {
+  return rejectionCount >= REPUBLISH_REVIEW_THRESHOLD;
+}
+
 // ── 보류 대기 시간 ────────────────────────────────────────────────────
 //
 // 보류 중인 리포트는 판매가 멈춰 있다. 대기가 길어질수록 리서처의 손해가 커지고,
