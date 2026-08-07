@@ -104,6 +104,23 @@ export async function createDraftReport(
  * - WARN·UNAVAILABLE: 게시 보류(PENDING_REVIEW). 운영자가 본문을 검토해 승인해야 판매 시작.
  *   검수로 결론이 안 난 콘텐츠가 판매되는 시간을 0으로 만드는 것이 목적이다.
  */
+/**
+ * 예측 카드 → 검수 입력 필드.
+ * 목표가형의 크기(%)는 기준가가 있어야 산출되는데, 기준가는 게시 시점(또는 판정 시점)에
+ * 확정되므로 여기서는 라벨만 넘긴다 — 크기 상한 규칙은 수익률형에만 적용된다.
+ */
+function cardScreeningFields(card: CardDraft, now: Date) {
+  const horizonDays = (card.deadline.getTime() - now.getTime()) / 86_400_000;
+  return {
+    targetType: card.targetType,
+    targetLabel:
+      card.targetType === 'TARGET_PRICE' ? String(card.targetValue) : null,
+    magnitudePct: card.targetType === 'RETURN_PCT' ? card.targetValue : null,
+    horizonDays,
+    confidence: card.confidence,
+  };
+}
+
 export async function publishReport(
   prisma: PrismaClient,
   registry: ProviderRegistry,
@@ -158,6 +175,10 @@ export async function publishReport(
       riskNote: instrument.riskNote,
       delistingRisk: instrument.delistingRisk,
       marketCap: instrument.marketCap,
+      // 예측 카드 — 크기의 현실성(규칙)과 본문-카드 정합성(AI)을 함께 보게 한다.
+      // 판정은 전적으로 카드로 이뤄지는데 구매자는 본문을 보고 사므로,
+      // 카드를 검수 입력에서 빼면 그 둘이 어긋난 리포트를 아무도 못 잡는다.
+      ...cardScreeningFields(cardDraft, now),
     },
     screener,
     now,

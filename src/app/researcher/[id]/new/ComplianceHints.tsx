@@ -29,6 +29,10 @@ interface CheckInput {
   riskNote?: string | null;
   delistingRisk?: boolean;
   marketCap?: number | null;
+  targetType?: string;
+  magnitudePct?: number | null;
+  horizonDays?: number | null;
+  confidence?: number | null;
 }
 
 type CategoryRates = Partial<Record<RiskCategory, { flagged: number; approved: number }>>;

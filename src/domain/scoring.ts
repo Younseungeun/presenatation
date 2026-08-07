@@ -38,6 +38,33 @@ export const MIN_MAGNITUDE_PCT: Record<AssetClass, number> = {
   CRYPTO: 10,
 };
 
+/**
+ * 30일 기준 예측 크기(%) 상한 — 초안.
+ *
+ * 하한만 있고 상한이 없으면 "삼성전자 1주일 +80%" 같은 카드를 막을 수 없다.
+ * 점수는 어차피 낮게 나오지만, 리포트 목록에는 "+80% 전망"이라는 자극적인 문구가
+ * 걸리고 구매자는 그 숫자를 보고 산다 — 달성 불가능한 크기는 그 자체로 낚시다.
+ */
+export const MONTHLY_MAGNITUDE_CAP_PCT: Record<AssetClass, number> = {
+  KR_EQUITY: 50,
+  US_EQUITY: 50,
+  CRYPTO: 120,
+};
+
+/**
+ * 기간을 반영한 크기 상한.
+ * 변동성은 시간의 제곱근에 비례하므로(랜덤워크) 30일 기준 상한을 √(일수/30)로 스케일한다.
+ * 고정 상한을 쓰면 단기 카드에는 너무 헐겁고 장기 카드에는 너무 빡빡해진다.
+ *
+ * 예(국내주식): 1일 9% / 7일 24% / 30일 50% / 90일 87% / 365일 174%
+ *   (코인): 1일 22% / 7일 58% / 30일 120% / 90일 208% / 365일 419%
+ * 넘으면 게시 보류(WARN)이지 거절이 아니다 — 정당한 고위험 콜은 운영자가 승인한다.
+ */
+export function maxMagnitudePct(assetClass: AssetClass, horizonDays: number): number {
+  const days = Math.max(1, horizonDays);
+  return MONTHLY_MAGNITUDE_CAP_PCT[assetClass] * Math.sqrt(days / 30);
+}
+
 /** 방향 적중 시 증폭 배율 */
 export function winAmplifier(confidence: number): number {
   return confidence;

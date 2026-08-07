@@ -61,6 +61,23 @@ describe('buildUserMessage — 원문 경계', () => {
     expect(buildUserMessage(input())).not.toContain('오탐사례');
   });
 
+  it('예측 카드를 경계 밖(신뢰 구간)에 함께 넘긴다', () => {
+    // 카드 없이는 "본문은 조정 우려, 카드는 +30% 상승"이 그대로 통과한다.
+    // 카드는 시스템이 만든 값이므로 사용자 원문 경계 안에 넣지 않는다.
+    const msg = buildUserMessage(
+      input({ targetType: 'RETURN_PCT', magnitudePct: 30, horizonDays: 85, confidence: 7 }),
+    );
+    const firstBoundary = msg.indexOf('BOUNDARY-');
+    expect(msg).toContain('목표 등락률 30%');
+    expect(msg).toContain('검증 시한까지 85일');
+    expect(msg).toContain('자기 신고 신뢰도 7/10');
+    expect(msg.indexOf('목표 등락률 30%')).toBeLessThan(firstBoundary);
+  });
+
+  it('카드 정보가 없으면 없다고 명시한다 (조용히 빠지지 않게)', () => {
+    expect(buildUserMessage(input())).toContain('예측 카드: 정보 없음');
+  });
+
   it('종목 위험 등급은 경계 밖(신뢰 구간)에 놓인다', () => {
     const msg = buildUserMessage(input({ riskLevel: 'WARNING', riskNote: 'KRX 투자경고' }));
     const firstBoundary = msg.indexOf('BOUNDARY-');

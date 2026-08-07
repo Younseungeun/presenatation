@@ -30,6 +30,11 @@ const bodySchema = z.object({
   riskNote: z.string().max(200).nullish(),
   delistingRisk: z.boolean().optional(),
   marketCap: z.number().nullish(),
+  // 예측 카드 — 크기 상한 규칙이 여기서도 그대로 돌아야 작성 중에 알 수 있다
+  targetType: z.enum(['TARGET_PRICE', 'RETURN_PCT']).optional(),
+  magnitudePct: z.number().nullish(),
+  horizonDays: z.number().nullish(),
+  confidence: z.number().nullish(),
 });
 
 export async function POST(req: NextRequest) {

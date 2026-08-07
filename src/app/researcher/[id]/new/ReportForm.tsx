@@ -15,6 +15,19 @@ import { ComplianceHints } from "./ComplianceHints";
 
 const RATING = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
+const toNumber = (v: string): number | null => {
+  const n = Number(v);
+  return v.trim() && Number.isFinite(n) ? n : null;
+};
+
+/** 검증 시한까지 남은 일수 — 크기 상한은 기간과 함께 봐야 판단된다 */
+const toHorizonDays = (deadline: string): number | null => {
+  if (!deadline) return null;
+  const at = new Date(deadline).getTime();
+  if (!Number.isFinite(at)) return null;
+  return (at - Date.now()) / 86_400_000;
+};
+
 interface InstrumentHit {
   ticker: string;
   name: string;
@@ -35,6 +48,10 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
 
   // 글자 수를 실시간으로 보여주기 위해 제어 컴포넌트로 관리 (상한은 도메인 상수)
   const [title, setTitle] = useState("");
+  // 예측 카드 수치도 상태로 둔다 — 작성 중 사전 검사가 크기·기간을 함께 봐야 하기 때문
+  const [targetValue, setTargetValue] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [confidence, setConfidence] = useState("5");
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
 
@@ -225,6 +242,10 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             riskNote: selected?.riskNote,
             delistingRisk: selected?.delistingRisk,
             marketCap: selected?.marketCap,
+            targetType,
+            magnitudePct: targetType === "RETURN_PCT" ? toNumber(targetValue) : null,
+            horizonDays: toHorizonDays(deadline),
+            confidence: toNumber(confidence),
           }}
         />
       </div>
@@ -327,6 +348,8 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             type="number"
             step="any"
             required
+            value={targetValue}
+            onChange={(e) => setTargetValue(e.target.value)}
           />
           {targetType === "RETURN_PCT" && (
             <span className={styles.hint}>
@@ -338,7 +361,14 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
 
       <div className={styles.field}>
         <label className={styles.label}>검증 시한</label>
-        <input className={styles.input} name="deadline" type="datetime-local" required />
+        <input
+          className={styles.input}
+          name="deadline"
+          type="datetime-local"
+          required
+          value={deadline}
+          onChange={(e) => setDeadline(e.target.value)}
+        />
         <span className={styles.hint}>
           코인 최소 1일 / 국내주식 개장 전 게시 시 당일, 그 외 +2일 / 미국주식 +2일 · 최대 365일
         </span>
@@ -347,7 +377,12 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
       <div className={styles.row}>
         <div className={styles.field}>
           <label className={styles.label}>신뢰도 (점수 증폭 1~10)</label>
-          <select className={styles.select} name="confidence" defaultValue="5">
+          <select
+            className={styles.select}
+            name="confidence"
+            value={confidence}
+            onChange={(e) => setConfidence(e.target.value)}
+          >
             {RATING.map((n) => (
               <option key={n} value={n}>
                 {n}

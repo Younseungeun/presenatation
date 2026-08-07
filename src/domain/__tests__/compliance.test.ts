@@ -314,3 +314,68 @@ describe('mergeFindings — 규칙 + AI 병합', () => {
     expect(merged[1].category).toBe('UNSUPPORTED_CLAIM');
   });
 });
+
+describe('예측 카드 검수 — 크기의 현실성', () => {
+  // 크기 하한은 "방향 맞히기로 만점 받기"를 막고, 이 상한은 반대로
+  // "달성할 생각 없는 숫자로 눈길 끌기"를 막는다. 점수가 낮게 나오는 것과 별개로,
+  // 리포트 목록에 걸리는 "+80% 전망"이라는 문구 자체가 구매자에게 낚시가 되기 때문.
+
+  function card(over: Partial<ScreeningInput> = {}): ScreeningInput {
+    return {
+      title: '삼성전자 분석',
+      summary: '요약',
+      content: '공개 자료 기반 분석입니다.',
+      assetClass: 'KR_EQUITY',
+      assetName: '삼성전자',
+      direction: 'UP',
+      targetType: 'RETURN_PCT',
+      magnitudePct: 20,
+      horizonDays: 30,
+      confidence: 5,
+      ...over,
+    };
+  }
+  const categories = (input: ScreeningInput) => applyRules(input).map((f) => f.category);
+
+  it('기간 대비 통상 변동폭 안이면 지적하지 않는다', () => {
+    expect(categories(card())).not.toContain('UNREALISTIC_TARGET');
+  });
+
+  it('짧은 기간에 과도한 크기는 보류시킨다', () => {
+    // 국내주식 7일 +80% — 상한(약 24%)의 세 배
+    expect(categories(card({ horizonDays: 7, magnitudePct: 80 }))).toContain('UNREALISTIC_TARGET');
+  });
+
+  it('같은 크기라도 기간이 길면 통과한다 (변동성은 시간에 비례해 커진다)', () => {
+    expect(categories(card({ horizonDays: 365, magnitudePct: 80 }))).not.toContain(
+      'UNREALISTIC_TARGET',
+    );
+  });
+
+  it('코인은 주식보다 상한이 높다 (자산군 변동성 차이)', () => {
+    const magnitudePct = 100;
+    expect(categories(card({ horizonDays: 30, magnitudePct }))).toContain('UNREALISTIC_TARGET');
+    expect(
+      categories(card({ assetClass: 'CRYPTO', assetName: '비트코인', horizonDays: 30, magnitudePct })),
+    ).not.toContain('UNREALISTIC_TARGET');
+  });
+
+  it('거절이 아니라 보류다 — 정당한 고위험 콜은 운영자가 승인한다', () => {
+    const findings = applyRules(card({ horizonDays: 7, magnitudePct: 80 }));
+    const target = findings.find((f) => f.category === 'UNREALISTIC_TARGET');
+    expect(target?.severity).toBe('WARN');
+    expect(target?.source).toBe('rule');
+  });
+
+  it('목표가형은 판단하지 않는다 (기준가 없이 크기를 알 수 없다)', () => {
+    expect(
+      categories(card({ targetType: 'TARGET_PRICE', magnitudePct: null, horizonDays: 7 })),
+    ).not.toContain('UNREALISTIC_TARGET');
+  });
+
+  it('카드 정보가 없으면 판단하지 않는다 (작성 중 상태)', () => {
+    expect(
+      categories(card({ targetType: undefined, magnitudePct: null, horizonDays: null })),
+    ).not.toContain('UNREALISTIC_TARGET');
+  });
+});

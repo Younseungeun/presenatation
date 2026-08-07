@@ -17,6 +17,7 @@ import {
   RISK_LEVEL_LABEL,
   type RiskLevel,
 } from './instrumentRisk';
+import { maxMagnitudePct } from './scoring';
 
 /** 위반 유형 — 각 항목은 특정 규제·정책 조항에 대응한다 */
 export const RISK_CATEGORIES = [
@@ -29,6 +30,8 @@ export const RISK_CATEGORIES = [
   'MISSING_DISCLOSURE', // 위험 종목인데 리스크 고지 없음
   'RISKY_INSTRUMENT', // 종목 자체가 위험 (시장경보·상폐 가능성·과소 시총)
   'SCREENING_EVASION', // 검수 회피 시도 (AI에게 지시를 주입해 판정을 조작하려는 문장)
+  'UNREALISTIC_TARGET', // 기간 대비 달성 불가능한 예측 크기 (규칙으로 판정)
+  'CARD_MISMATCH', // 본문 결론과 예측 카드가 어긋남 (AI 판정)
 ] as const;
 export type RiskCategory = (typeof RISK_CATEGORIES)[number];
 
@@ -42,6 +45,8 @@ export const RISK_CATEGORY_LABEL: Record<RiskCategory, string> = {
   MISSING_DISCLOSURE: '위험 종목 리스크 미고지',
   RISKY_INSTRUMENT: '위험 종목',
   SCREENING_EVASION: '검수 회피 시도',
+  UNREALISTIC_TARGET: '비현실적 예측 크기',
+  CARD_MISMATCH: '본문과 예측 카드 불일치',
 };
 
 /** BLOCK: 게시 차단 / WARN: 게시 허용하되 운영자 검토 대상 */
@@ -121,6 +126,28 @@ export interface ScreeningInput {
   delistingRisk?: boolean;
   /** 시가총액 (종목 통화 기준). 과소 시총은 게시 보류 대상 */
   marketCap?: number | null;
+
+  // ── 예측 카드 ────────────────────────────────────────────────────────
+  //
+  // 지금까지 검수는 제목·요약·본문만 봤다. 그런데 구매자는 본문을 읽고 사고,
+  // **판정은 카드로 된다.** 본문은 신중하게 쓰고 카드만 자극적으로 거는 구조가
+  // 그대로 통과하던 사각지대였다. 카드를 검수 입력에 포함시켜 규칙(크기 현실성)과
+  // AI(본문-카드 정합성) 양쪽이 함께 볼 수 있게 한다.
+  //
+  // 작성 중에는 아직 비어 있을 수 있으므로 전부 선택 필드다.
+
+  targetType?: 'TARGET_PRICE' | 'RETURN_PCT';
+  /** 목표가형일 때 화면·프롬프트에 보여줄 목표 수준 (통화 포함) */
+  targetLabel?: string | null;
+  /**
+   * 예측 크기(%). 수익률형은 입력값 그대로, 목표가형은 기준가가 있어야 산출되므로
+   * 게시 시점에만 채워진다 (작성 중에는 null).
+   */
+  magnitudePct?: number | null;
+  /** 검증 시한까지 남은 일수 — 크기의 현실성은 기간과 함께 봐야 판단된다 */
+  horizonDays?: number | null;
+  /** 자기 신고 신뢰도 1~10 (점수 증폭 배율) */
+  confidence?: number | null;
 }
 
 // ── 1단계: 결정적 규칙 ────────────────────────────────────────────────
@@ -305,6 +332,29 @@ export function applyRules(input: ScreeningInput): Finding[] {
       reason: r.message,
       source: 'rule',
     });
+  }
+
+  // 기간 대비 달성 불가능한 예측 크기.
+  // 크기 하한(MIN_MAGNITUDE_PCT)은 "방향 맞히기로 만점 받기"를 막고,
+  // 이 상한은 반대로 "달성할 생각 없는 숫자로 눈길 끌기"를 막는다.
+  if (
+    input.targetType === 'RETURN_PCT' &&
+    input.magnitudePct != null &&
+    input.horizonDays != null
+  ) {
+    const cap = maxMagnitudePct(input.assetClass, input.horizonDays);
+    if (input.magnitudePct > cap) {
+      const days = Math.max(1, Math.round(input.horizonDays));
+      findings.push({
+        category: 'UNREALISTIC_TARGET',
+        severity: 'WARN',
+        quote: `${input.direction === 'UP' ? '상승' : '하락'} ${input.magnitudePct}% / ${days}일`,
+        reason:
+          `${days}일 기간에 ${input.magnitudePct}% 예측은 이 자산군의 통상 변동폭을 크게 넘습니다 ` +
+          `(기간 반영 상한 약 ${cap.toFixed(0)}%). 달성 가능한 크기로 조정하거나 검증 시한을 늘려주세요.`,
+        source: 'rule',
+      });
+    }
   }
 
   // 거래소가 경고를 낸 종목인데 본문에 위험을 전혀 언급하지 않았다면 추가로 지적한다.
