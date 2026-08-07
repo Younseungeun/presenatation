@@ -60,10 +60,17 @@ export interface Finding {
    * 이 필드가 생기기 전 기록에는 없으므로 선택 필드다.
    */
   source?: FindingSource;
+  /** 학습 표현이 낸 소견일 때 그 표현의 id — 표현별 정확도 집계에 쓴다 */
+  phraseId?: string;
 }
 
-/** 소견 출처 — 'rule' 결정적 규칙 / 'ai' 2차 AI 검수 */
-export type FindingSource = 'rule' | 'ai';
+/**
+ * 소견 출처.
+ * - 'rule': 코드에 박힌 결정적 규칙 (정규식)
+ * - 'ai': 2차 AI 검수
+ * - 'learned': 운영자가 반려하며 등록한 학습 표현 (learnedPhrases.ts)
+ */
+export type FindingSource = 'rule' | 'ai' | 'learned';
 
 /**
  * 검수에서 발견된 위험 수준 (무엇을 찾았는가).
@@ -196,7 +203,7 @@ const RULES: Rule[] = [
 ];
 
 /** 원문에서 매칭 구간 주변을 잘라 인용문으로 만든다 (리서처가 위치를 찾을 수 있게) */
-function quoteAround(text: string, index: number, length: number): string {
+export function quoteAround(text: string, index: number, length: number): string {
   const start = Math.max(0, index - 15);
   const end = Math.min(text.length, index + length + 15);
   // 제목·요약·본문을 이어 붙여 검사하므로 줄바꿈이 섞인다 — 한 줄로 정리해 읽기 쉽게
@@ -215,15 +222,15 @@ function quoteAround(text: string, index: number, length: number): string {
 // 어차피 WARN이면 게시가 보류되어 사람이 확인하므로 우회는 성립하지 않는다.
 
 /** 제거 대상: 공백과 글자 사이에 끼워 넣을 수 있는 흔한 구분기호 */
-const RULE_SEPARATORS = /[\s.,·․‧•*_~^|'"`()[\]{}\-–—/\\]/;
+export const RULE_SEPARATORS = /[\s.,·․‧•*_~^|'"`()[\]{}\-–—/\\]/;
 
-interface NormalizedText {
+export interface NormalizedText {
   text: string;
   /** 정규화본 i번째 글자가 원문의 몇 번째 글자였는지 */
   origin: number[];
 }
 
-function normalizeForRules(text: string): NormalizedText {
+export function normalizeForRules(text: string): NormalizedText {
   const chars: string[] = [];
   const origin: number[] = [];
   for (let i = 0; i < text.length; i++) {
@@ -236,8 +243,13 @@ function normalizeForRules(text: string): NormalizedText {
 }
 
 /** 결정적 규칙 검사 — API 호출 없이 즉시 실행 */
+/** 검사 대상 텍스트 — 제목·요약·본문을 이어 붙인다 (학습 표현 매칭도 같은 문자열을 쓴다) */
+export function screeningText(input: ScreeningInput): string {
+  return `${input.title}\n${input.summary}\n${input.content}`;
+}
+
 export function applyRules(input: ScreeningInput): Finding[] {
-  const text = `${input.title}\n${input.summary}\n${input.content}`;
+  const text = screeningText(input);
   const findings: Finding[] = [];
   const matchedCategories = new Set<RiskCategory>();
 

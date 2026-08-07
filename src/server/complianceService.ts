@@ -18,6 +18,7 @@ import {
   type LabeledReview,
   type OperatorVerdict,
 } from '@/domain/screeningAccuracy';
+import { matchLearnedPhrases, type LearnedPhrase } from '@/domain/learnedPhrases';
 import {
   deliberationRatio,
   type ComplianceScreener,
@@ -25,35 +26,51 @@ import {
   type ScreeningUsage,
 } from '@/infra/compliance/screener';
 import { buildJudgmentWrites } from './judgmentWriter';
+import { getActiveLearnedPhrases } from './learnedPhraseService';
 
 // 게시 전 컴플라이언스 검수 실행·기록.
 //
 // 순서: 결정적 규칙 → (규칙이 차단하지 않았으면) AI 검수 → 병합 → 결정 → 기록.
 // 규칙이 이미 BLOCK을 냈으면 AI를 호출하지 않는다 (결과가 바뀌지 않는데 비용·지연만 든다).
 
+/**
+ * 검수 실행에 붙는 운영 데이터.
+ * 둘 다 운영자의 판정에서 나온다 — 이 시스템이 시간이 지날수록 나아지는 두 통로다.
+ */
+export interface ScreeningContext {
+  /** AI 프롬프트에 붙일 과거 오탐 사례 */
+  calibration?: CalibrationExample[];
+  /** 운영자가 반려하며 등록한 학습 표현 (규칙과 동등하게 1차에서 적용) */
+  phrases?: LearnedPhrase[];
+}
+
 /** 검수 실행 (기록 없음) — 순수 조합 로직이라 테스트가 쉽다 */
 export async function runScreening(
   input: ScreeningInput,
   screener: ComplianceScreener | null,
-  calibration: CalibrationExample[] = [],
+  ctx: ScreeningContext = {},
 ): Promise<ComplianceResult> {
-  const ruleFindings = applyRules(input);
-  const ruleDecision = decide(ruleFindings);
+  // 학습 표현은 결정적 규칙과 같은 1차 단계다 — 다만 심각도는 항상 WARN이라
+  // 즉시 거절을 유발하지 않는다 (ruleDecision은 코드 규칙만으로 판단).
+  const codeFindings = applyRules(input);
+  const ruleDecision = decide(codeFindings);
+  const ruleFindings = [...codeFindings, ...matchLearnedPhrases(input, ctx.phrases ?? [])];
 
   // 규칙이 차단했거나 AI 검수기가 없으면 규칙 결과가 최종
   if (ruleDecision === 'BLOCK' || !screener) {
+    const decision = decide(ruleFindings);
     return {
-      decision: ruleDecision,
-      action: resolveAction(ruleDecision, ruleDecision),
+      decision,
+      action: resolveAction(ruleDecision, decision),
       findings: ruleFindings,
       reviewer: 'rule',
-      needsOperatorReview: ruleDecision === 'WARN',
+      needsOperatorReview: resolveAction(ruleDecision, decision) === 'HOLD',
     };
   }
 
   let output: ScreeningOutput;
   try {
-    output = await screener.screen(input, calibration);
+    output = await screener.screen(input, ctx.calibration ?? []);
   } catch (e) {
     // 검수 실패로 게시를 거절하지는 않는다 — 외부 장애로 정상 리포트가 반려되면 안 된다.
     // 대신 판매도 시작하지 않고 운영자 검토로 돌린다.
@@ -88,15 +105,19 @@ export async function screenAndRecord(
   screener: ComplianceScreener | null,
   now = new Date(),
 ): Promise<ComplianceResult> {
-  // 과거 오탐 사례를 함께 넘긴다 — 운영자 판정이 다음 검수의 정확도로 되돌아오는 지점.
-  // 조회 실패가 게시를 막으면 안 되므로 실패해도 빈 배열로 진행한다.
-  const calibration = screener
-    ? await getCalibrationExamples(prisma).catch((e) => {
-        console.error('검수 보정 사례 조회 실패:', e);
-        return [];
-      })
-    : [];
-  const result = await runScreening(input, screener, calibration);
+  // 운영자 판정이 다음 검수로 되돌아오는 두 통로.
+  // 조회 실패가 게시를 막으면 안 되므로 실패해도 빈 값으로 진행한다.
+  const fallback = <T>(e: unknown, empty: T): T => {
+    console.error('검수 보조 데이터 조회 실패:', e);
+    return empty;
+  };
+  const [calibration, phrases] = await Promise.all([
+    screener
+      ? getCalibrationExamples(prisma).catch((e) => fallback(e, [] as CalibrationExample[]))
+      : Promise.resolve([] as CalibrationExample[]),
+    getActiveLearnedPhrases(prisma).catch((e) => fallback(e, [] as LearnedPhrase[])),
+  ]);
+  const result = await runScreening(input, screener, { calibration, phrases });
   const usage = result.usage as ScreeningUsage | undefined;
 
   const writes: Prisma.PrismaPromise<unknown>[] = [
@@ -114,6 +135,19 @@ export async function screenAndRecord(
       },
     }),
   ];
+
+  // 학습 표현이 걸린 횟수를 센다 — 표현별 정확도(걸린 것 중 실제 반려 비율)의 분모
+  const matchedPhraseIds = [
+    ...new Set(result.findings.flatMap((f) => (f.phraseId ? [f.phraseId] : []))),
+  ];
+  if (matchedPhraseIds.length > 0) {
+    writes.push(
+      prisma.learnedPhrase.updateMany({
+        where: { id: { in: matchedPhraseIds } },
+        data: { matchCount: { increment: 1 }, lastMatchedAt: now },
+      }),
+    );
+  }
 
   // 2단 검수로 결론이 나지 않은 건은 운영자에게 즉시 알린다.
   // 큐 페이지를 열어봐야만 알 수 있으면 위반 콘텐츠가 팔리는 시간이 길어진다.
@@ -304,9 +338,22 @@ export async function operatorVerdictWrites(
     prisma.complianceReview.findFirst({
       where: { reportId },
       orderBy: { createdAt: 'desc' },
-      select: { id: true },
+      select: { id: true, findingsJson: true },
     }),
   ]);
+
+  // 학습 표현의 정확도 라벨 — 이 표현이 걸린 건이 실제 반려로 확정됐는가.
+  // 규칙·AI와 같은 잣대를 사전에도 적용해야 오탐 표현이 영원히 남지 않는다.
+  const confirmedPhraseIds =
+    verdict === 'REJECTED' || verdict === 'TAKEDOWN' ? confirmedPhrases(latest, label) : [];
+  const phraseWrites = confirmedPhraseIds.length
+    ? [
+        prisma.learnedPhrase.updateMany({
+          where: { id: { in: confirmedPhraseIds } },
+          data: { confirmedCount: { increment: 1 } },
+        }),
+      ]
+    : [];
 
   if (pendingCount > 0) {
     return [
@@ -314,10 +361,38 @@ export async function operatorVerdictWrites(
         where: { reportId, needsOperatorReview: true, operatorReviewedAt: null },
         data,
       }),
+      ...phraseWrites,
     ];
   }
   if (!latest) return [];
-  return [prisma.complianceReview.update({ where: { id: latest.id }, data })];
+  return [prisma.complianceReview.update({ where: { id: latest.id }, data }), ...phraseWrites];
+}
+
+/**
+ * 반려·철회로 확정된 학습 표현 id.
+ * 운영자가 실제 위반 유형을 따로 지목했다면 그 유형의 표현만 인정한다 —
+ * "반려는 맞았지만 이 표현 때문은 아니었다"를 구분해야 사전이 정확해진다.
+ */
+function confirmedPhrases(
+  review: { findingsJson: string } | null,
+  label: VerdictLabel,
+): string[] {
+  if (!review) return [];
+  let findings: Finding[] = [];
+  try {
+    const parsed = JSON.parse(review.findingsJson);
+    if (Array.isArray(parsed)) findings = parsed as Finding[];
+  } catch {
+    return [];
+  }
+  const actual = label.categories?.length ? new Set(label.categories) : null;
+  return [
+    ...new Set(
+      findings.flatMap((f) =>
+        f.phraseId && (actual === null || actual.has(f.category)) ? [f.phraseId] : [],
+      ),
+    ),
+  ];
 }
 
 /** 운영자 확인 처리 — 판매 중 리포트를 검토 후 유지 (큐에서 제거 + 라벨 기록) */
@@ -390,6 +465,23 @@ export async function getScreeningAccuracy(prisma: PrismaClient, take = 500) {
     take,
   });
   return summarizeAccuracy(rows.map(toLabeledReview));
+}
+
+/**
+ * 유형별 실제 결과 — 작성 화면 경고 문구의 강도를 사실로 조절하기 위한 자료.
+ *
+ * 오탐률이 높은 유형까지 "게시가 보류됩니다"라고 똑같이 겁을 주면, 리서처는 곧
+ * 경고 전체를 무시하게 된다. 그렇다고 표시를 죽이면 서버는 여전히 보류시키므로
+ * 화면이 거짓말을 하게 된다. 그래서 **사실을 덧붙인다**:
+ * "이 유형으로 보류된 최근 N건 중 M건은 검토 후 승인됐습니다."
+ */
+export async function getCategoryOutcomeRates(prisma: PrismaClient, take = 500) {
+  const summary = await getScreeningAccuracy(prisma, take);
+  const rates: Partial<Record<RiskCategory, { flagged: number; approved: number }>> = {};
+  for (const c of summary.byCategory) {
+    if (c.flagged > 0) rates[c.key] = { flagged: c.flagged, approved: c.falsePositive };
+  }
+  return rates;
 }
 
 /**

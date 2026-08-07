@@ -12,7 +12,9 @@ import {
   type RiskCategory,
 } from "@/domain/compliance";
 import { TIERS, type Tier } from "@/domain/constants";
+import { suggestPhrase } from "@/domain/learnedPhrases";
 import type { AccuracySummary } from "@/domain/screeningAccuracy";
+import { getLearnedPhraseStats } from "@/server/learnedPhraseService";
 import {
   getPendingComplianceReviews,
   getPublishedReportsForOversight,
@@ -23,6 +25,7 @@ import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
 import styles from "../../researcher/researcher.module.css";
 import tabStyles from "../../market.module.css";
+import { PhraseToggle } from "./PhraseToggle";
 import { ResolveButton } from "./ResolveButton";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +50,7 @@ const URGENCY_STYLE: Record<HoldUrgency, { accent: string; label: string }> = {
 
 // 화면 분리: 판단 기준이 다른 건을 한 화면에서 섞어 보면 매번 "무엇을 봐야 하는 건인지"를
 // 다시 파악해야 한다. 탭 상태는 URL(?tab=)에 두어 새로고침·공유·뒤로가기가 자연스럽게 동작한다.
-const TAB_KEYS = ["content", "instrument", "published"] as const;
+const TAB_KEYS = ["content", "instrument", "published", "phrases"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 const TABS: Record<TabKey, { label: string; description: string }> = {
@@ -65,6 +68,11 @@ const TABS: Record<TabKey, { label: string; description: string }> = {
     label: "판매 중 리포트",
     description:
       "검토를 통과해 판매 중인 리포트입니다. 사후에 위반이 확인되면 강제 철회로 게시를 중단하고 구매자에게 전액 환불할 수 있습니다.",
+  },
+  phrases: {
+    label: "학습 표현",
+    description:
+      "반려·철회하며 등록한 표현입니다. 리서처의 작성 화면에서 실시간으로 경고를 띄우고, 게시 시 검수에도 같은 표현이 적용됩니다(항상 보류, 즉시 거절은 하지 않습니다). 걸린 횟수 대비 실제 반려 비율이 낮으면 오탐을 내고 있다는 뜻이므로 비활성화해주세요.",
   },
 };
 
@@ -319,6 +327,7 @@ function ReviewCard({ review, now }: { review: PendingReview; now: Date }) {
         heldPurchases={held.length}
         heldAmountKrw={heldAmountKrw}
         flaggedCategories={[...new Set(findings.map((f) => f.category))]}
+        suggestedPhrase={suggestPhrase(findings)}
       />
     </div>
   );
@@ -392,10 +401,11 @@ export default async function AdminCompliancePage({
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role !== "OPERATOR") notFound();
 
-  const [pending, published, accuracy] = await Promise.all([
+  const [pending, published, accuracy, phrases] = await Promise.all([
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
     getScreeningAccuracy(prisma),
+    getLearnedPhraseStats(prisma),
   ]);
 
   // 큐는 이미 오래된 순(= 대기가 긴 순)으로 온다. 정렬을 유지한 채 두 항목으로 나눈다.
@@ -410,6 +420,7 @@ export default async function AdminCompliancePage({
     content: contentHolds.length,
     instrument: instrumentHolds.length,
     published: published.length,
+    phrases: phrases.filter((p) => p.active).length,
   };
 
   // 판매량 정렬용 — 보류 건은 아직 안 팔렸으므로 리서처의 누적 판매 건수를 본다
@@ -482,6 +493,57 @@ export default async function AdminCompliancePage({
           )}
         </>
       )}
+
+      {tab === "phrases" &&
+        (phrases.length === 0 ? (
+          <p className={styles.empty}>
+            아직 등록된 표현이 없습니다. 반려·강제 철회 시 &ldquo;작성 화면에 등록할 표현&rdquo;에
+            한 줄 적으면 다음 리서처는 작성 중에 같은 실수를 피할 수 있습니다.
+          </p>
+        ) : (
+          phrases.map((p) => (
+            <div
+              key={p.id}
+              className={styles.card}
+              style={
+                p.needsReview
+                  ? {
+                      borderLeft: "4px solid var(--warn)",
+                      background: "color-mix(in srgb, var(--warn) 5%, var(--bg))",
+                    }
+                  : undefined
+              }
+            >
+              <div className={styles.cardTop}>
+                <div className={styles.cardTitle}>&ldquo;{p.phrase}&rdquo;</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {p.needsReview && (
+                    <span className={`${styles.badge} ${styles.undecidable}`}>재검토 권장</span>
+                  )}
+                  <span className={`${styles.badge} ${p.active ? styles.published : styles.closed}`}>
+                    {p.active ? "활성" : "비활성"}
+                  </span>
+                </div>
+              </div>
+              <div className={styles.meta}>
+                <span>{RISK_CATEGORY_LABEL[p.category]}</span>
+                <span>
+                  걸림 {p.matchCount}회 · 반려 확정 {p.confirmedCount}회
+                  {p.precision !== null && ` (정확도 ${Math.round(p.precision * 100)}%)`}
+                </span>
+                <span>{new Date(p.createdAt).toLocaleDateString("ko-KR")} 등록</span>
+              </div>
+              {p.note && <p className={styles.hint}>{p.note}</p>}
+              {p.needsReview && (
+                <p className={styles.hint} style={{ color: "var(--warn)", fontWeight: 600 }}>
+                  여러 번 걸렸지만 대부분 승인으로 끝났습니다 — 정상 표현까지 잡고 있을
+                  가능성이 큽니다.
+                </p>
+              )}
+              <PhraseToggle phraseId={p.id} active={p.active} />
+            </div>
+          ))
+        ))}
 
       {tab === "published" &&
         (published.length === 0 ? (

@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { RISK_CATEGORIES } from '@/domain/compliance';
+import { RISK_CATEGORIES, type RiskCategory } from '@/domain/compliance';
+import { PHRASE_MAX_LENGTH, validatePhrase } from '@/domain/learnedPhrases';
+import { createLearnedPhrase, setLearnedPhraseActive } from '@/server/learnedPhraseService';
 import { createDefaultRegistry } from '@/infra/marketData/registry';
 import {
   forceWithdrawReport,
@@ -24,6 +26,10 @@ import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 //  - 반려·철회: categories — 실제 위반 유형 (비우면 검수 소견을 그대로 인정)
 const categories = z.array(z.enum(RISK_CATEGORIES)).max(RISK_CATEGORIES.length).optional();
 
+// 반려·철회와 함께 등록하는 학습 표현 — 다음 리서처가 작성 단계에서 미리 경고를 받는다.
+// 반려 사유를 남기는 김에 한 줄 더 적는 것이므로 운영자의 추가 작업은 거의 없다.
+const phrase = z.string().trim().max(PHRASE_MAX_LENGTH * 3).optional();
+
 const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('RESOLVE'), reviewId: z.string().min(1) }),
   z.object({
@@ -36,14 +42,49 @@ const bodySchema = z.discriminatedUnion('action', [
     reportId: z.string().min(1),
     reason: z.string().trim().min(1).max(500),
     categories,
+    phrase,
   }),
   z.object({
     action: z.literal('TAKEDOWN'),
     reportId: z.string().min(1),
     reason: z.string().trim().min(1).max(500),
     categories,
+    phrase,
+  }),
+  z.object({
+    action: z.literal('SET_PHRASE_ACTIVE'),
+    phraseId: z.string().min(1),
+    active: z.boolean(),
   }),
 ]);
+
+/**
+ * 반려와 함께 들어온 표현을 사전에 등록한다.
+ * 표현이 잘못됐다고 반려 자체를 되돌리지는 않는다 — 반려는 이미 확정된 판단이고,
+ * 사전 등록은 부가 작업이다. 대신 실패 사유를 응답에 실어 운영자가 다시 시도하게 한다.
+ */
+async function registerPhrase(
+  operatorUserId: string,
+  reportId: string,
+  text: string | undefined,
+  cats: RiskCategory[] | undefined,
+  reason: string,
+): Promise<string | null> {
+  const trimmed = text?.trim();
+  if (!trimmed) return null;
+  const category = cats?.[0];
+  if (!category) return '표현을 등록하려면 실제 위반 유형을 한 개 이상 선택해주세요';
+  const issues = validatePhrase(trimmed);
+  if (issues.length > 0) return issues.join(' / ');
+  await createLearnedPhrase(prisma, {
+    phrase: trimmed,
+    category,
+    note: reason,
+    createdBy: operatorUserId,
+    sourceReportId: reportId,
+  });
+  return null;
+}
 
 export async function GET() {
   try {
@@ -82,6 +123,18 @@ export async function POST(req: NextRequest) {
           new Date(),
           body.categories ?? [],
         );
+        return NextResponse.json({
+          ok: true,
+          phraseWarning: await registerPhrase(
+            operatorUserId,
+            body.reportId,
+            body.phrase,
+            body.categories,
+            body.reason,
+          ),
+        });
+      case 'SET_PHRASE_ACTIVE':
+        await setLearnedPhraseActive(prisma, body.phraseId, body.active);
         return NextResponse.json({ ok: true });
       case 'TAKEDOWN': {
         const summary = await forceWithdrawReport(prisma, {
@@ -90,7 +143,17 @@ export async function POST(req: NextRequest) {
           reason: body.reason,
           categories: body.categories ?? [],
         });
-        return NextResponse.json({ ok: true, ...summary });
+        return NextResponse.json({
+          ok: true,
+          ...summary,
+          phraseWarning: await registerPhrase(
+            operatorUserId,
+            body.reportId,
+            body.phrase,
+            body.categories,
+            body.reason,
+          ),
+        });
       }
       default:
         await markComplianceReviewed(prisma, body.reviewId, operatorUserId);

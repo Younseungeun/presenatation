@@ -11,6 +11,7 @@ import {
 } from "@/domain/instrumentRisk";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import styles from "../../researcher.module.css";
+import { ComplianceHints } from "./ComplianceHints";
 
 const RATING = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
@@ -210,6 +211,22 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
           {content.length}/{REPORT_TEXT_LIMITS.content}자 · 결론은 예측 카드가 담으므로 본문은
           근거를 압축해 작성해주세요
         </span>
+        {/* 1차 검수(규칙 + 학습 표현)를 작성 중에 미리 돌려 보여준다 —
+            제출 후에야 알게 되면 AI 검수 비용·운영자 판단·리서처 대기가 전부 낭비된다 */}
+        <ComplianceHints
+          input={{
+            title,
+            summary,
+            content,
+            assetClass,
+            assetName: selected?.name ?? "",
+            direction,
+            riskLevel: selected?.riskLevel,
+            riskNote: selected?.riskNote,
+            delistingRisk: selected?.delistingRisk,
+            marketCap: selected?.marketCap,
+          }}
+        />
       </div>
 
       <h3>예측 카드</h3>

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RISK_CATEGORIES, RISK_CATEGORY_LABEL, type RiskCategory } from "@/domain/compliance";
+import { PHRASE_MAX_LENGTH } from "@/domain/learnedPhrases";
 import styles from "../../researcher/researcher.module.css";
 
 // 2단 검수로 결론이 나지 않은 건에 대한 운영자의 최종 결정.
@@ -27,6 +28,7 @@ export function ResolveButton({
   heldPurchases,
   heldAmountKrw,
   flaggedCategories = [],
+  suggestedPhrase = "",
 }: {
   /** 검토 큐 항목일 때만 존재 — 판매 중 목록에서 온 건은 없다 */
   reviewId?: string;
@@ -36,6 +38,8 @@ export function ResolveButton({
   heldAmountKrw: number;
   /** 검수가 지적한 유형 — 반려 시 실제 위반 유형의 기본 선택값이 된다 */
   flaggedCategories?: RiskCategory[];
+  /** 학습 표현 등록란의 기본값 (검수 인용문 중 가장 짧은 것) */
+  suggestedPhrase?: string;
 }) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("IDLE");
@@ -46,6 +50,9 @@ export function ResolveButton({
   // 예외인 경우만 체크하게 둔다 — 라벨 정확도를 위해 클릭을 강제하지 않는다.
   const [findingsValid, setFindingsValid] = useState(false);
   const [categories, setCategories] = useState<RiskCategory[]>(flaggedCategories);
+  // 이 반려에서 배울 표현 — 등록하면 다음 리서처는 작성 화면에서 미리 경고를 받는다
+  const [phrase, setPhrase] = useState(suggestedPhrase);
+  const [warning, setWarning] = useState<string | null>(null);
   const pending = reportStatus === "PENDING_REVIEW";
 
   function toggle(c: RiskCategory) {
@@ -64,6 +71,11 @@ export function ResolveButton({
       const payload = await res.json();
       if (!res.ok) {
         setError(payload.issues ? payload.issues.join(" / ") : (payload.error ?? failMessage));
+        return;
+      }
+      // 반려는 성공했는데 표현 등록만 실패한 경우 — 되돌리지 않고 알리기만 한다
+      if (payload.phraseWarning) {
+        setWarning(payload.phraseWarning);
         return;
       }
       router.refresh();
@@ -137,12 +149,37 @@ export function ResolveButton({
           </div>
         </div>
 
+        {/* 이 판단을 사전 예방으로 되돌리는 지점 —
+            등록한 표현은 다음 리서처의 작성 화면에서 바로 경고로 뜬다 */}
+        <label className={styles.field}>
+          <span className={styles.label}>
+            작성 화면에 등록할 표현 (선택 · 비우면 등록하지 않음)
+          </span>
+          <input
+            className={styles.input}
+            value={phrase}
+            onChange={(e) => setPhrase(e.target.value)}
+            maxLength={PHRASE_MAX_LENGTH * 3}
+            placeholder="예: 반드시 오릅니다"
+          />
+          <span className={styles.hint}>
+            다음 리서처가 같은 표현을 쓰면 작성 중에 경고가 뜹니다. 종목명·숫자를 뺀 재사용
+            가능한 형태로 줄여주세요. 위에서 고른 유형 중 첫 번째로 등록됩니다.
+          </span>
+        </label>
+
         <div className={styles.formActions}>
           <button
             className={`${styles.actionBtn} ${styles.danger}`}
             onClick={() =>
               post(
-                { action: takedown ? "TAKEDOWN" : "REJECT", reportId, reason, categories },
+                {
+                  action: takedown ? "TAKEDOWN" : "REJECT",
+                  reportId,
+                  reason,
+                  categories,
+                  phrase,
+                },
                 takedown ? "철회 실패" : "반려 실패",
               )
             }
@@ -162,6 +199,11 @@ export function ResolveButton({
           </button>
         </div>
         {error && <p className={styles.error}>{error}</p>}
+        {warning && (
+          <p className={styles.hint} style={{ color: "var(--warn)", fontWeight: 600 }}>
+            처리는 완료됐지만 표현은 등록되지 않았습니다: {warning}
+          </p>
+        )}
       </div>
     );
   }

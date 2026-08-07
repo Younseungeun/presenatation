@@ -198,6 +198,27 @@ model ComplianceReview {
   @@index([needsOperatorReview, operatorReviewedAt])
 }
 
+// 학습 표현 사전: 운영자가 반려하면서 "다음부터는 작성 단계에서 걸러라"고 등록한 표현.
+// 코드에 박힌 정규식과 달리 운영 중에 늘어난다 — 검수의 커버리지가 시간이 지날수록
+// 넓어지는 유일한 경로다. 심각도는 항상 WARN(보류)이며 즉시 거절 권한은 주지 않는다.
+model LearnedPhrase {
+  id             String    @id @default(cuid())
+  phrase         String // 운영자가 입력한 원문 (화면 표시용)
+  normalized     String // 매칭용 정규화본 (공백·구분기호 제거)
+  category       String // RiskCategory
+  note           String? // 리서처에게 보여줄 설명
+  active         Boolean   @default(true)
+  createdBy      String // 등록한 운영자 userId
+  sourceReportId String? // 어느 반려 건에서 나왔는가 (감사)
+  // 사전은 방치하면 썩는다 — 표현별 정확도를 재서 오탐 항목을 걷어낸다
+  matchCount     Int       @default(0) // 이 표현이 걸린 게시 시도 수
+  confirmedCount Int       @default(0) // 그중 실제 반려·철회로 확정된 수
+  lastMatchedAt  DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([active])
+}
+
 // 약관 동의 이력: 누가·언제·어느 문서 버전에·어떤 맥락에서 동의했는지 기록.
 // 법적 결론과 무관하게 필요한 감사 데이터 — PG 심사·분쟁 대응의 증빙이 된다.
 model Consent {

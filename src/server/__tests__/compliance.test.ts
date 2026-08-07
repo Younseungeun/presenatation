@@ -12,7 +12,14 @@ import {
   getScreeningAccuracy,
   runScreening,
 } from '../complianceService';
+import { normalizePhrase } from '@/domain/learnedPhrases';
 import { setInstrumentRisk } from '../instrumentService';
+import {
+  createLearnedPhrase,
+  getActiveLearnedPhrases,
+  LearnedPhraseError,
+  setLearnedPhraseActive,
+} from '../learnedPhraseService';
 import { purchaseReport } from '../purchaseService';
 import {
   approvePendingReport,
@@ -747,5 +754,127 @@ describe('운영자 판정 기록 — 검수 정확도 측정의 원천', () => 
     );
     await publishReport(prisma, registry, draft.id, labelResearcherId, PUBLISH_NOW, next);
     expect(next.lastCalibration?.length).toBe(examples.length);
+  });
+});
+
+describe('학습 표현 — 운영자 반려가 다음 리서처의 작성 화면으로 되돌아온다', () => {
+  const NOW = new Date('2026-07-15T00:00:00Z');
+  let phraseResearcherId: string;
+
+  beforeAll(async () => {
+    const u = await prisma.user.create({
+      data: { email: 'phrase@c.io', identityVerified: true, researcherProfile: { create: {} } },
+      include: { researcherProfile: true },
+    });
+    phraseResearcherId = u.researcherProfile!.id;
+  });
+
+  it('등록된 표현은 다음 게시에서 보류를 만든다 (규칙에 없는 표현인데도)', async () => {
+    const text = '이 종목은 실적만 보면 반드시 오릅니다.';
+    const screeningInput = {
+      title: 'BTC 전망',
+      summary: '요약',
+      content: text,
+      assetClass: 'CRYPTO' as const,
+      assetName: '비트코인',
+      direction: 'UP' as const,
+    };
+    // 등록 전: 규칙에 없는 표현이므로 그냥 통과한다
+    expect((await runScreening(screeningInput, null)).action).toBe('PUBLISH');
+
+    await createLearnedPhrase(prisma, {
+      phrase: '반드시 오릅니다',
+      category: 'UNSUPPORTED_CLAIM',
+      note: '근거 없는 단정으로 반려된 표현입니다',
+      createdBy: OPERATOR,
+    });
+
+    const draft = await createDraftReport(
+      prisma,
+      draftInput(text, '학습 표현 적용', phraseResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, phraseResearcherId, PUBLISH_NOW);
+
+    const report = await prisma.report.findUniqueOrThrow({ where: { id: draft.id } });
+    expect(report.status).toBe('PENDING_REVIEW'); // 즉시 거절이 아니라 보류
+
+    const review = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId: draft.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    const findings = JSON.parse(review.findingsJson);
+    expect(findings).toContainEqual(
+      expect.objectContaining({ source: 'learned', severity: 'WARN' }),
+    );
+
+    // 걸린 횟수가 올라간다 (표현별 정확도의 분모)
+    const phrase = await prisma.learnedPhrase.findFirstOrThrow({
+      where: { normalized: normalizePhrase('반드시 오릅니다') },
+    });
+    expect(phrase.matchCount).toBe(1);
+    expect(phrase.confirmedCount).toBe(0);
+
+    // 반려하면 그 표현이 실제로 맞았다는 라벨이 붙는다
+    await rejectPendingReport(prisma, draft.id, OPERATOR, '근거 없는 단정', NOW, [
+      'UNSUPPORTED_CLAIM',
+    ]);
+    const after = await prisma.learnedPhrase.findUniqueOrThrow({ where: { id: phrase.id } });
+    expect(after.confirmedCount).toBe(1);
+  });
+
+  it('운영자가 다른 유형을 실제 위반으로 지목하면 그 표현은 확정되지 않는다', async () => {
+    const created = await createLearnedPhrase(prisma, {
+      phrase: '주가는 곧 회복될 것입니다',
+      category: 'UNSUPPORTED_CLAIM',
+      createdBy: OPERATOR,
+    });
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('주가는 곧 회복될 것입니다.', '유형 불일치', phraseResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, phraseResearcherId, PUBLISH_NOW);
+    // 반려 사유는 다른 유형 — "반려는 맞았지만 이 표현 때문은 아니었다"
+    await rejectPendingReport(prisma, draft.id, OPERATOR, '풍문 근거', NOW, ['RUMOR']);
+
+    const after = await prisma.learnedPhrase.findUniqueOrThrow({ where: { id: created.id } });
+    expect(after.matchCount).toBe(1);
+    expect(after.confirmedCount).toBe(0); // 오탐으로 남는다 → 재검토 대상이 된다
+  });
+
+  it('같은 표현을 다시 등록해도 중복되지 않는다 (경고가 두 번 뜨지 않게)', async () => {
+    const a = await createLearnedPhrase(prisma, {
+      phrase: '지금이 마지막 기회입니다',
+      category: 'UNSUPPORTED_CLAIM',
+      createdBy: OPERATOR,
+    });
+    const b = await createLearnedPhrase(prisma, {
+      phrase: '지금이 마지막 기회입니다',
+      category: 'UNSUPPORTED_CLAIM',
+      createdBy: OPERATOR,
+    });
+    expect(b.id).toBe(a.id);
+  });
+
+  it('너무 짧은 표현은 등록을 거부한다 (정상 리포트까지 잡는다)', async () => {
+    await expect(
+      createLearnedPhrase(prisma, {
+        phrase: '상승',
+        category: 'UNSUPPORTED_CLAIM',
+        createdBy: OPERATOR,
+      }),
+    ).rejects.toThrow(LearnedPhraseError);
+  });
+
+  it('비활성화하면 검수에서 빠진다', async () => {
+    const created = await createLearnedPhrase(prisma, {
+      phrase: '손절은 필요 없습니다',
+      category: 'RISK_INDUCEMENT',
+      createdBy: OPERATOR,
+    });
+    await setLearnedPhraseActive(prisma, created.id, false);
+    const active = await getActiveLearnedPhrases(prisma);
+    expect(active.some((p) => p.id === created.id)).toBe(false);
   });
 });
