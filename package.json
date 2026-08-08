@@ -20,9 +20,14 @@
     "seed:crypto": "tsx scripts/seedCryptoScenario.ts",
     "batch:judge": "tsx scripts/runJudgmentBatch.ts",
     "op:grant": "tsx scripts/grantOperator.ts",
-    "batch:season": "tsx scripts/runSeasonRecalc.ts"
+    "risk:set": "tsx scripts/setInstrumentRisk.ts",
+    "batch:season": "tsx scripts/runSeasonRecalc.ts",
+    "eval:screening": "tsx scripts/evalScreening.ts",
+    "batch:compliance": "tsx scripts/complianceOps.ts",
+    "calibrate:semantic": "tsx scripts/calibrateSemantic.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@prisma/client": "^6.19.3",
     "next": "16.2.10",
     "react": "19.2.4",

@@ -292,5 +292,19 @@ export async function getReportDetail(
       })
     : null;
 
-  return { report, purchase };
+  // 종목의 현재 위험 등급 — 게시 시점이 아니라 지금 값을 보여준다.
+  // 게시 후 경고 지정된 종목이라면 구매자는 그 사실을 알고 사야 한다.
+  const instrument = report.predictionCard
+    ? await prisma.instrument.findUnique({
+        where: {
+          assetClass_ticker: {
+            assetClass: report.predictionCard.assetClass,
+            ticker: report.predictionCard.ticker,
+          },
+        },
+        select: { riskLevel: true, riskNote: true },
+      })
+    : null;
+
+  return { report, purchase, instrument };
 }

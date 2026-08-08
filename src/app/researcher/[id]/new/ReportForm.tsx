@@ -3,17 +3,40 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
-import { PRICE_GUIDE_KRW } from "@/domain/publishReport";
+import { PRICE_GUIDE_KRW, REPORT_TEXT_LIMITS } from "@/domain/publishReport";
+import {
+  instrumentRiskReasons,
+  RISK_LEVEL_LABEL,
+  type RiskLevel,
+} from "@/domain/instrumentRisk";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import { ScoreCalculatorEntry } from "../../../score/ScoreCalculatorEntry";
 import styles from "../../researcher.module.css";
+import { ComplianceHints } from "./ComplianceHints";
 
 const RATING = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+const toNumber = (v: string): number | null => {
+  const n = Number(v);
+  return v.trim() && Number.isFinite(n) ? n : null;
+};
+
+/** 검증 시한까지 남은 일수 — 크기 상한은 기간과 함께 봐야 판단된다 */
+const toHorizonDays = (deadline: string): number | null => {
+  if (!deadline) return null;
+  const at = new Date(deadline).getTime();
+  if (!Number.isFinite(at)) return null;
+  return (at - Date.now()) / 86_400_000;
+};
 
 interface InstrumentHit {
   ticker: string;
   name: string;
   shortable: boolean;
+  riskLevel: RiskLevel;
+  riskNote: string | null;
+  delistingRisk: boolean;
+  marketCap: number | null;
 }
 
 export function ReportForm({ researcherId }: { researcherId: string }) {
@@ -23,6 +46,15 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
   const [targetType, setTargetType] = useState("RETURN_PCT");
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+
+  // 글자 수를 실시간으로 보여주기 위해 제어 컴포넌트로 관리 (상한은 도메인 상수)
+  const [title, setTitle] = useState("");
+  // 예측 카드 수치도 상태로 둔다 — 작성 중 사전 검사가 크기·기간을 함께 봐야 하기 때문
+  const [targetValue, setTargetValue] = useState("");
+  const [deadline, setDeadline] = useState("");
+  const [confidence, setConfidence] = useState("5");
+  const [summary, setSummary] = useState("");
+  const [content, setContent] = useState("");
 
   // 종목은 자유 입력이 아니라 종목 마스터(시세 공급자 유니버스) 검색·선택만 가능
   const [query, setQuery] = useState("");
@@ -86,6 +118,17 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
     else if (!selected && query.trim()) runSearch(query, assetClass, nextShortOnly);
   }
 
+  // 선택한 종목이 게시 보류를 유발하는지 (도메인 규칙 그대로 — 서버 판정과 어긋나지 않게)
+  const selectedRiskReasons = selected
+    ? instrumentRiskReasons({
+        assetClass,
+        riskLevel: selected.riskLevel,
+        riskNote: selected.riskNote,
+        delistingRisk: selected.delistingRisk,
+        marketCap: selected.marketCap,
+      })
+    : [];
+
   const sizeFloor = MIN_MAGNITUDE_PCT[assetClass];
   const searchHint = shortOnly
     ? "하락 예측: 구매자가 숏 포지션(개별주식선물·인버스 ETF·코인 선물)을 잡을 수 있는 종목만 검색됩니다"
@@ -145,15 +188,66 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
     <form className={styles.form} onSubmit={onSubmit}>
       <div className={styles.field}>
         <label className={styles.label}>리포트 제목</label>
-        <input className={styles.input} name="title" required maxLength={200} />
+        <input
+          className={styles.input}
+          name="title"
+          required
+          maxLength={REPORT_TEXT_LIMITS.title}
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <span className={styles.hint}>
+          {title.length}/{REPORT_TEXT_LIMITS.title}자
+        </span>
       </div>
       <div className={styles.field}>
         <label className={styles.label}>요약 (구매 전 공개)</label>
-        <input className={styles.input} name="summary" required maxLength={2000} />
+        <input
+          className={styles.input}
+          name="summary"
+          required
+          maxLength={REPORT_TEXT_LIMITS.summary}
+          value={summary}
+          onChange={(e) => setSummary(e.target.value)}
+        />
+        <span className={styles.hint}>
+          {summary.length}/{REPORT_TEXT_LIMITS.summary}자 · 구매 전 공개되는 미리보기입니다
+        </span>
       </div>
       <div className={styles.field}>
         <label className={styles.label}>본문 (유료 · 예측 근거)</label>
-        <textarea className={styles.textarea} name="content" required />
+        <textarea
+          className={styles.textarea}
+          name="content"
+          required
+          maxLength={REPORT_TEXT_LIMITS.content}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+        />
+        <span className={styles.hint}>
+          {content.length}/{REPORT_TEXT_LIMITS.content}자 · 결론은 예측 카드가 담으므로 본문은
+          근거를 압축해 작성해주세요
+        </span>
+        {/* 1차 검수(규칙 + 학습 표현)를 작성 중에 미리 돌려 보여준다 —
+            제출 후에야 알게 되면 AI 검수 비용·운영자 판단·리서처 대기가 전부 낭비된다 */}
+        <ComplianceHints
+          input={{
+            title,
+            summary,
+            content,
+            assetClass,
+            assetName: selected?.name ?? "",
+            direction,
+            riskLevel: selected?.riskLevel,
+            riskNote: selected?.riskNote,
+            delistingRisk: selected?.delistingRisk,
+            marketCap: selected?.marketCap,
+            targetType,
+            magnitudePct: targetType === "RETURN_PCT" ? toNumber(targetValue) : null,
+            horizonDays: toHorizonDays(deadline),
+            confidence: toNumber(confidence),
+          }}
+        />
       </div>
 
       <h3>예측 카드</h3>
@@ -188,6 +282,16 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
                 <li key={h.ticker}>
                   <button type="button" className={styles.searchItem} onClick={() => pick(h)}>
                     <strong>{h.name}</strong> <span>{h.ticker}</span>
+                    {h.riskLevel !== "NONE" && (
+                      <span
+                        className={`${styles.badge} ${
+                          h.riskLevel === "WARNING" ? styles.miss : styles.undecidable
+                        }`}
+                        style={{ marginLeft: 6 }}
+                      >
+                        {RISK_LEVEL_LABEL[h.riskLevel]}
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -198,6 +302,15 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             <span className={styles.hint}>검색 결과 없음 — 지원 종목만 선택할 수 있습니다</span>
           )}
           {(!query.trim() || selected) && <span className={styles.hint}>{searchHint}</span>}
+          {/* 위험 종목이면 게시가 보류된다는 사실을 작성 전에 알린다 */}
+          {selectedRiskReasons.length > 0 && (
+            <span className={styles.hint} style={{ color: "var(--neg)", fontWeight: 600 }}>
+              이 종목은 게시 시 <u>운영자 검토를 거쳐야 판매가 시작됩니다</u>:{" "}
+              {selectedRiskReasons.map((r) => r.message).join(" ")}
+              {selected?.riskLevel === "WARNING" &&
+                " 본문에 변동성·거래 제한 위험을 함께 설명해주세요."}
+            </span>
+          )}
         </div>
       </div>
 
@@ -235,6 +348,8 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             type="number"
             step="any"
             required
+            value={targetValue}
+            onChange={(e) => setTargetValue(e.target.value)}
           />
           {targetType === "RETURN_PCT" && (
             <span className={styles.hint}>
@@ -246,7 +361,14 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
 
       <div className={styles.field}>
         <label className={styles.label}>검증 시한</label>
-        <input className={styles.input} name="deadline" type="datetime-local" required />
+        <input
+          className={styles.input}
+          name="deadline"
+          type="datetime-local"
+          required
+          value={deadline}
+          onChange={(e) => setDeadline(e.target.value)}
+        />
         <span className={styles.hint}>
           코인 최소 1일 / 국내주식 개장 전 게시 시 당일, 그 외 +2일 / 미국주식 +2일 · 최대 365일
         </span>
@@ -255,7 +377,12 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
       <div className={styles.row}>
         <div className={styles.field}>
           <label className={styles.label}>신뢰도 (점수 증폭 1~10)</label>
-          <select className={styles.select} name="confidence" defaultValue="5">
+          <select
+            className={styles.select}
+            name="confidence"
+            value={confidence}
+            onChange={(e) => setConfidence(e.target.value)}
+          >
             {RATING.map((n) => (
               <option key={n} value={n}>
                 {n}

@@ -30,17 +30,17 @@ model User {
 
 // 리서처 프로필: 등급·경력 배지·신고 여부
 model ResearcherProfile {
-  id                 String   @id @default(cuid())
-  userId             String   @unique
-  user               User     @relation(fields: [userId], references: [id])
-  tier               String   @default("BRONZE") // BRONZE | SILVER | GOLD | PLATINUM | CHALLENGER
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  user               User      @relation(fields: [userId], references: [id])
+  tier               String    @default("BRONZE") // BRONZE | SILVER | GOLD | PLATINUM | CHALLENGER
   careerBadge        String? // ANALYST | CFA | CPA | INDUSTRY_EXPERT (수동 심사 후 부여)
   // 소개말 — 리더보드 팔로우 섹션·공개 프로필의 PR 자리. 종목 언급·수익률 약속은 금지
   // (구매 전 마스킹 우회 + 투자권유 소지). 설정에서 본인이 편집한다
   bio                String?
-  advisoryRegistered Boolean  @default(false) // 유사투자자문업 신고 여부 표시
+  advisoryRegistered Boolean   @default(false) // 유사투자자문업 신고 여부 표시
   promoFeeUntil      DateTime? // 초기 입점 프로모션(수수료 10%) 만료일
-  createdAt          DateTime @default(now())
+  createdAt          DateTime  @default(now())
 
   reports       Report[]
   tierHistories TierHistory[]
@@ -64,23 +64,28 @@ model Follow {
 
 // 리포트: 건별 판매 단위. 리포트 1건 = 예측 카드 1건 = 판정 1건
 model Report {
-  id              String   @id @default(cuid())
+  id              String            @id @default(cuid())
   researcherId    String
   researcher      ResearcherProfile @relation(fields: [researcherId], references: [id])
   title           String
   summary         String // 구매 전 공개 미리보기
   content         String // 유료 본문
   priceKrw        Int // 건당 가격 (플랫폼 가이드: 5천~5만원)
-  prepaymentRatio Int      @default(0) // 0 | 10 | 20 | 30 (%) — 게시 시점 고정, 변경 불가
+  prepaymentRatio Int               @default(0) // 0 | 10 | 20 | 30 (%) — 게시 시점 고정, 변경 불가
   feeRateBp       Int? // 게시 시점 확정 총 수수료 (bp, 예: 2000 = 20%). 초안 단계엔 null
-  status          String   @default("DRAFT") // DRAFT | PUBLISHED | CLOSED
+  // DRAFT | PENDING_REVIEW(컴플라이언스 검토 대기 — 판매 전) | PUBLISHED | CLOSED
+  status          String            @default("DRAFT")
+  // 운영자 반려 횟수. 반복 반려된 리포트를 문구만 바꿔 통과시키는 것은 규칙 탐색이므로,
+  // 일정 횟수를 넘으면 검수를 통과해도 사람이 다시 본다 (compliance.ts)
+  rejectionCount  Int               @default(0)
   publishedAt     DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime          @default(now())
 
-  predictionCard PredictionCard?
-  purchases      Purchase[]
-  cartItems      CartItem[]
-  paymentIntents PaymentIntent[]
+  predictionCard    PredictionCard?
+  purchases         Purchase[]
+  cartItems         CartItem[]
+  paymentIntents    PaymentIntent[]
+  complianceReviews ComplianceReview[]
 }
 
 // 예측 카드: 게시 후 수정·삭제 불가. 철회는 가능하되 기록에 남김.
@@ -111,15 +116,24 @@ model PredictionCard {
 // 동기화 소스: 업비트 market/all(코인), 금융위 시세정보(국내), Twelve Data stocks(미국).
 // 예측 카드는 이 안의 활성 종목만 선택 가능 → 게시되는 모든 카드의 판정 가능성이 보장된다.
 model Instrument {
-  id         String   @id @default(cuid())
-  assetClass String // KR_EQUITY | US_EQUITY | CRYPTO
-  ticker     String // 자산군별 표기 (6자리 코드 | 심볼 | KRW-마켓코드)
-  name       String // 종목명 (검색·표시용, 공급자 목록 기준)
-  currency   String   @default("KRW")
-  shortable  Boolean  @default(false) // 하락 예측 게시 가능 — 숏 실행 수단 존재 (코인은 전부 true)
-  active     Boolean  @default(true) // 상폐·거래지원종료 시 false — 신규 게시만 차단
-  source     String // 유니버스 출처 (upbit | fsc-data.go.kr | twelvedata | seed)
-  syncedAt   DateTime @default(now())
+  id            String    @id @default(cuid())
+  assetClass    String // KR_EQUITY | US_EQUITY | CRYPTO
+  ticker        String // 자산군별 표기 (6자리 코드 | 심볼 | KRW-마켓코드)
+  name          String // 종목명 (검색·표시용, 공급자 목록 기준)
+  currency      String    @default("KRW")
+  shortable     Boolean   @default(false) // 하락 예측 게시 가능 — 숏 실행 수단 존재 (코인은 전부 true)
+  active        Boolean   @default(true) // 상폐·거래지원종료 시 false — 신규 게시만 차단
+  // 거래소 지정 위험 등급 (domain/instrumentRisk.ts) — 자체 판단이 아니라 시장의 공식 지정을 반영
+  riskLevel     String    @default("NONE") // NONE | CAUTION | WARNING | DANGER(신규 게시 차단)
+  riskNote      String? // 지정 사유 (표시용)
+  riskSyncedAt  DateTime? // 위험 정보 갱신 시각
+  // 상장폐지 가능성 (관리종목 지정·감사의견 거절·자본잠식 등). 확정 정리매매는 riskLevel=DANGER
+  delistingRisk Boolean   @default(false)
+  // 시가총액 (종목 통화 기준). 과소 시총은 시세 조종·유동성 위험 → 게시 보류 대상.
+  // null이면 판단하지 않는다 (공급자가 시총을 주지 않는 자산군)
+  marketCap     Float?
+  source        String // 유니버스 출처 (upbit | fsc-data.go.kr | twelvedata | seed)
+  syncedAt      DateTime  @default(now())
 
   @@unique([assetClass, ticker])
   @@index([assetClass, name])
@@ -127,31 +141,31 @@ model Instrument {
 
 // 판정: 시장 데이터 자동 판정 결과. 판정 불가 시 무효 처리 + 전액 환불.
 model Judgment {
-  id               String   @id @default(cuid())
-  predictionCardId String   @unique
-  predictionCard   PredictionCard @relation(fields: [predictionCardId], references: [id])
-  outcome          String // HIT | MISS | UNDECIDABLE
-  undecidableReason String? // TRADING_HALT | DELISTED | AMBIGUOUS | WITHDRAWN
-  settledPrice     Float? // 판정에 사용된 시장가
-  realizedReturnPct Float? // 기준가 대비 실현 등락률(%) — 점수·트랙레코드 입력
-  score            Float? // 카드 점수 (§2.2, UNDECIDABLE은 0) — 시즌·자산군별 합산의 원천
-  dataSource       String? // 판정 데이터 소스 식별자 (예: fsc-data.go.kr, manual)
+  id                 String         @id @default(cuid())
+  predictionCardId   String         @unique
+  predictionCard     PredictionCard @relation(fields: [predictionCardId], references: [id])
+  outcome            String // HIT | MISS | UNDECIDABLE
+  undecidableReason  String? // TRADING_HALT | DELISTED | AMBIGUOUS | WITHDRAWN
+  settledPrice       Float? // 판정에 사용된 시장가
+  realizedReturnPct  Float? // 기준가 대비 실현 등락률(%) — 점수·트랙레코드 입력
+  score              Float? // 카드 점수 (§2.2, UNDECIDABLE은 0) — 시즌·자산군별 합산의 원천
+  dataSource         String? // 판정 데이터 소스 식별자 (예: fsc-data.go.kr, manual)
   marketSnapshotJson String? // 판정에 사용한 원천 시세 스냅샷 (감사·분쟁 재현용, JudgmentAudit 직렬화)
-  judgedAt         DateTime @default(now())
+  judgedAt           DateTime       @default(now())
 }
 
 // 구매: PG 웹 결제 → 에스크로 보관 → 판정 후 정산
 model Purchase {
-  id         String   @id @default(cuid())
-  reportId   String
-  report     Report   @relation(fields: [reportId], references: [id])
-  buyerId    String
-  buyer      User     @relation(fields: [buyerId], references: [id])
-  amountKrw  Int // 결제 총액
-  paymentMethod String @default("CARD") // CARD | VBANK(무통장입금·가상계좌) — PG 스텁 단계에서는 모의 기록
+  id            String   @id @default(cuid())
+  reportId      String
+  report        Report   @relation(fields: [reportId], references: [id])
+  buyerId       String
+  buyer         User     @relation(fields: [buyerId], references: [id])
+  amountKrw     Int // 결제 총액
+  paymentMethod String   @default("CARD") // CARD | VBANK(무통장입금·가상계좌) — PG 스텁 단계에서는 모의 기록
   paymentInfo   String? // 마스킹된 표시용 결제 정보(카드 끝 4자리·가상계좌 은행/번호). 카드번호 원문은 절대 저장 금지
-  escrowStatus String @default("HELD") // HELD | SETTLED | REFUNDED
-  paidAt     DateTime @default(now())
+  escrowStatus  String   @default("HELD") // HELD | SETTLED | REFUNDED
+  paidAt        DateTime @default(now())
 
   settlement Settlement?
 
@@ -162,23 +176,84 @@ model Purchase {
 // 판정 시점엔 "지시서"(얼마를 환불/지급해야 하는가)가 만들어지고,
 // 실제 돈이 움직인 시점은 운영자가 실행 필드로 기록한다 (PG 자동화 전 수동 운영 경로).
 model Settlement {
-  id                 String   @id @default(cuid())
-  purchaseId         String   @unique
-  purchase           Purchase @relation(fields: [purchaseId], references: [id])
-  outcome            String // HIT | MISS | UNDECIDABLE
+  id                  String   @id @default(cuid())
+  purchaseId          String   @unique
+  purchase            Purchase @relation(fields: [purchaseId], references: [id])
+  outcome             String // HIT | MISS | UNDECIDABLE
   researcherPayoutKrw Int // 리서처 정산액
-  platformFeeKrw     Int // 플랫폼 수수료 (판정 불가 시 0)
-  buyerRefundKrw     Int // 구매자 환불액 — 항상 현금 (실패: 성과 연동분 / 판정불가: 전액)
-  refundType         String? // CASH_REFUND | null. PG 취소/계좌이체 실행의 지시서 역할
-  settledAt          DateTime @default(now())
+  platformFeeKrw      Int // 플랫폼 수수료 (판정 불가 시 0)
+  buyerRefundKrw      Int // 구매자 환불액 — 항상 현금 (실패: 성과 연동분 / 판정불가: 전액)
+  refundType          String? // CASH_REFUND | null. PG 취소/계좌이체 실행의 지시서 역할
+  settledAt           DateTime @default(now())
 
   // 환불 실행 추적 (buyerRefundKrw > 0 건)
-  refundMethod       String? // PG_CANCEL | BANK_TRANSFER (취소 기한 초과 건은 계좌이체 폴백)
-  refundExecutedAt   DateTime?
-  refundExecutedBy   String? // 실행 운영자 userId
+  refundMethod     String? // PG_CANCEL | BANK_TRANSFER (취소 기한 초과 건은 계좌이체 폴백)
+  refundExecutedAt DateTime?
+  refundExecutedBy String? // 실행 운영자 userId
   // 리서처 지급 실행 추적 (researcherPayoutKrw > 0 건)
-  payoutExecutedAt   DateTime?
-  payoutExecutedBy   String? // 실행 운영자 userId
+  payoutExecutedAt DateTime?
+  payoutExecutedBy String? // 실행 운영자 userId
+}
+
+// 컴플라이언스 검수: 게시 시도마다 남는 기록.
+// 차단된 시도도 보존한다 — 반복 위반 패턴이 어뷰징 탐지 근거가 되기 때문.
+model ComplianceReview {
+  id                  String    @id @default(cuid())
+  reportId            String
+  report              Report    @relation(fields: [reportId], references: [id])
+  decision            String // PASS | WARN | BLOCK | UNAVAILABLE
+  reviewer            String // 검수 주체 (rule | rule+claude:모델명)
+  findingsJson        String // Finding[] 직렬화 (감사·리서처 안내용)
+  needsOperatorReview Boolean   @default(false)
+  operatorReviewedAt  DateTime? // 운영자가 확인한 시각
+  // 대기가 길어져 운영자에게 다시 알린 시각 — 하루에 한 번만 재알림하기 위한 중복 방지
+  escalatedAt         DateTime?
+  operatorReviewedBy  String? // 확인한 운영자 userId
+  // ── 운영자 판정(정답 라벨) ─────────────────────────────────────────
+  // 검수가 맞았는지는 사람의 최종 결정으로만 알 수 있다. 이 네 칸이 없으면
+  // 오탐률·미탐률을 측정할 수 없고, 규칙·프롬프트·모델을 근거 있게 바꿀 수 없다.
+  operatorVerdict     String? // APPROVED | REJECTED | KEPT | TAKEDOWN (screeningAccuracy.ts)
+  operatorReason      String? // 반려·철회 사유 (오탐 사례 되먹임의 설명)
+  // 운영자가 지목한 실제 위반 유형 JSON — 비었으면 "검수 소견 그대로 인정"
+  operatorCategories  String?
+  // 승인 시: 지적 자체는 타당했는가 (경미해서 승인한 것과 오탐을 구분)
+  aiFindingsValid     Boolean?
+  // AI 검수 토큰 사용량 — 실제 비용 측정 + 숙고량 신호 (규칙만 돌았으면 null).
+  // 이 데이터가 쌓이면 ① 모델 선택 ② 에스컬레이션 임계값을 근거 있게 정할 수 있다.
+  inputTokens         Int?
+  outputTokens        Int?
+  deliberationRatio   Float? // outputTokens / inputTokens — 리포트 길이 정규화한 고민 지표
+  createdAt           DateTime  @default(now())
+
+  @@index([reportId])
+  @@index([needsOperatorReview, operatorReviewedAt])
+}
+
+// 학습 표현 사전: 운영자가 반려하면서 "다음부터는 작성 단계에서 걸러라"고 등록한 표현.
+// 코드에 박힌 정규식과 달리 운영 중에 늘어난다 — 검수의 커버리지가 시간이 지날수록
+// 넓어지는 유일한 경로다. 심각도는 항상 WARN(보류)이며 즉시 거절 권한은 주지 않는다.
+model LearnedPhrase {
+  id             String    @id @default(cuid())
+  phrase         String // 운영자가 입력한 원문 (화면 표시용)
+  normalized     String // 매칭용 정규화본 (공백·구분기호 제거)
+  category       String // RiskCategory
+  note           String? // 리서처에게 보여줄 설명
+  active         Boolean   @default(true)
+  createdBy      String // 등록한 운영자 userId
+  sourceReportId String? // 어느 반려 건에서 나왔는가 (감사)
+  // 사전은 방치하면 썩는다 — 표현별 정확도를 재서 오탐 항목을 걷어낸다
+  matchCount     Int       @default(0) // 이 표현이 걸린 게시 시도 수
+  confirmedCount Int       @default(0) // 그중 실제 반려·철회로 확정된 수
+  lastMatchedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  // 의미 검색용 임베딩 벡터 (semanticIndex.ts). 등록 시 한 번 계산해 저장한다 —
+  // 검수마다 사전 전체를 다시 임베딩하면 비용이 사전 크기에 비례해 늘어난다.
+  vectorJson     String?
+  // 이 벡터를 만든 모델 식별자. 모델이 바뀌면 좌표계가 달라 비교가 무의미해지므로,
+  // 현재 모델과 다른 벡터는 인덱스에서 제외하고 재계산 대상으로 본다
+  vectorModel    String?
+
+  @@index([active])
 }
 
 // 약관 동의 이력: 누가·언제·어느 문서 버전에·어떤 맥락에서 동의했는지 기록.
@@ -212,14 +287,14 @@ model Notification {
 
 // 등급 이력: 분기 시즌제 재산정·강등 기록
 model TierHistory {
-  id           String   @id @default(cuid())
+  id           String            @id @default(cuid())
   researcherId String
   researcher   ResearcherProfile @relation(fields: [researcherId], references: [id])
   season       String // 예: "2026-Q3"
   fromTier     String
   toTier       String
   reason       String // PROMOTION | DEMOTION | SEASON_RESET
-  createdAt    DateTime @default(now())
+  createdAt    DateTime          @default(now())
 }
 
 // 장바구니 — 담아두고 한 번에 결제하기 위한 대기 목록.

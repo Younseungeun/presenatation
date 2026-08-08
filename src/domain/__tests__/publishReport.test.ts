@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   preparePublish,
+  REPORT_TEXT_LIMITS,
   validateCardDraft,
   validateConditions,
+  validateReportText,
   type CardDraft,
   type PublishConditions,
 } from '../publishReport';
@@ -89,6 +91,40 @@ describe('validateCardDraft', () => {
     expect(validateCardDraft({ ...validCard, confidence: 11 }, NOW)).not.toEqual([]);
     expect(validateCardDraft({ ...validCard, confidence: 10 }, NOW)).toEqual([]);
     expect(validateCardDraft({ ...validCard, selfStability: 0 }, NOW)).not.toEqual([]);
+  });
+});
+
+describe('validateReportText — 글자 수 상한 (검수 입력 토큰 상한과 연동)', () => {
+  const text = { title: '제목', summary: '요약', content: '본문' };
+
+  it('상한 이내는 통과', () => {
+    expect(validateReportText(text)).toEqual([]);
+    expect(
+      validateReportText({ ...text, content: '가'.repeat(REPORT_TEXT_LIMITS.content) }),
+    ).toEqual([]);
+  });
+
+  it('본문 1,000자 초과는 거부', () => {
+    const issues = validateReportText({
+      ...text,
+      content: '가'.repeat(REPORT_TEXT_LIMITS.content + 1),
+    });
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toContain('본문');
+    expect(issues[0]).toContain('1000자');
+  });
+
+  it('요약·제목도 상한이 있다 (요약은 검수 입력에 포함되므로)', () => {
+    expect(
+      validateReportText({ ...text, summary: '가'.repeat(REPORT_TEXT_LIMITS.summary + 1) })[0],
+    ).toContain('요약');
+    expect(
+      validateReportText({ ...text, title: '가'.repeat(REPORT_TEXT_LIMITS.title + 1) })[0],
+    ).toContain('제목');
+  });
+
+  it('공백만 있는 입력은 거부', () => {
+    expect(validateReportText({ ...text, content: '   ' })[0]).toContain('본문');
   });
 });
 

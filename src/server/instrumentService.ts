@@ -1,6 +1,12 @@
 import type { PrismaClient } from '@prisma/client';
 import type { AssetClass, Direction } from '@/domain/constants';
 import type { InstrumentListing, MarketDataProvider, ProviderRegistry } from '@/domain/marketData';
+import {
+  blocksNewCard,
+  riskBlockMessage,
+  toRiskLevel,
+  type RiskLevel,
+} from '@/domain/instrumentRisk';
 import { isShortAllowed, SHORT_RESTRICTION_NOTE } from '@/domain/shortableUniverse';
 
 // 종목 마스터(Instrument) 서비스.
@@ -15,6 +21,11 @@ export interface InstrumentSearchResult {
   name: string;
   currency: string;
   shortable: boolean;
+  /** 거래소 지정 위험 등급 — 작성 화면에서 배지로 표시 */
+  riskLevel: RiskLevel;
+  riskNote: string | null;
+  delistingRisk: boolean;
+  marketCap: number | null;
 }
 
 /** 활성 종목 검색 — 티커·종목명 부분 일치, 접두 일치 우선 */
@@ -33,9 +44,20 @@ export async function searchInstruments(
       assetClass,
       active: true,
       ...(opts.shortableOnly ? { shortable: true } : {}),
+      // 거래 위험 종목은 애초에 검색되지 않는다 (게시해도 판정 불가로 끝날 가능성이 크다)
+      riskLevel: { not: 'DANGER' },
       OR: [{ ticker: { contains: q } }, { name: { contains: q } }],
     },
-    select: { ticker: true, name: true, currency: true, shortable: true },
+    select: {
+      ticker: true,
+      name: true,
+      currency: true,
+      shortable: true,
+      riskLevel: true,
+      riskNote: true,
+      delistingRisk: true,
+      marketCap: true,
+    },
     take: limit * 3, // 접두 일치 재정렬 여유분
   });
 
@@ -48,7 +70,8 @@ export async function searchInstruments(
         : 2;
   return rows
     .sort((a, b) => rank(a) - rank(b) || a.ticker.localeCompare(b.ticker))
-    .slice(0, limit);
+    .slice(0, limit)
+    .map((r) => ({ ...r, riskLevel: r.riskLevel as RiskLevel }));
 }
 
 /**
@@ -60,7 +83,14 @@ export async function validateListedInstrument(
   assetClass: AssetClass,
   ticker: string,
   direction: Direction,
-): Promise<{ issues: string[]; name?: string }> {
+): Promise<{
+  issues: string[];
+  name?: string;
+  riskLevel?: RiskLevel;
+  riskNote?: string | null;
+  delistingRisk?: boolean;
+  marketCap?: number | null;
+}> {
   const inst = await prisma.instrument.findUnique({
     where: { assetClass_ticker: { assetClass, ticker } },
   });
@@ -79,7 +109,48 @@ export async function validateListedInstrument(
       name: inst.name,
     };
   }
-  return { issues: [], name: inst.name };
+  const riskLevel = inst.riskLevel as RiskLevel;
+  if (blocksNewCard(riskLevel)) {
+    return {
+      issues: [riskBlockMessage(inst.ticker, inst.name, inst.riskNote)],
+      name: inst.name,
+      riskLevel,
+      riskNote: inst.riskNote,
+    };
+  }
+  return {
+    issues: [],
+    name: inst.name,
+    riskLevel,
+    riskNote: inst.riskNote,
+    delistingRisk: inst.delistingRisk,
+    marketCap: inst.marketCap,
+  };
+}
+
+/**
+ * 종목 위험 등급 설정 (운영자·동기화 공용).
+ * KRX 시장경보처럼 시세 공급자가 주지 않는 신호는 운영자가 여기로 등록한다.
+ */
+export async function setInstrumentRisk(
+  prisma: PrismaClient,
+  assetClass: AssetClass,
+  ticker: string,
+  riskLevel: RiskLevel,
+  riskNote: string | null,
+  extra: { delistingRisk?: boolean; marketCap?: number | null } = {},
+  now = new Date(),
+) {
+  return prisma.instrument.update({
+    where: { assetClass_ticker: { assetClass, ticker } },
+    data: {
+      riskLevel,
+      riskNote,
+      riskSyncedAt: now,
+      ...(extra.delistingRisk === undefined ? {} : { delistingRisk: extra.delistingRisk }),
+      ...(extra.marketCap === undefined ? {} : { marketCap: extra.marketCap }),
+    },
+  });
 }
 
 export interface SyncResult {
@@ -120,10 +191,37 @@ export async function applyInstrumentListings(
 ): Promise<SyncResult> {
   for (const l of listings) {
     const shortable = isShortAllowed(assetClass, l.ticker);
+    // 공급자가 경보를 주는 자산군(코인)만 위험 등급을 갱신한다.
+    // 주지 않는 자산군은 운영자가 등록한 값(setInstrumentRisk)을 동기화가 덮어쓰면 안 된다.
+    const risk = l.risk
+      ? {
+          riskLevel: toRiskLevel(l.risk),
+          riskNote: l.risk.note ?? null,
+          riskSyncedAt: now,
+        }
+      : {};
     await prisma.instrument.upsert({
       where: { assetClass_ticker: { assetClass, ticker: l.ticker } },
-      create: { assetClass, ...l, shortable, active: true, source, syncedAt: now },
-      update: { name: l.name, currency: l.currency, shortable, active: true, source, syncedAt: now },
+      create: {
+        assetClass,
+        ticker: l.ticker,
+        name: l.name,
+        currency: l.currency,
+        shortable,
+        active: true,
+        source,
+        syncedAt: now,
+        ...risk,
+      },
+      update: {
+        name: l.name,
+        currency: l.currency,
+        shortable,
+        active: true,
+        source,
+        syncedAt: now,
+        ...risk,
+      },
     });
   }
   const { count: deactivated } = await prisma.instrument.updateMany({

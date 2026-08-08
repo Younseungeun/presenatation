@@ -13,6 +13,7 @@ export type StatusKind =
   | "VERIFYING"
   | "SELLING"
   | "DRAFT"
+  | "PENDING_REVIEW"
   | "ENDED"
   | "WITHDRAWN";
 
@@ -26,6 +27,9 @@ const META: Record<
   VERIFYING: { label: "검증 중", tone: "live" },
   SELLING: { label: "판매 중", tone: "neutral" },
   DRAFT: { label: "초안", tone: "neutral" },
+  // 컴플라이언스 검수 보류 — 아직 판매 전이고 사람의 결정을 기다린다.
+  // warn 톤: 실패는 아니지만 리서처가 손을 놓고 있으면 안 되는 상태다
+  PENDING_REVIEW: { label: "검토 중", tone: "warn" },
   ENDED: { label: "종료", tone: "neutral" },
   WITHDRAWN: { label: "철회", tone: "neutral" },
 };

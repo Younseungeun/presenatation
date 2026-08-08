@@ -32,6 +32,7 @@ DATABASE_URL="file:./dev.db"
 | `IDENTITY_PEPPER` | 본인인증 CI 해시용 pepper | 개발용 기본값 사용 |
 | `FSC_API_KEY` | 금융위 국내주식 시세·종목 목록 | KR 자산군 공급자 미등록 |
 | `TWELVEDATA_API_KEY` | 미국주식 시세·종목 목록 | 개발 모드에선 Stooq로 폴백 |
+| `ANTHROPIC_API_KEY` | 게시 전 컴플라이언스 AI 검수 | 결정적 규칙만 적용 (AI 검수 생략) |
 
 > 운영 배포 시에는 `AUTH_SECRET`·`IDENTITY_PEPPER`를 반드시 실제 난수로 설정한다.
 > (미설정 시 개발 기본값이 쓰이므로 세션 위조가 가능하다.)

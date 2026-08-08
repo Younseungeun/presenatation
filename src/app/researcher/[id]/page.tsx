@@ -6,7 +6,7 @@ import { getResearcherDashboard, type DashboardReport } from "@/server/reportQue
 import { AppHeader } from "../../AppHeader";
 import { EmptyState } from "../../EmptyState";
 import { cardLine, fmtDate } from "../../format";
-import { StatusChip, outcomeStatus } from "../../StatusChip";
+import { StatusChip, outcomeStatus, type StatusKind } from "../../StatusChip";
 import { TierChip } from "../../TierChip";
 import { ReportActions } from "./ReportActions";
 import styles from "../researcher.module.css";
@@ -16,9 +16,14 @@ export const dynamic = "force-dynamic";
 function StatusBadge({ report }: { report: DashboardReport }) {
   const j = report.predictionCard?.judgment;
   if (j) return <StatusChip status={outcomeStatus(j.outcome)} />;
-  const status =
-    report.status === "DRAFT" ? "DRAFT" : report.status === "PUBLISHED" ? "SELLING" : "ENDED";
-  return <StatusChip status={status} />;
+  // 상태 칩은 StatusChip으로 일원화돼 있다 (시각 언어 통일) — 새 상태는 거기에 더한다
+  const map: Record<string, StatusKind> = {
+    DRAFT: "DRAFT",
+    PENDING_REVIEW: "PENDING_REVIEW",
+    PUBLISHED: "SELLING",
+    CLOSED: "ENDED",
+  };
+  return <StatusChip status={map[report.status] ?? "DRAFT"} />;
 }
 
 function cardSummary(report: DashboardReport): string | null {

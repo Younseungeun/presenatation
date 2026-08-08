@@ -30,13 +30,51 @@ interface UpbitCandle {
 interface UpbitMarket {
   market: string; // "KRW-BTC"
   korean_name: string;
+  /** 현행 응답(isDetails=true): 유의 종목 지정 + 주의 사유별 플래그 */
+  market_event?: {
+    warning?: boolean;
+    caution?: Record<string, boolean>;
+  };
+  /** 구 응답 호환: "NONE" | "CAUTION" */
+  market_warning?: string;
+}
+
+/** 주의 사유 코드 → 표시 문구 */
+const CAUTION_LABEL: Record<string, string> = {
+  PRICE_FLUCTUATIONS: '가격 급등락',
+  TRADING_VOLUME_SOARING: '거래량 급등',
+  DEPOSIT_AMOUNT_SOARING: '입금량 급등',
+  GLOBAL_PRICE_DIFFERENCES: '가격 차이',
+  CONCENTRATION_OF_SMALL_ACCOUNTS: '소수 계정 집중',
+};
+
+/** market_event → 위험 신호. 업비트는 유의 종목 지정을 목록 API에 함께 준다 */
+function toRiskSignal(m: UpbitMarket): InstrumentListing['risk'] {
+  if (m.market_event?.warning) {
+    return { warning: true, note: '업비트 유의 종목 지정' };
+  }
+  const causes = Object.entries(m.market_event?.caution ?? {})
+    .filter(([, on]) => on)
+    .map(([code]) => CAUTION_LABEL[code] ?? code);
+  if (causes.length > 0) {
+    return { caution: true, note: `업비트 주의 종목 (${causes.join('·')})` };
+  }
+  if (m.market_warning && m.market_warning !== 'NONE') {
+    return { caution: true, note: '업비트 주의 종목' };
+  }
+  return undefined;
 }
 
 /** market/all 응답 → KRW 마켓 종목 목록 (순수 함수 — 네트워크 없이 테스트) */
 export function parseUpbitMarkets(markets: UpbitMarket[]): InstrumentListing[] {
   return markets
     .filter((m) => m.market.startsWith('KRW-'))
-    .map((m) => ({ ticker: m.market, name: m.korean_name, currency: 'KRW' }));
+    .map((m) => ({
+      ticker: m.market,
+      name: m.korean_name,
+      currency: 'KRW',
+      risk: toRiskSignal(m),
+    }));
 }
 
 /** 응답 → DailyQuote[] 날짜 오름차순 (순수 함수 — 네트워크 없이 테스트) */
@@ -102,7 +140,8 @@ export class UpbitMarketDataProvider implements MarketDataProvider {
 
   /** 거래 지원 중인 KRW 마켓 전체 — 종목 마스터 동기화용 */
   async listInstruments(): Promise<InstrumentListing[]> {
-    const res = await this.fetchImpl(`${MARKET_ALL_URL}?isDetails=false`);
+    // isDetails=true라야 시장 경보(market_event)가 함께 온다 — 위험 종목 선별의 원천
+    const res = await this.fetchImpl(`${MARKET_ALL_URL}?isDetails=true`);
     if (!res.ok) {
       throw new Error(`업비트 마켓 목록 API HTTP ${res.status}`);
     }

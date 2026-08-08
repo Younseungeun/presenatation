@@ -24,8 +24,10 @@ describe('recordConsents — 필수 약관 동의', () => {
     const consents = await getUserConsents(prisma, userId);
     expect(consents).toHaveLength(2);
     expect(consents.map((c) => c.docKey).sort()).toEqual(['PRIVACY_POLICY', 'TERMS_OF_SERVICE']);
-    expect(consents[0].version).toBe(LEGAL_DOCS.TERMS_OF_SERVICE.version);
-    expect(consents[0].context).toBe('SIGNUP');
+    // 문서마다 버전이 다르므로 순서에 기대지 않고 키로 찾는다
+    const terms = consents.find((c) => c.docKey === 'TERMS_OF_SERVICE')!;
+    expect(terms.version).toBe(LEGAL_DOCS.TERMS_OF_SERVICE.version);
+    expect(terms.context).toBe('SIGNUP');
   });
 
   it('같은 버전 재동의는 중복 기록하지 않는다 (재로그인 스팸 방지)', async () => {

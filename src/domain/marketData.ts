@@ -1,4 +1,5 @@
 import type { AssetClass } from './constants';
+import type { ProviderRiskSignal } from './instrumentRisk';
 import type { MarketSnapshot } from './judgment';
 
 // 시세 데이터 공급자 추상화. 자산군별 소스(금융위/Twelve Data/업비트)를 갈아끼울 수 있도록
@@ -26,6 +27,8 @@ export interface InstrumentListing {
   ticker: string;
   name: string;
   currency: string;
+  /** 공급자가 함께 주는 시장 경보 (업비트 market_event 등). 없으면 위험 등급 NONE */
+  risk?: ProviderRiskSignal;
 }
 
 export interface MarketDataProvider {

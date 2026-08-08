@@ -41,6 +41,12 @@ export function ReportActions({
           게시하기
         </button>
       )}
+      {status === "PENDING_REVIEW" && (
+        <span className={styles.hint}>
+          자동 검수에서 확인이 필요한 표현이 있어 운영자 검토 중입니다. 승인되면 판매가
+          시작됩니다.
+        </span>
+      )}
       {status === "PUBLISHED" && (
         <button
           className={`${styles.actionBtn} ${styles.danger}`}
