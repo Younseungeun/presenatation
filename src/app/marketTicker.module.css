@@ -38,33 +38,39 @@
 .item {
   display: inline-flex;
   align-items: baseline;
-  gap: 6px;
-  padding: 9px 0;
-  margin-right: 26px;
+  gap: 5px;
+  padding: 6px 0;
+  margin-right: 18px;
   white-space: nowrap;
-  font-size: 12px;
+  /* 기본 행간(1.5)이 띠 높이를 다 만든다 — 한 줄뿐이라 좁혀도 읽기에 지장이 없다 */
+  line-height: 1.25;
 }
 /* 항목 사이 구분점 — 마지막에도 붙지만 어차피 계속 흐르므로 어색하지 않다 */
 .item::after {
   content: "";
-  width: 3px;
-  height: 3px;
-  margin-left: 26px;
+  width: 2px;
+  height: 2px;
+  margin-left: 18px;
   border-radius: 50%;
   background: var(--text-faint);
-  opacity: 0.45;
+  opacity: 0.4;
   align-self: center;
 }
+/* 이름은 작고 넓게, 숫자는 크고 좁게 — 크기를 키우지 않고 대비만으로 숫자를 앞세운다.
+   띠지에서 눈이 잡아야 할 것은 항목명이 아니라 값이다 */
 .label {
-  color: var(--text-faint);
+  font-size: 10.5px;
   font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
 }
 .value {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 800;
   color: var(--text, #191f28);
+  /* 숫자 폭을 고정해 흐르는 동안 글자가 들썩이지 않게 한다 */
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 /* 움직임을 줄이는 설정에서는 흐르지 않고 눕는다 — 정보를 감추지 않고 표현만 바꾼다 */
