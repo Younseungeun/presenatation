@@ -74,27 +74,22 @@ export function HomeSignedIn({
             </Link>
           </div>
           <div>
-            {/* 글과 리서처는 목적지가 다르다 — 링크를 나눈다(중첩도 불가능하다).
-                무료 시황은 실적 없는 신규 리서처가 글로 자신을 증명하는 창구라,
-                다 읽고 나서 "이 사람이 파는 건 뭐지"로 갈 길이 있어야 한다 */}
+            {/* 목록에서는 판매로 유도하지 않는다 — 전환은 글을 끝까지 읽은 뒤
+                본문 하단의 리서처 명함에서 일어난다. 읽기도 전에 파는 것을 들이밀면
+                "관점이 괜찮네"라는 판단이 설 자리가 없다 */}
             {freeReports.map((r) => (
-              <div key={r.reportId} className={styles.freeItem}>
-                <Link href={`/report/${r.reportId}`} className={styles.freeBody}>
-                  <div className={styles.freeTop}>
-                    <span className={styles.freeBadge}>무료</span>
-                    <span className={styles.freeTitle}>{r.title}</span>
-                  </div>
-                  <div className={styles.freeSummary}>{r.summary}</div>
-                </Link>
-                <Link href={`/r/${r.researcherId}`} className={styles.freeMeta}>
-                  <span className={styles.freeAuthorName}>{r.researcherName}</span>
+              <Link key={r.reportId} href={`/report/${r.reportId}`} className={styles.freeItem}>
+                <div className={styles.freeTop}>
+                  <span className={styles.freeBadge}>무료</span>
+                  <span className={styles.freeTitle}>{r.title}</span>
+                </div>
+                <div className={styles.freeSummary}>{r.summary}</div>
+                <div className={styles.freeMeta}>
+                  {r.researcherName}
                   {TIER_LABEL[r.tier as Tier] && ` · ${TIER_LABEL[r.tier as Tier]}`}
                   {r.publishedAt && ` · ${sinceLabel(r.publishedAt, now)}`}
-                  {r.sellingCount > 0 && (
-                    <span className={styles.freeSelling}>판매 중 {r.sellingCount}장 →</span>
-                  )}
-                </Link>
-              </div>
+                </div>
+              </Link>
             ))}
           </div>
         </>

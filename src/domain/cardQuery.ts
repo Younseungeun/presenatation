@@ -204,18 +204,128 @@ export function tierAtLeast(tier: string, min: Tier): boolean {
   return TIERS.indexOf(tier as Tier) >= TIERS.indexOf(min);
 }
 
-/** 검색창 아래에 띄우는 추천 태그 — 무엇을 쓸 수 있는지 예시가 곧 설명서다 */
-export const SUGGESTED_TAGS: ReadonlyArray<{ tag: string; hint: string }> = [
-  { tag: '#무위험', hint: '틀리면 전액 환불' },
-  { tag: '#상승', hint: '상승 예측만' },
-  { tag: '#하락', hint: '하락 예측만' },
-  { tag: '#신뢰도 4이상', hint: '리서처가 크게 건 카드' },
-  { tag: '#안정성 3이상', hint: '정밀도 배팅이 있는 카드' },
-  { tag: '#신규', hint: '아직 판정 이력이 없는 리서처' },
-  { tag: '#인증', hint: '경력 인증 리서처' },
-  { tag: '#1만원이하', hint: '예산' },
-  { tag: '#일주일내', hint: '빨리 결과를 보고 싶을 때' },
+/**
+ * 쓸 수 있는 태그 전부 — 범주별로 묶어 검색창에서 펼쳐 보여준다.
+ * 파서 바로 옆에 두는 이유: 화면이 제안하는 태그와 파서가 알아듣는 태그가 갈라지면
+ * "눌렀는데 안 먹는 태그"가 생긴다. 여기가 지원 목록의 단일 기준이다.
+ *
+ * axis = 같은 축의 태그는 서로를 대체한다 (상승이면서 하락일 수는 없다).
+ * multi = 겹쳐 고를 수 있는 축 (자산군은 여러 개를 함께 볼 수 있다).
+ */
+export interface TagGroup {
+  title: string;
+  axis: string;
+  multi: boolean;
+  tags: ReadonlyArray<{ tag: string; hint: string }>;
+}
+
+export const TAG_GROUPS: readonly TagGroup[] = [
+  {
+    title: '자산군',
+    axis: 'asset',
+    multi: true,
+    tags: [
+      { tag: '#국내주식', hint: '코스피·코스닥' },
+      { tag: '#미국주식', hint: '미국 상장' },
+      { tag: '#코인', hint: '암호화폐' },
+    ],
+  },
+  {
+    title: '방향',
+    axis: 'direction',
+    multi: false,
+    tags: [
+      { tag: '#상승', hint: '오른다는 예측' },
+      { tag: '#하락', hint: '내린다는 예측 (숏 가능 종목만)' },
+    ],
+  },
+  {
+    title: '리서처가 건 것',
+    axis: 'confidence',
+    multi: false,
+    tags: [
+      { tag: '#신뢰도 3이상', hint: '점수 증폭을 중간 이상 건 카드' },
+      { tag: '#신뢰도 4이상', hint: '크게 건 카드 — 틀리면 그만큼 크게 깎인다' },
+    ],
+  },
+  {
+    title: '정밀도',
+    axis: 'stability',
+    multi: false,
+    tags: [
+      { tag: '#안정성 3이상', hint: '목표 근처 착지에 배팅한 카드' },
+      { tag: '#안정성 4이상', hint: '정밀도를 크게 건 카드' },
+    ],
+  },
+  {
+    title: '예측 크기',
+    axis: 'profitability',
+    multi: false,
+    tags: [
+      { tag: '#수익성 3이상', hint: '적극 이상' },
+      { tag: '#수익성 4이상', hint: '공격 이상' },
+    ],
+  },
+  {
+    title: '구매 조건',
+    axis: 'refund',
+    multi: false,
+    tags: [{ tag: '#무위험', hint: '틀리면 전액 환불 (선결제 0%)' }],
+  },
+  {
+    title: '예산',
+    axis: 'budget',
+    multi: false,
+    tags: [
+      { tag: '#1만원이하', hint: '가볍게 탐색' },
+      { tag: '#3만원이하', hint: '' },
+    ],
+  },
+  {
+    title: '검증 시한',
+    axis: 'within',
+    multi: false,
+    tags: [
+      { tag: '#일주일내', hint: '빨리 결과를 보고 싶을 때' },
+      { tag: '#한달내', hint: '' },
+    ],
+  },
+  {
+    title: '리서처',
+    axis: 'researcher',
+    multi: false,
+    tags: [
+      { tag: '#신규', hint: '아직 판정 이력이 없는 리서처 — 선결제가 막혀 늘 전액 환불이다' },
+      { tag: '#인증', hint: '경력 인증 배지 보유' },
+      { tag: '#시니어이상', hint: '' },
+      { tag: '#마스터이상', hint: '' },
+      { tag: '#펠로우이상', hint: '' },
+    ],
+  },
 ];
+
+/** 이 태그가 속한 축 — 같은 축의 기존 선택을 대체할지 판단한다 */
+export function tagAxisOf(tag: string): TagGroup | null {
+  return TAG_GROUPS.find((g) => g.tags.some((t) => t.tag === tag)) ?? null;
+}
+
+/**
+ * 태그 하나를 선택 목록에 넣는다.
+ * 같은 축이면 대체(단일 축) 또는 토글(다중 축) — 겹칠 수 없는 조건이 함께 걸리는 일을 막는다.
+ */
+export function toggleTag(selected: readonly string[], tag: string): string[] {
+  if (selected.includes(tag)) return selected.filter((t) => t !== tag);
+  const group = tagAxisOf(tag);
+  if (!group || group.multi) return [...selected, tag];
+  // 단일 축: 같은 축의 기존 태그를 밀어낸다
+  const sameAxis = new Set(group.tags.map((t) => t.tag));
+  return [...selected.filter((t) => !sameAxis.has(t)), tag];
+}
+
+/** 선택한 태그 + 자유 텍스트 → 검색어 한 줄 */
+export function buildQueryString(text: string, tags: readonly string[]): string {
+  return [text.trim(), ...tags].filter(Boolean).join(' ').trim();
+}
 
 /** 자산군 태그 문자열 (화면 안내용) */
 export const ASSET_TAG_EXAMPLE = ASSET_CLASSES.map((a) =>

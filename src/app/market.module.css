@@ -205,40 +205,6 @@
   gap: 6px 12px;
   margin-top: 8px;
 }
-/* 무료 시황 목록 — 글 링크와 리서처 링크를 나눈다 (목적지가 다르고, 중첩도 불가능하다) */
-.freeBody {
-  display: block;
-  color: inherit;
-}
-.freeAuthor {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
-  font-size: 12.5px;
-  color: var(--text-faint);
-}
-.freeAuthorName {
-  font-weight: 700;
-  color: var(--text-weak);
-}
-.freeAuthor:hover .freeAuthorName {
-  color: var(--brand-strong);
-}
-.freeAuthorDate {
-  color: var(--text-faint);
-}
-/* 전환 문구 — 글을 읽은 직후가 가장 신뢰가 높은 순간이다 */
-.freeAuthorCta {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--brand-strong);
-  white-space: nowrap;
-}
 
 .pill {
   font-size: 12px;

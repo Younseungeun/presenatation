@@ -79,7 +79,15 @@ export default async function ReportDetail({
 
   return (
     <>
-      <AppHeader title="리포트" titleAs="span" backHref={`/r/${report.researcherId}`} />
+      {/* 무료 글은 홈에서 들어오므로 홈으로 나간다. 리서처 프로필로 강제로 내보내면
+          "글이 마음에 들어 사람을 보러 가는" 판단을 앱이 대신해 버린다 —
+          그 선택은 본문 끝의 명함을 눌러 본인이 한다.
+          유료 리포트는 리서처 프로필이 실제 상위 화면이라 그대로 둔다 */}
+      <AppHeader
+        title="리포트"
+        titleAs="span"
+        backHref={free ? "/" : `/r/${report.researcherId}`}
+      />
       <main className={styles.page}>
       {/* 제목·요약도 리서처 자유 입력이라 구매 전에는 감춘다 —
           종목명이 제목에 들어가면 나머지 마스킹이 통째로 무력해진다 */}

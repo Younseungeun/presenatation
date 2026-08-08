@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { hasCriteria, parseCardQuery, tierAtLeast } from '../cardQuery';
+import {
+  buildQueryString,
+  hasCriteria,
+  parseCardQuery,
+  TAG_GROUPS,
+  tierAtLeast,
+  toggleTag,
+} from '../cardQuery';
 
 // 검색은 종목이 아니라 **예측의 성질**을 축으로 삼는다.
 // 종목으로 좁히면 "이 조건으로 나온 카드 = 그 종목 예측"이 되어 구매 전 마스킹이 뚫린다.
@@ -110,6 +117,57 @@ describe('못 알아들은 태그는 삼키지 않는다', () => {
 
   it('빈 태그는 조용히 무시한다', () => {
     expect(parseCardQuery('# #상승').unknown).toEqual([]);
+  });
+});
+
+describe('제안하는 태그와 알아듣는 태그는 갈라지면 안 된다', () => {
+  it('TAG_GROUPS의 모든 태그를 파서가 해석한다 (하나라도 unknown이면 "눌렀는데 안 먹는 태그")', () => {
+    for (const group of TAG_GROUPS) {
+      for (const { tag } of group.tags) {
+        const q = parseCardQuery(tag);
+        expect(q.unknown, `${tag} 를 파서가 못 알아들음`).toEqual([]);
+        expect(hasCriteria(q), `${tag} 가 조건을 만들지 못함`).toBe(true);
+      }
+    }
+  });
+
+  it('태그가 중복되지 않는다', () => {
+    const all = TAG_GROUPS.flatMap((g) => g.tags.map((t) => t.tag));
+    expect(new Set(all).size).toBe(all.length);
+  });
+});
+
+describe('태그 선택 — 겹칠 수 없는 조건이 함께 걸리지 않게', () => {
+  it('같은 단일 축은 대체한다 (상승이면서 하락일 수는 없다)', () => {
+    expect(toggleTag(['#상승'], '#하락')).toEqual(['#하락']);
+    expect(toggleTag(['#신뢰도 3이상'], '#신뢰도 4이상')).toEqual(['#신뢰도 4이상']);
+  });
+
+  it('다중 축(자산군)은 겹쳐 쌓인다', () => {
+    expect(toggleTag(['#국내주식'], '#코인')).toEqual(['#국내주식', '#코인']);
+  });
+
+  it('같은 태그를 다시 누르면 해제된다', () => {
+    expect(toggleTag(['#상승', '#무위험'], '#상승')).toEqual(['#무위험']);
+  });
+
+  it('다른 축은 서로 건드리지 않는다', () => {
+    const picked = toggleTag(toggleTag(['#상승'], '#무위험'), '#1만원이하');
+    expect(picked).toEqual(['#상승', '#무위험', '#1만원이하']);
+  });
+
+  it('선택한 태그와 이름을 한 줄로 합친다', () => {
+    expect(buildQueryString('밸류헌터', ['#상승', '#무위험'])).toBe('밸류헌터 #상승 #무위험');
+    expect(buildQueryString('', ['#코인'])).toBe('#코인');
+    expect(buildQueryString('  ', [])).toBe('');
+  });
+
+  it('합친 문자열을 다시 파싱하면 원래 조건이 나온다 (왕복이 깨지지 않는다)', () => {
+    const q = parseCardQuery(buildQueryString('밸류헌터', ['#코인', '#상승', '#신뢰도 4이상']));
+    expect(q.text).toBe('밸류헌터');
+    expect(q.assetClasses).toEqual(['CRYPTO']);
+    expect(q.direction).toBe('UP');
+    expect(q.minConfidence).toBe(4);
   });
 });
 

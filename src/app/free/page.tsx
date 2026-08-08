@@ -26,29 +26,24 @@ export default async function FreeReportsPage() {
         {reports.length === 0 ? (
           <EmptyState glyph="doc" title="아직 공개된 무료 리포트가 없어요" />
         ) : (
+          // 목록에서는 판매로 유도하지 않는다 — 전환은 글을 끝까지 읽은 뒤
+          // 본문 하단의 리서처 명함에서 일어난다
           reports.map((r) => (
-            // 글과 리서처는 서로 다른 목적지라 링크를 나눈다 (링크 중첩은 불가능하기도 하다).
-            // 글을 읽으러 온 사람과 사람을 보러 온 사람이 같은 목록에 있다
-            <div key={r.reportId} className={styles.reportCard}>
-              <Link href={`/report/${r.reportId}`} className={styles.freeBody}>
-                <div className={styles.reportTitle}>
-                  <span className={styles.pill}>무료</span>
-                  {r.title}
-                </div>
-                <div className={styles.meta}>
-                  <span>{r.summary}</span>
-                </div>
-              </Link>
-              <Link href={`/r/${r.researcherId}`} className={styles.freeAuthor}>
-                <span className={styles.freeAuthorName}>{r.researcherName}</span>
+            <Link key={r.reportId} href={`/report/${r.reportId}`} className={styles.reportCard}>
+              <div className={styles.reportTitle}>
+                <span className={styles.pill}>무료</span>
+                {r.title}
+              </div>
+              <div className={styles.meta}>
+                <span>{r.summary}</span>
+              </div>
+              <div className={styles.meta}>
+                <span>{r.researcherName}</span>
                 <TierChip tier={r.tier} />
                 {r.careerBadge && <span className={styles.pill}>인증</span>}
-                <span className={styles.freeAuthorDate}>{fmtDate(r.publishedAt)}</span>
-                {r.sellingCount > 0 && (
-                  <span className={styles.freeAuthorCta}>판매 중 {r.sellingCount}장 →</span>
-                )}
-              </Link>
-            </div>
+                <span>{fmtDate(r.publishedAt)}</span>
+              </div>
+            </Link>
           ))
         )}
       </main>
