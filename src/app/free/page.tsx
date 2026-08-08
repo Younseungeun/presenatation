@@ -9,14 +9,24 @@ import styles from "../market.module.css";
 
 export const dynamic = "force-dynamic";
 
-// 무료 시황·증시 리포트 전체 목록. 홈 섹션의 "더 보기" 목적지.
+// 무료 시황·증시 리포트 목록. 홈 섹션의 "더 보기" 목적지이자,
+// 팔로우 블록의 "무료 글 N편"이 한 사람 것만 걸러 들어오는 자리(?r=).
 
-export default async function FreeReportsPage() {
-  const reports = await getFreeReports(prisma, 50);
+export default async function FreeReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ r?: string }>;
+}) {
+  const { r: researcherId } = await searchParams;
+  const reports = await getFreeReports(prisma, 50, researcherId);
+  const author = researcherId ? reports[0]?.researcherName : null;
 
   return (
     <>
-      <AppHeader title="무료 시황·증시 리포트" backHref="/" />
+      <AppHeader
+        title={author ? `${author}의 무료 시황` : "무료 시황·증시 리포트"}
+        backHref={researcherId ? `/r/${researcherId}` : "/"}
+      />
       <main className={styles.page}>
         <p className={styles.sub}>
           리서처가 무료로 공개한 시황입니다. 예측 카드가 없어 판정·환불 대상이 아니며, 누구나

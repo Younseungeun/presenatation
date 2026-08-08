@@ -534,6 +534,12 @@ export interface FollowedSection {
   followers: number;
   /** 리더보드에 고정한 리서처인가 — 고정은 언제나 위에 온다 */
   pinned: boolean;
+  /**
+   * 이 리서처가 쓴 무료 시황 수.
+   * 유료 카드는 구매 전 본문을 볼 수 없어서, 글로 판단하려면 무료 시황뿐이다 —
+   * 실적이 아직 없는 리서처일수록 이 숫자가 결정적이다.
+   */
+  freeCount: number;
   cards: MarketCard[];
 }
 
@@ -548,7 +554,7 @@ export async function getFollowedSections(
 ): Promise<FollowedSection[]> {
   if (researcherIds.length === 0) return [];
 
-  const [reports, followerCounts, profiles] = await Promise.all([
+  const [reports, followerCounts, profiles, freeGroups] = await Promise.all([
     prisma.report.findMany({
       where: { ...buyableWhere(now), researcherId: { in: researcherIds } },
       include: cardInclude,
@@ -563,10 +569,22 @@ export async function getFollowedSections(
       where: { id: { in: researcherIds } },
       select: { id: true, bio: true },
     }),
+    // 무료 시황 수 — 리서처 수와 무관하게 한 번에 (사람마다 세면 N+1이 된다)
+    prisma.report.groupBy({
+      by: ['researcherId'],
+      where: {
+        status: 'PUBLISHED',
+        researcherId: { in: researcherIds },
+        priceKrw: 0,
+        predictionCard: { is: null },
+      },
+      _count: { researcherId: true },
+    }),
   ]);
 
   const followers = new Map(followerCounts.map((f) => [f.researcherId, f._count.researcherId]));
   const bios = new Map(profiles.map((p) => [p.id, p.bio]));
+  const freeCounts = new Map(freeGroups.map((g) => [g.researcherId, g._count.researcherId]));
 
   const withSignal = await withSignals(prisma, reports.map(toMarketCard));
 
@@ -589,6 +607,7 @@ export async function getFollowedSections(
       bio: bios.get(researcherId) ?? null,
       followers: followers.get(researcherId) ?? 0,
       pinned: pinRank.has(researcherId),
+      freeCount: freeCounts.get(researcherId) ?? 0,
       cards,
     }))
     .sort((a, b) => {

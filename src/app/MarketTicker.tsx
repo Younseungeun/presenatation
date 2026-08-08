@@ -30,7 +30,12 @@ export function MarketTicker({ stats }: { stats: MarketStat[] }) {
       <span className={styles.label}>{s.label}</span>
       <strong className={styles.value}>{s.value}</strong>
       {s.delta && (
-        <span className={s.delta.up ? styles.deltaUp : styles.deltaDown}>
+        <span
+          className={
+            // 좋고 나쁨이 없는 항목은 색을 쓰지 않는다 (에스크로 감소 = 정산 실행)
+            s.neutralDelta ? styles.deltaFlat : s.delta.up ? styles.deltaUp : styles.deltaDown
+          }
+        >
           <span className={styles.arrow} aria-hidden="true">
             {s.delta.up ? "↑" : "↓"}
           </span>

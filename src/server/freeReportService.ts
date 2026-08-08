@@ -78,9 +78,16 @@ export interface FreeReportSummary {
 export async function getFreeReports(
   prisma: PrismaClient,
   limit = 5,
+  /** 한 리서처의 글만 — 팔로우 블록에서 "무료 글 2편"을 눌러 들어오는 경로 */
+  researcherId?: string,
 ): Promise<FreeReportSummary[]> {
   const reports = await prisma.report.findMany({
-    where: { status: 'PUBLISHED', priceKrw: FREE_REPORT_PRICE_KRW, predictionCard: { is: null } },
+    where: {
+      status: 'PUBLISHED',
+      priceKrw: FREE_REPORT_PRICE_KRW,
+      predictionCard: { is: null },
+      ...(researcherId ? { researcherId } : {}),
+    },
     orderBy: { publishedAt: 'desc' },
     take: limit,
     include: { researcher: { include: { user: { select: { penName: true, email: true } } } } },

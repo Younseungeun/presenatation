@@ -43,6 +43,12 @@ export interface MarketStat {
   delta: MarketDelta | null;
   /** 금액 항목인지 — 운영자가 금액만 따로 끌 수 있다 */
   isAmount: boolean;
+  /**
+   * 증감에 좋고 나쁨이 없는 항목 — 색을 쓰지 않는다.
+   * 에스크로가 그렇다: 줄었다는 건 정산이 실행됐다는 뜻이라 나쁜 일이 아닌데
+   * 빨강으로 칠하면 사고처럼 읽힌다.
+   */
+  neutralDelta?: boolean;
 }
 
 const DAY_MS = 86_400_000;
@@ -209,6 +215,8 @@ export async function getMarketStats(
       value: formatKrw(numbers.escrowKrw),
       delta: delta(numbers.escrowKrw, baseline?.escrowKrw, true),
       isAmount: true,
+      // 줄었다는 건 정산이 실행됐다는 뜻이라 나쁜 일이 아니다 — 빨강으로 칠하면 사고처럼 읽힌다
+      neutralDelta: true,
       raw: numbers.escrowKrw,
     });
   }
@@ -222,5 +230,6 @@ export async function getMarketStats(
       value: r.value,
       delta: r.delta,
       isAmount: r.isAmount,
+      neutralDelta: r.neutralDelta,
     }));
 }

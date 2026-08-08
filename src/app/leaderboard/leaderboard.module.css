@@ -3,40 +3,34 @@
    장식을 더해 다르게 만드는 것이 아니라, 각 섹션이 실제로 말하려는 것에 형태를 맞춘다. */
 
 /* ── 팔로우한 리서처 = 사람 단위 PR 블록 ──────────────────────
-   흰 페이지 위에 흰 블록을 놓고 테두리만 그리면 아무것도 안 보인다(#fff 위 #fff, 테두리 #eef1f4).
-   그래서 블록에 **바닥을 깐다** — 옅은 회색 위에 흰 카드가 놓이면 카드가 "안에 담겨 있다"는
-   것이 색 없이도 읽힌다. 도형을 더 그리는 대신 도형과 바탕을 나눈 것이다.
+   블록이 답해야 하는 질문은 하나다: 이 사람 카드를 열어볼까?
+   그 순서대로 세 층 — 누구인가(흰 바탕) / 믿을 만한가 / 무엇이 있나(회색 바닥).
 
-   민트 띠는 뺐다. 민트는 플랫폼 검증 전용이라(브랜드 §4-4) "내가 고른 사람" 표시에 쓰면
-   플랫폼이 보증한 것으로 오해된다. 고정 표시는 칩이 맡는다. */
+   바탕을 위아래로 나눈 이유: 작은 글자가 많은 사람 정보는 흰 바탕에서 읽기 쉽고,
+   흰 카드는 회색 위에서 뜬다. 같은 색을 두 번 쓰지 않는다.
+   민트 띠는 뺐다 — 민트는 플랫폼 검증 전용이라(브랜드 §4-4) '내가 고른 사람' 표시에
+   쓰면 플랫폼이 보증한 것으로 오해된다. 고정 표시는 무채색 칩이 맡는다 */
 .prBlock {
+  position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--surface);
-  padding: 14px 0 4px;
+  background: var(--bg);
   margin-bottom: 12px;
+  overflow: hidden;
   box-shadow: var(--shadow-sm);
 }
-
-/* 고정된 블록 — 테두리를 진하게 하고 한 겹 더 띄운다.
-   색이 아니라 무게로 구분한다 (색은 브랜드에서 뜻이 정해져 있다) */
+/* 고정된 블록 — 색이 아니라 무게로 구분한다 (색은 브랜드에서 뜻이 정해져 있다) */
 .prBlockPinned {
   border-color: color-mix(in srgb, var(--text-faint) 40%, var(--border));
   box-shadow: var(--shadow);
 }
 
-/* 고정 버튼은 머리 링크의 형제다 (링크 안에 버튼을 넣을 수 없다) — 위에 겹친다 */
-.prBlock {
-  position: relative;
-}
-/* 프로필 줄 오른쪽 끝, 아바타 높이의 한가운데.
-   원래 이 자리에 '›' 화살표가 있었는데 압정과 겹쳤다. 화살표는 없앴다 —
-   머리 전체가 링크라 누를 수 있다는 건 이름만으로도 읽히고,
-   같은 자리에 두 개를 욱여넣는 것보다 하나를 지우는 편이 낫다 */
+/* 압정 — 프로필 줄 오른쪽 끝. 머리 링크의 형제로 두고 위에 겹친다
+   (링크 안에 버튼을 넣을 수 없다). 전에 있던 '›' 화살표는 이 자리와 겹쳐서 없앴다 —
+   머리 전체가 링크라 누를 수 있다는 건 이름만으로도 읽힌다 */
 .pin {
   position: absolute;
-  /* 블록 상단 패딩(14px) + 아바타(46px) 절반 − 버튼 절반 */
-  top: 21px;
+  top: 12px;
   right: 12px;
   z-index: 1;
   width: 32px;
@@ -51,33 +45,29 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-/* 블록 바닥이 회색이라 hover는 흰색으로 파낸다 */
 .pin:hover {
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text-weak);
 }
 .pinOn {
-  color: var(--brand-strong);
-}
-.pinOn:hover {
-  color: var(--brand-strong);
+  color: var(--text, #191f28);
 }
 .pin:disabled {
   opacity: 0.5;
   cursor: default;
 }
 
-.prHead {
+/* ① 누구인가 — 이름과 소개말이 한 덩어리 */
+.prWho {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  /* 오른쪽은 고정 버튼 자리를 비워 둔다 */
-  padding: 0 46px 0 16px;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 14px 52px 0 16px;
   color: inherit;
 }
 .prAvatar {
-  width: 46px;
-  height: 46px;
+  width: 42px;
+  height: 42px;
   flex-shrink: 0;
   border-radius: 50%;
   overflow: hidden;
@@ -92,7 +82,7 @@
   height: 100%;
   display: block;
 }
-.prMain {
+.prWhoText {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -110,7 +100,7 @@
   font-weight: 800;
   letter-spacing: -0.02em;
 }
-/* 고정 표시 — 무채색. 민트는 플랫폼 검증 전용이라 본인이 정한 순서에 쓸 수 없다 */
+/* 고정 표시 — 무채색 */
 .prPinned {
   display: inline-flex;
   align-items: center;
@@ -122,45 +112,85 @@
   font-weight: 800;
   color: var(--text-weak);
 }
-.prMeta {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  flex-wrap: wrap;
-  font-size: 11.5px;
-  color: var(--text-faint);
-}
-.prMeta strong {
-  font-weight: 800;
-  color: var(--text, #191f28);
-  font-variant-numeric: tabular-nums;
-}
-.prDot {
-  width: 2px;
-  height: 2px;
-  border-radius: 50%;
-  background: var(--text-faint);
-  opacity: 0.6;
-  margin: 0 2px;
-}
-/* 소개말 — 리서처 본인의 목소리라 인용처럼 들여쓴다 */
+/* 소개말 — 인용 보더를 뺐다. 블록 안에 또 들여쓰기를 만들면 층이 하나 더 늘어난다.
+   본인의 목소리라는 것은 자리(이름 바로 아래)와 색으로 충분히 읽힌다 */
 .prBio {
-  margin: 10px 16px 0;
-  padding-left: 10px;
-  border-left: 2px solid var(--border);
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 12.5px;
+  line-height: 1.55;
   color: var(--text-weak);
   overflow-wrap: break-word;
 }
+.prBioNone {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
 
+/* ② 믿을 만한가 — 숫자를 앞세운다 */
+.prRecord {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 10px 16px 12px;
+}
+.prStat {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.prStat strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text, #191f28);
+  font-variant-numeric: tabular-nums;
+  margin-left: 3px;
+}
+/* 표본 수 — 적중률 100%(1건)과 62%(47건)이 구별되지 않으면 숫자가 거짓말을 한다 */
+.prSample {
+  margin-left: 5px;
+  padding-left: 5px;
+  border-left: 1px solid var(--border);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.prRecordNone {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+/* ③ 무엇이 있나 — 회색 바닥. 흰 카드가 여기서 뜬다 */
+.prShelf {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  padding: 10px 0 4px;
+}
+.prShelfHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 0 16px;
+}
+.prShelfCount {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--text-weak);
+}
+/* 무료 글로 가는 길 — 유료 카드는 구매 전 본문을 볼 수 없어서 글로 판단하려면 이것뿐이다.
+   실적이 없는 리서처일수록 결정적이라 브랜드색을 쓴다 */
+.prFreeLink {
+  font-size: 11.5px;
+  font-weight: 800;
+  color: var(--brand-strong);
+  white-space: nowrap;
+}
 .prRail {
   display: flex;
   gap: 10px;
   overflow-x: auto;
   scroll-snap-type: x proximity;
   scrollbar-width: none;
-  padding: 12px 16px 10px;
+  padding: 10px 16px;
 }
 .prRail::-webkit-scrollbar {
   display: none;
@@ -680,16 +710,17 @@
 }
 
 @media (max-width: 640px) {
-  .prBio,
+  .prRecord,
+  .prShelfHead,
   .prRail {
     padding-left: 14px;
     padding-right: 14px;
   }
-  /* 머리 줄은 오른쪽 압정 자리를 계속 비워 둬야 한다 —
-     좁은 화면에서 우측 패딩까지 줄이면 이름·실적이 압정 밑으로 들어간다 */
-  .prHead {
+  /* 프로필 줄은 오른쪽 압정 자리를 계속 비워 둬야 한다 —
+     좁은 화면에서 우측 패딩까지 줄이면 이름·소개말이 압정 밑으로 들어간다 */
+  .prWho {
     padding-left: 14px;
-    padding-right: 46px;
+    padding-right: 52px;
   }
   .prBio {
     margin-left: 14px;

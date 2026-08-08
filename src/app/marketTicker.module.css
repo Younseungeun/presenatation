@@ -76,7 +76,8 @@
    색이 있어야 할 곳은 방향이 있는 곳 하나뿐이고, 그래야 색이 신호로 남는다.
    라벨(10.5)보다 크게 잡는다 — 색과 함께 이것이 가장 먼저 잡혀야 한다 */
 .deltaUp,
-.deltaDown {
+.deltaDown,
+.deltaFlat {
   display: inline-flex;
   align-items: baseline;
   gap: 1px;
@@ -91,6 +92,10 @@
 }
 .deltaDown {
   color: var(--neg);
+}
+/* 좋고 나쁨이 없는 항목 — 방향은 화살표가 말하고 색은 쓰지 않는다 */
+.deltaFlat {
+  color: var(--text-faint);
 }
 /* 화살표는 ↑↓ — ▲▼는 예측 방향(상승·하락)이 이미 쓰고 있어 한 화면에서 섞인다.
    글리프가 숫자보다 작게 보여 살짝 키운다 */
