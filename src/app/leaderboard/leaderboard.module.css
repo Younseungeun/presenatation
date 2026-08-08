@@ -215,6 +215,212 @@
   margin-top: 20px;
 }
 
+/* ── 검색 ───────────────────────────────────────────────────
+   검색어는 URL에 남는다 — 뒤로가기로 복원되고 링크로 공유된다. */
+.searchWrap {
+  margin: 4px 0 16px;
+}
+.searchForm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 46px;
+  padding: 0 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.searchForm:focus-within {
+  border-color: color-mix(in srgb, var(--brand-strong) 45%, transparent);
+  background: var(--bg);
+}
+.searchIcon {
+  flex-shrink: 0;
+  color: var(--text-faint);
+}
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font: inherit;
+  font-size: 14.5px;
+  color: var(--text, #191f28);
+}
+.searchInput::placeholder {
+  color: var(--text-faint);
+  font-size: 13.5px;
+}
+.searchClear {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+.searchClear:hover {
+  color: var(--text);
+}
+
+/* 추천 태그 = 설명서. 쓸 줄 아는 사람에겐 자리만 차지하므로 입력창을 눌렀을 때만 편다 */
+.tagHints {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 8px -20px 0;
+  padding: 0 20px 2px;
+}
+.tagHints::-webkit-scrollbar {
+  display: none;
+}
+.tagHint {
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-weak);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tagHint:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 32%, var(--border));
+  color: var(--brand-strong);
+}
+
+/* ── 검색 결과 ───────────────────────────────────────────── */
+.searchResults {
+  margin-top: 4px;
+}
+.resultHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.resultCount {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.resultCount strong {
+  color: var(--brand-strong);
+  font-variant-numeric: tabular-nums;
+}
+/* 시스템이 무엇으로 알아들었는지 되돌려 준다 — 결과가 예상과 다를 때 고칠 수 있게 */
+.criteriaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 12px;
+}
+.criteria {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-weak);
+}
+/* 못 알아들은 태그는 숨기지 않는다 — 조용히 무시하면 결과를 오해한다 */
+.unknownNote {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-weak);
+  background: var(--surface);
+  border-left: 3px solid color-mix(in srgb, var(--neg) 45%, transparent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 10px 12px;
+  margin: 0 0 14px;
+}
+.searchEcho {
+  margin-top: 18px;
+  font-size: 11px;
+  color: var(--text-faint);
+  word-break: break-all;
+}
+
+/* ── 필터 칩 ────────────────────────────────────────────────
+   정렬이 순서를 바꾼다면 필터는 후보를 줄인다. 상태는 전부 URL에 있어
+   뒤로가기로 복원되고 링크로 공유된다 — 클라이언트 상태가 없다. */
+.filterWrap {
+  margin: 0 0 12px;
+}
+.chipRow {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  /* 화면 밖으로 흘려 보내야 칩이 줄바꿈으로 쌓이지 않는다 */
+  margin: 0 -20px;
+  padding: 2px 20px 4px;
+}
+.chipRow::-webkit-scrollbar {
+  display: none;
+}
+.chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-weak);
+  white-space: nowrap;
+  transition: border-color 0.12s ease, color 0.12s ease;
+}
+.chip:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 30%, var(--border));
+}
+/* 켜진 칩은 채운다 — 테두리만 바꾸면 켜졌는지 곁눈질로 안 보인다 */
+.chipOn {
+  border-color: transparent;
+  background: var(--brand-soft);
+  color: #0b7a66;
+}
+
+.filterFoot {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 8px;
+}
+.filterCount {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-weak);
+  font-variant-numeric: tabular-nums;
+}
+.filterReset {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-decoration: underline;
+}
+.filterReset:hover {
+  color: var(--text-weak);
+}
+
 /* ── 자산군 목록의 첫 카드 = 히어로 ─────────────────────────── */
 .hero {
   position: relative;

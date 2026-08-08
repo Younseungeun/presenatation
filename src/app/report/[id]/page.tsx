@@ -4,6 +4,7 @@ import { RISK_LEVEL_LABEL, RISK_LEVEL_NOTE, type RiskLevel } from "@/domain/inst
 import { cardProfitabilityLevel } from "@/domain/profitability";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
+import { getResearcherCallout } from "@/server/marketQueries";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/server/purchaseService";
 import { isFreeReport } from "@/server/freeReportService";
 import { getSessionUserId } from "@/server/session";
@@ -12,6 +13,7 @@ import { AppHeader } from "../../AppHeader";
 import { Disclaimer } from "../../Disclaimer";
 import { fmtDateTime } from "../../format";
 import { maskedHeadline } from "../../MaskedCard";
+import { ResearcherCallout } from "../../ResearcherCallout";
 import { StarRating, tenScaleToStars } from "../../StarRating";
 import { StatusChip, type StatusKind } from "../../StatusChip";
 import { JudgmentReceipt } from "./JudgmentReceipt";
@@ -44,6 +46,8 @@ export default async function ReportDetail({
   const purchased = !!purchase || isOperator;
   // 무료 글은 예측 카드가 없어 결제·판정 흐름을 타지 않는다
   const free = isFreeReport(report);
+  // 무료 글에만 리서처 명함을 붙인다 — 유료 글은 이미 카드가 그 사람을 말하고 있다
+  const callout = free ? await getResearcherCallout(prisma, report.researcherId) : null;
 
   // 구매 진행 상태 — 에스크로 상태 + 환불 실행 여부를 구매자 언어로.
   // 환불 색은 판정 결과를 따른다 (실패 → 빨강, 판정 불가 → 주황)
@@ -188,6 +192,9 @@ export default async function ReportDetail({
           <p className={styles.sub}>
             무료로 공개된 시황 리포트입니다. 예측 카드가 없어 판정·환불 대상이 아닙니다.
           </p>
+          {/* 글을 끝까지 읽은 직후가 신뢰가 가장 높은 순간 — 전환은 여기서 일어난다.
+              실적이 없는 신규 리서처에게는 이 글이 트랙레코드를 대신하는 증명이다 */}
+          {callout && <ResearcherCallout data={callout} />}
         </>
       ) : purchased ? (
         <>

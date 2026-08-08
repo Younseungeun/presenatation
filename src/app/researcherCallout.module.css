@@ -1,0 +1,94 @@
+/* 리서처 명함 — 무료 시황 본문 끝의 전환 지점.
+   본문과 같은 폭이되 한 겹 떠 있어야 "글이 끝나고 다른 것이 시작된다"가 읽힌다. */
+.callout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 24px 0 8px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+.callout:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 32%, var(--border));
+}
+
+.avatar {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.name {
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text, #191f28);
+}
+.record {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.record strong {
+  font-weight: 800;
+  color: var(--text, #191f28);
+  font-variant-numeric: tabular-nums;
+}
+/* 표본 수 — 적중률 100%(1건)과 62%(47건)이 구별되지 않으면 숫자가 거짓말을 한다 */
+.sample {
+  margin-left: 5px;
+  padding-left: 5px;
+  border-left: 1px solid var(--border);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* 소개말 — 본인의 목소리라 인용처럼 들여쓴다 (프로필·리더보드와 같은 형태) */
+.bio {
+  margin-top: 5px;
+  padding-left: 9px;
+  border-left: 2px solid var(--border);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-weak);
+  overflow-wrap: break-word;
+}
+
+/* 전환 문구 — 명함에서 유일하게 브랜드색을 쓰는 자리 */
+.cta {
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--brand-strong);
+}
+.cta strong {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}

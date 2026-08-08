@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { tierAtLeast, type CardQuery } from '@/domain/cardQuery';
 import { TIER_NAME, TIERS, type AssetClass, type Tier } from '@/domain/constants';
 import {
   cardProfitabilityLevel,
@@ -220,6 +221,7 @@ export const MARKET_SORTS = [
   'PRICE_ASC',
   'PRICE_DESC',
   'TIER',
+  'RATING_DESC',
   'SIZE_DESC',
 ] as const;
 export type MarketSort = (typeof MARKET_SORTS)[number];
@@ -227,12 +229,49 @@ export type MarketSort = (typeof MARKET_SORTS)[number];
 export const MARKET_SORT_LABEL: Record<MarketSort, string> = {
   DEADLINE: '마감 임박순',
   NEW: '최신순',
-  POPULAR: '인기순',
+  POPULAR: '판매 많은 순',
   PRICE_ASC: '낮은 가격순',
   PRICE_DESC: '높은 가격순',
   TIER: '리서처 등급순',
+  RATING_DESC: '별점 높은 순',
   SIZE_DESC: '목표 크기순',
 };
+
+/**
+ * 별점 평균 (0~5) — 카드에 뜨는 별 셋의 평균.
+ * 수익성은 5구간 그대로, 신뢰도·안정성은 1~10이라 반으로 접는다(화면 표기와 같은 환산).
+ * 값이 하나도 없으면 -1로 맨 뒤에 둔다 — 0으로 두면 "별 0개"인 카드와 섞인다.
+ */
+export function ratingAverage(c: MarketCard): number {
+  const stars = [
+    c.profitability,
+    c.stability === null ? null : c.stability / 2,
+    c.confidence === null ? null : c.confidence / 2,
+  ].filter((v): v is number => v !== null);
+  if (stars.length === 0) return -1;
+  return stars.reduce((a, b) => a + b, 0) / stars.length;
+}
+
+/**
+ * 목록 필터 — 정렬이 순서를 바꾼다면 필터는 후보를 줄인다.
+ * 정렬만으로는 "예산 밖의 카드"가 아래로 밀릴 뿐 사라지지 않아 훑는 양이 그대로다.
+ */
+export interface MarketFilter {
+  /** 선결제 0% — 틀리면 전액 환불되는 카드만. 이 서비스의 무위험 진입을 축으로 만든 것 */
+  refundOnly?: boolean;
+  /** 예산 상한 (원) */
+  maxPriceKrw?: number | null;
+  /** 남은 검증 기간 상한 (일) — "빨리 결과를 보고 싶다" */
+  withinDays?: number | null;
+}
+
+export const BUDGET_OPTIONS = [10_000, 30_000] as const;
+export const WITHIN_DAY_OPTIONS = [7, 30] as const;
+
+/** 필터가 하나라도 걸려 있나 — 화면의 "필터 해제" 표시 판단 */
+export function hasActiveFilter(f: MarketFilter): boolean {
+  return Boolean(f.refundOnly || f.maxPriceKrw || f.withinDays);
+}
 
 /** 목표 크기 비교값 — 수익성 5구간(자산군 무관 공통 축). 원값은 구매 전 비노출이라 쓰지 않는다 */
 function comparableSize(c: MarketCard): number {
@@ -256,6 +295,8 @@ function sortCards(cards: MarketCard[], sort: MarketSort): MarketCard[] {
       return sorted.sort((a, b) => b.priceKrw - a.priceKrw || byNewest(a, b));
     case 'TIER':
       return sorted.sort((a, b) => rank(b.tier) - rank(a.tier) || byNewest(a, b));
+    case 'RATING_DESC':
+      return sorted.sort((a, b) => ratingAverage(b) - ratingAverage(a) || byNewest(a, b));
     case 'SIZE_DESC':
       return sorted.sort((a, b) => comparableSize(b) - comparableSize(a) || byNewest(a, b));
     case 'DEADLINE':
@@ -315,6 +356,13 @@ function bucketOf(c: MarketCard, sort: MarketSort, now: Date): string {
     case 'TIER':
       // 문장 속 지칭이라 TIER_NAME — 무표기 등급도 이름이 필요하다 (TIER_LABEL은 빈 문자열)
       return `${TIER_NAME[c.tier as Tier] ?? c.tier} 리서처`;
+    case 'RATING_DESC': {
+      const avg = ratingAverage(c);
+      if (avg < 0) return '별점 미상';
+      if (avg >= 4) return '별점 4점 이상';
+      if (avg >= 3) return '별점 3점대';
+      return '별점 3점 미만';
+    }
     case 'SIZE_DESC':
       return c.profitability === null
         ? '목표 미상'
@@ -548,14 +596,150 @@ export async function getCardsByAssetClass(
   assetClass: AssetClass,
   sort: MarketSort = 'DEADLINE',
   now = new Date(),
+  filter: MarketFilter = {},
 ): Promise<MarketCard[]> {
+  // 필터는 DB에서 건다 — 메모리로 다 읽어와 거르면 목록이 커질수록 그대로 비용이 된다
+  const deadlineCap =
+    filter.withinDays != null
+      ? new Date(now.getTime() + filter.withinDays * DAY_MS)
+      : undefined;
+
   const reports = await prisma.report.findMany({
     where: {
       ...buyableWhere(now),
-      predictionCard: { is: { assetClass, deadline: { gt: now }, withdrawnAt: null } },
+      ...(filter.refundOnly ? { prepaymentRatio: 0 } : {}),
+      ...(filter.maxPriceKrw != null ? { priceKrw: { lte: filter.maxPriceKrw } } : {}),
+      predictionCard: {
+        is: {
+          assetClass,
+          deadline: deadlineCap ? { gt: now, lte: deadlineCap } : { gt: now },
+          withdrawnAt: null,
+        },
+      },
     },
     include: cardInclude,
   });
   // 정렬 기준 대부분이 관계 필드(시한·판매수·등급)라 한 번 읽어와 메모리에서 정렬한다
   return withSignals(prisma, sortCards(reports.map(toMarketCard), sort));
+}
+
+/**
+ * 카드 검색 — 리서처 이름 + 해시태그 조건.
+ *
+ * **종목으로는 검색할 수 없다.** 종목으로 좁히면 "이 조건으로 나온 카드 = 그 종목 예측"이
+ * 되어 구매 전 마스킹이 통째로 뚫린다. 그래서 축은 예측의 성질(자산군·방향·확신·조건)과
+ * 사람(이름·등급·인증·신규)뿐이다. 파서는 domain/cardQuery.ts.
+ *
+ * 걸 수 있는 조건은 DB에서 걸고, 파생값(수익성 구간·판정 이력)만 메모리에서 거른다.
+ */
+export async function searchCards(
+  prisma: PrismaClient,
+  q: CardQuery,
+  sort: MarketSort = 'DEADLINE',
+  now = new Date(),
+): Promise<MarketCard[]> {
+  const deadlineCap =
+    q.withinDays != null ? new Date(now.getTime() + q.withinDays * DAY_MS) : undefined;
+
+  // 이름·인증은 둘 다 researcher 조건이라 한 객체로 합쳐야 한다 (따로 쓰면 뒤가 앞을 덮는다)
+  const researcherWhere = {
+    ...(q.text ? { user: { penName: { contains: q.text } } } : {}),
+    ...(q.verifiedOnly ? { careerBadge: { not: null } } : {}),
+  };
+
+  const reports = await prisma.report.findMany({
+    where: {
+      ...buyableWhere(now),
+      ...(q.refundOnly ? { prepaymentRatio: 0 } : {}),
+      ...(q.maxPriceKrw != null ? { priceKrw: { lte: q.maxPriceKrw } } : {}),
+      ...(Object.keys(researcherWhere).length > 0 ? { researcher: researcherWhere } : {}),
+      predictionCard: {
+        is: {
+          ...(q.assetClasses.length > 0 ? { assetClass: { in: q.assetClasses } } : {}),
+          ...(q.direction ? { direction: q.direction } : {}),
+          // 화면의 별점은 1~10을 반으로 접은 값이라, 별 N개 이상 = 원값 2N 이상
+          ...(q.minStability != null
+            ? { selfStability: { gte: Math.ceil(q.minStability * 2) } }
+            : {}),
+          ...(q.minConfidence != null
+            ? { confidence: { gte: Math.ceil(q.minConfidence * 2) } }
+            : {}),
+          deadline: deadlineCap ? { gt: now, lte: deadlineCap } : { gt: now },
+          withdrawnAt: null,
+        },
+      },
+    },
+    include: cardInclude,
+  });
+
+  let cards = await withSignals(prisma, reports.map(toMarketCard));
+
+  // 수익성은 예측 크기에서 파생되는 값이라 DB 조건으로 걸 수 없다
+  if (q.minProfitability != null) {
+    const min = q.minProfitability;
+    cards = cards.filter((c) => (c.profitability ?? 0) >= min);
+  }
+  if (q.minTier) {
+    const min = q.minTier;
+    cards = cards.filter((c) => tierAtLeast(c.tier, min));
+  }
+  // 신규 = 아직 판정된 예측이 없는 리서처. 이들은 선결제가 막혀 있어 언제나 전액 환불이다
+  if (q.newcomerOnly) {
+    cards = cards.filter((c) => c.judgedCount === 0);
+  }
+
+  return sortCards(cards, sort);
+}
+
+/**
+ * 리서처 명함 — 무료 시황 본문 끝에 붙는 전환 지점.
+ *
+ * 구매 전 마스킹 때문에 유료 리포트의 본문은 살 때까지 볼 수 없다. 무료 시황은 그
+ * 예외라 전문이 공개되는데, 다 읽고 나면 "이 사람이 파는 건 뭐지"로 이어질 길이 없었다.
+ * 실적이 없는 신규 리서처에게는 글이 유일한 증명 수단이라 이 길이 특히 중요하다.
+ */
+export interface ResearcherCallout {
+  researcherId: string;
+  researcherName: string;
+  tier: string;
+  careerBadge: string | null;
+  bio: string | null;
+  hitRate: number | null;
+  judgedCount: number;
+  /** 지금 살 수 있는 카드 수 — 0이면 화면이 명함을 그리지 않는다 */
+  sellingCount: number;
+}
+
+export async function getResearcherCallout(
+  prisma: PrismaClient,
+  researcherId: string,
+  now = new Date(),
+): Promise<ResearcherCallout | null> {
+  const [profile, sellingCount, signals] = await Promise.all([
+    prisma.researcherProfile.findUnique({
+      where: { id: researcherId },
+      select: {
+        id: true,
+        tier: true,
+        careerBadge: true,
+        bio: true,
+        user: { select: { penName: true, email: true } },
+      },
+    }),
+    prisma.report.count({ where: { ...buyableWhere(now), researcherId } }),
+    researcherSignals(prisma, [researcherId]),
+  ]);
+  if (!profile) return null;
+
+  const s = signals.get(researcherId);
+  return {
+    researcherId: profile.id,
+    researcherName: profile.user.penName ?? profile.user.email,
+    tier: profile.tier,
+    careerBadge: profile.careerBadge,
+    bio: profile.bio,
+    hitRate: s?.hitRate ?? null,
+    judgedCount: s?.judgedCount ?? 0,
+    sellingCount,
+  };
 }

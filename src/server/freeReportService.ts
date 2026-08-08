@@ -72,12 +72,19 @@ export interface FreeReportSummary {
   tier: string;
   careerBadge: string | null;
   publishedAt: Date | null;
+  /**
+   * 이 리서처가 지금 판매 중인 카드 수.
+   * 무료 시황은 실적 없는 신규 리서처가 글로 자신을 증명하는 창구인데, 다 읽고 나서
+   * "이 사람이 파는 건 뭐지"로 갈 길이 없으면 그 증명이 판매로 이어지지 않는다.
+   */
+  sellingCount: number;
 }
 
 /** 무료 리포트 목록 — 최신순. 홈의 "무료로 열람 가능한 시황·증시 리포트" 섹션에서 쓴다 */
 export async function getFreeReports(
   prisma: PrismaClient,
   limit = 5,
+  now = new Date(),
 ): Promise<FreeReportSummary[]> {
   const reports = await prisma.report.findMany({
     where: { status: 'PUBLISHED', priceKrw: FREE_REPORT_PRICE_KRW, predictionCard: { is: null } },
@@ -85,6 +92,23 @@ export async function getFreeReports(
     take: limit,
     include: { researcher: { include: { user: { select: { penName: true, email: true } } } } },
   });
+
+  // 판매 중 카드 수는 목록 단위로 한 번에 (글마다 세면 N+1이 된다).
+  // "지금 살 수 있는" 기준은 purchaseService·리더보드와 같아야 한다 —
+  // 명함에 3장이라 적혀 있는데 눌러 보니 0장이면 그게 더 나쁘다
+  const researcherIds = [...new Set(reports.map((r) => r.researcherId))];
+  const selling = await prisma.report.groupBy({
+    by: ['researcherId'],
+    where: {
+      status: 'PUBLISHED',
+      researcherId: { in: researcherIds },
+      predictionCard: { is: { deadline: { gt: now }, withdrawnAt: null } },
+    },
+    _count: { researcherId: true },
+  });
+  const sellingByResearcher = new Map(
+    selling.map((s) => [s.researcherId, s._count.researcherId]),
+  );
 
   return reports.map((r) => ({
     reportId: r.id,
@@ -95,6 +119,7 @@ export async function getFreeReports(
     tier: r.researcher.tier,
     careerBadge: r.researcher.careerBadge,
     publishedAt: r.publishedAt,
+    sellingCount: sellingByResearcher.get(r.researcherId) ?? 0,
   }));
 }
 

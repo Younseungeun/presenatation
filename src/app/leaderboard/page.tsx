@@ -1,14 +1,20 @@
 import Link from "next/link";
+import { hasCriteria, parseCardQuery } from "@/domain/cardQuery";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getFollowedResearcherIds } from "@/server/followService";
 import {
+  BUDGET_OPTIONS,
   getBestSellingCards,
   getCardsByAssetClass,
   getFollowedSections,
   getTopTierCards,
   groupCards,
+  hasActiveFilter,
   MARKET_SORTS,
+  searchCards,
+  WITHIN_DAY_OPTIONS,
+  type MarketFilter,
   type MarketSort,
 } from "@/server/marketQueries";
 import { getSessionUserId } from "@/server/session";
@@ -17,7 +23,10 @@ import { EmptyState } from "../EmptyState";
 import { MaskedCard } from "../MaskedCard";
 import { TraceNotice } from "../TraceNotice";
 import { BestSellers } from "./BestSellers";
+import { FilterBar } from "./FilterBar";
 import { FollowedSections } from "./FollowedSections";
+import { SearchBar } from "./SearchBar";
+import { SearchResults } from "./SearchResults";
 import { SortPicker } from "./SortPicker";
 import styles from "../market.module.css";
 import lb from "./leaderboard.module.css";
@@ -35,10 +44,23 @@ export const dynamic = "force-dynamic";
 //   ④ 자산군별 → 전체 탐색       → 세로 목록, 첫 장만 히어로로 띄워 리듬을 준다
 // 훑는 속도가 섹션마다 달라지는 것이 목적이다 — 같은 속도로 계속 훑으면 지친다.
 
+/** 숫자 파라미터를 허용된 값 안에서만 받는다 — URL 조작으로 임의 조건이 들어오지 않게 */
+function pickNumber<T extends number>(raw: string | undefined, allowed: readonly T[]): T | null {
+  const n = Number(raw);
+  return allowed.find((v) => v === n) ?? null;
+}
+
 export default async function LeaderboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ asset?: string; sort?: string }>;
+  searchParams: Promise<{
+    asset?: string;
+    sort?: string;
+    refund?: string;
+    budget?: string;
+    within?: string;
+    q?: string;
+  }>;
 }) {
   const sp = await searchParams;
   const asset = (ASSET_CLASSES as readonly string[]).includes(sp.asset ?? "")
@@ -49,14 +71,29 @@ export default async function LeaderboardPage({
     : "DEADLINE") as MarketSort;
   const now = new Date();
 
+  // 필터는 정렬과 성격이 다르다 — 정렬은 순서를 바꾸고 필터는 후보를 줄인다.
+  // "예산 밖의 카드"는 아래로 밀리는 게 아니라 사라져야 훑는 양이 준다
+  const filter: MarketFilter = {
+    refundOnly: sp.refund === "1",
+    maxPriceKrw: pickNumber(sp.budget, BUDGET_OPTIONS),
+    withinDays: pickNumber(sp.within, WITHIN_DAY_OPTIONS),
+  };
+
+  // 검색 중에는 추천 섹션을 걷어내고 결과만 보여준다 — 찾으러 온 사람에게
+  // 추천을 계속 들이미는 건 방해다
+  const rawQuery = (sp.q ?? "").slice(0, 120);
+  const query = parseCardQuery(rawQuery);
+  const searching = hasCriteria(query);
+
   const viewerId = await getSessionUserId();
   const followedIds = viewerId ? await getFollowedResearcherIds(prisma, viewerId) : [];
 
-  const [bestSelling, topTier, cards, followedSections] = await Promise.all([
-    getBestSellingCards(prisma, 5, now),
-    getTopTierCards(prisma, 5, now),
-    getCardsByAssetClass(prisma, asset, sort, now),
-    getFollowedSections(prisma, followedIds, 6, now),
+  const [bestSelling, topTier, cards, followedSections, results] = await Promise.all([
+    searching ? [] : getBestSellingCards(prisma, 5, now),
+    searching ? [] : getTopTierCards(prisma, 5, now),
+    searching ? [] : getCardsByAssetClass(prisma, asset, sort, now, filter),
+    searching ? [] : getFollowedSections(prisma, followedIds, 6, now),
+    searching ? searchCards(prisma, query, sort, now) : [],
   ]);
 
   // 목록은 정렬 기준 그 자체로 구간을 나눈다 — 임의 간격 눈금은 리듬처럼 보일 뿐
@@ -65,14 +102,16 @@ export default async function LeaderboardPage({
 
   return (
     <main className={styles.page}>
-      <h1 className={styles.h1}>리더보드</h1>
-      <p className={styles.sub}>
-        지금 살 수 있는 예측 카드입니다. 모든 카드는 시한이 지나면 시장 데이터로 자동
-        판정되고, 틀리면 성과 연동분이 현금으로 환불됩니다.
-      </p>
-      {/* 카드가 나오기 전에 배경 궤적의 정체를 밝힌다 — 아래 섹션부터 이미 궤적이 보인다 */}
-      <TraceNotice />
+      {/* 탭 화면이라 헤더가 없다. 제목은 화면에서 빼되 페이지당 h1 하나는 남긴다
+          (스크린리더·문서 구조용) — 홈 화면과 같은 처리 */}
+      <h1 className="srOnly">리더보드 — 지금 살 수 있는 예측 카드</h1>
 
+      <SearchBar initial={rawQuery} />
+
+      {searching ? (
+        <SearchResults query={query} rawQuery={rawQuery} results={results} now={now} />
+      ) : (
+        <>
       {/* ① 팔로우한 리서처 — 사람이 단위 */}
       {followedSections.length > 0 && (
         <>
@@ -144,15 +183,26 @@ export default async function LeaderboardPage({
           </Link>
         ))}
       </div>
+
+      <FilterBar state={{ ...filter, asset, sort }} matched={cards.length} />
+
       <div className={styles.sortRow}>
-        <SortPicker asset={asset} sort={sort} />
+        <SortPicker asset={asset} sort={sort} filter={filter} />
       </div>
 
       {cards.length === 0 ? (
         <EmptyState
           compact
-          title="이 자산군에는 판매 중인 카드가 없어요"
-          body="다른 자산군 탭을 확인해보세요."
+          title={
+            hasActiveFilter(filter)
+              ? "이 조건에 맞는 카드가 없어요"
+              : "이 자산군에는 판매 중인 카드가 없어요"
+          }
+          body={
+            hasActiveFilter(filter)
+              ? "필터를 하나 풀어 보거나 다른 자산군 탭을 확인해보세요."
+              : "다른 자산군 탭을 확인해보세요."
+          }
         />
       ) : (
         groups.map((g, gi) => (
@@ -172,6 +222,13 @@ export default async function LeaderboardPage({
             ))}
           </section>
         ))
+      )}
+
+      {/* 배경 궤적의 정체 — 카드를 다 훑고 난 자리에 둔다.
+          상단은 검색·탐색 동선이라 고지가 끼어들면 방해가 되고,
+          "그 그래프 뭐였지?"라는 질문은 카드를 본 뒤에 생긴다 */}
+      <TraceNotice />
+        </>
       )}
     </main>
   );
