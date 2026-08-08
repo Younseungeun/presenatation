@@ -51,6 +51,9 @@ export function FollowedSections({
                 <span className={styles.prName}>{s.researcherName}</span>
                 {s.careerBadge && <VerifiedBadge />}
                 <TierChip tier={s.tier} />
+                {/* 고정은 본인이 정한 순서라는 사실이라 말로 적는다 — 무게만으로는
+                    "왜 이 사람이 맨 위인가"가 설명되지 않는다 */}
+                {s.pinned && <span className={styles.prPinned}>고정</span>}
               </span>
               <span className={styles.prMeta}>
                 팔로워 <strong>{s.followers.toLocaleString()}</strong>
@@ -59,9 +62,6 @@ export function FollowedSections({
                 <span className={styles.prDot} />
                 판매 중 <strong>{s.cards.length}</strong>장
               </span>
-            </span>
-            <span className={styles.prArrow} aria-hidden="true">
-              ›
             </span>
           </Link>
 

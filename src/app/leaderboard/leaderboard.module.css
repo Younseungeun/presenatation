@@ -2,31 +2,42 @@
    섹션마다 "주인공"이 다르므로(사람 / 판매량 / 등급 / 전체 목록) 형태도 다르게 준다.
    장식을 더해 다르게 만드는 것이 아니라, 각 섹션이 실제로 말하려는 것에 형태를 맞춘다. */
 
-/* ── 팔로우한 리서처 = 사람 단위 PR 블록 ────────────────────── */
+/* ── 팔로우한 리서처 = 사람 단위 PR 블록 ──────────────────────
+   흰 페이지 위에 흰 블록을 놓고 테두리만 그리면 아무것도 안 보인다(#fff 위 #fff, 테두리 #eef1f4).
+   그래서 블록에 **바닥을 깐다** — 옅은 회색 위에 흰 카드가 놓이면 카드가 "안에 담겨 있다"는
+   것이 색 없이도 읽힌다. 도형을 더 그리는 대신 도형과 바탕을 나눈 것이다.
+
+   민트 띠는 뺐다. 민트는 플랫폼 검증 전용이라(브랜드 §4-4) "내가 고른 사람" 표시에 쓰면
+   플랫폼이 보증한 것으로 오해된다. 고정 표시는 칩이 맡는다. */
 .prBlock {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--bg);
+  background: var(--surface);
   padding: 14px 0 4px;
   margin-bottom: 12px;
-  /* 왼쪽 민트 띠 — 이 블록은 "내가 고른 사람"이라는 표시.
-     플랫폼 검증색이 아니라 강조 띠라 얇게만 쓴다 */
-  border-left: 3px solid color-mix(in srgb, var(--brand-strong) 55%, transparent);
+  box-shadow: var(--shadow-sm);
 }
 
-/* 고정된 블록 — 띠를 진하게. 고정은 본인이 정한 순서라 그 표시가 보여야 한다 */
+/* 고정된 블록 — 테두리를 진하게 하고 한 겹 더 띄운다.
+   색이 아니라 무게로 구분한다 (색은 브랜드에서 뜻이 정해져 있다) */
 .prBlockPinned {
-  border-left-color: var(--brand-strong);
+  border-color: color-mix(in srgb, var(--text-faint) 40%, var(--border));
+  box-shadow: var(--shadow);
 }
 
 /* 고정 버튼은 머리 링크의 형제다 (링크 안에 버튼을 넣을 수 없다) — 위에 겹친다 */
 .prBlock {
   position: relative;
 }
+/* 프로필 줄 오른쪽 끝, 아바타 높이의 한가운데.
+   원래 이 자리에 '›' 화살표가 있었는데 압정과 겹쳤다. 화살표는 없앴다 —
+   머리 전체가 링크라 누를 수 있다는 건 이름만으로도 읽히고,
+   같은 자리에 두 개를 욱여넣는 것보다 하나를 지우는 편이 낫다 */
 .pin {
   position: absolute;
-  top: 10px;
-  right: 10px;
+  /* 블록 상단 패딩(14px) + 아바타(46px) 절반 − 버튼 절반 */
+  top: 21px;
+  right: 12px;
   z-index: 1;
   width: 32px;
   height: 32px;
@@ -40,8 +51,9 @@
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
+/* 블록 바닥이 회색이라 hover는 흰색으로 파낸다 */
 .pin:hover {
-  background: var(--surface);
+  background: var(--bg);
   color: var(--text-weak);
 }
 .pinOn {
@@ -98,6 +110,18 @@
   font-weight: 800;
   letter-spacing: -0.02em;
 }
+/* 고정 표시 — 무채색. 민트는 플랫폼 검증 전용이라 본인이 정한 순서에 쓸 수 없다 */
+.prPinned {
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--text-weak);
+}
 .prMeta {
   display: flex;
   align-items: center;
@@ -119,13 +143,6 @@
   opacity: 0.6;
   margin: 0 2px;
 }
-.prArrow {
-  flex-shrink: 0;
-  font-size: 22px;
-  line-height: 1;
-  color: var(--text-faint);
-}
-
 /* 소개말 — 리서처 본인의 목소리라 인용처럼 들여쓴다 */
 .prBio {
   margin: 10px 16px 0;
@@ -663,11 +680,16 @@
 }
 
 @media (max-width: 640px) {
-  .prHead,
   .prBio,
   .prRail {
     padding-left: 14px;
     padding-right: 14px;
+  }
+  /* 머리 줄은 오른쪽 압정 자리를 계속 비워 둬야 한다 —
+     좁은 화면에서 우측 패딩까지 줄이면 이름·실적이 압정 밑으로 들어간다 */
+  .prHead {
+    padding-left: 14px;
+    padding-right: 46px;
   }
   .prBio {
     margin-left: 14px;

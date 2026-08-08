@@ -22,6 +22,7 @@
     "op:grant": "tsx scripts/grantOperator.ts",
     "risk:set": "tsx scripts/setInstrumentRisk.ts",
     "batch:season": "tsx scripts/runSeasonRecalc.ts",
+    "batch:snapshot": "tsx scripts/runMarketSnapshot.ts",
     "eval:screening": "tsx scripts/evalScreening.ts",
     "batch:compliance": "tsx scripts/complianceOps.ts",
     "calibrate:semantic": "tsx scripts/calibrateSemantic.ts"

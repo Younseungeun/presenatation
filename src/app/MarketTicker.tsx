@@ -10,8 +10,17 @@ import styles from "./marketTicker.module.css";
 // 빠지는 순간 둘째 벌이 정확히 같은 자리에 와 있어, 되감기는 눈에 보이지 않는다.
 // 그래서 애니메이션은 -50%까지만 간다 (한 벌의 폭).
 //
-// 움직임을 줄이는 설정(prefers-reduced-motion)에서는 흐르지 않고 줄바꿈으로 눕는다 —
-// 정보가 사라지면 안 되므로 숨기는 것이 아니라 표현을 바꾼다.
+// ── 표기 원칙 ────────────────────────────────────────────────
+// 띠지는 읽는 것이 아니라 **스치며 잡는 것**이다. 잡히는 순서대로 무게를 준다:
+//   ① 증감의 방향 — 색과 화살표. 색은 글자보다 빠르다
+//   ② 값          — 가장 크고 진하게
+//   ③ 항목명       — 작고 옅게. 값이 무엇인지는 마지막에 확인해도 된다
+//
+// 괄호를 쓰지 않는다: `(+12)`의 괄호 두 글자에는 정보가 없는데, 흐르는 띠지에서
+// 글자 수는 곧 시간이다. 부호(+/−)도 쓰지 않는다 — 화살표가 이미 방향을 말한다.
+//
+// 화살표는 ↑↓다. ▲▼는 이 앱에서 **예측 방향**(상승·하락 예측)이 이미 쓰고 있어서,
+// 마켓 규모의 증감에 같은 글자를 쓰면 두 가지가 한 화면에서 섞인다.
 
 export function MarketTicker({ stats }: { stats: MarketStat[] }) {
   if (stats.length === 0) return null;
@@ -20,6 +29,14 @@ export function MarketTicker({ stats }: { stats: MarketStat[] }) {
     <span className={styles.item} key={`${dupe ? "b" : "a"}-${s.key}`}>
       <span className={styles.label}>{s.label}</span>
       <strong className={styles.value}>{s.value}</strong>
+      {s.delta && (
+        <span className={s.delta.up ? styles.deltaUp : styles.deltaDown}>
+          <span className={styles.arrow} aria-hidden="true">
+            {s.delta.up ? "↑" : "↓"}
+          </span>
+          {s.delta.amount}
+        </span>
+      )}
     </span>
   );
 
@@ -27,7 +44,14 @@ export function MarketTicker({ stats }: { stats: MarketStat[] }) {
     <div
       className={styles.band}
       role="status"
-      aria-label={`마켓 현황: ${stats.map((s) => `${s.label} ${s.value}`).join(", ")}`}
+      aria-label={`마켓 현황: ${stats
+        .map(
+          (s) =>
+            `${s.label} ${s.value}${
+              s.delta ? ` 어제보다 ${s.delta.amount} ${s.delta.up ? "증가" : "감소"}` : ""
+            }`,
+        )
+        .join(", ")}`}
     >
       {/* 흐르는 줄은 장식이라 보조기기에는 위 aria-label 한 줄로 충분하다 */}
       <div className={styles.track} aria-hidden="true">

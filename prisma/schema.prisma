@@ -47,6 +47,22 @@ model ResearcherProfile {
   followers     Follow[] // 나를 팔로우한 사용자들
 }
 
+// 마켓 규모 스냅샷: 매시간 찍어 두는 집계값.
+// 띠지의 증감(+3)은 "지금 값 − 과거 값"인데, 과거 값은 지금 조회로는 알 수 없다
+// (판정·구매는 시점만 남고 "그때 몇 건이었나"는 재구성해야 하며, 검증 중 카드 수처럼
+// 오르내리는 값은 아예 복원이 불가능하다). 그래서 그때그때 찍어 둔다.
+model MarketSnapshot {
+  id          String   @id @default(cuid())
+  takenAt     DateTime @default(now())
+  verifying   Int // 검증 중인 예측 카드
+  judged      Int // 누적 자동 판정
+  researchers Int // 게시 이력이 있는 리서처
+  refundedKrw Int // 누적 현금 환불
+  escrowKrw   Int // 에스크로 보관 중
+
+  @@index([takenAt])
+}
+
 // 운영 설정: 배포 없이 운영자가 켜고 끄는 값들.
 // 환경변수로 두면 바꿀 때마다 재배포가 필요해 "지금 끄고 싶다"에 대응할 수 없다.
 // 값은 문자열로 저장하고 해석은 server/appSettings.ts가 맡는다 (키마다 타입이 다르다).
