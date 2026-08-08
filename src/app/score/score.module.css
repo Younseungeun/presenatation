@@ -1,0 +1,314 @@
+/* 점수 계산기 — 조작부(위) / 결과(아래) 2단.
+   결과가 조작에 즉시 반응해야 "내가 만지는 값이 점수를 만든다"가 몸으로 읽힌다. */
+
+.calc {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-weak);
+}
+.value {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text, #191f28);
+}
+/* 실현 등락만 강조 — 리서처가 정하는 값이 아니라 시장이 주는 값이라 성격이 다르다 */
+.valueOn {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--brand-strong);
+}
+.hint {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-faint);
+}
+
+/* 슬라이더 — accent-color만 두면 채워지지 않은 구간이 UA 기본색(거의 검정)이라
+   화면에서 띠가 무겁게 뜬다. 트랙을 직접 그린다 */
+.range {
+  width: 100%;
+  height: 22px;
+  margin: 0;
+  background: none;
+  -webkit-appearance: none;
+  appearance: none;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+.range::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-2);
+}
+.range::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--brand-strong);
+}
+.range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--brand-strong);
+  box-shadow: var(--shadow-sm);
+}
+.range::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--bg);
+  border: 2px solid var(--brand-strong);
+  box-shadow: var(--shadow-sm);
+}
+.range:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: 2px;
+}
+
+.segment {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--surface-2);
+  border-radius: 12px;
+}
+.segBtn {
+  flex: 1;
+  height: 36px;
+  border: none;
+  background: none;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-weak);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.segOn {
+  background: var(--bg);
+  color: var(--text, #191f28);
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── 결과 ─────────────────────────────────────────────── */
+.result {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  padding: 16px;
+}
+.totalRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.totalLabel {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.total {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+.parts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 12px 0 4px;
+}
+.part {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.partKey {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.partKey i {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.partVal {
+  font-size: 19px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.partNote {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.chartWrap {
+  margin: 8px 0 0;
+}
+.chart {
+  display: block;
+  width: 100%;
+  height: 150px;
+}
+.chartLegend {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 10.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.legendMid {
+  text-align: center;
+  flex: 1;
+}
+
+/* ── 설명 블록 (페이지) ───────────────────────────────── */
+.rules {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rule {
+  display: flex;
+  gap: 12px;
+}
+.ruleNum {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ruleBody {
+  flex: 1;
+  min-width: 0;
+}
+.ruleTitle {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.ruleText {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--text-weak);
+  margin-top: 3px;
+}
+
+/* 계산기 진입 배너 — 랭킹·작성 화면에서 부른다 */
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: inherit;
+  margin-bottom: 18px;
+}
+.entry:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 30%, var(--border));
+}
+.entryIcon {
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.entryMain {
+  flex: 1;
+  min-width: 0;
+  /* 제목·설명이 span이라 블록으로 세워야 두 줄이 된다 */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.entryTitle {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.entrySub {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  margin-top: 2px;
+  line-height: 1.5;
+}
+.entryArrow {
+  flex-shrink: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+@media (max-width: 420px) {
+  .parts {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  .total {
+    font-size: 26px;
+  }
+}

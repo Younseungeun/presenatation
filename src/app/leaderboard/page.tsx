@@ -5,82 +5,35 @@ import { getFollowedResearcherIds } from "@/server/followService";
 import {
   getBestSellingCards,
   getCardsByAssetClass,
-  getFollowedResearcherCards,
+  getFollowedSections,
   getTopTierCards,
+  groupCards,
   MARKET_SORTS,
-  type MarketCard,
   type MarketSort,
 } from "@/server/marketQueries";
 import { getSessionUserId } from "@/server/session";
 import { CleanBanner } from "../CleanBanner";
 import { EmptyState } from "../EmptyState";
-import { dday, predictionLabel } from "../format";
-import { TierChip } from "../TierChip";
+import { MaskedCard } from "../MaskedCard";
+import { TraceNotice } from "../TraceNotice";
+import { BestSellers } from "./BestSellers";
+import { FollowedSections } from "./FollowedSections";
 import { SortPicker } from "./SortPicker";
 import styles from "../market.module.css";
+import lb from "./leaderboard.module.css";
 
 export const dynamic = "force-dynamic";
 
 // 리더보드 — "지금 살 수 있는 예측 카드"를 탐색하는 화면.
-// 리서처 순위(사람)는 랭킹 화면이 담당한다. 여기서는 카드가 주인공이다:
-// 상단은 추천 레일(잘 팔리는 / 상위 등급), 하단은 자산군별 목록.
-
-/** 가로 레일용 카드 */
-function RailCard({ c, now, showSales }: { c: MarketCard; now: Date; showSales?: boolean }) {
-  return (
-    <Link href={`/report/${c.reportId}`} className={styles.railCard}>
-      <div className={styles.railTop}>
-        {c.assetName && <span className={styles.railAsset}>{c.assetName}</span>}
-        <span
-          className={styles.railDir}
-          style={{ color: c.direction === "UP" ? "var(--pos)" : "var(--neg)" }}
-        >
-          {predictionLabel(c.direction, c.targetType, c.targetValue)}
-        </span>
-      </div>
-      <div className={styles.railCardTitle}>{c.title}</div>
-      <div className={styles.railMeta}>
-        <span>{c.researcherName}</span>
-        <TierChip tier={c.tier} />
-        {showSales && c.salesCount > 0 && <span>· {c.salesCount}명 구매</span>}
-      </div>
-      <div className={styles.railFoot}>
-        <span className={styles.railPrice}>{c.priceKrw.toLocaleString()}원</span>
-        <span className={styles.railDday}>{dday(c.deadline, now)}</span>
-      </div>
-    </Link>
-  );
-}
-
-/** 하단 목록용 카드 */
-function ListCard({ c, now }: { c: MarketCard; now: Date }) {
-  return (
-    <Link href={`/report/${c.reportId}`} className={styles.reportCard}>
-      <div className={styles.reportTitle}>{c.title}</div>
-      <div className={styles.meta}>
-        <span>{c.researcherName}</span>
-        <TierChip tier={c.tier} />
-        {c.careerBadge && <span className={styles.pill}>인증</span>}
-      </div>
-      <div className={styles.meta}>
-        {c.assetName && (
-          <span>
-            {c.assetName}({c.ticker})
-          </span>
-        )}
-        <span style={{ color: c.direction === "UP" ? "var(--pos)" : "var(--neg)", fontWeight: 700 }}>
-          {predictionLabel(c.direction, c.targetType, c.targetValue)}
-        </span>
-      </div>
-      <div className={styles.meta}>
-        <span style={{ fontWeight: 800 }}>{c.priceKrw.toLocaleString()}원</span>
-        <span>{dday(c.deadline, now)}</span>
-        {c.prepaymentRatio === 0 && <span className={styles.pill}>틀리면 100% 환불</span>}
-        {c.salesCount > 0 && <span>{c.salesCount}명 구매</span>}
-      </div>
-    </Link>
-  );
-}
+// 리서처 순위(사람)는 랭킹 화면이 담당한다. 여기서는 카드가 주인공이다.
+//
+// 화면 구성의 원칙: **섹션마다 주인공이 다르므로 형태도 다르다.**
+// 같은 카드 컴포넌트를 네 번 늘어놓으면 정보가 아니라 벽지가 된다.
+//   ① 팔로우 → 주인공이 사람   → 프로필·소개말이 머리인 PR 블록
+//   ② 잘 팔리는 → 주인공이 판매량 → 숫자를 앞세운 순위표
+//   ③ 상위 등급 → 주인공이 카드   → 가로 레일(압축 카드)
+//   ④ 자산군별 → 전체 탐색       → 세로 목록, 첫 장만 히어로로 띄워 리듬을 준다
+// 훑는 속도가 섹션마다 달라지는 것이 목적이다 — 같은 속도로 계속 훑으면 지친다.
 
 export default async function LeaderboardPage({
   searchParams,
@@ -99,12 +52,16 @@ export default async function LeaderboardPage({
   const viewerId = await getSessionUserId();
   const followedIds = viewerId ? await getFollowedResearcherIds(prisma, viewerId) : [];
 
-  const [bestSelling, topTier, cards, followed] = await Promise.all([
+  const [bestSelling, topTier, cards, followedSections] = await Promise.all([
     getBestSellingCards(prisma, 5, now),
     getTopTierCards(prisma, 5, now),
     getCardsByAssetClass(prisma, asset, sort, now),
-    getFollowedResearcherCards(prisma, followedIds, 10, now),
+    getFollowedSections(prisma, followedIds, 6, now),
   ]);
+
+  // 목록은 정렬 기준 그 자체로 구간을 나눈다 — 임의 간격 눈금은 리듬처럼 보일 뿐
+  // 정보가 아니고, 사용자가 방금 고른 정렬이 곧 "지금 무엇을 보는가"의 답이다
+  const groups = groupCards(cards, sort, now);
 
   return (
     <main className={styles.page}>
@@ -113,53 +70,55 @@ export default async function LeaderboardPage({
         지금 살 수 있는 예측 카드입니다. 모든 카드는 시한이 지나면 시장 데이터로 자동
         판정되고, 틀리면 성과 연동분이 현금으로 환불됩니다.
       </p>
+      {/* 카드가 나오기 전에 배경 궤적의 정체를 밝힌다 — 아래 섹션부터 이미 궤적이 보인다 */}
+      <TraceNotice />
 
-      {/* 팔로우한 리서처의 카드 — 내가 고른 사람들이라 가장 위에 둔다 */}
-      {followed.length > 0 && (
+      {/* ① 팔로우한 리서처 — 사람이 단위 */}
+      {followedSections.length > 0 && (
         <>
-          <div className={styles.railHead}>
-            <span className={styles.railTitle}>팔로우한 리서처의 카드</span>
-            <span className={styles.railNote}>최신순</span>
+          <div className={`${lb.secHead} ${lb.secHeadFirst}`}>
+            <span className={lb.secTitle}>팔로우한 리서처</span>
+            <span className={lb.secNote}>새 카드 낸 순</span>
           </div>
-          <div className={styles.rail}>
-            {followed.map((c) => (
-              <RailCard key={c.reportId} c={c} now={now} />
-            ))}
-          </div>
+          <FollowedSections sections={followedSections} now={now} />
         </>
       )}
 
-      {/* 팔로우는 했지만 지금 파는 카드가 없을 때 — 빈 레일 대신 한 줄로 알린다 */}
-      {followedIds.length > 0 && followed.length === 0 && (
+      {/* 팔로우는 했지만 지금 파는 카드가 없을 때 — 빈 블록 대신 한 줄로 알린다 */}
+      {followedIds.length > 0 && followedSections.length === 0 && (
         <p className={styles.sub}>
           팔로우한 리서처가 지금 판매 중인 카드는 없습니다. 새 카드가 올라오면 알림으로
           알려드릴게요.
         </p>
       )}
 
+      {/* ② 지금 잘 팔리는 — 판매량이 주인공이라 순위표로 */}
       {bestSelling.length > 0 && (
         <>
-          <div className={styles.railHead}>
-            <span className={styles.railTitle}>지금 잘 팔리는 카드</span>
-            <span className={styles.railNote}>구매 많은 순</span>
+          <div className={lb.secHead}>
+            <span className={lb.secTitle}>지금 잘 팔리는 카드</span>
+            <span className={lb.secNote}>구매 많은 순</span>
           </div>
-          <div className={styles.rail}>
-            {bestSelling.map((c) => (
-              <RailCard key={c.reportId} c={c} now={now} showSales />
-            ))}
-          </div>
+          <BestSellers cards={bestSelling} now={now} />
         </>
       )}
 
+      {/* ③ 상위 등급 — 카드가 주인공이라 가로 레일 */}
       {topTier.length > 0 && (
         <>
-          <div className={styles.railHead}>
-            <span className={styles.railTitle}>상위 등급 리서처의 카드</span>
-            <span className={styles.railNote}>등급 높은 순</span>
+          <div className={lb.secHead}>
+            <span className={lb.secTitle}>상위 등급 리서처의 카드</span>
+            <span className={lb.secNote}>등급 높은 순</span>
           </div>
           <div className={styles.rail}>
             {topTier.map((c) => (
-              <RailCard key={c.reportId} c={c} now={now} />
+              <MaskedCard
+                key={c.reportId}
+                c={c}
+                now={now}
+                href={`/report/${c.reportId}`}
+                compact
+              />
             ))}
           </div>
         </>
@@ -170,8 +129,9 @@ export default async function LeaderboardPage({
         <CleanBanner emphasis />
       </div>
 
-      <div className={styles.railHead}>
-        <span className={styles.railTitle}>자산군별 찾기</span>
+      {/* ④ 자산군별 전체 목록 */}
+      <div className={lb.secHead}>
+        <span className={lb.secTitle}>자산군별 찾기</span>
       </div>
       <div className={styles.tabs}>
         {ASSET_CLASSES.map((a) => (
@@ -195,7 +155,23 @@ export default async function LeaderboardPage({
           body="다른 자산군 탭을 확인해보세요."
         />
       ) : (
-        cards.map((c) => <ListCard key={c.reportId} c={c} now={now} />)
+        groups.map((g, gi) => (
+          <section key={g.label || gi}>
+            {g.label && (
+              <div className={lb.groupHead}>
+                <span className={lb.groupLabel}>{g.label}</span>
+                <span className={lb.groupCount}>{g.cards.length}장</span>
+              </div>
+            )}
+            {g.cards.map((c, i) => (
+              // 목록 전체의 첫 장만 히어로 — 정렬 1순위가 무엇인지가 목록의 의미를 말해준다
+              <div key={c.reportId} className={gi === 0 && i === 0 ? lb.hero : undefined}>
+                {gi === 0 && i === 0 && <span className={lb.heroTag}>이 정렬의 1순위</span>}
+                <MaskedCard c={c} now={now} href={`/report/${c.reportId}`} />
+              </div>
+            ))}
+          </section>
+        ))
       )}
     </main>
   );

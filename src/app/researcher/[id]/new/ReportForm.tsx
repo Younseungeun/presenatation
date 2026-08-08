@@ -5,6 +5,7 @@ import { useRef, useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
 import { PRICE_GUIDE_KRW } from "@/domain/publishReport";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
+import { ScoreCalculatorEntry } from "../../../score/ScoreCalculatorEntry";
 import styles from "../../researcher.module.css";
 
 const RATING = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -117,7 +118,6 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
         deadline: new Date(String(f.get("deadline"))).toISOString(),
         confidence: num("confidence"),
         selfStability: num("selfStability"),
-        selfProfitability: num("selfProfitability"),
       },
     };
 
@@ -277,17 +277,14 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             정밀도 배팅 — 실현이 예측 수익률에 가까울수록 가점, 멀수록 감점 (초과는 관대). 1은 불참
           </span>
         </div>
-        <div className={styles.field}>
-          <label className={styles.label}>수익성 (자기평가 1~10)</label>
-          <select className={styles.select} name="selfProfitability" defaultValue="5">
-            {RATING.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* 수익성은 예측 수익률에서 자동 산출된다 — 입력 항목이 아니다 */}
       </div>
+
+      {/* 설명이 필요한 지점과 설명이 있는 지점을 같게 — 두 값을 고르는 바로 그 자리 */}
+      <ScoreCalculatorEntry
+        title="이 설정이면 몇 점을 따고 잃나요?"
+        sub="신뢰도·안정성을 바꿔 가며 실제 채점 결과를 미리 확인해 보세요"
+      />
 
       <h3>판매 조건</h3>
       <div className={styles.row}>

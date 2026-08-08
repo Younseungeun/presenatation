@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/server/db";
 import { getAllTimeRanking, type RankingSort } from "@/server/leaderboardQueries";
 import { EmptyState } from "../EmptyState";
+import { ScoreCalculatorEntry } from "../score/ScoreCalculatorEntry";
 import { StatusChip } from "../StatusChip";
 import { TierChip } from "../TierChip";
 import styles from "../market.module.css";
@@ -38,6 +39,12 @@ export default async function RankingPage({
         전 기간·전 자산군을 통합한 누적 트랙레코드입니다. 이번 시즌·자산군별 경쟁은
         리더보드에서 볼 수 있습니다.
       </p>
+
+      {/* 점수의 결과가 나열되는 화면이라 "어떻게 나온 숫자인가"를 여기서 연다 */}
+      <ScoreCalculatorEntry
+        title="이 점수는 어떻게 매겨지나요?"
+        sub="실제 정산이 쓰는 계산식 그대로, 값을 바꿔 가며 직접 확인해 보세요"
+      />
 
       <div className={styles.tabs}>
         {SORTS.map((s) => (

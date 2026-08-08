@@ -109,7 +109,6 @@ async function main() {
           deadline: new Date(now.getTime() + (20 + (i % 5) * 20) * 86_400_000),
           confidence: 3,
           selfStability: 6,
-          selfProfitability: 7,
         },
       },
       now,

@@ -1,0 +1,295 @@
+/* 리더보드 전용 모듈 — 같은 카드가 끝없이 반복되는 화면을 리듬 있는 화면으로.
+   섹션마다 "주인공"이 다르므로(사람 / 판매량 / 등급 / 전체 목록) 형태도 다르게 준다.
+   장식을 더해 다르게 만드는 것이 아니라, 각 섹션이 실제로 말하려는 것에 형태를 맞춘다. */
+
+/* ── 팔로우한 리서처 = 사람 단위 PR 블록 ────────────────────── */
+.prBlock {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg);
+  padding: 14px 0 4px;
+  margin-bottom: 12px;
+  /* 왼쪽 민트 띠 — 이 블록은 "내가 고른 사람"이라는 표시.
+     플랫폼 검증색이 아니라 강조 띠라 얇게만 쓴다 */
+  border-left: 3px solid color-mix(in srgb, var(--brand-strong) 55%, transparent);
+}
+
+.prHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 16px;
+  color: inherit;
+}
+.prAvatar {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.prAvatarImg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.prMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.prNameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.prName {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.prMeta {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.prMeta strong {
+  font-weight: 800;
+  color: var(--text, #191f28);
+  font-variant-numeric: tabular-nums;
+}
+.prDot {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  opacity: 0.6;
+  margin: 0 2px;
+}
+.prArrow {
+  flex-shrink: 0;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+/* 소개말 — 리서처 본인의 목소리라 인용처럼 들여쓴다 */
+.prBio {
+  margin: 10px 16px 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-weak);
+  overflow-wrap: break-word;
+}
+
+.prRail {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  padding: 12px 16px 10px;
+}
+.prRail::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── 지금 잘 팔리는 = 순위표 ────────────────────────────────── */
+.rankList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg);
+}
+.rankList li + li .rankRow {
+  border-top: 1px solid var(--border);
+}
+.rankRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  color: inherit;
+}
+.rankRow:hover {
+  background: var(--surface);
+}
+.rankNum {
+  width: 20px;
+  flex-shrink: 0;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+  letter-spacing: -0.03em;
+}
+/* 1~3위만 진하게 — 순위표라는 걸 색이 아니라 굵기로 말한다 */
+.rankList li:nth-child(-n + 3) .rankNum {
+  color: var(--text, #191f28);
+}
+.rankMain {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.rankHead {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.rankSub {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.rankDot {
+  width: 2px;
+  height: 2px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  opacity: 0.6;
+  margin: 0 2px;
+}
+.rankRight {
+  flex-shrink: 0;
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rankPrice {
+  font-size: 14.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.rankSales {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--brand-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 섹션 머리 — 번호 없는 큰 제목 + 오른쪽 보조 설명 ──────── */
+.secHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 30px 0 12px;
+}
+.secTitle {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+.secNote {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+/* 첫 섹션은 위 여백을 줄인다 — 안내 문구 바로 아래라 */
+.secHeadFirst {
+  margin-top: 20px;
+}
+
+/* ── 자산군 목록의 첫 카드 = 히어로 ─────────────────────────── */
+.hero {
+  position: relative;
+  margin-bottom: 10px;
+}
+.heroTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--brand-strong);
+}
+.heroTag::before {
+  content: "";
+  width: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: currentColor;
+}
+/* 히어로 카드만 테두리를 한 단 진하게 — 크기를 키우지 않고 무게만 준다 */
+.hero > a {
+  border-color: color-mix(in srgb, var(--brand-strong) 32%, var(--border));
+  box-shadow: var(--shadow-sm);
+}
+
+/* 목록 구간 제목 — 정렬 기준이 만든 구간 (오늘 마감 / 이번 주 …).
+   섹션 제목(.secTitle)보다 한 단 작게: 여기는 목록 안의 눈금이지 새 섹션이 아니다.
+   스크롤 중에도 지금 어느 구간인지 보이도록 붙여 둔다 */
+.groupHead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 20px 0 10px;
+  padding: 6px 0;
+  background: var(--bg);
+}
+.groupHead::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  align-self: center;
+}
+.groupLabel {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text, #191f28);
+}
+.groupCount {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .prHead,
+  .prBio,
+  .prRail {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
+  .prBio {
+    margin-left: 14px;
+    margin-right: 14px;
+    padding-left: 10px;
+  }
+  .rankRow {
+    padding: 12px 14px;
+  }
+}

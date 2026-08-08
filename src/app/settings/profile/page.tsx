@@ -18,7 +18,10 @@ export default async function ProfileSettingsPage() {
 
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { penName: true, researcherProfile: { select: { id: true } } },
+    select: {
+      penName: true,
+      researcherProfile: { select: { id: true, bio: true } },
+    },
   });
   if (!user) redirect("/login?next=/settings/profile");
 
@@ -33,7 +36,11 @@ export default async function ProfileSettingsPage() {
             ? "필명은 공개 프로필·리포트·리더보드에 표시되는 이름입니다."
             : "필명은 리서처에게 보이는 표시 이름입니다. 정하지 않으면 익명으로 표시됩니다."}
         </p>
-        <ProfileForm initialPenName={user.penName ?? ""} researcherId={researcherId} />
+        <ProfileForm
+          initialPenName={user.penName ?? ""}
+          initialBio={user.researcherProfile?.bio ?? ""}
+          researcherId={researcherId}
+        />
       </main>
     </>
   );

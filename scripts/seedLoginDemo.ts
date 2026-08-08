@@ -97,7 +97,6 @@ async function publish(spec: ReportSpec): Promise<string> {
         deadline: spec.deadline,
         confidence: 4,
         selfStability: 6,
-        selfProfitability: 7,
       },
     },
     spec.publishAt,
