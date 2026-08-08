@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { JUDGMENT_POPUP_DISMISS_KEY } from "../ActiveJudgmentPopup";
+import { clearFloatingDismissals } from "../floatingDismiss";
 import styles from "../researcher/researcher.module.css";
 import s from "./login.module.css";
 
@@ -71,7 +71,7 @@ export function LoginForm() {
         return;
       }
       // 새로 로그인했으면 검증 현황을 다시 알린다 (이전 방문에서 닫았더라도)
-      sessionStorage.removeItem(JUDGMENT_POPUP_DISMISS_KEY);
+      clearFloatingDismissals();
       // 리서처로 시작했으면 첫 화면은 리포트를 쓰는 자리로
       router.push(body.researcherId ? `/researcher/${body.researcherId}` : next);
       router.refresh();

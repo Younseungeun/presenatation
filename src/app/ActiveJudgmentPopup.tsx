@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  dismissFloating,
+  isFloatingDismissed,
+  serverDismissSnapshot,
+  subscribeFloatingDismiss,
+} from "./floatingDismiss";
+import { floatingSlotFor } from "./floatingSlot";
 import styles from "./activeJudgmentPopup.module.css";
 
 // 진행 중인 판정 팝업 — 홈의 '내 검증 현황' 섹션을 대신한다.
@@ -28,58 +35,37 @@ const DELETE_RATIO = 0.25;
 const FALLBACK_WIDTH = 320;
 /** 이 거리 이상 움직였으면 탭이 아니라 스와이프 — 링크 이동을 막는다 */
 const DRAG_SLOP = 6;
-/**
- * 닫힘 기억 — 이번 방문에만 유지한다 (앱을 다시 열면 검증 현황을 새로 알린다).
- * 로그인할 때도 지워서 새로 들어온 사람에게는 다시 알린다 (login/LoginForm에서 호출).
- */
-export const JUDGMENT_POPUP_DISMISS_KEY = "rm.judgmentPopup.dismissed.v1";
-const DISMISS_KEY = JUDGMENT_POPUP_DISMISS_KEY;
-
 export function ActiveJudgmentPopup({
   activeCount,
   nearestTitle,
   dday,
+  canCompose,
 }: {
   activeCount: number;
   nearestTitle: string | null;
   dday: string | null;
+  /** 리서처 계정인가 — 글쓰기 버튼이 이 자리를 가져갈 수 있는지 판단에 쓴다 */
+  canCompose: boolean;
 }) {
   const pathname = usePathname();
   const onMyScreen = pathname.startsWith("/my");
-  // 서버 HTML과 어긋나지 않게 첫 렌더는 감춘 상태로 두고, 마운트 후 닫힘 여부를 읽는다
-  const [ready, setReady] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
+  // 닫힘은 공유 저장소에서 읽는다 — 이 팝업이 닫히면 그 자리를 글쓰기 버튼이 물려받으므로
+  // 양쪽이 같은 값을 보고 함께 다시 그려져야 한다 (floatingDismiss.ts)
+  const dismissed = useSyncExternalStore(
+    subscribeFloatingDismiss,
+    () => isFloatingDismissed("judgment"),
+    serverDismissSnapshot,
+  );
   // 손을 뗀 뒤의 고정 위치만 상태로 둔다 — 미는 동안에는 DOM을 직접 움직여야 부드럽다
   const [offset, setOffset] = useState(0);
 
-  // 이 컴포넌트는 레이아웃에 있어 화면을 옮겨도 살아 있고, 앱을 새로 실행할 때만 다시 붙는다.
-  // 그래서 "처음 붙는 순간 = 앱 실행"으로 보고 닫았던 기록을 지운다 (실행할 때마다 다시 알림).
-  const freshLaunch = useRef(true);
-  // sessionStorage는 서버에 없어 렌더 중에는 읽을 수 없다(하이드레이션 불일치).
-  // 마운트 후 한 번 읽어 상태를 맞추는 것이 이 값의 유일한 동기화 경로다 —
-  // set-state-in-effect 규칙이 겨냥하는 연쇄 렌더가 아니라 외부 저장소 구독에 해당한다.
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // MY로 갔으면 목적을 다한 팝업이다 — 이번 실행에서는 다시 띄우지 않는다.
+  // (렌더 중 저장소를 건드리지 않도록 effect에서 한 번만)
   useEffect(() => {
-    if (freshLaunch.current) {
-      freshLaunch.current = false;
-      sessionStorage.removeItem(DISMISS_KEY);
-    }
-    if (onMyScreen) {
-      // MY로 갔으면 목적을 다한 팝업이다 — 이번 실행에서는 다시 띄우지 않는다
-      sessionStorage.setItem(DISMISS_KEY, "1");
-      setDismissed(true);
-    } else {
-      // 로그인·로그아웃이 기록을 지웠다면 다시 뜬다
-      setDismissed(sessionStorage.getItem(DISMISS_KEY) !== null);
-    }
-    setReady(true);
-  }, [pathname, onMyScreen]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+    if (onMyScreen && !isFloatingDismissed("judgment")) dismissFloating("judgment");
+  }, [onMyScreen]);
 
-  const close = () => {
-    sessionStorage.setItem(DISMISS_KEY, "1");
-    setDismissed(true);
-  };
+  const close = () => dismissFloating("judgment");
   const startX = useRef(0);
   const moved = useRef(0);
   // 상태 갱신은 다음 렌더에 반영되므로, 판단은 항상 ref로 한다
@@ -120,9 +106,12 @@ export function ActiveJudgmentPopup({
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [ready, dismissed, onMyScreen]);
+  }, [dismissed, onMyScreen]);
 
-  if (!ready || dismissed || onMyScreen || activeCount === 0) return null;
+  // 글쓰기 버튼과 자리를 다툰다 — 어느 쪽을 띄울지는 floatingSlot이 정한다.
+  // 두 컴포넌트가 같은 규칙을 보므로 둘 다 뜨거나 둘 다 사라지는 일이 없다
+  const slot = floatingSlotFor(pathname, { hasJudgment: activeCount > 0, canCompose });
+  if (dismissed || onMyScreen || slot !== "judgment") return null;
 
   const stage = () => stageWidth.current || FALLBACK_WIDTH;
   /** 열린 상태로 고정되는 거리 (팝업 폭의 25%) */
