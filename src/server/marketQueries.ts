@@ -532,6 +532,8 @@ export interface FollowedSection {
   careerBadge: string | null;
   bio: string | null;
   followers: number;
+  /** 리더보드에 고정한 리서처인가 — 고정은 언제나 위에 온다 */
+  pinned: boolean;
   cards: MarketCard[];
 }
 
@@ -541,6 +543,8 @@ export async function getFollowedSections(
   /** 리서처당 노출 카드 수 */
   perResearcher = 6,
   now = new Date(),
+  /** 고정한 리서처 id — 고정한 순서대로. 이들이 목록 맨 앞에 온다 */
+  pinnedIds: string[] = [],
 ): Promise<FollowedSection[]> {
   if (researcherIds.length === 0) return [];
 
@@ -573,6 +577,9 @@ export async function getFollowedSections(
     byResearcher.set(c.researcherId, list);
   }
 
+  // 고정 순서 — 목록에 없으면 뒤로 보낸다
+  const pinRank = new Map(pinnedIds.map((id, i) => [id, i]));
+
   return [...byResearcher.entries()]
     .map(([researcherId, cards]) => ({
       researcherId,
@@ -581,13 +588,22 @@ export async function getFollowedSections(
       careerBadge: cards[0].careerBadge,
       bio: bios.get(researcherId) ?? null,
       followers: followers.get(researcherId) ?? 0,
+      pinned: pinRank.has(researcherId),
       cards,
     }))
-    // 새 카드를 낸 사람이 위로 — 팔로우의 목적이 새 카드를 놓치지 않는 것이다
-    .sort(
-      (a, b) =>
-        (b.cards[0].publishedAt?.getTime() ?? 0) - (a.cards[0].publishedAt?.getTime() ?? 0),
-    );
+    .sort((a, b) => {
+      // 고정한 사람이 언제나 먼저, 그 안에서는 고정한 순서대로.
+      // 팔로우가 늘면 최신순만으로는 "늘 보고 싶은 사람"이 아래로 밀린다
+      const ra = pinRank.get(a.researcherId);
+      const rb = pinRank.get(b.researcherId);
+      if (ra !== undefined || rb !== undefined) {
+        if (ra === undefined) return 1;
+        if (rb === undefined) return -1;
+        return ra - rb;
+      }
+      // 나머지는 새 카드를 낸 사람이 위로 — 팔로우의 목적이 새 카드를 놓치지 않는 것이다
+      return (b.cards[0].publishedAt?.getTime() ?? 0) - (a.cards[0].publishedAt?.getTime() ?? 0);
+    });
 }
 
 /** 자산군별 카드 목록 — 하단 탭에서 쓴다 */

@@ -10,7 +10,9 @@ import {
   getFollowerList,
   getFollowingList,
   getFollowStats,
+  getPinnedResearcherIds,
   NEW_CARD_NOTIFICATION_TYPE,
+  setResearcherPinned,
   unfollowResearcher,
 } from '../followService';
 import { getFollowedSections } from '../marketQueries';
@@ -206,6 +208,43 @@ describe('getFollowedSections — 리더보드 팔로우 블록 (사람 단위)'
   it('판매 중 카드가 없는 리서처는 블록 자체가 생기지 않는다', async () => {
     const after = new Date('2026-08-02T00:00:00Z');
     expect(await getFollowedSections(prisma, [researcherId], 6, after)).toEqual([]);
+  });
+});
+
+describe('리더보드 고정 — 늘 보고 싶은 사람이 아래로 밀리지 않게', () => {
+  it('팔로우하지 않은 리서처는 고정할 수 없다 (고정은 팔로우 목록 안에서의 정렬이다)', async () => {
+    await expect(
+      setResearcherPinned(prisma, followerId, otherResearcherId, true),
+    ).rejects.toThrow(FollowError);
+  });
+
+  it('고정하면 고정 목록에 남고, 해제하면 빠진다', async () => {
+    expect(await getPinnedResearcherIds(prisma, followerId)).toEqual([]);
+
+    await setResearcherPinned(prisma, followerId, researcherId, true);
+    expect(await getPinnedResearcherIds(prisma, followerId)).toEqual([researcherId]);
+
+    await setResearcherPinned(prisma, followerId, researcherId, false);
+    expect(await getPinnedResearcherIds(prisma, followerId)).toEqual([]);
+  });
+
+  it('고정한 리서처가 목록 맨 앞에 온다 — 새 카드를 더 늦게 냈어도', async () => {
+    await setResearcherPinned(prisma, followerId, researcherId, true);
+    const sections = await getFollowedSections(
+      prisma,
+      [researcherId],
+      6,
+      PUBLISH_NOW,
+      [researcherId],
+    );
+    expect(sections[0].researcherId).toBe(researcherId);
+    expect(sections[0].pinned).toBe(true);
+    await setResearcherPinned(prisma, followerId, researcherId, false);
+  });
+
+  it('고정하지 않았으면 pinned가 false다', async () => {
+    const sections = await getFollowedSections(prisma, [researcherId], 6, PUBLISH_NOW, []);
+    expect(sections[0].pinned).toBe(false);
   });
 });
 

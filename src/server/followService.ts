@@ -119,6 +119,43 @@ export async function getFollowedResearcherIds(
   return rows.map((r) => r.researcherId);
 }
 
+/** 내가 리더보드에 고정한 리서처 id — 고정한 순서대로 */
+export async function getPinnedResearcherIds(
+  prisma: PrismaClient,
+  followerId: string,
+): Promise<string[]> {
+  const rows = await prisma.follow.findMany({
+    where: { followerId, pinnedAt: { not: null } },
+    orderBy: { pinnedAt: 'asc' },
+    select: { researcherId: true },
+  });
+  return rows.map((r) => r.researcherId);
+}
+
+/**
+ * 리더보드 고정 토글.
+ * 팔로우한 사람만 고정할 수 있다 — 고정은 "팔로우 목록 안에서의 정렬"이라
+ * 팔로우하지 않은 사람을 고정하면 어디에도 나타나지 않는다.
+ */
+export async function setResearcherPinned(
+  prisma: PrismaClient,
+  followerId: string,
+  researcherId: string,
+  pinned: boolean,
+): Promise<{ pinned: boolean }> {
+  const follow = await prisma.follow.findUnique({
+    where: { followerId_researcherId: { followerId, researcherId } },
+    select: { id: true },
+  });
+  if (!follow) throw new FollowError('팔로우한 리서처만 고정할 수 있습니다');
+
+  await prisma.follow.update({
+    where: { id: follow.id },
+    data: { pinnedAt: pinned ? new Date() : null },
+  });
+  return { pinned };
+}
+
 export interface FollowingRow {
   researcherId: string;
   name: string;

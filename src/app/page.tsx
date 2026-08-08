@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { getUiSettings } from "@/server/appSettings";
 import { prisma } from "@/server/db";
 import { getFreeReports } from "@/server/freeReportService";
+import { getMarketStats } from "@/server/marketStats";
 import {
   getRecentJudgments,
   getResearcherConsensus,
@@ -51,6 +53,12 @@ export default async function Home() {
       getUpcomingDeadlineCards(prisma, 5, now),
     ]);
 
+    // 띠지는 운영자가 켠 경우에만 집계한다 — 꺼져 있으면 쿼리 자체를 돌리지 않는다
+    const ui = await getUiSettings(prisma);
+    const marketStats = ui.marketTicker
+      ? await getMarketStats(prisma, { includeAmounts: ui.marketTickerAmounts }, now)
+      : [];
+
     if (user) {
       return (
         <HomeSignedIn
@@ -59,6 +67,7 @@ export default async function Home() {
           freeReports={freeReports}
           feed={feed}
           upcoming={upcoming}
+          marketStats={marketStats}
           now={now}
         />
       );

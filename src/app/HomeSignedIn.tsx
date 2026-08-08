@@ -3,9 +3,11 @@ import { ASSET_CLASS_LABEL, TIER_LABEL, type AssetClass, type Tier } from "@/dom
 import { IntovillLockup } from "./brand/Logo";
 import { CleanBanner } from "./CleanBanner";
 import { directionLabel, sinceLabel } from "./format";
+import { MarketTicker } from "./MarketTicker";
 import { MaskedCard } from "./MaskedCard";
 import { StatusChip, outcomeStatus } from "./StatusChip";
 import type { FreeReportSummary } from "@/server/freeReportService";
+import type { MarketStat } from "@/server/marketStats";
 import type { ConsensusRow, JudgedFeedItem, MarketCard } from "@/server/marketQueries";
 import { PredictionHeatmap } from "./PredictionHeatmap";
 import styles from "./page.module.css";
@@ -27,6 +29,7 @@ export function HomeSignedIn({
   freeReports,
   feed,
   upcoming,
+  marketStats,
   now,
 }: {
   name: string;
@@ -34,6 +37,7 @@ export function HomeSignedIn({
   freeReports: FreeReportSummary[];
   feed: JudgedFeedItem[];
   upcoming: MarketCard[];
+  marketStats: MarketStat[];
   now: Date;
 }) {
   // 내 검증 현황(검증 중 건수·누적 환불)은 MY와 전역 판정 팝업이 담당한다 —
@@ -50,6 +54,9 @@ export function HomeSignedIn({
 
       {/* 인사말은 화면에서 뺐지만 페이지 h1은 하나 필요해 스크린리더용으로만 남긴다 */}
       <h1 className="srOnly">{name}님의 홈</h1>
+
+      {/* 시장 규모 띠지 — 브랜드와 히트맵 사이. 운영자가 켰을 때만 (기본 꺼짐) */}
+      {marketStats.length > 0 && <MarketTicker stats={marketStats} />}
 
       {consensus.length > 0 && (
         <>

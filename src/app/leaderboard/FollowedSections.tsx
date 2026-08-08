@@ -4,6 +4,7 @@ import { DefaultAvatar } from "../Avatar";
 import { VerifiedBadge } from "../brand/VerifiedBadge";
 import { MaskedCard } from "../MaskedCard";
 import { TierChip } from "../TierChip";
+import { PinButton } from "./PinButton";
 import styles from "./leaderboard.module.css";
 
 // 팔로우한 리서처 — 카드가 아니라 **사람**이 단위인 블록.
@@ -30,7 +31,16 @@ export function FollowedSections({
   return (
     <>
       {sections.map((s) => (
-        <section key={s.researcherId} className={styles.prBlock}>
+        <section
+          key={s.researcherId}
+          className={`${styles.prBlock} ${s.pinned ? styles.prBlockPinned : ""}`}
+        >
+          {/* 고정 버튼은 머리 링크의 형제다 — 링크 안에 링크·버튼을 넣을 수 없다 */}
+          <PinButton
+            researcherId={s.researcherId}
+            pinned={s.pinned}
+            name={s.researcherName}
+          />
           {/* 프로필 머리 — 누르면 공개 프로필로 */}
           <Link href={`/r/${s.researcherId}`} className={styles.prHead}>
             <span className={styles.prAvatar}>

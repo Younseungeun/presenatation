@@ -14,11 +14,53 @@
   border-left: 3px solid color-mix(in srgb, var(--brand-strong) 55%, transparent);
 }
 
+/* 고정된 블록 — 띠를 진하게. 고정은 본인이 정한 순서라 그 표시가 보여야 한다 */
+.prBlockPinned {
+  border-left-color: var(--brand-strong);
+}
+
+/* 고정 버튼은 머리 링크의 형제다 (링크 안에 버튼을 넣을 수 없다) — 위에 겹친다 */
+.prBlock {
+  position: relative;
+}
+.pin {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.pin:hover {
+  background: var(--surface);
+  color: var(--text-weak);
+}
+.pinOn {
+  color: var(--brand-strong);
+}
+.pinOn:hover {
+  color: var(--brand-strong);
+}
+.pin:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .prHead {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 16px;
+  /* 오른쪽은 고정 버튼 자리를 비워 둔다 */
+  padding: 0 46px 0 16px;
   color: inherit;
 }
 .prAvatar {
@@ -209,6 +251,12 @@
   font-size: 12px;
   font-weight: 600;
   color: var(--text-faint);
+}
+.secMore {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--brand-strong);
+  white-space: nowrap;
 }
 /* 첫 섹션은 위 여백을 줄인다 — 안내 문구 바로 아래라 */
 .secHeadFirst {

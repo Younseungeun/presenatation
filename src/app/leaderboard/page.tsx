@@ -2,7 +2,7 @@ import Link from "next/link";
 import { hasCriteria, parseCardQuery } from "@/domain/cardQuery";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { prisma } from "@/server/db";
-import { getFollowedResearcherIds } from "@/server/followService";
+import { getFollowedResearcherIds, getPinnedResearcherIds } from "@/server/followService";
 import {
   BUDGET_OPTIONS,
   getBestSellingCards,
@@ -47,6 +47,13 @@ export const dynamic = "force-dynamic";
 //   ④ 자산군별 → 전체 탐색       → 세로 목록, 첫 장만 히어로로 띄워 리듬을 준다
 // 훑는 속도가 섹션마다 달라지는 것이 목적이다 — 같은 속도로 계속 훑으면 지친다.
 
+/**
+ * 리더보드에 두는 팔로우 블록 수.
+ * 팔로우가 늘수록 이 섹션이 화면을 다 먹는데, 리더보드의 목적은 카드 탐색이다.
+ * 고정한 사람이 맨 앞에 오므로 "늘 보고 싶은 사람"은 이 두 자리를 차지한다.
+ */
+const FOLLOWED_ON_LEADERBOARD = 2;
+
 /** 숫자 파라미터를 허용된 값 안에서만 받는다 — URL 조작으로 임의 조건이 들어오지 않게 */
 function pickNumber<T extends number>(raw: string | undefined, allowed: readonly T[]): T | null {
   const n = Number(raw);
@@ -89,7 +96,12 @@ export default async function LeaderboardPage({
   const searching = hasCriteria(query);
 
   const viewerId = await getSessionUserId();
-  const followedIds = viewerId ? await getFollowedResearcherIds(prisma, viewerId) : [];
+  const [followedIds, pinnedIds] = viewerId
+    ? await Promise.all([
+        getFollowedResearcherIds(prisma, viewerId),
+        getPinnedResearcherIds(prisma, viewerId),
+      ])
+    : [[], []];
 
   // 띠지는 운영자가 켠 경우에만 집계한다 — 꺼져 있으면 쿼리 자체를 돌리지 않는다
   const ui = await getUiSettings(prisma);
@@ -101,7 +113,7 @@ export default async function LeaderboardPage({
     searching ? [] : getBestSellingCards(prisma, 5, now),
     searching ? [] : getTopTierCards(prisma, 5, now),
     searching ? [] : getCardsByAssetClass(prisma, asset, sort, now, filter),
-    searching ? [] : getFollowedSections(prisma, followedIds, 6, now),
+    searching ? [] : getFollowedSections(prisma, followedIds, 6, now, pinnedIds),
     searching ? searchCards(prisma, query, sort, now) : [],
   ]);
 
@@ -125,14 +137,25 @@ export default async function LeaderboardPage({
         <SearchResults query={query} rawQuery={rawQuery} results={results} now={now} />
       ) : (
         <>
-      {/* ① 팔로우한 리서처 — 사람이 단위 */}
+      {/* ① 팔로우한 리서처 — 사람이 단위.
+          대표 두 명만. 팔로우가 늘수록 이 섹션이 화면을 다 먹어서 카드 탐색이라는
+          리더보드의 목적이 뒤로 밀린다. 나머지는 /following에서 전부 본다 */}
       {followedSections.length > 0 && (
         <>
           <div className={`${lb.secHead} ${lb.secHeadFirst}`}>
             <span className={lb.secTitle}>팔로우한 리서처</span>
-            <span className={lb.secNote}>새 카드 낸 순</span>
+            {followedSections.length > FOLLOWED_ON_LEADERBOARD ? (
+              <Link href="/following" className={lb.secMore}>
+                {followedSections.length}명 모두 보기 →
+              </Link>
+            ) : (
+              <span className={lb.secNote}>고정한 순 · 새 카드 낸 순</span>
+            )}
           </div>
-          <FollowedSections sections={followedSections} now={now} />
+          <FollowedSections
+            sections={followedSections.slice(0, FOLLOWED_ON_LEADERBOARD)}
+            now={now}
+          />
         </>
       )}
 

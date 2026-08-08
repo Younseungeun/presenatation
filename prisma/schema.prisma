@@ -67,6 +67,9 @@ model Follow {
   researcherId String // ResearcherProfile.id — 팔로우당하는 쪽
   researcher   ResearcherProfile @relation(fields: [researcherId], references: [id])
   createdAt    DateTime          @default(now())
+  // 리더보드 팔로우 섹션에 고정. 팔로우가 늘면 최신순만으로는 "늘 보고 싶은 사람"이
+  // 아래로 밀리므로, 본인이 직접 고정한다. 시각을 담아 고정한 순서도 유지된다
+  pinnedAt     DateTime?
 
   @@unique([followerId, researcherId]) // 중복 팔로우 차단
   @@index([researcherId]) // 팔로워 수·알림 대상 조회
