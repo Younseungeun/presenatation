@@ -3,35 +3,155 @@
    장식을 더해 다르게 만드는 것이 아니라, 각 섹션이 실제로 말하려는 것에 형태를 맞춘다. */
 
 /* ── 팔로우한 리서처 = 사람 단위 PR 블록 ──────────────────────
-   블록이 답해야 하는 질문은 하나다: 이 사람 카드를 열어볼까?
-   그 순서대로 세 층 — 누구인가(흰 바탕) / 믿을 만한가 / 무엇이 있나(회색 바닥).
-
-   바탕을 위아래로 나눈 이유: 작은 글자가 많은 사람 정보는 흰 바탕에서 읽기 쉽고,
-   흰 카드는 회색 위에서 뜬다. 같은 색을 두 번 쓰지 않는다.
-   민트 띠는 뺐다 — 민트는 플랫폼 검증 전용이라(브랜드 §4-4) '내가 고른 사람' 표시에
-   쓰면 플랫폼이 보증한 것으로 오해된다. 고정 표시는 무채색 칩이 맡는다 */
+   프로필 박스(누구인가) + 선반(무엇이 있나). 블록은 회색 바닥이고 그 위에 흰 것들이
+   놓인다 — 같은 흰색을 두 번 쓰지 않아야 '담겨 있다'가 색 없이 읽힌다.
+   민트 띠는 쓰지 않는다: 민트는 플랫폼 검증 전용이라(브랜드 §4-4) '내가 고른 사람'
+   표시에 쓰면 플랫폼이 보증한 것으로 오해된다 */
 .prBlock {
-  position: relative;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  background: var(--bg);
+  background: var(--surface);
   margin-bottom: 12px;
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
 }
 /* 고정된 블록 — 색이 아니라 무게로 구분한다 (색은 브랜드에서 뜻이 정해져 있다) */
 .prBlockPinned {
   border-color: color-mix(in srgb, var(--text-faint) 40%, var(--border));
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-sm);
 }
 
-/* 압정 — 프로필 줄 오른쪽 끝. 머리 링크의 형제로 두고 위에 겹친다
-   (링크 안에 버튼을 넣을 수 없다). 전에 있던 '›' 화살표는 이 자리와 겹쳐서 없앴다 —
-   머리 전체가 링크라 누를 수 있다는 건 이름만으로도 읽힌다 */
+/* ── ① 프로필 박스 ── */
+.prCardWrap {
+  position: relative;
+  padding: 12px 12px 0;
+}
+.prCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: inherit;
+}
+.prCard:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
+}
+
+/* 좌: 아바타 + 실적. 세로로 쌓아 폭을 고정하면 오른쪽 글줄의 시작선이 흔들리지 않는다 */
+.prCardLeft {
+  width: 58px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+}
+.prAvatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 5px;
+}
+.prAvatarImg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.prHit {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text, #191f28);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 표본 수 — 적중률만 보이면 100%(1건)과 62%(47건)이 구별되지 않는다 */
+.prSample {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.prNoRecord {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+/* 우: 이름 + 소개말. 둘의 첫 글자가 같은 선에 선다 —
+   한 사람의 두 마디라 시작선이 어긋나면 서로 다른 정보처럼 읽힌다 */
+.prCardRight {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  /* 우상단 등급 칩 자리 */
+  padding-right: 4px;
+}
+.prNameRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.prName {
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text, #191f28);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.prBio {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text-weak);
+  overflow-wrap: break-word;
+}
+.prBioNone {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+/* 등급 칩 — 이름 옆이 아니라 박스 우측 (브랜드 §4-4: 이름 옆은 인증 배지만).
+   등급 칩은 텍스트 필이고 인증은 로제트라, 같은 자리에 두면 두 신뢰 신호가 섞인다 */
+.prTier {
+  position: absolute;
+  top: 22px;
+  right: 24px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+/* 고정 버튼이 있는 화면에서는 그 왼쪽으로 비켜난다 */
+.prTierShifted {
+  right: 56px;
+}
+.prPinned {
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--surface-2);
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--text-weak);
+}
+
+/* 압정 — 박스 우상단. 프로필 박스는 링크라 버튼을 안에 넣을 수 없어 형제로 겹친다 */
 .pin {
   position: absolute;
-  top: 12px;
-  right: 12px;
+  top: 18px;
+  right: 18px;
   z-index: 1;
   width: 32px;
   height: 32px;
@@ -57,112 +177,9 @@
   cursor: default;
 }
 
-/* ① 누구인가 — 이름과 소개말이 한 덩어리 */
-.prWho {
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  padding: 14px 52px 0 16px;
-  color: inherit;
-}
-.prAvatar {
-  width: 42px;
-  height: 42px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  overflow: hidden;
-  background: var(--surface-2);
-  color: var(--text-faint);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.prAvatarImg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.prWhoText {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.prNameRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.prName {
-  font-size: 16px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
-}
-/* 고정 표시 — 무채색 */
-.prPinned {
-  display: inline-flex;
-  align-items: center;
-  height: 19px;
-  padding: 0 6px;
-  border-radius: 5px;
-  background: var(--surface-2);
-  font-size: 10.5px;
-  font-weight: 800;
-  color: var(--text-weak);
-}
-/* 소개말 — 인용 보더를 뺐다. 블록 안에 또 들여쓰기를 만들면 층이 하나 더 늘어난다.
-   본인의 목소리라는 것은 자리(이름 바로 아래)와 색으로 충분히 읽힌다 */
-.prBio {
-  font-size: 12.5px;
-  line-height: 1.55;
-  color: var(--text-weak);
-  overflow-wrap: break-word;
-}
-.prBioNone {
-  font-size: 12.5px;
-  color: var(--text-faint);
-}
-
-/* ② 믿을 만한가 — 숫자를 앞세운다 */
-.prRecord {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex-wrap: wrap;
-  padding: 10px 16px 12px;
-}
-.prStat {
-  font-size: 11.5px;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
-.prStat strong {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--text, #191f28);
-  font-variant-numeric: tabular-nums;
-  margin-left: 3px;
-}
-/* 표본 수 — 적중률 100%(1건)과 62%(47건)이 구별되지 않으면 숫자가 거짓말을 한다 */
-.prSample {
-  margin-left: 5px;
-  padding-left: 5px;
-  border-left: 1px solid var(--border);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-.prRecordNone {
-  font-size: 11.5px;
-  color: var(--text-faint);
-}
-
-/* ③ 무엇이 있나 — 회색 바닥. 흰 카드가 여기서 뜬다 */
+/* ── ② 선반 ── */
 .prShelf {
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  padding: 10px 0 4px;
+  padding: 12px 0 4px;
 }
 .prShelfHead {
   display: flex;
@@ -710,22 +727,14 @@
 }
 
 @media (max-width: 640px) {
-  .prRecord,
   .prShelfHead,
   .prRail {
     padding-left: 14px;
     padding-right: 14px;
   }
-  /* 프로필 줄은 오른쪽 압정 자리를 계속 비워 둬야 한다 —
-     좁은 화면에서 우측 패딩까지 줄이면 이름·소개말이 압정 밑으로 들어간다 */
-  .prWho {
-    padding-left: 14px;
-    padding-right: 52px;
-  }
-  .prBio {
-    margin-left: 14px;
-    margin-right: 14px;
+  .prCardWrap {
     padding-left: 10px;
+    padding-right: 10px;
   }
   .rankRow {
     padding: 12px 14px;

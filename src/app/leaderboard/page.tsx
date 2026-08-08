@@ -48,11 +48,13 @@ export const dynamic = "force-dynamic";
 // 훑는 속도가 섹션마다 달라지는 것이 목적이다 — 같은 속도로 계속 훑으면 지친다.
 
 /**
- * 리더보드에 두는 팔로우 블록 수.
+ * 리더보드에 두는 팔로우 블록 수 — 한 명.
  * 팔로우가 늘수록 이 섹션이 화면을 다 먹는데, 리더보드의 목적은 카드 탐색이다.
- * 고정한 사람이 맨 앞에 오므로 "늘 보고 싶은 사람"은 이 두 자리를 차지한다.
+ * 고정한 사람이 맨 앞에 오므로, 그 한 자리는 본인이 고른 사람이 차지한다.
+ * (고정 버튼은 여기 두지 않는다 — 한 명만 보이는 자리에서 고정은 뜻이 없다.
+ *  고르는 일은 /following에서 전부 놓고 하는 것이 맞다)
  */
-const FOLLOWED_ON_LEADERBOARD = 2;
+const FOLLOWED_ON_LEADERBOARD = 1;
 
 /** 숫자 파라미터를 허용된 값 안에서만 받는다 — URL 조작으로 임의 조건이 들어오지 않게 */
 function pickNumber<T extends number>(raw: string | undefined, allowed: readonly T[]): T | null {
@@ -155,6 +157,7 @@ export default async function LeaderboardPage({
           <FollowedSections
             sections={followedSections.slice(0, FOLLOWED_ON_LEADERBOARD)}
             now={now}
+            showPin={false}
           />
         </>
       )}

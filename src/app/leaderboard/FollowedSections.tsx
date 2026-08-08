@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { FollowedSection } from "@/server/marketQueries";
 import { DefaultAvatar } from "../Avatar";
-import { VerifiedBadge } from "../brand/VerifiedBadge";
+import { CareerBadge } from "../brand/CareerBadge";
 import { MaskedCard } from "../MaskedCard";
 import { TierChip } from "../TierChip";
 import { PinButton } from "./PinButton";
@@ -10,22 +10,21 @@ import styles from "./leaderboard.module.css";
 // 팔로우한 리서처 — 카드가 아니라 **사람**이 단위인 블록.
 //
 // 카드를 한 줄로 섞으면 "무슨 카드가 있나"만 남는데, 팔로우의 관심사는 "이 사람이
-// 뭘 냈나"다. 그래서 프로필·소개말을 머리로 세우고 그 사람의 카드를 아래 붙였다.
+// 뭘 냈나"다. 그래서 사람을 머리로 세우고 그 사람의 카드를 아래 붙였다.
 //
-// ── 구성 (2026-08-09 재설계) ──────────────────────────────
-// 블록이 답해야 하는 질문은 하나다: **이 사람 카드를 열어볼까?**
-// 그 판단에 필요한 순서대로 세 층으로 나눴다.
+// ── 구성 ──────────────────────────────────────────────────
+//   ① 프로필 박스 — 좌: 아바타 + 적중률·표본 / 우: 이름·배지 + 소개말
+//        소개말의 첫 글자가 이름의 첫 글자와 같은 선에 선다. 둘은 한 사람의 두 마디라
+//        들쭉날쭉하면 서로 다른 정보처럼 읽힌다
+//   ② 선반 — 판매 중 N장 / 무료 글 N편 → , 그 아래 카드 레일
 //
-//   ① 누구인가   — 아바타 + 이름 + 인증 + 등급, 그 바로 아래 소개말
-//        소개말을 이름 바로 밑에 붙인 이유: 전에는 실적 줄 아래에 있어서
-//        "이 사람이 누구인가"를 두 번에 나눠 읽어야 했다. 이름과 목소리는 한 덩어리다
-//   ② 믿을 만한가 — 적중률·표본·팔로워. 숫자를 굵게, 없으면 "판정 전"이라고 정직하게
-//   ③ 무엇이 있나 — 판매 중 N장 / 무료 글 N편, 그 아래 카드 레일
-//        **무료 글로 가는 길이 여기 생긴다.** 유료 카드는 구매 전 본문을 볼 수 없어서
-//        글로 판단하려면 무료 시황뿐이고, 실적이 없는 리서처일수록 그게 결정적이다
+// **팔로워 수는 싣지 않는다.** 이 서비스의 평판은 판정된 트랙레코드로만 쌓이는데
+// (기획 §2 "팔로워 수가 아닌 실적"), 팔로워 수를 나란히 놓으면 그 원칙이 흐려지고
+// 먼저 온 사람이 계속 유리해진다.
 //
-// 바탕은 위(사람)가 흰색, 아래(물건)가 회색이다. 작은 글자가 많은 사람 정보는 흰 바탕에서
-// 읽기 쉽고, 흰 카드는 회색 위에서 뜬다 — 같은 색을 두 번 쓰지 않는다.
+// 배지 배치는 브랜드 규정(§4-4)을 따른다: **이름 옆은 인증 배지만.**
+// 등급 칩은 로제트가 아니라 텍스트 필이라, 같은 자리에 두면 두 신뢰 신호가 섞인다 —
+// 그래서 박스 오른쪽 위로 뺐다.
 
 function pct(v: number | null): string {
   return v === null ? "—" : `${Math.round(v * 100)}%`;
@@ -34,9 +33,12 @@ function pct(v: number | null): string {
 export function FollowedSections({
   sections,
   now,
+  showPin = true,
 }: {
   sections: FollowedSection[];
   now: Date;
+  /** 고정 버튼 노출 — 리더보드는 한 명만 보여주므로 고정할 이유가 없다 */
+  showPin?: boolean;
 }) {
   return (
     <>
@@ -47,51 +49,53 @@ export function FollowedSections({
             key={s.researcherId}
             className={`${styles.prBlock} ${s.pinned ? styles.prBlockPinned : ""}`}
           >
-            {/* 고정 버튼은 머리 링크의 형제다 — 링크 안에 링크·버튼을 넣을 수 없다 */}
-            <PinButton
-              researcherId={s.researcherId}
-              pinned={s.pinned}
-              name={s.researcherName}
-            />
+            {/* ① 프로필 박스 */}
+            <div className={styles.prCardWrap}>
+              {showPin && (
+                <PinButton
+                  researcherId={s.researcherId}
+                  pinned={s.pinned}
+                  name={s.researcherName}
+                />
+              )}
 
-            {/* ① 누구인가 — 이름과 소개말이 한 덩어리 */}
-            <Link href={`/r/${s.researcherId}`} className={styles.prWho}>
-              <span className={styles.prAvatar}>
-                <DefaultAvatar className={styles.prAvatarImg} />
-              </span>
-              <span className={styles.prWhoText}>
-                <span className={styles.prNameRow}>
-                  <span className={styles.prName}>{s.researcherName}</span>
-                  {s.careerBadge && <VerifiedBadge />}
+              <Link href={`/r/${s.researcherId}`} className={styles.prCard}>
+                <span className={styles.prCardLeft}>
+                  <span className={styles.prAvatar}>
+                    <DefaultAvatar className={styles.prAvatarImg} />
+                  </span>
+                  {/* 적중률은 표본과 함께 읽어야 뜻이 산다 — 100%(1건)과 62%(47건)은 다른 이야기다 */}
+                  {head.hitRate === null ? (
+                    <span className={styles.prNoRecord}>판정 전</span>
+                  ) : (
+                    <>
+                      <span className={styles.prHit}>적중 {pct(head.hitRate)}</span>
+                      <span className={styles.prSample}>{head.judgedCount}건</span>
+                    </>
+                  )}
+                </span>
+
+                <span className={styles.prCardRight}>
+                  <span className={styles.prNameRow}>
+                    <span className={styles.prName}>{s.researcherName}</span>
+                    <CareerBadge careerBadge={s.careerBadge} />
+                  </span>
+                  {s.bio ? (
+                    <span className={styles.prBio}>{s.bio}</span>
+                  ) : (
+                    <span className={styles.prBioNone}>소개말이 아직 없어요</span>
+                  )}
+                </span>
+
+                {/* 등급 칩은 이름 옆이 아니라 박스 우측 (브랜드 §4-4 배치 규칙) */}
+                <span className={`${styles.prTier} ${showPin ? styles.prTierShifted : ""}`}>
                   <TierChip tier={s.tier} />
-                  {/* 고정은 본인이 정한 순서라는 사실이라 말로 적는다 —
-                      무게만으로는 "왜 이 사람이 맨 위인가"가 설명되지 않는다 */}
                   {s.pinned && <span className={styles.prPinned}>고정</span>}
                 </span>
-                {s.bio ? (
-                  <span className={styles.prBio}>{s.bio}</span>
-                ) : (
-                  <span className={styles.prBioNone}>소개말이 아직 없어요</span>
-                )}
-              </span>
-            </Link>
-
-            {/* ② 믿을 만한가 — 숫자를 앞세운다 */}
-            <div className={styles.prRecord}>
-              {head.hitRate === null ? (
-                <span className={styles.prRecordNone}>아직 판정된 예측이 없어요</span>
-              ) : (
-                <span className={styles.prStat}>
-                  적중 <strong>{pct(head.hitRate)}</strong>
-                  <span className={styles.prSample}>{head.judgedCount}건</span>
-                </span>
-              )}
-              <span className={styles.prStat}>
-                팔로워 <strong>{s.followers.toLocaleString()}</strong>
-              </span>
+              </Link>
             </div>
 
-            {/* ③ 무엇이 있나 — 재고 요약 + 무료 글로 가는 길 */}
+            {/* ② 선반 — 무엇이 있나 */}
             <div className={styles.prShelf}>
               <div className={styles.prShelfHead}>
                 <span className={styles.prShelfCount}>판매 중 {s.cards.length}장</span>
