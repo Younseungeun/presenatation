@@ -27,6 +27,7 @@ export interface CartEntry {
   tier: string;
   careerBadge: string | null;
   hitRate: number | null;
+  judgedCount: number;
   repurchaseRate: number | null;
   assetClass: string | null;
   direction: string | null;
@@ -130,6 +131,7 @@ export async function getCart(
       tier: r.researcher.tier,
       careerBadge: r.researcher.careerBadge,
       hitRate: signals.get(r.researcherId)?.hitRate ?? null,
+      judgedCount: signals.get(r.researcherId)?.judgedCount ?? 0,
       repurchaseRate: signals.get(r.researcherId)?.repurchaseRate ?? null,
       assetClass: card?.assetClass ?? null,
       direction: card?.direction ?? null,

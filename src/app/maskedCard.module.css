@@ -1,13 +1,20 @@
 /* 구매 전 예측 카드 — MaskedCard.tsx 전용.
-   배경의 45° 궤적이 signature: 기울기가 곧 예측 방향이라 색 없이도 상승·하락이 읽힌다. */
+   배경의 45° 궤적이 signature: 기울기가 곧 예측 방향이라 색 없이도 상승·하락이 읽힌다.
+
+   구성 원칙: 구분선을 쓰지 않는다. 층을 만드는 것은 정보가 아니라 선이다.
+   대신 확신 3종만 유리 상자로 묶는다 — 선은 자르고 상자는 묶으므로,
+   층을 늘리지 않으면서 세 값이 카드에서 가장 또렷한 블록이 된다. */
 .card {
   position: relative;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
   overflow: hidden; /* 궤적이 카드 밖으로 새지 않게 */
   isolation: isolate;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   margin-bottom: 10px;
+  padding: 13px 16px 12px;
   background: var(--bg);
   color: inherit;
   transition: border-color 0.15s ease;
@@ -16,58 +23,46 @@
   border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
 }
 
-/* 예측 정보 영역 — 궤적의 배치 기준. 가격 줄은 이 바깥에 있어 배경이 닿지 않는다 */
-.main {
-  position: relative;
-  padding: 14px 16px 12px;
-}
-
-/* 궤적은 이 영역의 아래쪽을 채우고 좌우로 꽉 찬다 */
+/* 궤적은 카드 하단부를 흐른다 */
 .trace {
   position: absolute;
   left: 0;
   bottom: 0;
   /* SVG는 대체 요소라 left/right만으로는 늘어나지 않는다 — 폭을 명시해야 카드를 채운다 */
   width: 100%;
-  height: 74%;
+  height: 62%;
   z-index: -1;
   pointer-events: none;
 }
 
-/* 상단: 자산군만. 방향은 배경 궤적이 말하므로 글자로 반복하지 않는다.
-   색도 방향에 묶지 않는다 — "국내주식"이 빨간 글씨면 자산군이 나쁘다는 뜻으로 읽힌다.
-   방향 신호는 카드 전체를 덮는 배경 틴트가 충분히 크게 내고 있다 */
-.top {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.asset {
-  font-size: 13px;
+/* 자산군 = 태그. 혼자 떠 있는 굵은 글자는 제목처럼 보이는데 제목이 아니다.
+   무채색 아웃라인 — 민트는 플랫폼 검증 전용이라 분류 라벨에 쓸 수 없다.
+   방향색도 입히지 않는다: "국내주식"이 빨간 글씨면 자산군이 나쁘다는 뜻으로 읽힌다 */
+.assetChip {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: -0.01em;
-  color: var(--text, #191f28);
+  color: var(--text-weak);
 }
 
-.body {
+/* ── 사람 ── */
+.who {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  margin-top: 12px;
-}
-
-/* 좌: 사람 — 아바타 + 실적 두 줄. 숫자를 앞세워 스캔하기 쉽게 */
-.left {
-  display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-  width: 68px;
+  gap: 10px;
 }
 .avatar {
-  width: 52px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
   border-radius: 50%;
   overflow: hidden;
   background: var(--surface-2);
@@ -75,75 +70,106 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 6px;
 }
 .avatarImg {
   width: 100%;
   height: 100%;
   display: block;
 }
-.stat {
-  display: flex;
-  align-items: baseline;
-  gap: 3px;
-  font-size: 10px;
-  color: var(--text-faint);
-  white-space: nowrap;
-}
-.stat strong {
-  font-size: 13px;
-  font-weight: 800;
-  color: var(--text, #191f28);
-  font-variant-numeric: tabular-nums;
-}
-
-/* 우: 예측 — 이름·등급 한 줄, 그 아래 별점 3종 */
-.right {
-  flex: 1;
-  min-width: 0;
+.whoText {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 2px;
+  min-width: 0;
 }
 .nameRow {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
 }
 .name {
-  font-size: 15.5px;
+  font-size: 15px;
   font-weight: 800;
   letter-spacing: -0.02em;
   color: var(--text, #191f28);
-}
-
-/* 넓은 화면에서는 별점 3종이 한 줄에 나란히, 좁아지면 접힌다 */
-.ratings {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-}
-.rating {
-  display: flex;
-  align-items: center;
-  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
-.ratingKey {
+.tierRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+/* 실적은 구매 결정의 1차 신호다 — 숫자를 굵게 */
+.record {
   font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.record strong {
+  font-weight: 800;
+  color: var(--text, #191f28);
+  font-variant-numeric: tabular-nums;
+}
+/* 표본 수 — 적중률 100%(1건)과 62%(47건)이 구별되지 않으면 숫자가 거짓말을 한다 */
+.sample {
+  margin-left: 5px;
+  padding-left: 5px;
+  border-left: 1px solid var(--border);
+  color: var(--text-faint);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 확신 3종: 유리 상자 ──
+   유리로 읽히게 하는 것은 테두리가 아니라 재질이다:
+     · 선이 없다. 경계는 그어지는 것이 아니라 밝기 차이로 생긴다
+     · 뒤가 크게 흐려지고 색은 오히려 진해진다 (blur + saturate) — 유리는 빛을 먹지 않는다
+     · 모서리가 크게 굴려져 판이 아니라 덩어리로 보인다
+   위쪽의 옅은 흰 결 한 줄은 빛이 드는 방향을 만들어 판에 두께를 준다 — 선이 아니라 하이라이트.
+   접두사(-webkit-)는 빌드가 붙인다. 직접 쓰면 CSS 변환기가 선언을 통째로 버린다. */
+.ratingsBox {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  /* 넓은 화면에서 상자가 끝없이 늘어나면 별 셋이 서로 멀어져 비교가 안 된다 */
+  max-width: 400px;
+  padding: 9px 11px 10px;
+  border-radius: 15px;
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, #fff 58%, transparent),
+    color-mix(in srgb, #fff 30%, transparent)
+  );
+  backdrop-filter: blur(16px) saturate(200%) brightness(1.06);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 80%, transparent);
+}
+.ratingCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.ratingKey {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.ratingNone {
+  font-size: 12px;
   color: var(--text-faint);
 }
 
-/* 거래 조건 줄 — 궤적 영역(.main) 바깥이라 배경 그래프가 뒤에 깔리지 않는다.
-   좌: 언제까지(D-day) / 우: 얼마에(가격·조건) */
+/* ── 거래 조건: 좌 언제까지 / 우 얼마에 ── */
 .foot {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  padding: 10px 16px 12px;
-  border-top: 1px solid var(--border);
 }
 .dday {
   font-size: 13px;
@@ -180,35 +206,23 @@
   flex: 0 0 auto;
   width: 250px;
   margin-bottom: 0;
+  padding: 12px 14px 11px;
+  gap: 9px;
   scroll-snap-align: start;
 }
-.compact .main {
-  padding: 13px 14px 11px;
-}
-.compact .body {
-  gap: 12px;
-  margin-top: 10px;
-}
-.compact .left {
-  width: 54px;
-}
 .compact .avatar {
-  width: 42px;
-  height: 42px;
+  width: 38px;
+  height: 38px;
 }
 .compact .name {
   font-size: 14px;
 }
-/* 좁은 폭에서는 별점을 세로로 쌓는다 — 가로로 두면 별이 잘린다 */
-.compact .ratings {
-  flex-direction: column;
-  gap: 3px;
-}
-.compact .foot {
-  padding: 9px 14px 11px;
+.compact .ratingsBox {
+  padding: 8px 10px 9px;
+  gap: 5px;
 }
 .compact .price {
-  font-size: 14.5px;
+  font-size: 15px;
 }
 .compact .dday {
   font-size: 12px;
@@ -216,14 +230,6 @@
 .compact .prepay,
 .compact .refund {
   display: none; /* 좁은 카드에서는 가격·시한만 — 나머지는 상세에서 */
-}
-
-/* 좁은 화면에서는 목록 카드도 별점을 세로로 */
-@media (max-width: 420px) {
-  .ratings {
-    flex-direction: column;
-    gap: 4px;
-  }
 }
 
 /* 한 줄 헤드라인 (다른 화면에서 재사용) */

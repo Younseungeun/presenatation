@@ -21,10 +21,13 @@ import styles from "./maskedCard.module.css";
 // 제목·요약을 싣지 않는 이유: 리서처 자유 입력이라 "비트코인 4분기 전망" 같은 제목
 // 하나로 마스킹이 통째로 무력화된다. 검수로 막는 대신 표시 자체를 없앴다.
 //
-// 배치 (좌: 사람 / 우: 예측):
-//   좌상단 자산군·방향 + 우상단 D-day → 좌측 아바타·적중률·재구매율 →
-//   우측 이름+인증배지·등급 → 별점 3종 → 하단 가격·선결제·환불 조건
-// 왼쪽은 "누구를 믿을 것인가", 오른쪽은 "무엇을 얼마나 확신하는가"로 축이 갈린다.
+// 배치 (2026-08-08 확정) — 위는 예측의 내용, 아래는 사는 조건:
+//   자산군 칩 → 사람(아바타·이름·인증·등급·실적) → 확신 3종(유리 상자) →
+//   하단 좌 검증 시한 / 하단 우 가격·환불 조건
+//
+// **방향 문구는 싣지 않는다.** 배경 궤적이 이미 방향을 말하므로 글자로 반복하면
+// 같은 정보가 두 번 자리를 차지한다. 자산군 글자에 방향색도 입히지 않는다 —
+// "국내주식"이 빨간 글씨면 자산군이 나쁘다는 뜻으로 읽힌다.
 //
 // 배경의 45° 궤적이 이 카드의 signature다. 브랜드 정체성이 45° 축인데(brand README),
 // 예측 카드가 파는 것도 결국 '방향'이라 둘을 같은 것으로 만들었다. 장식용 스파크라인이
@@ -50,6 +53,8 @@ export interface MaskedCardFull extends MaskedCardData {
   tier: string;
   careerBadge: string | null;
   hitRate: number | null;
+  /** 판정 완료 표본 수 — 적중률은 표본과 함께 읽어야 뜻이 산다 */
+  judgedCount: number;
   repurchaseRate: number | null;
   priceKrw: number;
   prepaymentRatio?: number;
@@ -76,44 +81,6 @@ export function maskedHeadline(c: {
   return [assetLabel(c.assetClass), directionLabel(c.direction)].filter(Boolean).join(" ");
 }
 
-/** 자기 평가 3종을 별 5개로 (신뢰도·안정성은 1~10이라 반 개 단위, 수익성은 5구간이라 정수) */
-export function SelfRatings({ c }: { c: MaskedCardData }) {
-  return (
-    <span className={styles.ratings}>
-      {c.profitability !== null && (
-        <span className={styles.rating}>
-          <span className={styles.ratingKey}>수익성</span>
-          <StarRating stars={c.profitability} label="수익성" />
-        </span>
-      )}
-      {c.stability !== null && (
-        <span className={styles.rating}>
-          <span className={styles.ratingKey}>안정성</span>
-          <StarRating stars={tenScaleToStars(c.stability)} label="안정성" />
-        </span>
-      )}
-      {c.confidence !== null && (
-        <span className={styles.rating}>
-          <span className={styles.ratingKey}>신뢰도</span>
-          <StarRating stars={tenScaleToStars(c.confidence)} label="신뢰도" />
-        </span>
-      )}
-    </span>
-  );
-}
-
-/** 자산군 · 방향을 방향색으로 — 한 줄로 쓸 때 */
-export function MaskedHeadline({ c }: { c: MaskedCardData }) {
-  return (
-    <span
-      className={styles.headline}
-      style={{ color: c.direction === "UP" ? "var(--pos)" : "var(--neg)" }}
-    >
-      {maskedHeadline(c)}
-    </span>
-  );
-}
-
 /**
  * 배경 궤적 — 예측의 세 축(방향·크기·기간)을 그림 하나로 옮긴다.
  * 좌표 규칙과 그 근거는 directionTrace.ts에 있고 테스트로 고정돼 있다.
@@ -136,11 +103,13 @@ function DirectionTrace({
       preserveAspectRatio="none"
       aria-hidden="true"
     >
-      <path d={traceArea(input)} fill={`color-mix(in srgb, ${tone} 7%, transparent)`} />
+      {/* 면 채움 20% — 확신 상자가 유리로 읽히려면 굴절시킬 바닥이 있어야 한다.
+          7%로는 흰 바탕과 구별되지 않아 상자가 사라진다. 덤으로 방향이 곁눈질로 읽힌다 */}
+      <path d={traceArea(input)} fill={`color-mix(in srgb, ${tone} 20%, transparent)`} />
       <path
         d={traceLine(input)}
         fill="none"
-        stroke={`color-mix(in srgb, ${tone} 30%, transparent)`}
+        stroke={`color-mix(in srgb, ${tone} 34%, transparent)`}
         strokeWidth="1.5"
         strokeLinejoin={traceLineJoin(period)}
         strokeLinecap="round"
@@ -153,6 +122,35 @@ function DirectionTrace({
 function pct(v: number | null): string {
   return v === null ? "—" : `${Math.round(v * 100)}%`;
 }
+
+/**
+ * 실적 — 적중률에 **표본 수를 반드시 붙인다**.
+ * 100%(1건)과 62%(47건)이 같은 자리에 같은 크기로 뜨면 오해가 아니라 오도다.
+ */
+function TrackRecord({ c }: { c: MaskedCardFull }) {
+  if (c.hitRate === null) {
+    return <span className={styles.record}>판정 전</span>;
+  }
+  return (
+    <span className={styles.record}>
+      적중 <strong>{pct(c.hitRate)}</strong>
+      <span className={styles.sample}>{c.judgedCount}건</span>
+    </span>
+  );
+}
+
+/** 자기 평가 3종 (신뢰도·안정성은 1~10이라 반 개 단위, 수익성은 5구간이라 정수) */
+const RATINGS = [
+  { key: "수익성", of: (c: MaskedCardData) => c.profitability },
+  {
+    key: "안정성",
+    of: (c: MaskedCardData) => (c.stability === null ? null : tenScaleToStars(c.stability)),
+  },
+  {
+    key: "신뢰도",
+    of: (c: MaskedCardData) => (c.confidence === null ? null : tenScaleToStars(c.confidence)),
+  },
+] as const;
 
 /** 모든 화면 공용 예측 카드. compact은 가로 레일(좁은 폭)용 */
 export function MaskedCard({
@@ -181,48 +179,49 @@ export function MaskedCard({
 
   const body = (
     <>
-      {/* 궤적은 이 영역(가격 줄 위)까지만 흐른다 — 배치 기준이 .main이라
-          별점이 줄바꿈돼 높이가 달라져도 가격 줄을 침범하지 않는다 */}
-      <div className={styles.main}>
-        <DirectionTrace
-          direction={c.direction}
-          profitability={c.profitability}
-          period={period}
-        />
+      <DirectionTrace
+        direction={c.direction}
+        profitability={c.profitability}
+        period={period}
+      />
 
-        {/* 방향 문구는 싣지 않는다 — 배경 궤적이 이미 방향을 말한다.
-            글자로 한 번 더 말하면 같은 정보가 두 번 자리를 차지한다 */}
-        <div className={styles.top}>
-          <span className={styles.asset}>{assetLabel(c.assetClass)}</span>
-        </div>
+      <span className={styles.assetChip}>{assetLabel(c.assetClass)}</span>
 
-        <div className={styles.body}>
-          <div className={styles.left}>
-            <span className={styles.avatar}>
-              <DefaultAvatar className={styles.avatarImg} />
-            </span>
-            <span className={styles.stat}>
-              <strong>{pct(c.hitRate)}</strong>적중률
-            </span>
-            <span className={styles.stat}>
-              <strong>{pct(c.repurchaseRate)}</strong>재구매율
-            </span>
-          </div>
-
-          <div className={styles.right}>
-            <span className={styles.nameRow}>
-              <span className={styles.name}>{c.researcherName}</span>
-              {c.careerBadge && <VerifiedBadge />}
-              <TierChip tier={c.tier} />
-            </span>
-            <SelfRatings c={c} />
-          </div>
-        </div>
+      <div className={styles.who}>
+        <span className={styles.avatar}>
+          <DefaultAvatar className={styles.avatarImg} />
+        </span>
+        <span className={styles.whoText}>
+          <span className={styles.nameRow}>
+            <span className={styles.name}>{c.researcherName}</span>
+            {c.careerBadge && <VerifiedBadge />}
+          </span>
+          <span className={styles.tierRow}>
+            <TierChip tier={c.tier} />
+            <TrackRecord c={c} />
+          </span>
+        </span>
       </div>
 
-      {/* 하단 = 거래 조건 한 줄. 왼쪽은 "언제까지", 오른쪽은 "얼마에".
-          시한을 왼쪽으로 내린 이유: 위쪽은 예측의 내용, 아래쪽은 사는 조건으로
-          축을 갈랐다. 시한은 내용이 아니라 조건이다 */}
+      {/* 확신 3종 — 유리 상자. 선은 자르고 상자는 묶는다: 층을 늘리지 않으면서
+          세 값이 카드에서 가장 또렷한 블록이 된다 */}
+      <div className={styles.ratingsBox}>
+        {RATINGS.map((r) => {
+          const v = r.of(c);
+          return (
+            <span key={r.key} className={styles.ratingCell}>
+              <span className={styles.ratingKey}>{r.key}</span>
+              {v === null ? (
+                <span className={styles.ratingNone}>—</span>
+              ) : (
+                <StarRating stars={v} label={r.key} />
+              )}
+            </span>
+          );
+        })}
+      </div>
+
+      {/* 하단 = 거래 조건. 왼쪽은 "언제까지", 오른쪽은 "얼마에" */}
       <div className={styles.foot}>
         <span className={styles.dday}>{dday(c.deadline, now)}</span>
         <span className={styles.footRight}>

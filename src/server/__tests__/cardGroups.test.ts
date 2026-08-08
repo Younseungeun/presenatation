@@ -17,6 +17,7 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
     tier: 'BRONZE',
     careerBadge: null,
     hitRate: null,
+    judgedCount: 0,
     repurchaseRate: null,
     assetClass: 'CRYPTO',
     direction: 'UP',

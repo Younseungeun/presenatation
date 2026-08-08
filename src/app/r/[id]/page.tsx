@@ -32,6 +32,7 @@ export default async function PublicProfile({
   // 판매 목록 카드에 붙는 리서처 신뢰 지표 (적중률·재구매율)
   const signals = (await researcherSignals(prisma, [id])).get(id) ?? {
     hitRate: null,
+    judgedCount: 0,
     repurchaseRate: null,
   };
 
@@ -148,6 +149,7 @@ export default async function PublicProfile({
                 tier: profile.tier,
                 careerBadge: profile.careerBadge,
                 hitRate: signals.hitRate,
+                judgedCount: signals.judgedCount,
                 repurchaseRate: signals.repurchaseRate,
                 priceKrw: r.priceKrw,
                 prepaymentRatio: r.prepaymentRatio,

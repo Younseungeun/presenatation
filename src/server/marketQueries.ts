@@ -26,6 +26,8 @@ export interface MarketCard {
   careerBadge: string | null;
   /** 판정 완료 카드의 적중 비율 (판정 이력 없으면 null) */
   hitRate: number | null;
+  /** 판정 완료 표본 수 — 적중률만 보이면 100%(1건)과 62%(47건)이 구별되지 않는다 */
+  judgedCount: number;
   /** 이 리서처를 두 번 이상 산 구매자 비율 (구매자 없으면 null) */
   repurchaseRate: number | null;
   assetClass: string | null;
@@ -79,8 +81,13 @@ const cardInclude = {
 export async function researcherSignals(
   prisma: PrismaClient,
   researcherIds: string[],
-): Promise<Map<string, { hitRate: number | null; repurchaseRate: number | null }>> {
-  const out = new Map<string, { hitRate: number | null; repurchaseRate: number | null }>();
+): Promise<
+  Map<string, { hitRate: number | null; judgedCount: number; repurchaseRate: number | null }>
+> {
+  const out = new Map<
+    string,
+    { hitRate: number | null; judgedCount: number; repurchaseRate: number | null }
+  >();
   if (researcherIds.length === 0) return out;
 
   const [judgments, purchases] = await Promise.all([
@@ -119,6 +126,7 @@ export async function researcherSignals(
     const repeat = b ? [...b.values()].filter((n) => n >= 2).length : 0;
     out.set(id, {
       hitRate: j && j.decided > 0 ? j.hits / j.decided : null,
+      judgedCount: j?.decided ?? 0,
       repurchaseRate: b && b.size > 0 ? repeat / b.size : null,
     });
   }
@@ -143,6 +151,7 @@ function toMarketCard(r: ReportWithCard): MarketCard {
     careerBadge: r.researcher.careerBadge,
     // 신뢰 지표는 목록 단위로 한 번에 붙인다 (withSignals) — 카드별 조회 금지
     hitRate: null,
+    judgedCount: 0,
     repurchaseRate: null,
     assetClass: card?.assetClass ?? null,
     direction: card?.direction ?? null,
