@@ -47,6 +47,16 @@ model ResearcherProfile {
   followers     Follow[] // 나를 팔로우한 사용자들
 }
 
+// 운영 설정: 배포 없이 운영자가 켜고 끄는 값들.
+// 환경변수로 두면 바꿀 때마다 재배포가 필요해 "지금 끄고 싶다"에 대응할 수 없다.
+// 값은 문자열로 저장하고 해석은 server/appSettings.ts가 맡는다 (키마다 타입이 다르다).
+model AppSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String? // 운영자 userId — 누가 껐는지 남는다
+}
+
 // 팔로우: 사용자 → 리서처 (단방향 구독).
 // 새 예측 카드가 게시되면 팔로워에게 알림이 가고, 리더보드에서 팔로우한 리서처의
 // 카드만 모아 볼 수 있다. 자기 자신(같은 계정의 리서처 프로필)은 팔로우할 수 없다.

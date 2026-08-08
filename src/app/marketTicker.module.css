@@ -1,0 +1,94 @@
+/* 시장 규모 띠지 — 얇은 띠 하나. 화면 폭을 꽉 채워 "바탕"처럼 앉는다 */
+.band {
+  /* 페이지 좌우 여백(20px)을 뚫고 화면 끝까지 */
+  margin: 0 -20px 14px;
+  padding: 0;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+  /* 양 끝을 흐리게 — 글자가 테두리에서 잘리지 않고 사라지는 것처럼 보인다 */
+  mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+}
+
+.track {
+  display: flex;
+  width: max-content;
+  animation: slide 28s linear infinite;
+}
+/* 목록을 두 벌 이어 붙이고 한 벌 폭(-50%)만 움직이면 이음매가 보이지 않는다 */
+@keyframes slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.band:hover .track {
+  animation-play-state: paused;
+}
+
+.run {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 9px 0;
+  margin-right: 26px;
+  white-space: nowrap;
+  font-size: 12px;
+}
+/* 항목 사이 구분점 — 마지막에도 붙지만 어차피 계속 흐르므로 어색하지 않다 */
+.item::after {
+  content: "";
+  width: 3px;
+  height: 3px;
+  margin-left: 26px;
+  border-radius: 50%;
+  background: var(--text-faint);
+  opacity: 0.45;
+  align-self: center;
+}
+.label {
+  color: var(--text-faint);
+  font-weight: 600;
+}
+.value {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text, #191f28);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* 움직임을 줄이는 설정에서는 흐르지 않고 눕는다 — 정보를 감추지 않고 표현만 바꾼다 */
+@media (prefers-reduced-motion: reduce) {
+  .band {
+    mask-image: none;
+    padding: 0 20px;
+  }
+  .track {
+    animation: none;
+    width: auto;
+    flex-wrap: wrap;
+  }
+  /* 둘째 벌은 반복일 뿐이라 정지 상태에서는 중복이다 */
+  .run:last-child {
+    display: none;
+  }
+  .run {
+    flex-wrap: wrap;
+  }
+  .item {
+    margin-right: 18px;
+  }
+  .item::after {
+    margin-left: 18px;
+  }
+}

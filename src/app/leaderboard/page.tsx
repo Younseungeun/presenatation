@@ -17,8 +17,11 @@ import {
   type MarketFilter,
   type MarketSort,
 } from "@/server/marketQueries";
+import { getMarketStats } from "@/server/marketStats";
+import { getUiSettings } from "@/server/appSettings";
 import { getSessionUserId } from "@/server/session";
 import { CleanBanner } from "../CleanBanner";
+import { MarketTicker } from "../MarketTicker";
 import { EmptyState } from "../EmptyState";
 import { MaskedCard } from "../MaskedCard";
 import { TraceNotice } from "../TraceNotice";
@@ -88,6 +91,12 @@ export default async function LeaderboardPage({
   const viewerId = await getSessionUserId();
   const followedIds = viewerId ? await getFollowedResearcherIds(prisma, viewerId) : [];
 
+  // 띠지는 운영자가 켠 경우에만 집계한다 — 꺼져 있으면 쿼리 자체를 돌리지 않는다
+  const ui = await getUiSettings(prisma);
+  const marketStats = ui.marketTicker
+    ? await getMarketStats(prisma, { includeAmounts: ui.marketTickerAmounts }, now)
+    : [];
+
   const [bestSelling, topTier, cards, followedSections, results] = await Promise.all([
     searching ? [] : getBestSellingCards(prisma, 5, now),
     searching ? [] : getTopTierCards(prisma, 5, now),
@@ -107,6 +116,10 @@ export default async function LeaderboardPage({
       <h1 className="srOnly">리더보드 — 지금 살 수 있는 예측 카드</h1>
 
       <SearchBar initial={rawQuery} />
+
+      {/* 시장 규모 띠지 — 운영자가 켰을 때만. 수치가 작을 때는 빈 마켓처럼 보여 역효과라
+          기본값이 꺼짐이다 (/admin/settings) */}
+      {marketStats.length > 0 && <MarketTicker stats={marketStats} />}
 
       {searching ? (
         <SearchResults query={query} rawQuery={rawQuery} results={results} now={now} />
