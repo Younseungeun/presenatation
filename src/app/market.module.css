@@ -117,6 +117,17 @@
   margin-top: 14px;
 }
 
+/* 리서처 소개말 — 본인의 목소리라 인용처럼 들여쓴다 (리더보드 PR 블록과 같은 형태) */
+.bio {
+  margin-top: 12px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-weak);
+  overflow-wrap: break-word;
+}
+
 /* 팔로워·팔로잉 수 + 팔로우 버튼 — 이름 바로 아래 한 줄 */
 .followRow {
   display: flex;

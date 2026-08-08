@@ -85,7 +85,6 @@ export async function createDraftReport(
           deadline: input.card.deadline,
           confidence: input.card.confidence,
           selfStability: input.card.selfStability,
-          selfProfitability: input.card.selfProfitability,
         },
       },
     },

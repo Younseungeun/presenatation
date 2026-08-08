@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
+import { cardProfitabilityLevel } from "@/domain/profitability";
 import { prisma } from "@/server/db";
 import { getFollowStats } from "@/server/followService";
 import { getPublicProfile } from "@/server/leaderboardQueries";
+import { researcherSignals } from "@/server/marketQueries";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
 import { FollowButton } from "./FollowButton";
 import { EmptyState } from "../../EmptyState";
+import { MaskedCard } from "../../MaskedCard";
 import { StatusChip, outcomeStatus } from "../../StatusChip";
 import { TierChip } from "../../TierChip";
 import { TrackRecordChart, type TrackPoint } from "./TrackRecordChart";
@@ -25,6 +28,12 @@ export default async function PublicProfile({
   if (!data) notFound();
   const viewerId = await getSessionUserId();
   const follow = await getFollowStats(prisma, id, viewerId);
+  const now = new Date();
+  // 판매 목록 카드에 붙는 리서처 신뢰 지표 (적중률·재구매율)
+  const signals = (await researcherSignals(prisma, [id])).get(id) ?? {
+    hitRate: null,
+    repurchaseRate: null,
+  };
 
   const { profile, trackRecords, buyable, history } = data;
   const name = profile.user.penName ?? profile.user.email;
@@ -58,6 +67,9 @@ export default async function PublicProfile({
           <small style={{ opacity: 0.6 }}>유사투자자문업 신고</small>
         )}
       </div>
+
+      {/* 소개말 — 리서처 본인의 목소리. 없으면 줄 자체를 그리지 않는다 */}
+      {profile.bio && <p className={styles.bio}>{profile.bio}</p>}
 
       {/* 팔로우 — 새 예측 카드 알림을 받고 리더보드에서 모아 본다 */}
       <div className={styles.followRow}>
@@ -123,19 +135,33 @@ export default async function PublicProfile({
       {buyable.length === 0 ? (
         <EmptyState compact glyph="doc" title="현재 판매 중인 리포트가 없어요" />
       ) : (
-        buyable.map((r) => (
-          <Link key={r.id} href={`/report/${r.id}`} className={styles.reportCard}>
-            <div className={styles.reportTitle}>{r.title}</div>
-            <div className={styles.meta}>
-              <span>{r.summary}</span>
-            </div>
-            <div className={styles.meta}>
-              <span>{r.priceKrw.toLocaleString()}원</span>
-              <span>선결제 {r.prepaymentRatio}%</span>
-              {r.prepaymentRatio === 0 && <span>틀리면 100% 환불</span>}
-            </div>
-          </Link>
-        ))
+        buyable.map((r) => {
+          // 구매 전 공개 범위 — 제목·요약·종목은 빼고 예측의 모양만
+          const c = r.predictionCard;
+          return (
+            <MaskedCard
+              key={r.id}
+              now={now}
+              href={`/report/${r.id}`}
+              c={{
+                researcherName: name,
+                tier: profile.tier,
+                careerBadge: profile.careerBadge,
+                hitRate: signals.hitRate,
+                repurchaseRate: signals.repurchaseRate,
+                priceKrw: r.priceKrw,
+                prepaymentRatio: r.prepaymentRatio,
+                deadline: c?.deadline ?? null,
+                publishedAt: r.publishedAt,
+                assetClass: c?.assetClass ?? null,
+                direction: c?.direction ?? null,
+                profitability: c ? cardProfitabilityLevel(c) : null,
+                confidence: c?.confidence ?? null,
+                stability: c?.selfStability ?? null,
+              }}
+            />
+          );
+        })
       )}
 
       {history.length > 0 && (

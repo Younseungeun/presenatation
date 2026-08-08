@@ -38,7 +38,6 @@ function makeDraft(ticker: string, direction: 'UP' | 'DOWN' = 'UP', confidence =
       targetValue: 10,
       confidence,
       selfStability: 5,
-      selfProfitability: 5,
       deadline: new Date('2026-08-01T00:00:00Z'),
     },
   };

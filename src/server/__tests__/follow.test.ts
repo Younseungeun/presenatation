@@ -13,7 +13,7 @@ import {
   NEW_CARD_NOTIFICATION_TYPE,
   unfollowResearcher,
 } from '../followService';
-import { getFollowedResearcherCards } from '../marketQueries';
+import { getFollowedSections } from '../marketQueries';
 import { createDraftReport, publishReport } from '../reportService';
 
 // 팔로우: 구독 관계 자체 + 새 카드 알림 + 리더보드 모아보기까지 한 흐름으로 검증한다.
@@ -51,7 +51,6 @@ async function publishCard(rid: string, ticker: string, title: string) {
         targetValue: 12,
         confidence: 5,
         selfStability: 1,
-        selfProfitability: 5,
         deadline: DEADLINE,
       },
     },
@@ -168,28 +167,46 @@ describe('새 예측 카드 알림', () => {
   });
 });
 
-describe('getFollowedResearcherCards — 리더보드 모아보기', () => {
-  it('팔로우한 리서처의 판매 중 카드만 최신순으로', async () => {
+describe('getFollowedSections — 리더보드 팔로우 블록 (사람 단위)', () => {
+  it('리서처별로 묶여 프로필·소개말·카드가 함께 온다', async () => {
     const ids = await getFollowedResearcherIds(prisma, followerId);
     expect(ids).toEqual([researcherId]);
 
-    const cards = await getFollowedResearcherCards(prisma, ids, 10, PUBLISH_NOW);
-    expect(cards).toHaveLength(1);
-    expect(cards[0].researcherId).toBe(researcherId);
-    expect(cards[0].title).toBe('팔로워 알림용 카드');
+    await prisma.researcherProfile.update({
+      where: { id: researcherId },
+      data: { bio: '반도체·2차전지를 주로 봅니다' },
+    });
+
+    const sections = await getFollowedSections(prisma, ids, 6, PUBLISH_NOW);
+    expect(sections).toHaveLength(1);
+    expect(sections[0].researcherId).toBe(researcherId);
+    expect(sections[0].bio).toBe('반도체·2차전지를 주로 봅니다');
+    expect(sections[0].followers).toBe(1);
+    expect(sections[0].cards).toHaveLength(1);
+    // 구매 전 뷰모델이라 제목·종목은 실리지 않는다 (마스킹은 서버에서 끝난다)
+    expect(sections[0].cards[0].assetClass).toBe('CRYPTO');
+    expect(sections[0].cards[0].direction).toBe('UP');
+    expect(JSON.stringify(sections[0])).not.toContain('팔로워 알림용 카드');
+    expect(JSON.stringify(sections[0])).not.toContain('KRW-AAA');
+  });
+
+  it('소개말을 설정하지 않았으면 null — 화면이 줄 자체를 그리지 않는다', async () => {
+    await prisma.researcherProfile.update({
+      where: { id: researcherId },
+      data: { bio: null },
+    });
+    const sections = await getFollowedSections(prisma, [researcherId], 6, PUBLISH_NOW);
+    expect(sections[0].bio).toBeNull();
   });
 
   it('팔로우가 없으면 빈 목록 (쿼리도 돌지 않는다)', async () => {
-    expect(await getFollowedResearcherCards(prisma, [], 10, PUBLISH_NOW)).toEqual([]);
+    expect(await getFollowedSections(prisma, [], 6, PUBLISH_NOW)).toEqual([]);
   });
 
-  it('시한이 지난 카드는 빠진다 (구매 가능 기준 공유)', async () => {
+  it('판매 중 카드가 없는 리서처는 블록 자체가 생기지 않는다', async () => {
     const after = new Date('2026-08-02T00:00:00Z');
-    expect(
-      await getFollowedResearcherCards(prisma, [researcherId], 10, after),
-    ).toEqual([]);
+    expect(await getFollowedSections(prisma, [researcherId], 6, after)).toEqual([]);
   });
-
 });
 
 describe('MY 화면 목록 — getFollowingList / getFollowerList', () => {

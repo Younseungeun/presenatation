@@ -97,7 +97,6 @@ describe('validateListedInstrument — 유니버스 검증', () => {
         targetValue: 15,
         confidence: 5,
         selfStability: 5,
-        selfProfitability: 5,
         deadline,
       },
     });

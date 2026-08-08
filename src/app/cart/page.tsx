@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCart, issueMessage } from "@/server/cartService";
 import { prisma } from "@/server/db";
@@ -6,6 +5,8 @@ import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
 import { EmptyState } from "../EmptyState";
 import { fmtDate } from "../format";
+import { MaskedCard } from "../MaskedCard";
+import { TraceNotice } from "../TraceNotice";
 import { CheckoutButton, RemoveButton } from "./CartActions";
 import styles from "../market.module.css";
 
@@ -18,7 +19,8 @@ export default async function CartPage() {
   const userId = await getSessionUserId();
   if (!userId) redirect("/login?next=/cart");
 
-  const { entries, payableKrw, payableCount } = await getCart(prisma, userId);
+  const now = new Date();
+  const { entries, payableKrw, payableCount } = await getCart(prisma, userId, now);
   const blocked = entries.filter((e) => e.issue !== null).length;
 
   return (
@@ -39,28 +41,23 @@ export default async function CartPage() {
             </p>
 
             {entries.map((e) => (
-              <div
-                key={e.reportId}
-                className={styles.reportCard}
-                style={e.issue ? { opacity: 0.6 } : undefined}
-              >
-                <div className={styles.reportTitle}>
-                  <Link href={`/report/${e.reportId}`}>{e.title}</Link>
-                </div>
-                <div className={styles.meta}>
-                  <span>{e.researcherName}</span>
-                  {e.assetName && <span>{e.assetName}</span>}
-                  {e.deadline && <span>시한 {fmtDate(e.deadline)}</span>}
-                </div>
-                <div className={styles.cartRow}>
-                  <span className={styles.cartPrice}>{e.priceKrw.toLocaleString()}원</span>
-                  <RemoveButton reportId={e.reportId} />
-                </div>
-                {e.issue && (
-                  <p className={styles.cartIssue}>{issueMessage(e.issue)}</p>
-                )}
+              <div key={e.reportId} style={e.issue ? { opacity: 0.6 } : undefined}>
+                <MaskedCard
+                  c={e}
+                  now={now}
+                  href={`/report/${e.reportId}`}
+                  footer={
+                    <div className={styles.cartRow}>
+                      {e.deadline && <span>시한 {fmtDate(e.deadline)}</span>}
+                      <RemoveButton reportId={e.reportId} />
+                    </div>
+                  }
+                />
+                {e.issue && <p className={styles.cartIssue}>{issueMessage(e.issue)}</p>}
               </div>
             ))}
+
+            <TraceNotice />
 
             <CheckoutButton payableCount={payableCount} payableKrw={payableKrw} />
           </>

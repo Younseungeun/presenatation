@@ -145,6 +145,17 @@
   max-width: 320px;
   text-wrap: balance;
 }
+/* 각주 — 본문보다 한 단 낮은 목소리. 위쪽 짧은 선이 "덧붙임"임을 알린다 */
+.slideNote {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-faint);
+  max-width: 300px;
+  text-wrap: balance;
+}
 
 .footer {
   flex-shrink: 0;

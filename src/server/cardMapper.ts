@@ -18,7 +18,6 @@ export function toCardDraft(card: PredictionCard): CardDraft {
     deadline: card.deadline,
     confidence: card.confidence,
     selfStability: card.selfStability,
-    selfProfitability: card.selfProfitability,
   };
 }
 

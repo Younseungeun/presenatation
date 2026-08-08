@@ -1,5 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
+import { cardProfitabilityLevel, type ProfitabilityLevel } from '@/domain/profitability';
 import { isFreeReport } from './freeReportService';
+import { researcherSignals } from './marketQueries';
 import { purchaseReport, type PaymentInput } from './purchaseService';
 
 // 장바구니 — 여러 리포트를 담아 한 번에 결제한다.
@@ -11,16 +13,28 @@ import { purchaseReport, type PaymentInput } from './purchaseService';
 
 export type CartItemIssue = 'DEADLINE_PASSED' | 'NOT_PUBLISHED' | 'ALREADY_PURCHASED' | 'OWN_REPORT';
 
-/** 담긴 리포트 1건 + 지금 결제 가능한지 */
+/**
+ * 담긴 리포트 1건 + 지금 결제 가능한지.
+ * 장바구니는 구매 전이라 제목·요약·종목을 싣지 않는다 (구매 전 마스킹 규칙 §2.1) —
+ * 무엇을 담았는지는 리서처와 예측의 모양(자산군·방향·수익성)으로 식별한다.
+ */
 export interface CartEntry {
   reportId: string;
-  title: string;
-  summary: string;
   priceKrw: number;
+  prepaymentRatio: number;
   researcherName: string;
   researcherId: string;
-  assetName: string | null;
+  tier: string;
+  careerBadge: string | null;
+  hitRate: number | null;
+  repurchaseRate: number | null;
+  assetClass: string | null;
+  direction: string | null;
+  profitability: ProfitabilityLevel | null;
+  confidence: number | null;
+  stability: number | null;
   deadline: Date | null;
+  publishedAt: Date | null;
   addedAt: Date;
   /** null이면 결제 가능 */
   issue: CartItemIssue | null;
@@ -91,6 +105,11 @@ export async function getCart(
     where: { buyerId: userId, reportId: { in: items.map((i) => i.reportId) } },
     select: { reportId: true },
   });
+  // 카드에 함께 나가는 리서처 신뢰 지표 (적중률·재구매율)
+  const signals = await researcherSignals(
+    prisma,
+    [...new Set(items.map((i) => i.report.researcherId))],
+  );
   const purchasedIds = new Set(purchases.map((p) => p.reportId));
 
   const entries: CartEntry[] = items.map((i) => {
@@ -101,15 +120,24 @@ export async function getCart(
     else if (r.status !== 'PUBLISHED') issue = 'NOT_PUBLISHED';
     else if (r.predictionCard && r.predictionCard.deadline <= now) issue = 'DEADLINE_PASSED';
 
+    const card = r.predictionCard;
     return {
       reportId: r.id,
-      title: r.title,
-      summary: r.summary,
       priceKrw: r.priceKrw,
+      prepaymentRatio: r.prepaymentRatio,
       researcherName: r.researcher.user.penName ?? r.researcher.user.email,
       researcherId: r.researcherId,
-      assetName: r.predictionCard?.assetName ?? null,
-      deadline: r.predictionCard?.deadline ?? null,
+      tier: r.researcher.tier,
+      careerBadge: r.researcher.careerBadge,
+      hitRate: signals.get(r.researcherId)?.hitRate ?? null,
+      repurchaseRate: signals.get(r.researcherId)?.repurchaseRate ?? null,
+      assetClass: card?.assetClass ?? null,
+      direction: card?.direction ?? null,
+      profitability: card ? cardProfitabilityLevel(card) : null,
+      confidence: card?.confidence ?? null,
+      stability: card?.selfStability ?? null,
+      deadline: card?.deadline ?? null,
+      publishedAt: r.publishedAt,
       addedAt: i.addedAt,
       issue,
     };

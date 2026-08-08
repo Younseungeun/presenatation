@@ -2,9 +2,9 @@ import Link from "next/link";
 import { ASSET_CLASS_LABEL, TIER_LABEL, type AssetClass, type Tier } from "@/domain/constants";
 import { IntovillLockup } from "./brand/Logo";
 import { CleanBanner } from "./CleanBanner";
-import { dday, directionLabel, predictionLabel, sinceLabel } from "./format";
+import { directionLabel, sinceLabel } from "./format";
+import { MaskedCard } from "./MaskedCard";
 import { StatusChip, outcomeStatus } from "./StatusChip";
-import { TierChip } from "./TierChip";
 import type { FreeReportSummary } from "@/server/freeReportService";
 import type { ConsensusRow, JudgedFeedItem, MarketCard } from "@/server/marketQueries";
 import { PredictionHeatmap } from "./PredictionHeatmap";
@@ -142,28 +142,13 @@ export function HomeSignedIn({
           </div>
           <div className={market.rail}>
             {upcoming.map((c) => (
-              <Link key={c.reportId} href={`/report/${c.reportId}`} className={market.railCard}>
-                <div className={market.railTop}>
-                  {c.assetName && <span className={market.railAsset}>{c.assetName}</span>}
-                  <span
-                    className={market.railDir}
-                    style={{ color: c.direction === "UP" ? "var(--pos)" : "var(--neg)" }}
-                  >
-                    {predictionLabel(c.direction, c.targetType, c.targetValue)}
-                  </span>
-                </div>
-                <div className={market.railCardTitle}>{c.title}</div>
-                <div className={market.railMeta}>
-                  <span>{c.researcherName}</span>
-                  <TierChip tier={c.tier} />
-                </div>
-                <div className={market.railFoot}>
-                  <span className={market.railPrice}>{c.priceKrw.toLocaleString()}원</span>
-                  <span className={market.railDday}>
-                    {c.deadline ? dday(c.deadline, now) : "—"}
-                  </span>
-                </div>
-              </Link>
+              <MaskedCard
+                key={c.reportId}
+                c={c}
+                now={now}
+                href={`/report/${c.reportId}`}
+                compact
+              />
             ))}
           </div>
         </>

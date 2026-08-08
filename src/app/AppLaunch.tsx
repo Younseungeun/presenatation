@@ -31,10 +31,14 @@ function writeOnboarded() {
   }
 }
 
-const SLIDES = [
+// note = 각주. 본문만큼 중요하지는 않지만 그 자리에서 짚어두지 않으면
+// 나중에 오해가 되는 것들을 담는다.
+const SLIDES: { title: string; text: string; note?: string; art: React.ReactNode }[] = [
   {
     title: "예측 카드가 붙은 리포트",
     text: "모든 유료 리포트에는 종목·방향·목표 크기·검증 시한이 명시된 예측 카드가 함께 붙습니다.",
+    // 카드 배경의 궤적을 "그 종목의 실제 차트"로 읽는 오해를 처음 만나는 자리에서 끊는다
+    note: "카드 배경의 그래프는 예측의 방향·크기·기간을 요약한 그림이며, 실제 종목의 시세 차트가 아닙니다.",
     art: (
       <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
         <rect
@@ -231,6 +235,7 @@ export function AppLaunch() {
                 </span>
                 <h2 className={styles.slideTitle}>{s.title}</h2>
                 <p className={styles.slideText}>{s.text}</p>
+                {s.note && <p className={styles.slideNote}>{s.note}</p>}
               </section>
             ))}
           </div>

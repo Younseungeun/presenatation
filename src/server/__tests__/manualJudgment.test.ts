@@ -49,7 +49,6 @@ async function publishAndBuy(ticker: string) {
         targetValue: 10,
         confidence: 5,
         selfStability: 5,
-        selfProfitability: 5,
         deadline: DEADLINE,
       },
     },

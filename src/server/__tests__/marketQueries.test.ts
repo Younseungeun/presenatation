@@ -53,7 +53,6 @@ async function publish(researcherId: string, ticker: string, deadline: Date) {
         targetValue: 20,
         confidence: 5,
         selfStability: 5,
-        selfProfitability: 5,
         deadline,
       },
     },

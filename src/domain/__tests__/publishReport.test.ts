@@ -19,7 +19,6 @@ const validCard: CardDraft = {
   deadline: new Date('2026-10-12T00:00:00Z'),
   confidence: 3,
   selfStability: 5,
-  selfProfitability: 7,
 };
 
 const validCond: PublishConditions = {
@@ -90,7 +89,6 @@ describe('validateCardDraft', () => {
     expect(validateCardDraft({ ...validCard, confidence: 11 }, NOW)).not.toEqual([]);
     expect(validateCardDraft({ ...validCard, confidence: 10 }, NOW)).toEqual([]);
     expect(validateCardDraft({ ...validCard, selfStability: 0 }, NOW)).not.toEqual([]);
-    expect(validateCardDraft({ ...validCard, selfProfitability: 5.5 }, NOW)).not.toEqual([]);
   });
 });
 

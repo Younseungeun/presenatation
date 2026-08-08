@@ -69,7 +69,6 @@ beforeAll(async () => {
         targetValue: 20,
         confidence: 5,
         selfStability: 5,
-        selfProfitability: 5,
         deadline: new Date('2026-12-01T00:00:00Z'),
       },
     },

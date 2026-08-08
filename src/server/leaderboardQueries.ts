@@ -280,7 +280,7 @@ export async function getReportDetail(
     where: { id: reportId },
     include: {
       predictionCard: { include: { judgment: true } },
-      researcher: { include: { user: { select: { penName: true, email: true } } } },
+      researcher: { include: { user: { select: { id: true, penName: true, email: true } } } },
     },
   });
   if (!report) return null;

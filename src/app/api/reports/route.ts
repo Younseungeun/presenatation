@@ -25,7 +25,6 @@ const bodySchema = z.object({
     deadline: z.coerce.date(),
     confidence: z.number().int().min(1).max(10),
     selfStability: z.number().int().min(1).max(10),
-    selfProfitability: z.number().int().min(1).max(10),
   }),
 });
 

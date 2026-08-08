@@ -44,7 +44,6 @@ function draftInput() {
       targetValue: 10,
       confidence: 5 as number,
       selfStability: 5 as number,
-      selfProfitability: 5 as number,
       // 실행 시점 의존을 피하기 위해 상대 시한 (3개월)
       deadline: new Date(Date.now() + 90 * 86_400_000),
     },
@@ -158,7 +157,6 @@ describe('리포트 게시 플로우', () => {
       targetValue: 5,
       confidence: 5,
       selfStability: 5,
-      selfProfitability: 5,
       deadline: new Date('2026-07-13T06:30:00Z'), // KST 월 15:30 (당일 종가)
     };
     const draft = await createDraftReport(prisma, input, DRAFT_NOW);
@@ -187,7 +185,6 @@ describe('리포트 게시 플로우', () => {
       targetValue: 5,
       confidence: 5,
       selfStability: 5,
-      selfProfitability: 5,
       deadline: new Date('2026-07-13T06:30:00Z'),
     };
     const draft = await createDraftReport(prisma, input, DRAFT_NOW);
@@ -208,7 +205,6 @@ describe('리포트 게시 플로우', () => {
       targetValue: 5,
       confidence: 5,
       selfStability: 5,
-      selfProfitability: 5,
       deadline: new Date('2026-07-15T06:30:00Z'), // 수요일 15:30 KST
     };
     const draft = await createDraftReport(prisma, input, DRAFT_NOW);
@@ -260,7 +256,6 @@ describe('리포트 게시 플로우', () => {
               deadline: new Date(Date.now() + 30 * 86_400_000),
               confidence: 1,
               selfStability: 5,
-              selfProfitability: 5,
             },
           },
         },

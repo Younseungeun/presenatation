@@ -96,10 +96,8 @@ export interface CardDraft {
   deadline: Date;
   /** 신뢰도 1~10 (필수) — 점수 증폭 배율 */
   confidence: number;
-  /** 자기 평가 안정성 1~10 (필수, 표시용) */
+  /** 자기 평가 안정성 1~10 (필수) — 정밀도 배팅 배율 */
   selfStability: number;
-  /** 자기 평가 수익성 1~10 (필수, 표시용) */
-  selfProfitability: number;
 }
 
 export interface PublishConditions {
@@ -204,10 +202,10 @@ export function validateCardDraft(card: CardDraft, now = new Date()): string[] {
       `${card.assetClass} 예측 크기는 최소 ${MIN_MAGNITUDE_PCT[card.assetClass]}% 이상이어야 합니다: ${card.targetValue}% — 작은 크기는 사실상 방향 맞히기로 만점이 되기 때문입니다`,
     );
   }
+  // 수익성은 예측 크기에서 자동 산출된다(profitability.ts) — 입력 검증 대상이 아니다
   for (const [label, value] of [
     ['신뢰도', card.confidence],
     ['안정성', card.selfStability],
-    ['수익성', card.selfProfitability],
   ] as const) {
     if (!Number.isInteger(value) || value < 1 || value > 10) {
       issues.push(`${label}(자기 평가)은 1~10 정수여야 합니다: ${value}`);

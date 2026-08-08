@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
+import { cardProfitabilityLevel } from "@/domain/profitability";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/server/purchaseService";
@@ -9,6 +10,8 @@ import { TOSS_CLIENT_KEY } from "@/server/tossPayments";
 import { AppHeader } from "../../AppHeader";
 import { Disclaimer } from "../../Disclaimer";
 import { fmtDateTime } from "../../format";
+import { maskedHeadline } from "../../MaskedCard";
+import { StarRating, tenScaleToStars } from "../../StarRating";
 import { StatusChip, type StatusKind } from "../../StatusChip";
 import { JudgmentReceipt } from "./JudgmentReceipt";
 import { PurchaseButton } from "./PurchaseButton";
@@ -55,13 +58,25 @@ export default async function ReportDetail({
       ? `${card.targetValue}%`
       : `목표가 ${card?.targetValue.toLocaleString()}`;
 
+  // 구매 전 마스킹 — 종목·목표 수익률이 곧 상품이라, 사기 전에는
+  // 자산군·방향·수익성(자동 산출 5구간)·시한·신뢰도·안정성까지만 보여준다.
+  // 판정이 끝난 카드는 상품 가치가 소진된 공개 기록이므로 전부 공개하고,
+  // 리서처 본인에게도 가리지 않는다.
+  const isOwner = viewerId !== null && report.researcher.user.id === viewerId;
+  const masked = !!card && !purchased && !judgment && !isOwner;
+  const profitabilityLevel = card ? cardProfitabilityLevel(card) : null;
+
   return (
     <>
       <AppHeader title="리포트" titleAs="span" backHref={`/r/${report.researcherId}`} />
       <main className={styles.page}>
-      <h1 className={styles.h1}>{report.title}</h1>
+      {/* 제목·요약도 리서처 자유 입력이라 구매 전에는 감춘다 —
+          종목명이 제목에 들어가면 나머지 마스킹이 통째로 무력해진다 */}
+      <h1 className={styles.h1}>
+        {masked ? `${maskedHeadline(card)} 예측 카드` : report.title}
+      </h1>
       <p className={styles.sub}>
-        {researcherName} · {report.summary}
+        {masked ? `${researcherName} · 제목과 요약은 구매 후 공개됩니다` : `${researcherName} · ${report.summary}`}
       </p>
 
       {card && (
@@ -69,14 +84,14 @@ export default async function ReportDetail({
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>자산</span>
             <span className={styles.cardVal}>
-              {ASSET_CLASS_LABEL[card.assetClass as AssetClass]} {card.assetName} ({card.ticker})
+              {masked
+                ? `${ASSET_CLASS_LABEL[card.assetClass as AssetClass]} (종목은 구매 후 공개)`
+                : `${ASSET_CLASS_LABEL[card.assetClass as AssetClass]} ${card.assetName} (${card.ticker})`}
             </span>
           </div>
           <div className={styles.cardRow}>
-            <span className={styles.cardKey}>방향 · 크기</span>
-            <span className={styles.cardVal}>
-              {dir} · {size}
-            </span>
+            <span className={styles.cardKey}>{masked ? "방향" : "방향 · 크기"}</span>
+            <span className={styles.cardVal}>{masked ? dir : `${dir} · ${size}`}</span>
           </div>
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>검증 시한</span>
@@ -85,9 +100,25 @@ export default async function ReportDetail({
             </span>
           </div>
           <div className={styles.cardRow}>
-            <span className={styles.cardKey}>신뢰도 · 안정성 · 수익성</span>
+            <span className={styles.cardKey}>신뢰도</span>
             <span className={styles.cardVal}>
-              {card.confidence} · {card.selfStability} · {card.selfProfitability}
+              <StarRating stars={tenScaleToStars(card.confidence)} label="신뢰도" />
+            </span>
+          </div>
+          <div className={styles.cardRow}>
+            <span className={styles.cardKey}>안정성</span>
+            <span className={styles.cardVal}>
+              <StarRating stars={tenScaleToStars(card.selfStability)} label="안정성" />
+            </span>
+          </div>
+          <div className={styles.cardRow}>
+            <span className={styles.cardKey}>수익성</span>
+            <span className={styles.cardVal}>
+              {profitabilityLevel === null ? (
+                "—"
+              ) : (
+                <StarRating stars={profitabilityLevel} label="수익성" />
+              )}
             </span>
           </div>
           <div className={styles.cardRow}>

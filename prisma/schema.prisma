@@ -35,6 +35,9 @@ model ResearcherProfile {
   user               User     @relation(fields: [userId], references: [id])
   tier               String   @default("BRONZE") // BRONZE | SILVER | GOLD | PLATINUM | CHALLENGER
   careerBadge        String? // ANALYST | CFA | CPA | INDUSTRY_EXPERT (수동 심사 후 부여)
+  // 소개말 — 리더보드 팔로우 섹션·공개 프로필의 PR 자리. 종목 언급·수익률 약속은 금지
+  // (구매 전 마스킹 우회 + 투자권유 소지). 설정에서 본인이 편집한다
+  bio                String?
   advisoryRegistered Boolean  @default(false) // 유사투자자문업 신고 여부 표시
   promoFeeUntil      DateTime? // 초기 입점 프로모션(수수료 10%) 만료일
   createdAt          DateTime @default(now())
@@ -97,7 +100,7 @@ model PredictionCard {
   deadline      DateTime // 검증 시한
   confidence    Int       @default(5) // 신뢰도 1~10 (필수) — 점수 증폭 배율 (scoring.ts)
   selfStability Int       @default(1) // 자기 평가 안정성 1~10 — 정밀도 배팅 (1 = 불참이 기본: 모르고 배팅당하는 사고 방지, scoring.ts)
-  selfProfitability Int   @default(5) // 자기 평가 수익성 1~10 (표시용)
+  // 수익성은 저장하지 않는다 — 예측 크기에서 자동 산출 (domain/profitability.ts)
   withdrawnAt   DateTime? // 철회 시각 (철회해도 기록 유지)
   createdAt     DateTime  @default(now())
 

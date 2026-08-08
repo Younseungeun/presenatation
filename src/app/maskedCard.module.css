@@ -1,0 +1,220 @@
+/* 구매 전 예측 카드 — MaskedCard.tsx 전용.
+   배경의 45° 궤적이 signature: 기울기가 곧 예측 방향이라 색 없이도 상승·하락이 읽힌다. */
+.card {
+  position: relative;
+  display: block;
+  overflow: hidden; /* 궤적이 카드 밖으로 새지 않게 */
+  isolation: isolate;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 10px;
+  background: var(--bg);
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+.card:hover {
+  border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
+}
+
+/* 예측 정보 영역 — 궤적의 배치 기준. 가격 줄은 이 바깥에 있어 배경이 닿지 않는다 */
+.main {
+  position: relative;
+  padding: 14px 16px 12px;
+}
+
+/* 궤적은 이 영역의 아래쪽을 채우고 좌우로 꽉 찬다 */
+.trace {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  /* SVG는 대체 요소라 left/right만으로는 늘어나지 않는다 — 폭을 명시해야 카드를 채운다 */
+  width: 100%;
+  height: 74%;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* 상단: 자산군·방향(좌) / D-day(우) */
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.asset {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.dday {
+  font-size: 12px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.body {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+/* 좌: 사람 — 아바타 + 실적 두 줄. 숫자를 앞세워 스캔하기 쉽게 */
+.left {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  width: 68px;
+}
+.avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-2);
+  color: var(--text-faint);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 6px;
+}
+.avatarImg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.stat {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.stat strong {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text, #191f28);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 우: 예측 — 이름·등급 한 줄, 그 아래 별점 3종 */
+.right {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.name {
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text, #191f28);
+}
+
+/* 넓은 화면에서는 별점 3종이 한 줄에 나란히, 좁아지면 접힌다 */
+.ratings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+.rating {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.ratingKey {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+/* 가격 줄 — 궤적 영역(.main) 바깥이라 배경 그래프가 뒤에 깔리지 않는다 */
+.foot {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 10px 16px 12px;
+  border-top: 1px solid var(--border);
+}
+.price {
+  font-size: 16px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+.prepay {
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+.refund {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 800;
+  color: #0b7a66; /* Mint 700 — 흰 배경 위 텍스트 대비 확보 */
+}
+
+/* ── 가로 레일용 압축형 (폭 250px) ───────────────────────────── */
+.compact {
+  flex: 0 0 auto;
+  width: 250px;
+  margin-bottom: 0;
+  scroll-snap-align: start;
+}
+.compact .main {
+  padding: 13px 14px 11px;
+}
+.compact .body {
+  gap: 12px;
+  margin-top: 10px;
+}
+.compact .left {
+  width: 54px;
+}
+.compact .avatar {
+  width: 42px;
+  height: 42px;
+}
+.compact .name {
+  font-size: 14px;
+}
+/* 좁은 폭에서는 별점을 세로로 쌓는다 — 가로로 두면 별이 잘린다 */
+.compact .ratings {
+  flex-direction: column;
+  gap: 3px;
+}
+.compact .foot {
+  padding: 9px 14px 11px;
+}
+.compact .price {
+  font-size: 14.5px;
+}
+.compact .prepay,
+.compact .refund {
+  display: none; /* 좁은 카드에서는 가격·시한만 — 나머지는 상세에서 */
+}
+
+/* 좁은 화면에서는 목록 카드도 별점을 세로로 */
+@media (max-width: 420px) {
+  .ratings {
+    flex-direction: column;
+    gap: 4px;
+  }
+}
+
+/* 한 줄 헤드라인 (다른 화면에서 재사용) */
+.headline {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}

@@ -46,7 +46,6 @@ async function publish(ticker: string, deadline: Date, priceKrw = 10_000) {
         targetValue: 20,
         confidence: 5,
         selfStability: 5,
-        selfProfitability: 5,
         deadline,
       },
     },
