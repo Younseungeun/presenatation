@@ -58,15 +58,22 @@ export interface MaskedCardFull extends MaskedCardData {
   publishedAt?: Date | null;
 }
 
-/** 자산군 · 방향 — 카드의 제목 자리를 대신한다 */
+/** 자산군 이름만 — 배경 궤적이 방향을 말하는 자리(카드)에서 쓴다 */
+export function assetLabel(assetClass: string | null): string {
+  if (!assetClass) return "";
+  return ASSET_CLASS_LABEL[assetClass as AssetClass] ?? assetClass;
+}
+
+/**
+ * 자산군 · 방향 — 카드의 제목 자리를 대신한다.
+ * 배경 궤적이 없는 자리(리포트 상세 제목, 순위표 행)에서만 쓴다.
+ * 예측 카드 본체는 방향을 그림으로 말하므로 assetLabel만 쓴다.
+ */
 export function maskedHeadline(c: {
   assetClass: string | null;
   direction: string | null;
 }): string {
-  const asset = c.assetClass
-    ? (ASSET_CLASS_LABEL[c.assetClass as AssetClass] ?? c.assetClass)
-    : "";
-  return [asset, directionLabel(c.direction)].filter(Boolean).join(" ");
+  return [assetLabel(c.assetClass), directionLabel(c.direction)].filter(Boolean).join(" ");
 }
 
 /** 자기 평가 3종을 별 5개로 (신뢰도·안정성은 1~10이라 반 개 단위, 수익성은 5구간이라 정수) */
@@ -183,14 +190,10 @@ export function MaskedCard({
           period={period}
         />
 
+        {/* 방향 문구는 싣지 않는다 — 배경 궤적이 이미 방향을 말한다.
+            글자로 한 번 더 말하면 같은 정보가 두 번 자리를 차지한다 */}
         <div className={styles.top}>
-          <span
-            className={styles.asset}
-            style={{ color: c.direction === "UP" ? "var(--pos)" : "var(--neg)" }}
-          >
-            {maskedHeadline(c)}
-          </span>
-          <span className={styles.dday}>{dday(c.deadline, now)}</span>
+          <span className={styles.asset}>{assetLabel(c.assetClass)}</span>
         </div>
 
         <div className={styles.body}>
@@ -217,12 +220,21 @@ export function MaskedCard({
         </div>
       </div>
 
+      {/* 하단 = 거래 조건 한 줄. 왼쪽은 "언제까지", 오른쪽은 "얼마에".
+          시한을 왼쪽으로 내린 이유: 위쪽은 예측의 내용, 아래쪽은 사는 조건으로
+          축을 갈랐다. 시한은 내용이 아니라 조건이다 */}
       <div className={styles.foot}>
-        <span className={styles.price}>{c.priceKrw.toLocaleString()}원</span>
-        {c.prepaymentRatio !== undefined && (
-          <span className={styles.prepay}>선결제 {c.prepaymentRatio}%</span>
-        )}
-        {c.prepaymentRatio === 0 && <span className={styles.refund}>틀리면 100% 환불</span>}
+        <span className={styles.dday}>{dday(c.deadline, now)}</span>
+        <span className={styles.footRight}>
+          <span className={styles.price}>{c.priceKrw.toLocaleString()}원</span>
+          {c.prepaymentRatio === 0 ? (
+            <span className={styles.refund}>틀리면 100% 환불</span>
+          ) : (
+            c.prepaymentRatio !== undefined && (
+              <span className={styles.prepay}>선결제 {c.prepaymentRatio}%</span>
+            )
+          )}
+        </span>
       </div>
       {footer}
     </>
