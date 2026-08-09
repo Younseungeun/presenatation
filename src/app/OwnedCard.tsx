@@ -2,6 +2,7 @@ import Link from "next/link";
 import { computeCardProgress, fillPercent } from "@/domain/cardProgress";
 import { ASSET_CLASS_LABEL, type AssetClass, type Direction } from "@/domain/constants";
 import type { OwnedCardView } from "@/server/ownedCardViews";
+import { VerifiedBadge } from "./brand/VerifiedBadge";
 import { dday } from "./format";
 import { StockLogo } from "./StockLogo";
 import styles from "./ownedCard.module.css";
@@ -64,7 +65,15 @@ export function OwnedCard({
       href={`/report/${v.reportId}`}
       className={`${styles.card} ${compact ? styles.compact : ""}`}
     >
-      {/* ① 종목 — 구매로 열린 것이 맨 위 */}
+      {/* ⓪ 바이라인 — 누가 쓴 예측인가. 산 뒤에도 책임 주체는 남아야 한다.
+          구매 전 카드처럼 아바타·등급·실적까지 얹지 않는 이유: 그것들은 "살까?"를
+          판단하는 재료인데 이미 샀다. 여기서는 이름만 있으면 된다 */}
+      <span className={styles.byline}>
+        {v.researcherName}
+        {v.careerBadge && <VerifiedBadge size={11} />}
+      </span>
+
+      {/* ① 종목 — 구매로 열린 것 */}
       <span className={styles.head}>
         <StockLogo code={v.ticker} name={v.assetName} size={compact ? 32 : 38} />
         <span className={styles.names}>

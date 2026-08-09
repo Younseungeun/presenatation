@@ -34,6 +34,7 @@ export function SortPicker({
     if (filter.refundOnly) q.set("refund", "1");
     if (filter.maxPriceKrw) q.set("budget", String(filter.maxPriceKrw));
     if (filter.withinDays) q.set("within", String(filter.withinDays));
+    if (filter.hideOwned) q.set("hideowned", "1");
     return `/leaderboard?${q}`;
   }
 

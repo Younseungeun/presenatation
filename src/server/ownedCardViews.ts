@@ -16,6 +16,9 @@ import { createDefaultRegistry } from '@/infra/marketData/registry';
 export interface OwnedCardView {
   reportId: string;
   title: string;
+  /** 누가 쓴 예측인가 — 산 뒤에도 책임 주체는 남아야 한다 */
+  researcherName: string;
+  careerBadge: string | null;
   assetClass: string;
   assetName: string;
   ticker: string;
@@ -95,6 +98,12 @@ export async function getOwnedCardViews(
           title: true,
           priceKrw: true,
           publishedAt: true,
+          researcher: {
+            select: {
+              careerBadge: true,
+              user: { select: { penName: true, email: true } },
+            },
+          },
           predictionCard: {
             select: {
               assetClass: true,
@@ -142,6 +151,8 @@ export async function getOwnedCardViews(
     out.set(r.id, {
       reportId: r.id,
       title: r.title,
+      researcherName: r.researcher.user.penName ?? r.researcher.user.email,
+      careerBadge: r.researcher.careerBadge,
       assetClass: c.assetClass,
       assetName: c.assetName,
       ticker: c.ticker,

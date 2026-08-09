@@ -263,6 +263,12 @@ export interface MarketFilter {
   maxPriceKrw?: number | null;
   /** 남은 검증 기간 상한 (일) — "빨리 결과를 보고 싶다" */
   withinDays?: number | null;
+  /**
+   * 이미 산 카드를 숨긴다 — 다른 필터와 성격이 다르다.
+   * 나머지는 카드의 속성으로 거르지만 이것은 **보는 사람과의 관계**로 거르므로
+   * SQL이 아니라 조회 뒤에 걸린다(server/marketQueries는 뷰어를 모른다).
+   */
+  hideOwned?: boolean;
 }
 
 export const BUDGET_OPTIONS = [10_000, 30_000] as const;
@@ -270,7 +276,7 @@ export const WITHIN_DAY_OPTIONS = [7, 30] as const;
 
 /** 필터가 하나라도 걸려 있나 — 화면의 "필터 해제" 표시 판단 */
 export function hasActiveFilter(f: MarketFilter): boolean {
-  return Boolean(f.refundOnly || f.maxPriceKrw || f.withinDays);
+  return Boolean(f.refundOnly || f.maxPriceKrw || f.withinDays || f.hideOwned);
 }
 
 /** 목표 크기 비교값 — 수익성 5구간(자산군 무관 공통 축). 원값은 구매 전 비노출이라 쓰지 않는다 */

@@ -26,6 +26,7 @@ function hrefWith(s: FilterState, patch: Partial<MarketFilter>): string {
   if (next.refundOnly) q.set("refund", "1");
   if (next.maxPriceKrw) q.set("budget", String(next.maxPriceKrw));
   if (next.withinDays) q.set("within", String(next.withinDays));
+  if (next.hideOwned) q.set("hideowned", "1");
   return `/leaderboard?${q}`;
 }
 
@@ -52,12 +53,36 @@ function Chip({
   );
 }
 
-export function FilterBar({ state, matched }: { state: FilterState; matched: number }) {
-  const active = Boolean(state.refundOnly || state.maxPriceKrw || state.withinDays);
+export function FilterBar({
+  state,
+  matched,
+  ownedCount = 0,
+}: {
+  state: FilterState;
+  matched: number;
+  /** 지금 화면에 있는 내 구매 카드 수 — 0이면 숨김 칩을 그리지 않는다 */
+  ownedCount?: number;
+}) {
+  const active = Boolean(
+    state.refundOnly || state.maxPriceKrw || state.withinDays || state.hideOwned,
+  );
 
   return (
     <div className={styles.filterWrap}>
       <div className={styles.chipRow}>
+        {/* 구매한 카드 숨기기 — 다른 칩과 성격이 다르다(카드 속성이 아니라 나와의 관계).
+            숨길 것이 없으면 그리지 않는다: 눌러도 아무 일이 없는 칩은 고장으로 읽힌다.
+            이 필터만 리더보드 **화면 전체**에 걸린다 — 목록에서만 지우면 레일에 그대로
+            남아 "구매한 카드가 보기 싫다"는 목적이 달성되지 않는다 */}
+        {(ownedCount > 0 || state.hideOwned) && (
+          <Chip
+            on={!!state.hideOwned}
+            href={hrefWith(state, { hideOwned: !state.hideOwned })}
+          >
+            구매한 카드 숨기기
+          </Chip>
+        )}
+
         {/* 무위험 진입은 이 서비스의 1번 차별화인데 지금껏 카드마다 확인해야 했다.
             축으로 만들면 "잃을 게 없는 카드만" 한 번에 좁혀진다 */}
         <Chip

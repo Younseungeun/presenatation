@@ -113,6 +113,7 @@ export default async function LeaderboardPage({
     refund?: string;
     budget?: string;
     within?: string;
+    hideowned?: string;
     q?: string;
   }>;
 }) {
@@ -131,6 +132,7 @@ export default async function LeaderboardPage({
     refundOnly: sp.refund === "1",
     maxPriceKrw: pickNumber(sp.budget, BUDGET_OPTIONS),
     withinDays: pickNumber(sp.within, WITHIN_DAY_OPTIONS),
+    hideOwned: sp.hideowned === "1",
   };
 
   // 검색 중에는 추천 섹션을 걷어내고 결과만 보여준다 — 찾으러 온 사람에게
@@ -155,13 +157,35 @@ export default async function LeaderboardPage({
     ? await getMarketStats(prisma, { includeAmounts: ui.marketTickerAmounts }, now)
     : [];
 
-  const [bestSelling, topTier, cards, followedSections, results] = await Promise.all([
+  const [bestSellingRaw, topTierRaw, cardsRaw, followedRaw, resultsRaw] = await Promise.all([
     searching ? [] : getBestSellingCards(prisma, 5, now),
     searching ? [] : getTopTierCards(prisma, 5, now),
     searching ? [] : getCardsByAssetClass(prisma, asset, sort, now, filter),
     searching ? [] : getFollowedSections(prisma, followedIds, 6, now, pinnedIds),
     searching ? searchCards(prisma, query, sort, now) : [],
   ]);
+
+  // 걸러내기 전의 내 카드 수 — 숨김 칩을 그릴지 판단한다.
+  // 숨긴 뒤에 세면 0이 되어 칩이 사라지고, 다시 켤 방법이 없어진다
+  const ownedOnScreen = [...cardsRaw, ...bestSellingRaw, ...topTierRaw, ...resultsRaw]
+    .concat(followedRaw.flatMap((s) => s.cards))
+    .filter((c) => ownedIds.has(c.reportId)).length;
+
+  // "구매한 카드 숨기기"는 **화면 전체**에 건다 — 목록에서만 지우면 레일에 그대로 남아
+  // "구매한 카드가 보기 싫다"는 목적이 달성되지 않는다.
+  // 카드 속성이 아니라 뷰어와의 관계로 거르는 필터라 SQL이 아니라 여기서 적용된다
+  const drop = <T extends { reportId: string }>(list: T[]): T[] =>
+    filter.hideOwned ? list.filter((c) => !ownedIds.has(c.reportId)) : list;
+
+  const bestSelling = drop(bestSellingRaw);
+  const topTier = drop(topTierRaw);
+  const cards = drop(cardsRaw);
+  const results = drop(resultsRaw);
+  const followedSections = filter.hideOwned
+    ? followedRaw
+        .map((s) => ({ ...s, cards: drop(s.cards) }))
+        .filter((s) => s.cards.length > 0)
+    : followedRaw;
 
   // 산 카드는 구성이 통째로 다르므로(OwnedCard) 공개 데이터를 따로 싣는다.
   // 화면에 실제로 있는 id로만 좁힌다 — 보유 전체를 조회하면 시세 호출이 낭비된다
@@ -348,7 +372,11 @@ export default async function LeaderboardPage({
         ))}
       </div>
 
-      <FilterBar state={{ ...filter, asset, sort }} matched={cards.length} />
+      <FilterBar
+        state={{ ...filter, asset, sort }}
+        matched={cards.length}
+        ownedCount={ownedOnScreen}
+      />
 
       <div className={styles.sortRow}>
         <SortPicker asset={asset} sort={sort} filter={filter} />
