@@ -381,6 +381,19 @@
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
+/* 이미 산 행 — 왼쪽에 잉크 띠 하나. 순위표는 얇은 행이라 카드처럼 칩을 얹으면
+   한 줄이 두 줄이 된다. 무채색인 이유는 카드의 소유 표시와 같다(브랜드 §4-3) */
+.rankRowOwned {
+  border-left: 3px solid color-mix(in srgb, var(--text, #191f28) 62%, transparent);
+  padding-left: 13px;
+}
+.rankOwned {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text, #191f28);
+  white-space: nowrap;
+}
 .rankSales {
   font-size: 11px;
   font-weight: 700;

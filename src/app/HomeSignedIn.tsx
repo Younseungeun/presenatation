@@ -30,6 +30,7 @@ export function HomeSignedIn({
   feed,
   upcoming,
   marketStats,
+  ownedIds,
   now,
 }: {
   name: string;
@@ -38,6 +39,8 @@ export function HomeSignedIn({
   feed: JudgedFeedItem[];
   upcoming: MarketCard[];
   marketStats: MarketStat[];
+  /** 이미 산 카드 — 마감 임박 레일에서도 목록과 같은 규칙으로 구별한다 */
+  ownedIds: Set<string>;
   now: Date;
 }) {
   // 내 검증 현황(검증 중 건수·누적 환불)은 MY와 전역 판정 팝업이 담당한다 —
@@ -158,6 +161,7 @@ export function HomeSignedIn({
                 now={now}
                 href={`/report/${c.reportId}`}
                 compact
+                owned={ownedIds.has(c.reportId)}
               />
             ))}
           </div>

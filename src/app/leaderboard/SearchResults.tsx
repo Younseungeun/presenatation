@@ -37,11 +37,14 @@ export function SearchResults({
   rawQuery,
   results,
   now,
+  ownedIds,
 }: {
   query: CardQuery;
   rawQuery: string;
   results: MarketCard[];
   now: Date;
+  /** 이미 산 카드 — 검색 결과에서도 목록과 같은 규칙으로 구별한다 */
+  ownedIds: Set<string>;
 }) {
   const labels = criteriaLabels(query);
 
@@ -84,7 +87,13 @@ export function SearchResults({
       ) : (
         <>
           {results.map((c) => (
-            <MaskedCard key={c.reportId} c={c} now={now} href={`/report/${c.reportId}`} />
+            <MaskedCard
+              key={c.reportId}
+              c={c}
+              now={now}
+              href={`/report/${c.reportId}`}
+              owned={ownedIds.has(c.reportId)}
+            />
           ))}
           <TraceNotice />
         </>

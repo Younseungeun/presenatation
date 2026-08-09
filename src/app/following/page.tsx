@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/server/db";
 import { getFollowedResearcherIds, getPinnedResearcherIds } from "@/server/followService";
-import { getFollowedSections } from "@/server/marketQueries";
+import { getFollowedSections, getPurchasedReportIds } from "@/server/marketQueries";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
 import { EmptyState } from "../EmptyState";
@@ -26,7 +26,10 @@ export default async function FollowingPage() {
     getFollowedResearcherIds(prisma, viewerId),
     getPinnedResearcherIds(prisma, viewerId),
   ]);
-  const sections = await getFollowedSections(prisma, followedIds, 6, now, pinnedIds);
+  const [sections, ownedIds] = await Promise.all([
+    getFollowedSections(prisma, followedIds, 6, now, pinnedIds),
+    getPurchasedReportIds(prisma, viewerId),
+  ]);
 
   return (
     <>
@@ -50,7 +53,7 @@ export default async function FollowingPage() {
             <p className={styles.sub}>
               압정을 누르면 리더보드 맨 위에 고정됩니다. 고정한 순서대로 놓입니다.
             </p>
-            <FollowedSections sections={sections} now={now} />
+            <FollowedSections sections={sections} now={now} ownedIds={ownedIds} />
             <TraceNotice />
           </>
         )}

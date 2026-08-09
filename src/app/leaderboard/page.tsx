@@ -9,6 +9,7 @@ import {
   getBestSellingCards,
   getCardsByAssetClass,
   getFollowedSections,
+  getPurchasedReportIds,
   getTopTierCards,
   groupCards,
   hasActiveFilter,
@@ -137,13 +138,14 @@ export default async function LeaderboardPage({
   const searching = hasCriteria(query);
 
   const viewerId = await getSessionUserId();
-  const [followedIds, pinnedIds, cartCount] = viewerId
+  const [followedIds, pinnedIds, cartCount, ownedIds] = viewerId
     ? await Promise.all([
         getFollowedResearcherIds(prisma, viewerId),
         getPinnedResearcherIds(prisma, viewerId),
         countCart(prisma, viewerId),
+        getPurchasedReportIds(prisma, viewerId),
       ])
-    : [[], [], 0];
+    : [[], [], 0, new Set<string>()];
 
   // 띠지는 운영자가 켠 경우에만 집계한다 — 꺼져 있으면 쿼리 자체를 돌리지 않는다
   const ui = await getUiSettings(prisma);
@@ -183,7 +185,12 @@ export default async function LeaderboardPage({
         return (
           <div key={c.reportId} className={isHero ? lb.hero : undefined}>
             {isHero && <span className={lb.heroTag}>이 정렬의 1순위</span>}
-            <MaskedCard c={c} now={now} href={`/report/${c.reportId}`} />
+            <MaskedCard
+              c={c}
+              now={now}
+              href={`/report/${c.reportId}`}
+              owned={ownedIds.has(c.reportId)}
+            />
           </div>
         );
       })}
@@ -219,7 +226,13 @@ export default async function LeaderboardPage({
       {marketStats.length > 0 && <MarketTicker stats={marketStats} />}
 
       {searching ? (
-        <SearchResults query={query} rawQuery={rawQuery} results={results} now={now} />
+        <SearchResults
+          query={query}
+          rawQuery={rawQuery}
+          results={results}
+          now={now}
+          ownedIds={ownedIds}
+        />
       ) : (
         <>
       {/* ① 팔로우한 리서처 — 사람이 단위.
@@ -244,6 +257,7 @@ export default async function LeaderboardPage({
             sections={followedSections.slice(0, FOLLOWED_ON_LEADERBOARD)}
             now={now}
             showPin={false}
+            ownedIds={ownedIds}
           />
         </>
       )}
@@ -265,7 +279,7 @@ export default async function LeaderboardPage({
               <span className={lb.secTitle}>지금 잘 팔리는 카드</span>
             </span>
           </div>
-          <BestSellers cards={bestSelling} now={now} />
+          <BestSellers cards={bestSelling} now={now} ownedIds={ownedIds} />
         </>
       )}
 
@@ -286,6 +300,7 @@ export default async function LeaderboardPage({
                 now={now}
                 href={`/report/${c.reportId}`}
                 compact
+                owned={ownedIds.has(c.reportId)}
               />
             ))}
           </div>

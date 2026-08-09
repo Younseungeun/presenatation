@@ -158,13 +158,20 @@ export function MaskedCard({
   now,
   href,
   compact = false,
+  owned = false,
   footer,
 }: {
   c: MaskedCardFull;
   now: Date;
   href?: string;
   compact?: boolean;
-  /** 장바구니 삭제 버튼처럼 카드마다 다른 조작 */
+  /**
+   * 이미 산 카드 — 목록에서 **다른 카드가 된다** (파는 물건 → 내 물건).
+   * 가장 강한 신호는 배지가 아니라 **하단 우측이 값에서 행동으로 바뀌는 것**이다:
+   * 이미 낸 돈은 더 이상 결정에 쓰이지 않으므로 그 자리에 "본문 열기"가 온다.
+   */
+  owned?: boolean;
+  /** 카드지갑 빼기 버튼처럼 카드마다 다른 조작 */
   footer?: React.ReactNode;
 }) {
   // 리서처가 설정한 검증 기간 → 기간 구간(단기성·장기성).
@@ -185,7 +192,25 @@ export function MaskedCard({
         period={period}
       />
 
-      <span className={styles.assetChip}>{assetLabel(c.assetClass)}</span>
+      <span className={styles.chipRow}>
+        <span className={styles.assetChip}>{assetLabel(c.assetClass)}</span>
+        {/* 소유 표시는 무채색 잉크 — 민트는 플랫폼 검증 전용이라(브랜드 §4-3)
+            "내가 샀다"는 사실에 쓰면 플랫폼이 보증한 것으로 읽힌다 */}
+        {owned && (
+          <span className={styles.ownedChip}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M5 12.5l4.5 4.5L19 7.5"
+                stroke="currentColor"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+            구매함
+          </span>
+        )}
+      </span>
 
       <div className={styles.who}>
         <span className={styles.avatar}>
@@ -221,17 +246,26 @@ export function MaskedCard({
         })}
       </div>
 
-      {/* 하단 = 거래 조건. 왼쪽은 "언제까지", 오른쪽은 "얼마에" */}
+      {/* 하단 = 왼쪽은 "언제까지", 오른쪽은 "얼마에".
+          이미 산 카드에서는 오른쪽이 값이 아니라 **행동**이 된다 — 낸 돈은 더 이상
+          결정에 쓰이지 않으므로 가격 자리에 "본문 열기"가 오는 것이 정직하다.
+          배지보다 이쪽이 강한 신호다: 카드가 무엇을 하라고 말하는지가 바뀐다 */}
       <div className={styles.foot}>
         <span className={styles.dday}>{dday(c.deadline, now)}</span>
         <span className={styles.footRight}>
-          <span className={styles.price}>{c.priceKrw.toLocaleString()}원</span>
-          {c.prepaymentRatio === 0 ? (
-            <span className={styles.refund}>틀리면 100% 환불</span>
+          {owned ? (
+            <span className={styles.openBody}>본문 열기 →</span>
           ) : (
-            c.prepaymentRatio !== undefined && (
-              <span className={styles.prepay}>선결제 {c.prepaymentRatio}%</span>
-            )
+            <>
+              <span className={styles.price}>{c.priceKrw.toLocaleString()}원</span>
+              {c.prepaymentRatio === 0 ? (
+                <span className={styles.refund}>틀리면 100% 환불</span>
+              ) : (
+                c.prepaymentRatio !== undefined && (
+                  <span className={styles.prepay}>선결제 {c.prepaymentRatio}%</span>
+                )
+              )}
+            </>
           )}
         </span>
       </div>
@@ -239,7 +273,7 @@ export function MaskedCard({
     </>
   );
 
-  const cls = `${styles.card} ${compact ? styles.compact : ""}`;
+  const cls = `${styles.card} ${compact ? styles.compact : ""} ${owned ? styles.owned : ""}`;
   return href ? (
     <Link href={href} className={cls}>
       {body}

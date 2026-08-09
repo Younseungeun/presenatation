@@ -778,3 +778,22 @@ export async function getResearcherCallout(
     sellingCount,
   };
 }
+
+/**
+ * 이 사람이 산 리포트 id 집합 — 목록에서 "이미 산 카드"를 구별하는 데 쓴다.
+ *
+ * 목록에서 빼지 않고 표시만 바꾸는 이유: 빼면 사람마다 목록 길이와 "N장" 집계가
+ * 달라져 같은 화면을 두고 이야기할 수 없게 된다. 산 카드는 사라지는 것이 아니라
+ * **다른 카드가 되는** 것이 맞다 — 파는 물건에서 내 물건으로.
+ */
+export async function getPurchasedReportIds(
+  prisma: PrismaClient,
+  buyerId: string | null,
+): Promise<Set<string>> {
+  if (!buyerId) return new Set();
+  const rows = await prisma.purchase.findMany({
+    where: { buyerId },
+    select: { reportId: true },
+  });
+  return new Set(rows.map((r) => r.reportId));
+}

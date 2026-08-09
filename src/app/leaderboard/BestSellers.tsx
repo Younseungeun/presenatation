@@ -23,12 +23,26 @@ import styles from "./leaderboard.module.css";
 //   · 별점은 신뢰도·안정성을 v3 점수 기여 비율로 합친 것 (starSummary — 정산 상수에서 유도)
 //   · 글자에 방향색을 입히지 않는다 — "국내주식"이 빨간 글씨면 자산군이 나쁘다는 뜻으로 읽힌다
 
-export function BestSellers({ cards, now }: { cards: MarketCard[]; now: Date }) {
+export function BestSellers({
+  cards,
+  now,
+  ownedIds,
+}: {
+  cards: MarketCard[];
+  now: Date;
+  /** 이미 산 카드 — 순위표도 카드 목록이므로 같은 규칙으로 구별한다 */
+  ownedIds?: Set<string>;
+}) {
   return (
     <ol className={styles.rankList}>
-      {cards.map((c, i) => (
+      {cards.map((c, i) => {
+        const owned = !!ownedIds?.has(c.reportId);
+        return (
         <li key={c.reportId}>
-          <Link href={`/report/${c.reportId}`} className={styles.rankRow}>
+          <Link
+            href={`/report/${c.reportId}`}
+            className={`${styles.rankRow} ${owned ? styles.rankRowOwned : ""}`}
+          >
             <span className={styles.rankNum}>
               {i < 3 ? <RankMark rank={(i + 1) as 1 | 2 | 3} size={24} /> : i + 1}
             </span>
@@ -56,13 +70,21 @@ export function BestSellers({ cards, now }: { cards: MarketCard[]; now: Date }) 
                 {dday(c.deadline, now)}
               </span>
             </span>
+            {/* 이미 산 행은 우측이 값에서 행동으로 바뀐다 — 카드와 같은 규칙.
+                판매량은 남긴다: 이 섹션이 파는 것이 "다들 이걸 산다"는 사실이라
+                내가 샀다고 해서 그 사실이 사라지지 않는다 */}
             <span className={styles.rankRight}>
-              <span className={styles.rankPrice}>{c.priceKrw.toLocaleString()}원</span>
+              {owned ? (
+                <span className={styles.rankOwned}>구매함 →</span>
+              ) : (
+                <span className={styles.rankPrice}>{c.priceKrw.toLocaleString()}원</span>
+              )}
               <span className={styles.rankSales}>{c.salesCount}명 구매</span>
             </span>
           </Link>
         </li>
-      ))}
+        );
+      })}
     </ol>
   );
 }

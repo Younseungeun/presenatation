@@ -4,6 +4,7 @@ import { prisma } from "@/server/db";
 import { getFreeReports } from "@/server/freeReportService";
 import { getMarketStats } from "@/server/marketStats";
 import {
+  getPurchasedReportIds,
   getRecentJudgments,
   getResearcherConsensus,
   getUpcomingDeadlineCards,
@@ -41,7 +42,7 @@ export default async function Home() {
   const now = new Date();
 
   if (userId) {
-    const [user, consensus, freeReports, feed, upcoming] = await Promise.all([
+    const [user, consensus, freeReports, feed, upcoming, ownedIds] = await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
         select: { penName: true, email: true },
@@ -51,6 +52,7 @@ export default async function Home() {
       getFreeReports(prisma, 4),
       getRecentJudgments(prisma, 6),
       getUpcomingDeadlineCards(prisma, 5, now),
+      getPurchasedReportIds(prisma, userId),
     ]);
 
     // 띠지는 운영자가 켠 경우에만 집계한다 — 꺼져 있으면 쿼리 자체를 돌리지 않는다
@@ -68,6 +70,7 @@ export default async function Home() {
           feed={feed}
           upcoming={upcoming}
           marketStats={marketStats}
+          ownedIds={ownedIds}
           now={now}
         />
       );

@@ -40,11 +40,14 @@ export function FollowedSections({
   sections,
   now,
   showPin = true,
+  ownedIds,
 }: {
   sections: FollowedSection[];
   now: Date;
   /** 고정 버튼 노출 — 리더보드는 한 명만 보여주므로 고정할 이유가 없다 */
   showPin?: boolean;
+  /** 이미 산 카드 — 레일에서도 목록과 같은 규칙으로 구별한다 */
+  ownedIds?: Set<string>;
 }) {
   return (
     <>
@@ -119,6 +122,7 @@ export function FollowedSections({
                     now={now}
                     href={`/report/${c.reportId}`}
                     compact
+                    owned={ownedIds?.has(c.reportId)}
                   />
                 ))}
               </SpineRail>

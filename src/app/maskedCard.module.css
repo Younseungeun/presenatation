@@ -47,6 +47,44 @@
 /* 자산군 = 태그. 혼자 떠 있는 굵은 글자는 제목처럼 보이는데 제목이 아니다.
    무채색 아웃라인 — 민트는 플랫폼 검증 전용이라 분류 라벨에 쓸 수 없다.
    방향색도 입히지 않는다: "국내주식"이 빨간 글씨면 자산군이 나쁘다는 뜻으로 읽힌다 */
+.chipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 이미 산 카드 — 무채색 잉크 필. 민트(플랫폼 검증)도 크림슨(데빌)도 쓸 수 없고,
+   써서도 안 된다: "내가 샀다"는 뷰어의 사실이지 카드의 품질이 아니라서
+   품질 신호(등급 칩·별점)와 색으로 경쟁하면 안 된다 */
+.ownedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 7px 0 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text, #191f28) 88%, transparent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+/* 산 카드는 살짝 가라앉힌다 — 목록의 주인공은 "아직 살 수 있는 것"이라
+   내 것이 시선을 먼저 가져가면 탐색이 방해된다. 지우는 게 아니라 낮추는 정도 */
+.owned {
+  background: color-mix(in srgb, var(--bg) 40%, transparent);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 45%),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-faint) 24%, transparent),
+    0 1px 5px rgb(12 30 26 / 4%);
+}
+/* 가격 자리를 대신하는 행동 — 잉크로 두어 브랜드색(민트)의 뜻을 흐리지 않는다 */
+.openBody {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text, #191f28);
+}
 .assetChip {
   align-self: flex-start;
   display: inline-flex;

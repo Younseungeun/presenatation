@@ -5,7 +5,7 @@ import { cardProfitabilityLevel } from "@/domain/profitability";
 import { prisma } from "@/server/db";
 import { getFollowStats } from "@/server/followService";
 import { getPublicProfile } from "@/server/leaderboardQueries";
-import { researcherSignals } from "@/server/marketQueries";
+import { getPurchasedReportIds, researcherSignals } from "@/server/marketQueries";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
 import { FollowButton } from "./FollowButton";
@@ -27,7 +27,10 @@ export default async function PublicProfile({
   const data = await getPublicProfile(prisma, id);
   if (!data) notFound();
   const viewerId = await getSessionUserId();
-  const follow = await getFollowStats(prisma, id, viewerId);
+  const [follow, ownedIds] = await Promise.all([
+    getFollowStats(prisma, id, viewerId),
+    getPurchasedReportIds(prisma, viewerId),
+  ]);
   const now = new Date();
   // 판매 목록 카드에 붙는 리서처 신뢰 지표 (적중률·재구매율)
   const signals = (await researcherSignals(prisma, [id])).get(id) ?? {
@@ -144,6 +147,7 @@ export default async function PublicProfile({
               key={r.id}
               now={now}
               href={`/report/${r.id}`}
+              owned={ownedIds.has(r.id)}
               c={{
                 researcherName: name,
                 tier: profile.tier,
