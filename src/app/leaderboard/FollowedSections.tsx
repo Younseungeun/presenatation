@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { FollowedSection } from "@/server/marketQueries";
+import type { OwnedCardView } from "@/server/ownedCardViews";
+import { OwnedCard } from "../OwnedCard";
 import { DefaultAvatar } from "../Avatar";
 import { CareerBadge } from "../brand/CareerBadge";
 import { MaskedCard } from "../MaskedCard";
@@ -40,14 +42,14 @@ export function FollowedSections({
   sections,
   now,
   showPin = true,
-  ownedIds,
+  ownedViews,
 }: {
   sections: FollowedSection[];
   now: Date;
   /** 고정 버튼 노출 — 리더보드는 한 명만 보여주므로 고정할 이유가 없다 */
   showPin?: boolean;
-  /** 이미 산 카드 — 레일에서도 목록과 같은 규칙으로 구별한다 */
-  ownedIds?: Set<string>;
+  /** 이미 산 카드의 공개 뷰 — 있으면 구성이 다른 카드(OwnedCard)로 그린다 */
+  ownedViews?: Map<string, OwnedCardView>;
 }) {
   return (
     <>
@@ -115,16 +117,20 @@ export function FollowedSections({
                 )}
               </div>
               <SpineRail>
-                {s.cards.map((c) => (
-                  <MaskedCard
-                    key={c.reportId}
-                    c={c}
-                    now={now}
-                    href={`/report/${c.reportId}`}
-                    compact
-                    owned={ownedIds?.has(c.reportId)}
-                  />
-                ))}
+                {s.cards.map((c) => {
+                  const mine = ownedViews?.get(c.reportId);
+                  return mine ? (
+                    <OwnedCard key={c.reportId} v={mine} now={now} compact />
+                  ) : (
+                    <MaskedCard
+                      key={c.reportId}
+                      c={c}
+                      now={now}
+                      href={`/report/${c.reportId}`}
+                      compact
+                    />
+                  );
+                })}
               </SpineRail>
             </div>
           </section>

@@ -1,0 +1,76 @@
+import type { Direction } from './constants';
+
+// 구매한 카드의 진행 상황 — 순수 계산.
+//
+// 축이 둘이다: **시간**(게시 → 시한)과 **가격**(기준가 → 목표가).
+// 둘을 따로 그리면 정작 중요한 것이 안 보인다 — "시간은 61% 지났는데 목표는 42%"라는
+// **페이스**다. 그래서 화면은 같은 막대에 가격 진행을 채우고 시간을 마커로 얹는다.
+//
+// 이 값들은 **판정이 아니다**. 판정은 시한 도래 시점의 확정 시세로만 이뤄지므로,
+// 여기 100%가 떠도 시한 전 되돌림이면 실패로 판정된다. 화면이 그 사실을 함께 적어야 한다.
+
+export interface CardProgressInput {
+  /** 기준가 — 소급 확정 대기 카드는 null */
+  basePrice: number | null;
+  /** 조회 시점 시세 — 공급자가 없거나 실패하면 null */
+  currentPrice: number | null;
+  /** 목표가 (수익률형은 환산값) */
+  targetPrice: number | null;
+  direction: Direction;
+  publishedAt: Date | null;
+  deadline: Date;
+  now: Date;
+}
+
+export interface CardProgress {
+  /** 시간 진행 0~1 (게시 → 시한). 게시일을 모르면 시한 30일 전을 출발점으로 본다 */
+  timeRatio: number;
+  /**
+   * 목표 달성률 — 기준가 0, 목표가 1. 시세나 기준가가 없으면 null.
+   * 방향 분기가 없다: 하락 카드는 (목표−기준)이 음수라 부호가 저절로 맞는다.
+   */
+  achievement: number | null;
+  /** 기준가 대비 현재 등락(%) — 시세가 없으면 null */
+  currentReturnPct: number | null;
+  /** 지금 목표에 닿아 있는가 (판정이 아니다 — 시한 전 되돌림이면 실패다) */
+  reachedTarget: boolean;
+  /** 시한이 지났는데 아직 판정 전 */
+  awaitingJudgment: boolean;
+}
+
+const DAY_MS = 86_400_000;
+/** 게시일을 모르는 카드의 가정 기간 — 시간축이 아예 없는 것보다는 낫다 */
+const FALLBACK_HORIZON_MS = 30 * DAY_MS;
+
+export function computeCardProgress(input: CardProgressInput): CardProgress {
+  const { basePrice, currentPrice, targetPrice, publishedAt, deadline, now } = input;
+
+  const end = deadline.getTime();
+  const start = publishedAt?.getTime() ?? end - FALLBACK_HORIZON_MS;
+  const span = end - start;
+  const timeRatio =
+    span <= 0 ? 1 : Math.min(1, Math.max(0, (now.getTime() - start) / span));
+
+  let achievement: number | null = null;
+  let currentReturnPct: number | null = null;
+  if (basePrice !== null && basePrice > 0 && currentPrice !== null) {
+    currentReturnPct = ((currentPrice - basePrice) / basePrice) * 100;
+    if (targetPrice !== null && targetPrice !== basePrice) {
+      achievement = (currentPrice - basePrice) / (targetPrice - basePrice);
+    }
+  }
+
+  return {
+    timeRatio,
+    achievement,
+    currentReturnPct,
+    reachedTarget: achievement !== null && achievement >= 1,
+    awaitingJudgment: now.getTime() >= end,
+  };
+}
+
+/** 막대 채움 폭(%) — 역방향(음수)은 채우지 않는다. 출발선 뒤라는 사실은 라벨이 말한다 */
+export function fillPercent(achievement: number | null): number {
+  if (achievement === null) return 0;
+  return Math.min(100, Math.max(0, achievement * 100));
+}

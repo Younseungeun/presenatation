@@ -1,0 +1,157 @@
+/* 구매한 예측 카드 — OwnedCard.tsx 전용.
+   구매 전 카드와 같은 유리 재질을 쓰되 톤을 한 단 낮춘다: 목록의 주인공은
+   아직 살 수 있는 것이라, 내 것이 시선을 먼저 가져가면 탐색이 방해된다. */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+  padding: 13px 16px 12px;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg) 42%, transparent);
+  backdrop-filter: blur(14px) saturate(170%);
+  color: inherit;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 50%),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-faint) 22%, transparent),
+    0 1px 6px rgb(12 30 26 / 4%);
+  transition: background 0.15s ease;
+}
+.card:hover {
+  background: color-mix(in srgb, var(--bg) 58%, transparent);
+}
+.compact {
+  flex: 0 0 auto;
+  width: 250px;
+  margin-bottom: 0;
+  padding: 12px 14px 11px;
+  gap: 9px;
+}
+
+/* ── ① 종목 ── */
+.head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.names {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.name {
+  font-size: 15.5px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.meta {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* 목표 수익률 — 방향은 ▲▼ 모양이 지고 색은 거든다 */
+.claim {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.claimPct {
+  font-size: 17px;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── ② 상황 막대 — 가격 진행 채움 + 시간 마커 ── */
+.bar {
+  position: relative;
+  display: block;
+  height: 6px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--text-faint) 13%, transparent);
+  overflow: visible;
+}
+.barFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  min-width: 3px;
+}
+/* 시간 마커 — 막대를 가로지르는 얇은 잉크 선. 채움(가격)과 겹쳐 놓아야
+   "시간은 여기까지 왔는데 진도는 저기"라는 비교가 한눈에 잡힌다 */
+.barTime {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--text, #191f28);
+  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bg) 85%, transparent);
+}
+
+/* ── ③ 수치 ── */
+.readout {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.readoutMain {
+  font-size: 12.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.readoutSub {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── ④ 기한·가격 ── */
+.foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.dday {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.paid {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.prices {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+/* 도달 고지 — 막대가 결과를 약속하는 것처럼 읽히지 않게 */
+.note {
+  font-size: 10.5px;
+  line-height: 1.45;
+  font-weight: 600;
+  color: var(--text-weak);
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-faint) 9%, transparent);
+}

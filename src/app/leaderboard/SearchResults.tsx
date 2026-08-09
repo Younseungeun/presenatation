@@ -1,8 +1,10 @@
 import { ASSET_CLASS_LABEL, TIER_NAME, type AssetClass, type Tier } from "@/domain/constants";
 import type { CardQuery } from "@/domain/cardQuery";
 import type { MarketCard } from "@/server/marketQueries";
+import type { OwnedCardView } from "@/server/ownedCardViews";
 import { EmptyState } from "../EmptyState";
 import { MaskedCard } from "../MaskedCard";
+import { OwnedCard } from "../OwnedCard";
 import { TraceNotice } from "../TraceNotice";
 import styles from "./leaderboard.module.css";
 
@@ -37,14 +39,14 @@ export function SearchResults({
   rawQuery,
   results,
   now,
-  ownedIds,
+  ownedViews,
 }: {
   query: CardQuery;
   rawQuery: string;
   results: MarketCard[];
   now: Date;
-  /** 이미 산 카드 — 검색 결과에서도 목록과 같은 규칙으로 구별한다 */
-  ownedIds: Set<string>;
+  /** 이미 산 카드의 공개 뷰 — 있으면 구성이 다른 카드(OwnedCard)로 그린다 */
+  ownedViews: Map<string, OwnedCardView>;
 }) {
   const labels = criteriaLabels(query);
 
@@ -87,13 +89,11 @@ export function SearchResults({
       ) : (
         <>
           {results.map((c) => (
-            <MaskedCard
-              key={c.reportId}
-              c={c}
-              now={now}
-              href={`/report/${c.reportId}`}
-              owned={ownedIds.has(c.reportId)}
-            />
+            ownedViews.get(c.reportId) ? (
+              <OwnedCard key={c.reportId} v={ownedViews.get(c.reportId)!} now={now} />
+            ) : (
+              <MaskedCard key={c.reportId} c={c} now={now} href={`/report/${c.reportId}`} />
+            )
           ))}
           <TraceNotice />
         </>

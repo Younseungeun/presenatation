@@ -21,10 +21,12 @@ import {
   type MarketSort,
 } from "@/server/marketQueries";
 import { getMarketStats } from "@/server/marketStats";
+import { getOwnedCardViews } from "@/server/ownedCardViews";
 import { getUiSettings } from "@/server/appSettings";
 import { getSessionUserId } from "@/server/session";
 import { CleanBanner } from "../CleanBanner";
 import { MarketTicker } from "../MarketTicker";
+import { OwnedCard } from "../OwnedCard";
 import { WalletIcon } from "../brand/WalletIcon";
 import { EmptyState } from "../EmptyState";
 import { MaskedCard } from "../MaskedCard";
@@ -161,6 +163,14 @@ export default async function LeaderboardPage({
     searching ? searchCards(prisma, query, sort, now) : [],
   ]);
 
+  // 산 카드는 구성이 통째로 다르므로(OwnedCard) 공개 데이터를 따로 싣는다.
+  // 화면에 실제로 있는 id로만 좁힌다 — 보유 전체를 조회하면 시세 호출이 낭비된다
+  const visibleIds = [...cards, ...bestSelling, ...topTier, ...results]
+    .map((c) => c.reportId)
+    .concat(followedSections.flatMap((s) => s.cards.map((c) => c.reportId)))
+    .filter((id) => ownedIds.has(id));
+  const ownedViews = await getOwnedCardViews(prisma, viewerId, [...new Set(visibleIds)]);
+
   // 목록은 정렬 기준 그 자체로 구간을 나눈다 — 임의 간격 눈금은 리듬처럼 보일 뿐
   // 정보가 아니고, 사용자가 방금 고른 정렬이 곧 "지금 무엇을 보는가"의 답이다
   const groups = groupCards(cards, sort, now);
@@ -182,15 +192,16 @@ export default async function LeaderboardPage({
       {g.cards.map((c, i) => {
         // 목록 전체의 첫 장만 히어로 — 정렬 1순위가 무엇인지가 목록의 의미를 말해준다
         const isHero = hero && gi === 0 && i === 0;
+        const mine = ownedViews.get(c.reportId);
         return (
           <div key={c.reportId} className={isHero ? lb.hero : undefined}>
             {isHero && <span className={lb.heroTag}>이 정렬의 1순위</span>}
-            <MaskedCard
-              c={c}
-              now={now}
-              href={`/report/${c.reportId}`}
-              owned={ownedIds.has(c.reportId)}
-            />
+            {/* 산 카드는 질문이 "살까?"에서 "잘 되고 있나?"로 바뀌므로 다른 카드를 그린다 */}
+            {mine ? (
+              <OwnedCard v={mine} now={now} />
+            ) : (
+              <MaskedCard c={c} now={now} href={`/report/${c.reportId}`} />
+            )}
           </div>
         );
       })}
@@ -231,7 +242,7 @@ export default async function LeaderboardPage({
           rawQuery={rawQuery}
           results={results}
           now={now}
-          ownedIds={ownedIds}
+          ownedViews={ownedViews}
         />
       ) : (
         <>
@@ -257,7 +268,7 @@ export default async function LeaderboardPage({
             sections={followedSections.slice(0, FOLLOWED_ON_LEADERBOARD)}
             now={now}
             showPin={false}
-            ownedIds={ownedIds}
+            ownedViews={ownedViews}
           />
         </>
       )}
@@ -293,16 +304,20 @@ export default async function LeaderboardPage({
             </span>
           </div>
           <div className={styles.rail}>
-            {topTier.map((c) => (
-              <MaskedCard
-                key={c.reportId}
-                c={c}
-                now={now}
-                href={`/report/${c.reportId}`}
-                compact
-                owned={ownedIds.has(c.reportId)}
-              />
-            ))}
+            {topTier.map((c) => {
+              const mine = ownedViews.get(c.reportId);
+              return mine ? (
+                <OwnedCard key={c.reportId} v={mine} now={now} compact />
+              ) : (
+                <MaskedCard
+                  key={c.reportId}
+                  c={c}
+                  now={now}
+                  href={`/report/${c.reportId}`}
+                  compact
+                />
+              );
+            })}
           </div>
         </>
       )}
