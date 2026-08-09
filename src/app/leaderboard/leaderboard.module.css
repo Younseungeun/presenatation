@@ -7,36 +7,71 @@
    놓인다 — 같은 흰색을 두 번 쓰지 않아야 '담겨 있다'가 색 없이 읽힌다.
    민트 띠는 쓰지 않는다: 민트는 플랫폼 검증 전용이라(브랜드 §4-4) '내가 고른 사람'
    표시에 쓰면 플랫폼이 보증한 것으로 오해된다 */
+/* 겉상자 없음 (2026-08-09) — 회색 컨테이너 → 흰 프로필 상자 → 흰 카드의 3겹은
+   "담겨 있다"의 반복일 뿐이었다. 그린 상자는 누르는 것(프로필·카드)만 남기고,
+   묶음은 여백과 레일 밑 스파인이 말한다 */
 .prBlock {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
-  margin-bottom: 12px;
-  overflow: hidden;
+  margin-bottom: 26px;
 }
-/* 고정된 블록 — 색이 아니라 무게로 구분한다 (색은 브랜드에서 뜻이 정해져 있다) */
-.prBlockPinned {
-  border-color: color-mix(in srgb, var(--text-faint) 40%, var(--border));
-  box-shadow: var(--shadow-sm);
+/* 고정된 블록 — 색이 아니라 무게로 구분한다 (색은 브랜드에서 뜻이 정해져 있다).
+   겉상자가 없어졌으므로 무게는 프로필 상자가 진다: 림을 한 단 진하게 */
+.prBlockPinned .prCard {
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 60%),
+    inset 0 0 0 1px color-mix(in srgb, var(--text-faint) 45%, transparent),
+    0 3px 12px rgb(12 30 26 / 8%);
 }
 
-/* ── ① 프로필 박스 ── */
+/* ── ① 프로필 박스 — 유리 (iOS 잠금화면 버튼 문법) ──
+   유리는 테두리가 아니라 뒤 재료의 흐려짐으로 읽힌다. 흰 바탕은 균일해서 blur가
+   보여줄 것이 없으므로, 상자 뒤에 옅은 잉크 웅덩이를 깔아 유리 안쪽의 톤이
+   미세하게 일렁이게 한다. -webkit-backdrop-filter를 직접 쓰면 변환기가 선언을
+   통째로 버린다 — 표준 속성만 쓰고 접두사는 빌드에 맡긴다 (MaskedCard와 동일) */
 .prCardWrap {
   position: relative;
-  padding: 12px 12px 0;
+}
+.prCardWrap::before {
+  content: "";
+  position: absolute;
+  inset: -8px -4px -6px;
+  border-radius: 26px;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      110px 64px at 14% 18%,
+      color-mix(in srgb, var(--text-faint) 20%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      140px 76px at 86% 8%,
+      color-mix(in srgb, var(--text-faint) 14%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      120px 70px at 50% 100%,
+      color-mix(in srgb, var(--text-faint) 12%, transparent),
+      transparent 72%
+    );
 }
 .prCard {
+  position: relative;
   display: flex;
   align-items: flex-start;
   gap: 14px;
   padding: 13px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
+  border: none;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--bg) 52%, transparent);
+  backdrop-filter: blur(14px) saturate(170%);
   color: inherit;
+  /* 위 모서리 하이라이트 + 흰 림 + 낮은 그림자 — 빛을 먹지 않는 재질감 */
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 60%),
+    inset 0 0 0 1px rgb(255 255 255 / 35%),
+    0 2px 10px rgb(12 30 26 / 6%);
 }
 .prCard:hover {
-  border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
 }
 
 /* 좌: 아바타 + 실적. 세로로 쌓아 폭을 고정하면 오른쪽 글줄의 시작선이 흔들리지 않는다 */
@@ -125,15 +160,15 @@
    등급 칩은 텍스트 필이고 인증은 로제트라, 같은 자리에 두면 두 신뢰 신호가 섞인다 */
 .prTier {
   position: absolute;
-  top: 22px;
-  right: 24px;
+  top: 10px;
+  right: 12px;
   display: flex;
   align-items: center;
   gap: 5px;
 }
 /* 고정 버튼이 있는 화면에서는 그 왼쪽으로 비켜난다 */
 .prTierShifted {
-  right: 56px;
+  right: 44px;
 }
 .prPinned {
   display: inline-flex;
@@ -150,8 +185,8 @@
 /* 압정 — 박스 우상단. 프로필 박스는 링크라 버튼을 안에 넣을 수 없어 형제로 겹친다 */
 .pin {
   position: absolute;
-  top: 18px;
-  right: 18px;
+  top: 6px;
+  right: 6px;
   z-index: 1;
   width: 32px;
   height: 32px;
@@ -177,16 +212,16 @@
   cursor: default;
 }
 
-/* ── ② 선반 ── */
+/* ── ② 선반 — 맨바탕. 상자 없이 여백이 프로필과의 소속을 말한다 ── */
 .prShelf {
-  padding: 12px 0 4px;
+  padding: 12px 0 0;
 }
 .prShelfHead {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  padding: 0 16px;
+  padding: 0 2px;
 }
 .prShelfCount {
   font-size: 11.5px;
@@ -205,12 +240,45 @@
   display: flex;
   gap: 10px;
   overflow-x: auto;
-  scroll-snap-type: x proximity;
+  /* 스냅 없음 — 스파인 드래그가 카드 경계로 끊겨 되끌리면 "끌고 있다"는 감각이 죽는다.
+     이 레일의 위치 조작은 스파인이 담당하므로 연속 이동이 맞다 */
   scrollbar-width: none;
-  padding: 10px 16px;
+  padding: 10px 2px 8px;
 }
 .prRail::-webkit-scrollbar {
   display: none;
+}
+
+/* 스파인 — 레일 밑 잉크 한 획이 스크롤바를 대신한다 (SpineRail이 폭·위치를 채운다).
+   색이 아니라 명도: 채운 조각은 진하게, 궤도는 옅게 — 등급 사다리와 같은 문법.
+   폭 70% 중앙 — 끝까지 닿는 선은 구분선으로 읽히는데, 이 줄은 경계가 아니라 도구다.
+   궤도 2px은 잡을 수 없으므로 위아래 7px씩 투명 히트존을 둔다(보이는 건 2px 그대로) */
+.spineTrack {
+  position: relative;
+  width: 70%;
+  margin: 0 auto;
+  height: 2px;
+  padding: 7px 0;
+  box-sizing: content-box;
+  background-clip: content-box;
+  border-radius: 1px;
+  background-color: color-mix(in srgb, var(--text-faint) 14%, transparent);
+  cursor: grab;
+  touch-action: none; /* 드래그 중 페이지 세로 스크롤과 다투지 않게 */
+}
+.spineTrack:active {
+  cursor: grabbing;
+}
+.spineThumb {
+  position: absolute;
+  top: 7px;
+  bottom: 7px;
+  border-radius: 1px;
+  background: linear-gradient(
+    to right,
+    color-mix(in srgb, var(--text-faint) 60%, transparent),
+    color-mix(in srgb, var(--text-faint) 34%, transparent)
+  );
 }
 
 /* ── 지금 잘 팔리는 = 순위표 ────────────────────────────────── */
@@ -794,10 +862,13 @@
   border-radius: 1px;
   background: currentColor;
 }
-/* 히어로 카드만 테두리를 한 단 진하게 — 크기를 키우지 않고 무게만 준다 */
+/* 히어로 카드만 림을 한 단 진하게 — 크기를 키우지 않고 무게만 준다.
+   카드가 유리(테두리 없음)가 되었으므로 강조도 림·그림자 층으로 얹는다 */
 .hero > a {
-  border-color: color-mix(in srgb, var(--brand-strong) 32%, var(--border));
-  box-shadow: var(--shadow-sm);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 60%),
+    inset 0 0 0 1px color-mix(in srgb, var(--brand-strong) 38%, transparent),
+    0 3px 14px rgb(12 30 26 / 9%);
 }
 
 /* 목록 구간 제목 — 정렬 기준이 만든 구간 (오늘 마감 / 이번 주 …).
@@ -880,15 +951,7 @@
 }
 
 @media (max-width: 640px) {
-  .prShelfHead,
-  .prRail {
-    padding-left: 14px;
-    padding-right: 14px;
-  }
-  .prCardWrap {
-    padding-left: 10px;
-    padding-right: 10px;
-  }
+  /* 겉상자가 없으므로 블록 내부 패딩 보정도 없다 — 페이지 패딩이 곧 기준선 */
   .rankRow {
     padding: 12px 14px;
   }

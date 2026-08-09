@@ -4,6 +4,10 @@
    구성 원칙: 구분선을 쓰지 않는다. 층을 만드는 것은 정보가 아니라 선이다.
    대신 확신 3종만 유리 상자로 묶는다 — 선은 자르고 상자는 묶으므로,
    층을 늘리지 않으면서 세 값이 카드에서 가장 또렷한 블록이 된다. */
+/* 유리 마감 (2026-08-09, 프로필 박스와 같은 문법 — iOS 잠금화면 버튼):
+   하드 테두리 대신 흰 림 + 위 모서리 하이라이트 + 낮은 그림자.
+   유리가 굴절시킬 재료는 이 카드 안에 이미 있다 — 배경 궤적의 면 채움 20%.
+   -webkit-backdrop-filter 직접 금지(변환기가 선언을 버림), 표준 속성만 */
 .card {
   position: relative;
   display: flex;
@@ -11,16 +15,21 @@
   gap: 10px;
   overflow: hidden; /* 궤적이 카드 밖으로 새지 않게 */
   isolation: isolate;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border: none;
+  border-radius: 18px;
   margin-bottom: 10px;
   padding: 13px 16px 12px;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 52%, transparent);
+  backdrop-filter: blur(14px) saturate(170%);
   color: inherit;
-  transition: border-color 0.15s ease;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 60%),
+    inset 0 0 0 1px rgb(255 255 255 / 35%),
+    0 2px 10px rgb(12 30 26 / 6%);
+  transition: background 0.15s ease;
 }
 .card:hover {
-  border-color: color-mix(in srgb, var(--brand-strong) 28%, var(--border));
+  background: color-mix(in srgb, var(--bg) 64%, transparent);
 }
 
 /* 궤적은 카드 하단부를 흐른다 */

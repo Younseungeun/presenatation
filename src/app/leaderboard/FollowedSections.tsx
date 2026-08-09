@@ -5,6 +5,7 @@ import { CareerBadge } from "../brand/CareerBadge";
 import { MaskedCard } from "../MaskedCard";
 import { TierChip } from "../TierChip";
 import { PinButton } from "./PinButton";
+import { SpineRail } from "./SpineRail";
 import styles from "./leaderboard.module.css";
 
 // 팔로우한 리서처 — 카드가 아니라 **사람**이 단위인 블록.
@@ -12,11 +13,16 @@ import styles from "./leaderboard.module.css";
 // 카드를 한 줄로 섞으면 "무슨 카드가 있나"만 남는데, 팔로우의 관심사는 "이 사람이
 // 뭘 냈나"다. 그래서 사람을 머리로 세우고 그 사람의 카드를 아래 붙였다.
 //
-// ── 구성 ──────────────────────────────────────────────────
+// ── 구성 (2026-08-09 개편: 겉상자 제거) ─────────────────────
 //   ① 프로필 박스 — 좌: 아바타 + 적중률·표본 / 우: 이름·배지 + 소개말
 //        소개말의 첫 글자가 이름의 첫 글자와 같은 선에 선다. 둘은 한 사람의 두 마디라
 //        들쭉날쭉하면 서로 다른 정보처럼 읽힌다
-//   ② 선반 — 판매 중 N장 / 무료 글 N편 → , 그 아래 카드 레일
+//   ② 선반 — 판매 중 N장 / 무료 글 N편 → , 그 아래 카드 레일(맨바탕) + 스파인
+//
+// 겉을 감싸던 회색 컨테이너는 없앴다 — 회색 상자 → 흰 프로필 상자 → 흰 카드로
+// "담겨 있다"가 세 번 반복될 뿐 새 정보가 없었다. 그린 상자는 프로필과 카드,
+// 실제로 누르는 것들만 남는다. 묶음은 상자 대신 여백과 **스파인**(레일 밑 잉크 한 획,
+// SpineRail)이 말한다 — 스파인은 가로 스크롤의 진행 표시까지 겸한다.
 //
 // **팔로워 수는 싣지 않는다.** 이 서비스의 평판은 판정된 트랙레코드로만 쌓이는데
 // (기획 §2 "팔로워 수가 아닌 실적"), 팔로워 수를 나란히 놓으면 그 원칙이 흐려지고
@@ -105,7 +111,7 @@ export function FollowedSections({
                   </Link>
                 )}
               </div>
-              <div className={styles.prRail}>
+              <SpineRail>
                 {s.cards.map((c) => (
                   <MaskedCard
                     key={c.reportId}
@@ -115,7 +121,7 @@ export function FollowedSections({
                     compact
                   />
                 ))}
-              </div>
+              </SpineRail>
             </div>
           </section>
         );

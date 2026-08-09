@@ -24,7 +24,7 @@ import { getUiSettings } from "@/server/appSettings";
 import { getSessionUserId } from "@/server/session";
 import { CleanBanner } from "../CleanBanner";
 import { MarketTicker } from "../MarketTicker";
-import { BagIcon } from "../my/icons";
+import { WalletIcon } from "../brand/WalletIcon";
 import { EmptyState } from "../EmptyState";
 import { MaskedCard } from "../MaskedCard";
 import { TraceNotice } from "../TraceNotice";
@@ -204,7 +204,9 @@ export default async function LeaderboardPage({
         initial={rawQuery}
         cart={
           <Link href="/cart" className={lb.cartBtn} aria-label="장바구니">
-            <BagIcon />
+            {/* 인투빌 장바구니(카드지갑) — 담긴 상태는 min(개수,2)의 카드 그림,
+                실제 개수는 배지 숫자 (브랜드 규정) */}
+            <WalletIcon count={cartCount} />
             {cartCount > 0 && (
               <span className={lb.cartBadge}>{cartCount > 99 ? "99+" : cartCount}</span>
             )}

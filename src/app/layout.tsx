@@ -5,6 +5,7 @@ import { getSessionUserId } from "@/server/session";
 import { FloatingHost } from "./FloatingHost";
 import { AppLaunch } from "./AppLaunch";
 import { BottomNav } from "./BottomNav";
+import { NavTracker } from "./NavTracker";
 import { ScrollMemory } from "./ScrollMemory";
 import "./globals.css";
 
@@ -40,6 +41,7 @@ export default async function RootLayout({
     <html lang="ko">
       <body>
         <AppLaunch />
+        <NavTracker />
         {children}
         <footer className="siteFooter">
           <div className="siteFooterInner">

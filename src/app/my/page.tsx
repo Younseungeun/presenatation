@@ -18,8 +18,8 @@ import { cardLine, dday, fmtDate } from "../format";
 import { StatusChip, outcomeStatus, type StatusKind } from "../StatusChip";
 import { TierChip } from "../TierChip";
 import styles from "../market.module.css";
+import { WalletIcon } from "../brand/WalletIcon";
 import {
-  BagIcon,
   BellIcon,
   DocIcon,
   EscrowIcon,
@@ -336,7 +336,8 @@ function MyHeader({ mode, cartCount }: { mode: Mode; cartCount: number }) {
       }
       right={
         <Link href="/cart" className="appbarIconBtn" aria-label="장바구니">
-          <BagIcon />
+          {/* 인투빌 장바구니(카드지갑) — 담긴 상태는 min(개수,2), 실제 개수는 배지 */}
+          <WalletIcon count={cartCount} />
           {cartCount > 0 && (
             <span className="appbarBadge">{cartCount > 99 ? "99+" : cartCount}</span>
           )}
