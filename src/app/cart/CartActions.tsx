@@ -9,7 +9,11 @@ export function RemoveButton({ reportId }: { reportId: string }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
-  async function remove() {
+  async function remove(e: React.MouseEvent) {
+    // 이 버튼은 카드 전체를 감싼 리포트 링크 **안**에 있다 — 막지 않으면
+    // 빼기 한 번에 삭제와 리포트 상세 이동이 같이 일어난다
+    e.preventDefault();
+    e.stopPropagation();
     setBusy(true);
     await fetch("/api/cart", {
       method: "DELETE",
