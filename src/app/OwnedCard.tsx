@@ -60,8 +60,10 @@ export function OwnedCard({
   const hasPrice = p.achievement !== null;
   const ddayLabel =
     p.awaitingJudgment && !v.judged ? "판정 대기" : dday(v.deadline, now);
-  // "검증까지"는 D-n 앞에서만 말이 된다 — "검증까지 오늘 마감"·"검증까지 판정 대기"는
-  // 어색하고, 그 두 상태는 문구 자체가 이미 무슨 일인지 말한다
+  // "판정까지"는 D-n 앞에서만 말이 된다 — "판정까지 오늘 마감"·"판정까지 판정 대기"는
+  // 어색하고, 그 두 상태는 문구 자체가 이미 무슨 일인지 말한다.
+  // **구매 전 카드는 판매 마감을, 구매 후 카드는 판정 시점을 센다** — 산 사람에게
+  // 남은 관심사는 "언제까지 살 수 있나"가 아니라 "언제 결과가 나오나"다
   const showDdayLead = ddayLabel.startsWith("D-");
   const fill = hasPrice ? fillPercent(p.achievement) : p.timeRatio * 100;
 
@@ -190,7 +192,7 @@ export function OwnedCard({
             </span>
           )}
           <span className={styles.ddayLine}>
-            {showDdayLead && <span className={styles.ddayLead}>검증까지</span>}
+            {showDdayLead && <span className={styles.ddayLead}>판정까지</span>}
             {ddayLabel}
           </span>
           {v.targetPrice != null && (
