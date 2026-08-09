@@ -58,6 +58,8 @@ export function OwnedCard({
 
   // 가격 진행을 그릴 수 있는가 — 없으면 막대가 시간 전용으로 내려간다
   const hasPrice = p.achievement !== null;
+  const ddayLabel =
+    p.awaitingJudgment && !v.judged ? "판정 대기" : dday(v.deadline, now);
   const fill = hasPrice ? fillPercent(p.achievement) : p.timeRatio * 100;
 
   return (
@@ -164,28 +166,37 @@ export function OwnedCard({
         </span>
       )}
 
-      {/* ④ 바닥 — 좌: 언제 결과가 나오나 / 우: 얼마에서 얼마로.
-          가격 3종을 오른쪽으로 몬 이유는 세 값이 한 덩어리로 읽혀야 하기 때문이고,
-          그 자리를 비우고 나니 "검증 기한"이 좌하단의 주인이 됐다.
-          짧은 카드는 가격 3종을 싣지 않으므로 그 자리에 구매가가 남는다 */}
-      <span className={styles.foot}>
-        <span className={styles.dday}>
-          {p.awaitingJudgment && !v.judged ? "판정 대기" : dday(v.deadline, now)}
-        </span>
-        {compact ? (
+      {/* ④ 바닥.
+          긴 카드는 세 값을 한 줄에 몰면 모바일에서 줄바꿈이 나 D-day까지 두 동강 난다.
+          그래서 세로로 나누되 순서에 뜻을 담았다 — **어디서 왔나 → 얼마나 남았나 → 어디로 가나**:
+            기준·현재 (우)
+            D-15     (좌, 크게)
+            목표      (우)
+          짧은 카드는 가격을 싣지 않으므로 한 줄로 좌 기한 / 우 구매가 그대로 */}
+      {compact ? (
+        <span className={styles.foot}>
+          <span className={styles.dday}>{ddayLabel}</span>
           <span className={styles.paid}>{v.priceKrw.toLocaleString()}원에 구매</span>
-        ) : (
-          v.basePrice != null &&
-          v.targetPrice != null && (
-            <span className={styles.prices}>
+        </span>
+      ) : (
+        <span className={styles.footStack}>
+          {v.basePrice != null && (
+            <span className={styles.priceLine}>
               기준 {fmtPrice(v.basePrice, v.currency)}
               {v.currentPrice != null && ` · 현재 ${fmtPrice(v.currentPrice, v.currency)}`}
-              {" · 목표 "}
-              <strong style={{ color: tone }}>{fmtPrice(v.targetPrice, v.currency)}</strong>
             </span>
-          )
-        )}
-      </span>
+          )}
+          <span className={styles.ddayLine}>{ddayLabel}</span>
+          {v.targetPrice != null && (
+            <span className={styles.priceLine}>
+              목표{" "}
+              <strong className={styles.targetVal} style={{ color: tone }}>
+                {fmtPrice(v.targetPrice, v.currency)}
+              </strong>
+            </span>
+          )}
+        </span>
+      )}
     </Link>
   );
 }

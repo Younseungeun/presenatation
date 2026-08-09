@@ -13,7 +13,7 @@
      space-between이었을 때는 gap을 줄여도 여유 공간이 요소 사이로 다시 벌어져
      "간격을 좁힌다"가 화면에 나타나지 않았다 */
   justify-content: flex-start;
-  gap: 6px;
+  gap: 5px;
   min-height: var(--card-h);
   margin-bottom: 10px;
   padding: 13px 16px 12px;
@@ -67,6 +67,13 @@
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+/* 긴 카드는 제목을 키운다 — 남는 세로를 여백으로 두면 카드가 비어 보이는데,
+   그 자리는 장식이 아니라 **구매로 열린 글의 정체**로 채우는 것이 맞다 */
+.card:not(.compact) .title {
+  font-size: 16.5px;
+  line-height: 1.3;
+  -webkit-line-clamp: 2;
 }
 .byline {
   display: flex;
@@ -202,13 +209,37 @@
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
-/* 세 값은 한 덩어리로 읽혀야 해서 오른쪽으로 몰아 붙인다 */
-.prices {
-  font-size: 10.5px;
+/* 긴 카드 바닥 — 세로 3단: 기준·현재(우) / D-day(좌, 크게) / 목표(우).
+   한 줄에 몰면 좁은 화면에서 줄바꿈이 나 D-day까지 두 동강 났다 */
+.footStack {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 6px;
+}
+.priceLine {
+  font-size: 11px;
+  line-height: 1.35;
   font-weight: 600;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.targetVal {
+  font-size: 12.5px;
+  font-weight: 800;
+}
+/* 기한은 두 가격 줄 사이에서 시간을 말한다 — 어디서 왔나 / 얼마나 남았나 / 어디로 가나 */
+.ddayLine {
+  font-size: 15px;
+  line-height: 1.25;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 /* 도달 고지 — 막대가 결과를 약속하는 것처럼 읽히지 않게 */
 .note {
