@@ -60,6 +60,9 @@ export function OwnedCard({
   const hasPrice = p.achievement !== null;
   const ddayLabel =
     p.awaitingJudgment && !v.judged ? "판정 대기" : dday(v.deadline, now);
+  // "검증까지"는 D-n 앞에서만 말이 된다 — "검증까지 오늘 마감"·"검증까지 판정 대기"는
+  // 어색하고, 그 두 상태는 문구 자체가 이미 무슨 일인지 말한다
+  const showDdayLead = ddayLabel.startsWith("D-");
   const fill = hasPrice ? fillPercent(p.achievement) : p.timeRatio * 100;
 
   return (
@@ -186,7 +189,10 @@ export function OwnedCard({
               {v.currentPrice != null && ` · 현재 ${fmtPrice(v.currentPrice, v.currency)}`}
             </span>
           )}
-          <span className={styles.ddayLine}>{ddayLabel}</span>
+          <span className={styles.ddayLine}>
+            {showDdayLead && <span className={styles.ddayLead}>검증까지</span>}
+            {ddayLabel}
+          </span>
           {v.targetPrice != null && (
             <span className={styles.priceLine}>
               목표{" "}

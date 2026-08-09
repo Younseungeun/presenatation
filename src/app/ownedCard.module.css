@@ -234,12 +234,23 @@
 }
 /* 기한은 두 가격 줄 사이에서 시간을 말한다 — 어디서 왔나 / 얼마나 남았나 / 어디로 가나 */
 .ddayLine {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   font-size: 15px;
   line-height: 1.25;
   font-weight: 800;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+/* "D-15"만으로는 무엇까지 남았는지가 안 적혀 있다. 다만 숫자보다 작고 옅게 —
+   읽는 순서는 숫자가 먼저고 이 말은 그 숫자의 단위에 가깝다 */
+.ddayLead {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text-faint);
 }
 /* 도달 고지 — 막대가 결과를 약속하는 것처럼 읽히지 않게 */
 .note {
