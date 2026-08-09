@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { MarketCard } from "@/server/marketQueries";
+import { RankMark } from "../brand/RankMark";
 import { dday } from "../format";
 import { maskedHeadline } from "../MaskedCard";
 import { TierChip } from "../TierChip";
@@ -10,6 +11,9 @@ import styles from "./leaderboard.module.css";
 // 이 섹션이 파는 것은 카드의 내용이 아니라 "다들 이걸 산다"는 사실이라, 정보의
 // 주인공이 판매 건수다. 같은 카드 컴포넌트를 또 늘어놓으면 그 사실이 묻히고
 // 화면도 단조로워진다. 숫자를 앞세운 얇은 행이 스캔도 빠르다.
+//
+// 1~3위는 브랜드 순위 표식(잉크 명도 사다리), 4위 이하는 숫자 텍스트 —
+// 표식이 흔해지면 상위 3위의 무게가 사라진다 (브랜드 README §4-5).
 
 export function BestSellers({ cards, now }: { cards: MarketCard[]; now: Date }) {
   return (
@@ -17,7 +21,9 @@ export function BestSellers({ cards, now }: { cards: MarketCard[]; now: Date }) 
       {cards.map((c, i) => (
         <li key={c.reportId}>
           <Link href={`/report/${c.reportId}`} className={styles.rankRow}>
-            <span className={styles.rankNum}>{i + 1}</span>
+            <span className={styles.rankNum}>
+              {i < 3 ? <RankMark rank={(i + 1) as 1 | 2 | 3} size={24} /> : i + 1}
+            </span>
             <span className={styles.rankMain}>
               <span
                 className={styles.rankHead}

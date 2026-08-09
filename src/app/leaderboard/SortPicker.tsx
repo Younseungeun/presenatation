@@ -88,6 +88,9 @@ export function SortPicker({
               <Link
                 key={key}
                 href={hrefFor(key)}
+                // 정렬을 바꿔도 보던 자리에 머문다 — 목록 순서가 바뀌는 것이 곧 피드백이라
+                // 맨 위로 튀면 "뭐가 바뀌었나"를 다시 찾아야 한다
+                scroll={false}
                 className={`${styles.sheetOption} ${key === sort ? styles.sheetOptionActive : ""}`}
                 aria-current={key === sort ? "true" : undefined}
                 onClick={() => setOpen(false)}

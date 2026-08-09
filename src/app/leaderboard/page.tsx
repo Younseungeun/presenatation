@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { hasCriteria, parseCardQuery } from "@/domain/cardQuery";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
+import { countCart } from "@/server/cartService";
 import { prisma } from "@/server/db";
 import { getFollowedResearcherIds, getPinnedResearcherIds } from "@/server/followService";
 import {
@@ -14,6 +15,7 @@ import {
   MARKET_SORTS,
   searchCards,
   WITHIN_DAY_OPTIONS,
+  type CardGroup,
   type MarketFilter,
   type MarketSort,
 } from "@/server/marketQueries";
@@ -22,12 +24,14 @@ import { getUiSettings } from "@/server/appSettings";
 import { getSessionUserId } from "@/server/session";
 import { CleanBanner } from "../CleanBanner";
 import { MarketTicker } from "../MarketTicker";
+import { BagIcon } from "../my/icons";
 import { EmptyState } from "../EmptyState";
 import { MaskedCard } from "../MaskedCard";
 import { TraceNotice } from "../TraceNotice";
 import { BestSellers } from "./BestSellers";
 import { FilterBar } from "./FilterBar";
 import { FollowedSections } from "./FollowedSections";
+import { MoreCards } from "./MoreCards";
 import { SearchBar } from "./SearchBar";
 import { SearchResults } from "./SearchResults";
 import { SortPicker } from "./SortPicker";
@@ -55,6 +59,41 @@ export const dynamic = "force-dynamic";
  *  고르는 일은 /following에서 전부 놓고 하는 것이 맞다)
  */
 const FOLLOWED_ON_LEADERBOARD = 1;
+
+/**
+ * 자산군별 목록에서 처음에 펼쳐 두는 카드 수.
+ * 앞쪽은 정렬이 고른 상위라 의미가 있지만 그 뒤는 "그 외 전부"다 —
+ * 다 쏟아 두면 훑는 것이 아니라 스크롤이 된다.
+ */
+const CARDS_BEFORE_MORE = 8;
+
+/**
+ * 구간을 유지한 채 앞 N장 / 나머지로 자른다.
+ * 자른 뒤에 다시 묶지 않는 이유: groupCards는 구간이 하나뿐이면 제목을 지우므로,
+ * 조각마다 다시 묶으면 같은 목록인데 앞뒤의 제목 유무가 달라진다.
+ *
+ * 한 구간의 중간에서 잘리면 **뒤쪽 조각은 제목을 비운다** — 펼쳤을 때 같은 구간
+ * 제목이 다른 장수로 두 번 나오면 서로 다른 구간처럼 읽힌다. 제목의 장수는
+ * 구간 전체 크기를 적어야 하므로 화면은 원본 groups에서 세어 표시한다.
+ */
+function splitGroups(groups: CardGroup[], budget: number): [CardGroup[], CardGroup[]] {
+  const head: CardGroup[] = [];
+  const tail: CardGroup[] = [];
+  let left = budget;
+  for (const g of groups) {
+    if (left <= 0) {
+      tail.push(g);
+    } else if (g.cards.length <= left) {
+      head.push(g);
+      left -= g.cards.length;
+    } else {
+      head.push({ label: g.label, cards: g.cards.slice(0, left) });
+      tail.push({ label: "", cards: g.cards.slice(left) }); // 이어지는 조각 — 제목 없음
+      left = 0;
+    }
+  }
+  return [head, tail];
+}
 
 /** 숫자 파라미터를 허용된 값 안에서만 받는다 — URL 조작으로 임의 조건이 들어오지 않게 */
 function pickNumber<T extends number>(raw: string | undefined, allowed: readonly T[]): T | null {
@@ -98,12 +137,13 @@ export default async function LeaderboardPage({
   const searching = hasCriteria(query);
 
   const viewerId = await getSessionUserId();
-  const [followedIds, pinnedIds] = viewerId
+  const [followedIds, pinnedIds, cartCount] = viewerId
     ? await Promise.all([
         getFollowedResearcherIds(prisma, viewerId),
         getPinnedResearcherIds(prisma, viewerId),
+        countCart(prisma, viewerId),
       ])
-    : [[], []];
+    : [[], [], 0];
 
   // 띠지는 운영자가 켠 경우에만 집계한다 — 꺼져 있으면 쿼리 자체를 돌리지 않는다
   const ui = await getUiSettings(prisma);
@@ -122,6 +162,33 @@ export default async function LeaderboardPage({
   // 목록은 정렬 기준 그 자체로 구간을 나눈다 — 임의 간격 눈금은 리듬처럼 보일 뿐
   // 정보가 아니고, 사용자가 방금 고른 정렬이 곧 "지금 무엇을 보는가"의 답이다
   const groups = groupCards(cards, sort, now);
+  const [shownGroups, restGroups] = splitGroups(groups, CARDS_BEFORE_MORE);
+  const restCount = restGroups.reduce((n, g) => n + g.cards.length, 0);
+  // 구간 제목의 장수는 잘린 조각이 아니라 구간 전체 크기 — "그 이후 3장"이라 적어 놓고
+  // 펼치면 20장이 더 나오는 화면은 거짓말이다
+  const groupTotal = new Map(groups.map((g) => [g.label, g.cards.length]));
+
+  /** 구간 하나 — 앞쪽과 "더 보기" 안쪽이 같은 모양이어야 펼침이 이어지는 것으로 읽힌다 */
+  const renderGroup = (g: CardGroup, gi: number, hero: boolean) => (
+    <section key={`${g.label}-${gi}`}>
+      {g.label && (
+        <div className={lb.groupHead}>
+          <span className={lb.groupLabel}>{g.label}</span>
+          <span className={lb.groupCount}>{groupTotal.get(g.label) ?? g.cards.length}장</span>
+        </div>
+      )}
+      {g.cards.map((c, i) => {
+        // 목록 전체의 첫 장만 히어로 — 정렬 1순위가 무엇인지가 목록의 의미를 말해준다
+        const isHero = hero && gi === 0 && i === 0;
+        return (
+          <div key={c.reportId} className={isHero ? lb.hero : undefined}>
+            {isHero && <span className={lb.heroTag}>이 정렬의 1순위</span>}
+            <MaskedCard c={c} now={now} href={`/report/${c.reportId}`} />
+          </div>
+        );
+      })}
+    </section>
+  );
 
   return (
     <main className={styles.page}>
@@ -129,7 +196,21 @@ export default async function LeaderboardPage({
           (스크린리더·문서 구조용) — 홈 화면과 같은 처리 */}
       <h1 className="srOnly">리더보드 — 지금 살 수 있는 예측 카드</h1>
 
-      <SearchBar initial={rawQuery} />
+      {/* 검색바 + 장바구니 — 검색바를 살짝 좁히고 그 오른쪽에 장바구니를 둔다 (KREAM 상단 구조).
+          카드를 담아 두고 계속 탐색하는 화면이라, 담은 것으로 돌아가는 길이 탐색 화면 안에
+          있어야 한다. 담은 수 배지는 MY 헤더의 장바구니와 같은 규칙.
+          줄(유리 바) 자체는 SearchBar가 그린다 — 패널 열림이 줄의 z-층을 바꿔야 해서 */}
+      <SearchBar
+        initial={rawQuery}
+        cart={
+          <Link href="/cart" className={lb.cartBtn} aria-label="장바구니">
+            <BagIcon />
+            {cartCount > 0 && (
+              <span className={lb.cartBadge}>{cartCount > 99 ? "99+" : cartCount}</span>
+            )}
+          </Link>
+        }
+      />
 
       {/* 시장 규모 띠지 — 운영자가 켰을 때만. 수치가 작을 때는 빈 마켓처럼 보여 역효과라
           기본값이 꺼짐이다 (/admin/settings) */}
@@ -145,13 +226,16 @@ export default async function LeaderboardPage({
       {followedSections.length > 0 && (
         <>
           <div className={`${lb.secHead} ${lb.secHeadFirst}`}>
-            <span className={lb.secTitle}>팔로우한 리서처</span>
-            {followedSections.length > FOLLOWED_ON_LEADERBOARD ? (
+            {/* 아이브로우 = 이 섹션의 정렬 규칙. 우측 잔글씨가 아니라 제목 위에 두는 이유:
+                "무슨 순서로 나열됐나"는 목록을 읽는 방법이라 제목보다 먼저 잡혀야 한다 */}
+            <span className={lb.secLead}>
+              <span className={lb.secEyebrow}>고정한 순 · 새 카드 낸 순</span>
+              <span className={lb.secTitle}>팔로우한 리서처</span>
+            </span>
+            {followedSections.length > FOLLOWED_ON_LEADERBOARD && (
               <Link href="/following" className={lb.secMore}>
                 {followedSections.length}명 모두 보기 →
               </Link>
-            ) : (
-              <span className={lb.secNote}>고정한 순 · 새 카드 낸 순</span>
             )}
           </div>
           <FollowedSections
@@ -174,8 +258,10 @@ export default async function LeaderboardPage({
       {bestSelling.length > 0 && (
         <>
           <div className={lb.secHead}>
-            <span className={lb.secTitle}>지금 잘 팔리는 카드</span>
-            <span className={lb.secNote}>구매 많은 순</span>
+            <span className={lb.secLead}>
+              <span className={lb.secEyebrow}>구매 많은 순</span>
+              <span className={lb.secTitle}>지금 잘 팔리는 카드</span>
+            </span>
           </div>
           <BestSellers cards={bestSelling} now={now} />
         </>
@@ -185,8 +271,10 @@ export default async function LeaderboardPage({
       {topTier.length > 0 && (
         <>
           <div className={lb.secHead}>
-            <span className={lb.secTitle}>상위 등급 리서처의 카드</span>
-            <span className={lb.secNote}>등급 높은 순</span>
+            <span className={lb.secLead}>
+              <span className={lb.secEyebrow}>등급 높은 순</span>
+              <span className={lb.secTitle}>상위 등급 리서처의 카드</span>
+            </span>
           </div>
           <div className={styles.rail}>
             {topTier.map((c) => (
@@ -209,13 +297,18 @@ export default async function LeaderboardPage({
 
       {/* ④ 자산군별 전체 목록 */}
       <div className={lb.secHead}>
-        <span className={lb.secTitle}>자산군별 찾기</span>
+        <span className={lb.secLead}>
+          <span className={lb.secEyebrow}>지금 살 수 있는 전체 카드</span>
+          <span className={lb.secTitle}>자산군별 찾기</span>
+        </span>
       </div>
       <div className={styles.tabs}>
         {ASSET_CLASSES.map((a) => (
+          // scroll={false} — 자산군 전환도 이 목록 안의 조작이라 보던 자리를 지킨다
           <Link
             key={a}
             href={`/leaderboard?asset=${a}&sort=${sort}`}
+            scroll={false}
             className={`${styles.tab} ${a === asset ? styles.tabActive : ""}`}
           >
             {ASSET_CLASS_LABEL[a]}
@@ -244,23 +337,14 @@ export default async function LeaderboardPage({
           }
         />
       ) : (
-        groups.map((g, gi) => (
-          <section key={g.label || gi}>
-            {g.label && (
-              <div className={lb.groupHead}>
-                <span className={lb.groupLabel}>{g.label}</span>
-                <span className={lb.groupCount}>{g.cards.length}장</span>
-              </div>
-            )}
-            {g.cards.map((c, i) => (
-              // 목록 전체의 첫 장만 히어로 — 정렬 1순위가 무엇인지가 목록의 의미를 말해준다
-              <div key={c.reportId} className={gi === 0 && i === 0 ? lb.hero : undefined}>
-                {gi === 0 && i === 0 && <span className={lb.heroTag}>이 정렬의 1순위</span>}
-                <MaskedCard c={c} now={now} href={`/report/${c.reportId}`} />
-              </div>
-            ))}
-          </section>
-        ))
+        <>
+          {shownGroups.map((g, gi) => renderGroup(g, gi, true))}
+          {restCount > 0 && (
+            <MoreCards count={restCount}>
+              {restGroups.map((g, gi) => renderGroup(g, gi, false))}
+            </MoreCards>
+          )}
+        </>
       )}
 
       {/* 배경 궤적의 정체 — 카드를 다 훑고 난 자리에 둔다.

@@ -39,8 +39,11 @@ function Chip({
   children: React.ReactNode;
 }) {
   return (
+    // scroll={false} — 필터는 보던 목록을 좁히는 조작이라 화면이 맨 위로 튀면
+    // 방금 보던 자리를 잃는다. 결과는 그 자리에서 바뀐다
     <Link
       href={href}
+      scroll={false}
       className={`${styles.chip} ${on ? styles.chipOn : ""}`}
       aria-pressed={on}
     >
@@ -90,6 +93,7 @@ export function FilterBar({ state, matched }: { state: FilterState; matched: num
           <span className={styles.filterCount}>{matched}장</span>
           <Link
             href={`/leaderboard?asset=${state.asset}&sort=${state.sort}`}
+            scroll={false}
             className={styles.filterReset}
           >
             필터 해제

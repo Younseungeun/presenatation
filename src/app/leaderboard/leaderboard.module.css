@@ -232,23 +232,30 @@
   gap: 12px;
   padding: 12px 16px;
   color: inherit;
+  transition: background 0.12s ease, transform 0.12s ease;
 }
 .rankRow:hover {
   background: var(--surface);
 }
+/* 누르는 동안 살짝 가라앉는다 — 행 전체가 버튼이라는 확인 */
+.rankRow:active {
+  background: var(--surface);
+  transform: scale(0.985);
+}
+/* 1~3위는 브랜드 순위 메달(잉크 명도 사다리), 4위 이하는 숫자 —
+   순위는 색이 아니라 무게로 읽힌다 (브랜드 README §4-5) */
 .rankNum {
-  width: 20px;
+  width: 24px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   text-align: center;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   color: var(--text-faint);
   letter-spacing: -0.03em;
-}
-/* 1~3위만 진하게 — 순위표라는 걸 색이 아니라 굵기로 말한다 */
-.rankList li:nth-child(-n + 3) .rankNum {
-  color: var(--text, #191f28);
 }
 .rankMain {
   flex: 1;
@@ -298,29 +305,57 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── 섹션 머리 — 번호 없는 큰 제목 + 오른쪽 보조 설명 ──────── */
+/* ── 섹션 머리 — 아이브로우(정렬 규칙) 위, 제목 아래 ──────────
+   "무슨 순서로 나열됐나"는 목록을 읽는 방법이라 제목보다 먼저 잡혀야 한다.
+   우측 잔글씨였을 때는 제목을 읽고 눈이 되돌아와야 했다. */
 .secHead {
   display: flex;
-  align-items: baseline;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 10px;
-  margin: 30px 0 12px;
+  margin: 34px 0 14px;
+}
+.secLead {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.secEyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+}
+/* 45° 상승 틱 — 브랜드 축(방향)을 섹션 눈금으로 반복한다. 장식이 아니라
+   "이 아래는 정렬된 목록"이라는 표지라, 아이브로우에만 붙는다 */
+.secEyebrow::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 1px;
+  background: linear-gradient(
+    45deg,
+    transparent 38%,
+    var(--brand-strong) 38% 62%,
+    transparent 62%
+  );
 }
 .secTitle {
-  font-size: 17px;
+  font-size: 19px;
   font-weight: 800;
-  letter-spacing: -0.03em;
-}
-.secNote {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-faint);
+  letter-spacing: -0.035em;
+  line-height: 1.25;
 }
 .secMore {
   font-size: 12.5px;
   font-weight: 700;
   color: var(--brand-strong);
   white-space: nowrap;
+  padding-bottom: 2px; /* 제목 베이스라인에 맞춘 시각 보정 */
 }
 /* 첫 섹션은 위 여백을 줄인다 — 안내 문구 바로 아래라 */
 .secHeadFirst {
@@ -329,9 +364,62 @@
 
 /* ── 검색 ───────────────────────────────────────────────────
    검색어는 URL에 남는다 — 뒤로가기로 복원되고 링크로 공유된다. */
+/* 검색바(좁힘) + 장바구니 한 줄. 펼침 패널의 기준을 줄 전체에 두어
+   패널은 장바구니 아래까지 원래 폭 그대로 펼쳐진다.
+
+   **스크롤해도 상단에 붙는 유리 바** — 카드 목록이 길어서 검색·장바구니로 돌아가는
+   길이 늘 손에 있어야 하고, 재질은 카드의 확신 상자와 같은 유리로 맞췄다
+   (배경이 흐른 채 비쳐야 떠 있다는 것이 읽힌다). -webkit-backdrop-filter를 직접 쓰면
+   CSS 변환기가 선언을 통째로 버리므로 표준 속성만 쓴다 */
+.searchRow {
+  position: sticky;
+  top: 0;
+  z-index: 31; /* 탭바(30) 위 */
+  display: flex;
+  align-items: flex-start; /* 태그가 쌓여 검색바가 높아져도 장바구니는 첫 줄 높이에 */
+  gap: 8px;
+  margin: 0 -20px 12px; /* 페이지 패딩(20px)을 덮어 유리가 화면 끝까지 닿는다 */
+  padding: 10px 20px 10px;
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(180%);
+}
+/* 패널이 열리면 줄 전체(검색바+장바구니+패널)가 스크림(40) 위로 올라온다 —
+   지금 편집 중인 것들만 밝게 남는다. 스크림은 body 포털이라 z가 루트 기준으로 겨룬다 */
+.searchRowOpen {
+  z-index: 41;
+}
 .searchWrap {
-  position: relative; /* 펼침 패널의 기준 */
-  margin: 4px 0 16px;
+  flex: 1;
+  min-width: 0;
+}
+.cartBtn {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  -webkit-tap-highlight-color: transparent;
+}
+.cartBadge {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--neg);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 17px;
+  text-align: center;
 }
 .searchForm {
   display: flex;
@@ -436,8 +524,10 @@
 }
 .tagPanel {
   position: absolute;
-  left: 0;
-  right: 0;
+  /* 검색줄이 페이지 패딩을 덮는 유리 바가 되면서 기준 상자가 화면 폭이 됐다 —
+     패널은 본문 폭에 맞춰 되돌린다 */
+  left: 20px;
+  right: 20px;
   z-index: 41;
   margin-top: 8px;
   border-radius: var(--radius-lg);
@@ -470,6 +560,9 @@
 .tagPanelBody {
   max-height: 46vh;
   overflow-y: auto;
+  /* 패널 안에서 끝까지 스크롤해도 뒤 페이지로 이어 넘기지 않는다 —
+     배경 스크롤은 막지 않되(sticky가 자리를 지킨다) 패널發 스크롤만 가둔다 */
+  overscroll-behavior: contain;
   padding: 0 16px 4px;
 }
 .tagGroup {
@@ -697,14 +790,16 @@
    스크롤 중에도 지금 어느 구간인지 보이도록 붙여 둔다 */
 .groupHead {
   position: sticky;
-  top: 0;
+  top: 64px; /* 유리 검색줄(≈66px) 바로 아래에 멈춘다 */
   z-index: 1;
   display: flex;
   align-items: baseline;
   gap: 8px;
   margin: 20px 0 10px;
   padding: 6px 0;
-  background: var(--bg);
+  /* 검색줄과 같은 유리 — 붙는 것들은 같은 재질이어야 한 시스템으로 읽힌다 */
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  backdrop-filter: blur(10px);
 }
 .groupHead::after {
   content: "";
@@ -726,6 +821,49 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* ── 더 보기 — 자산군별 목록의 나머지를 펼친다 ─────────────── */
+.moreBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  height: 52px;
+  margin-top: 14px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-weak);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+  transition: background 0.12s ease, transform 0.12s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.moreBtn:active {
+  background: var(--surface-2);
+  transform: scale(0.985);
+}
+.moreChevron {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-faint);
+  transform: translateY(-3px);
+}
+
+/* 움직임을 줄여 달라는 설정에서는 눌림 변형을 끈다 — 배경 변화만 남긴다 */
+@media (prefers-reduced-motion: reduce) {
+  .rankRow,
+  .moreBtn {
+    transition: background 0.12s ease;
+  }
+  .rankRow:active,
+  .moreBtn:active {
+    transform: none;
+  }
+}
+
 @media (max-width: 640px) {
   .prShelfHead,
   .prRail {
@@ -738,5 +876,16 @@
   }
   .rankRow {
     padding: 12px 14px;
+  }
+  /* 모바일에서는 페이지 패딩이 16px — 유리 바의 확장 폭도 맞춘다 */
+  .searchRow {
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .tagPanel {
+    left: 16px;
+    right: 16px;
   }
 }

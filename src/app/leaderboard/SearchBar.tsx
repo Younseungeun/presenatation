@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { buildQueryString, parseCardQuery, TAG_GROUPS, toggleTag } from "@/domain/cardQuery";
 import styles from "./leaderboard.module.css";
 
@@ -13,10 +14,14 @@ import styles from "./leaderboard.module.css";
 // 펼침 패널은 전체 태그를 범주별로 보여준다. 가로 스크롤은 "더 있다"는 사실을 숨겨서,
 // 쓸 줄 모르는 사람에게 정작 필요한 목록이 화면 밖에 남는다.
 // 펼치는 동안 뒤를 어둡게 덮는 이유도 같다 — 이 순간의 일은 조건을 고르는 것 하나다.
+// 스크림을 누르면 닫힌다 (조건은 버리지 않는다 — 실수로 닫아도 다시 열면 그대로).
 //
 // 검색어는 URL(?q=)로 남는다. 뒤로가기로 복원되고 링크로 공유된다.
+//
+// 검색줄(유리 바)째로 이 컴포넌트가 그린다 — 열림 상태가 줄의 z-층을 스크림 위로
+// 올려야 해서다(cart 버튼도 같은 줄에 있으니 함께 밝게 남는다).
 
-export function SearchBar({ initial }: { initial: string }) {
+export function SearchBar({ initial, cart }: { initial: string; cart?: React.ReactNode }) {
   const router = useRouter();
   // URL의 검색어를 이름과 태그로 되돌려 놓는다 — 새로고침해도 칩이 그대로 남는다
   const parsed = parseCardQuery(initial);
@@ -26,19 +31,18 @@ export function SearchBar({ initial }: { initial: string }) {
   const [tags, setTags] = useState<string[]>(initial ? initialTags : []);
   const [open, setOpen] = useState(false);
 
-  // 패널이 열려 있는 동안 뒤 배경이 스크롤되지 않게 잠근다 (정렬 시트와 같은 처리)
+  // 스크롤은 잠그지 않는다. 예전(검색줄이 static일 때)에는 열린 채 스크롤하면 패널이
+  // 화면 밖으로 떠내려가서 body를 잠갔는데, 그 잠금이 body를 스크롤 컨테이너로 만들어
+  // sticky를 깨뜨렸다 — 검색줄이 문서 맨 위 원위치로 돌아가 "열면 위로 튀는" 원인.
+  // (html에 걸면 이번엔 스크롤 오프셋이 0으로 붙는다.) 지금은 줄이 sticky라 열린 채
+  // 스크롤해도 검색줄·패널·스크림이 전부 상단에 붙어 따라오므로 잠글 이유가 없다.
   useEffect(() => {
     if (!open) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setOpen(false);
     };
     window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [open]);
 
   function submit(nextText: string, nextTags: string[]) {
@@ -61,6 +65,7 @@ export function SearchBar({ initial }: { initial: string }) {
   const empty = !text.trim() && tags.length === 0;
 
   return (
+    <div className={`${styles.searchRow} ${open ? styles.searchRowOpen : ""}`}>
     <div className={styles.searchWrap}>
       <form
         className={`${styles.searchForm} ${open ? styles.searchFormOpen : ""}`}
@@ -129,13 +134,18 @@ export function SearchBar({ initial }: { initial: string }) {
 
       {open && (
         <>
-          {/* 뒤를 덮어 조건 고르기에 집중시킨다 */}
-          <button
-            type="button"
-            className={styles.searchScrim}
-            aria-label="닫기"
-            onClick={() => setOpen(false)}
-          />
+          {/* 뒤를 덮어 조건 고르기에 집중시킨다. 누르면 닫힌다.
+              **포털로 body에 그린다** — 검색줄의 유리(backdrop-filter)가 fixed의 기준을
+              줄 상자로 가로채서, 줄 안에 두면 스크림이 줄 크기만큼만 그려진다 */}
+          {createPortal(
+            <button
+              type="button"
+              className={styles.searchScrim}
+              aria-label="검색 닫기"
+              onClick={() => setOpen(false)}
+            />,
+            document.body,
+          )}
 
           <div className={styles.tagPanel} role="dialog" aria-label="검색 조건">
             <div className={styles.tagPanelHead}>
@@ -190,6 +200,9 @@ export function SearchBar({ initial }: { initial: string }) {
           </div>
         </>
       )}
+    </div>
+
+    {cart}
     </div>
   );
 }
