@@ -65,16 +65,16 @@ export function OwnedCard({
       href={`/report/${v.reportId}`}
       className={`${styles.card} ${compact ? styles.compact : ""}`}
     >
-      {/* ⓪ 바이라인 — 누가 쓴 무슨 글인가. 산 뒤에도 책임 주체는 남아야 하고,
-          제목은 구매로 열린 정보 중 하나다(구매 전에는 종목명이 새어 감춰져 있었다).
-          아바타·등급·실적은 "살까?"를 판단하는 재료라 빼고 이름과 제목만 둔다 */}
-      <span className={styles.byline}>
-        <span className={styles.bylineWho}>
+      {/* ⓪ 머리글 — **제목이 중심, 리서처는 곁들임.** 신문 헤드라인과 바이라인의 관계다.
+          제목은 구매로 열린 정보 중 하나이고(구매 전에는 종목명이 샐까 봐 감춰 뒀다),
+          리서처 이름은 산 뒤에도 책임 주체로 남아야 해서 아래에 작게 붙인다.
+          아바타·등급·실적은 "살까?"를 판단하는 재료라 여기 없다 */}
+      <span className={styles.header}>
+        <span className={styles.title}>{v.title}</span>
+        <span className={styles.byline}>
           {v.researcherName}
-          {v.careerBadge && <VerifiedBadge size={11} />}
+          {v.careerBadge && <VerifiedBadge size={10} />}
         </span>
-        <span className={styles.bylineDot} aria-hidden="true" />
-        <span className={styles.bylineTitle}>{v.title}</span>
       </span>
 
       {/* ① 종목 — 구매로 열린 것 */}

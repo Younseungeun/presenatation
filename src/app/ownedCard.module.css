@@ -38,39 +38,48 @@
   padding: 12px 14px 11px;
   gap: 5px;
 }
+/* 짧은 카드는 하단 줄 여백을 한 칸 좁게 (긴 카드보다 세로가 27px 짧다) */
+.compact .foot {
+  margin-top: 7px;
+}
 
-/* ── ⓪ 바이라인 — 리서처 이름 · 리포트 제목. 카드에서 가장 조용한 줄이다.
-   제목이 길면 이름을 밀어내지 않고 제목만 잘린다(이름은 책임 주체라 늘 온전히 보여야 한다) */
+/* ── ⓪ 머리글 — 제목이 중심, 리서처는 곁들임 (헤드라인·바이라인 관계).
+   **머리글만 위에 서고 나머지는 아래 한 덩어리**다: 종목·막대·수치·하단 줄이
+   한 세트로 읽혀야 하므로, 남는 세로 공간을 전부 머리글 아래로 보낸다.
+   foot의 margin-top을 auto로 두면 둘이 여유를 반씩 나눠 가져 세트가 다시 갈라진다 ── */
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  margin-bottom: auto;
+}
+/* 제목은 잉크로 또렷하게. 다만 종목명(.name)보다는 작다 —
+   이 카드의 주인공은 여전히 "내가 산 종목"이고 제목은 그 글의 이름이다.
+   두 줄까지 흐르고 그 뒤는 자른다(카드 상자 크기가 고정이라) */
+.title {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+  letter-spacing: -0.025em;
+  color: var(--text, #191f28);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .byline {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 3px;
   min-width: 0;
-  font-size: 11.5px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-faint);
   letter-spacing: -0.01em;
   white-space: nowrap;
-}
-.bylineWho {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex: none;
-}
-.bylineDot {
-  flex: none;
-  width: 2.5px;
-  height: 2.5px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: 0.55;
-}
-.bylineTitle {
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-weight: 600;
 }
 
 /* ── ① 종목 ── */
@@ -172,13 +181,14 @@
 }
 
 /* ── ④ 바닥 — 좌: 검증 기한 / 우: 기준·현재·목표.
-   margin-top: auto가 남는 세로 공간을 전부 위로 밀어 이 줄을 카드 바닥에 붙인다 ── */
+   세트와 붙되 맞닿지는 않는다: 성격이 다른 두 덩어리라 숨 쉴 틈 한 칸만 준다
+   (여유는 머리글이 가져간다 — .header margin-bottom: auto) ── */
 .foot {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-top: auto;
+  margin-top: 8px;
 }
 .dday {
   font-size: 13px;
