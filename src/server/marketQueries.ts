@@ -172,6 +172,9 @@ function toMarketCard(r: ReportWithCard): MarketCard {
 function buyableWhere(now: Date) {
   return {
     status: 'PUBLISHED',
+    // 판매 마감(시간·구간 이탈)된 카드는 목록의 "지금 살 수 있는"에서 빠진다 —
+    // 카드는 살아서 시한에 판정되지만, 이 화면들의 약속은 구매 가능성이다
+    salesClosedAt: null,
     predictionCard: { is: { deadline: { gt: now }, withdrawnAt: null } },
   } as const;
 }

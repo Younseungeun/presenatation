@@ -108,6 +108,11 @@ model Report {
   // 일정 횟수를 넘으면 검수를 통과해도 사람이 다시 본다 (compliance.ts)
   rejectionCount  Int               @default(0)
   publishedAt     DateTime?
+  // 판매 마감 (판정과 무관 — 카드는 살아서 시한에 정상 판정된다).
+  // 사유: WINDOW_END(시간 규칙) | BAND_EXIT(잔여 수익률이 구간 바닥×2/3 밑 종가).
+  // 확정 마감은 재개하지 않는다 (domain/salesWindow.ts)
+  salesClosedAt    DateTime?
+  salesCloseReason String?
   createdAt       DateTime          @default(now())
 
   predictionCard    PredictionCard?

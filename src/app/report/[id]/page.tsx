@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { RISK_LEVEL_LABEL, RISK_LEVEL_NOTE, type RiskLevel } from "@/domain/instrumentRisk";
 import { cardProfitabilityLevel } from "@/domain/profitability";
+import { salesGuaranteeText } from "@/domain/salesWindow";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getResearcherCallout } from "@/server/marketQueries";
@@ -178,6 +179,14 @@ export default async function ReportDetail({
               산정 방식 직접 계산해 보기 →
             </Link>
           </p>
+          {/* 판매 중 보장 고지 — 실제로 집행되는 규칙(잔여 < 구간 바닥×2/3 종가 → 자동 마감)을
+              구매자 언어로. **공개 정보(구간)에서만 유도한다** — 실제 잔여 수치를 적으면
+              시세와 대조해 종목이 역산된다. 고지는 보장선까지, 집행이 그 말을 참으로 만든다 */}
+          {masked && profitabilityLevel !== null && (
+            <p className={styles.cardFootnote}>
+              {salesGuaranteeText(card.assetClass as AssetClass, profitabilityLevel)}
+            </p>
+          )}
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>선결제</span>
             <span className={styles.cardVal}>
@@ -292,6 +301,13 @@ export default async function ReportDetail({
             </p>
           )}
         </>
+      ) : report.status === "PUBLISHED" && report.salesClosedAt ? (
+        // 판매 마감 — 공개 문구는 사유 무관 이 한 줄로 통일한다. 사유("목표 접근" 등)를
+        // 공개하면 자산군·방향·구간·시각과 조합해 종목이 좁혀진다(마스킹 붕괴).
+        // 상세 사유는 리서처 본인 알림으로만 간다
+        <div className={styles.locked}>
+          판매가 마감된 리포트입니다. 카드는 그대로 검증되어 시한에 자동 판정됩니다.
+        </div>
       ) : report.status === "PUBLISHED" ? (
         <>
           <div className={styles.locked}>

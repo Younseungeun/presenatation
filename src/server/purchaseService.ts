@@ -1,5 +1,10 @@
 import type { PrismaClient } from '@prisma/client';
+import type { AssetClass, Direction } from '@/domain/constants';
+import { cardProfitabilityLevel } from '@/domain/profitability';
+import { remainingReturnPct, suspendsIntraday } from '@/domain/salesWindow';
+import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isFreeReport } from './freeReportService';
+import { fetchCachedPrice } from './priceCache';
 
 // 구매 → 에스크로 보관. PG(웹 결제) 연동 전까지는 결제 성공을 가정하는 스텁 —
 // 실제 연동 시 PG 승인 후 이 함수를 호출하는 구조가 된다 (금액·상태 기록은 동일).
@@ -33,6 +38,7 @@ function stubPaymentInfo(method: PaymentMethod): string {
 interface PurchasableReport {
   status: string;
   priceKrw: number;
+  salesClosedAt?: Date | null;
   researcher: { userId: string };
   predictionCard: { deadline: Date } | null;
 }
@@ -49,9 +55,41 @@ export function assertPurchasable(report: PurchasableReport, buyerId: string, no
   if (report.researcher.userId === buyerId) {
     throw new Error('자기 리포트는 구매할 수 없습니다 (자기 구매 조작 방지)');
   }
+  // 판매 마감(시간 규칙 또는 구간 이탈 종가) — 확정 상태라 재개되지 않는다
+  if (report.salesClosedAt) {
+    throw new Error('판매가 마감된 리포트입니다');
+  }
   // 시한이 지난 카드는 곧 판정되므로 신규 구매 차단 (결과를 보고 사는 것 방지)
   if (report.predictionCard && report.predictionCard.deadline <= now) {
     throw new Error('검증 시한이 지난 리포트는 구매할 수 없습니다');
+  }
+}
+
+interface IntradayCard {
+  assetClass: string;
+  ticker: string;
+  direction: string;
+  targetType: string;
+  targetValue: number;
+  basePrice: number | null;
+}
+
+/** 장중 결제 중단 검사 — 기준가·시세가 없으면 판단하지 않는다 (막는 쪽으로 지어내지 않는다) */
+async function assertNotSuspendedIntraday(card: IntradayCard | null): Promise<void> {
+  if (!card || card.basePrice === null) return;
+  const level = cardProfitabilityLevel(card);
+  if (level === null) return;
+  const price = await fetchCachedPrice(card.assetClass, card.ticker);
+  if (price === null) return;
+  const targetPrice =
+    card.targetType === 'TARGET_PRICE'
+      ? card.targetValue
+      : magnitudePctToTargetPrice(card.basePrice, card.direction as Direction, card.targetValue);
+  const remaining = remainingReturnPct(card.direction as Direction, price, targetPrice);
+  if (suspendsIntraday(card.assetClass as AssetClass, level, remaining)) {
+    throw new Error(
+      '목표까지 남은 폭이 보장선 아래로 내려가 판매가 일시 중단되었습니다. 오늘 종가 기준으로 마감 여부가 확정됩니다.',
+    );
   }
 }
 
@@ -69,6 +107,10 @@ export async function purchaseReport(
     include: { researcher: true, predictionCard: true },
   });
   assertPurchasable(report, buyerId, now);
+  // 장중 보호 — 종가 배치가 아직 안 닫았어도 결제 순간 잔여가 중단선(구간 바닥×1/2)
+  // 밑이면 막는다. 피해자는 구매하는 순간에 생기므로 검사도 그 순간에 한다.
+  // 시세가 없으면(장애·미지원 자산군) 그냥 통과 — 종가 규칙이 다음 회차에 지킨다
+  await assertNotSuspendedIntraday(report.predictionCard);
 
   const buyer = await prisma.user.findUniqueOrThrow({ where: { id: buyerId } });
   if (!buyer.identityVerified) {
