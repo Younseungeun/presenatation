@@ -235,6 +235,20 @@
 .cardRow:last-child {
   border-bottom: none;
 }
+/* 별점 읽는 법 각주 — 별점 줄들 바로 아래, 표의 일부처럼 낮게 */
+.cardFootnote {
+  margin: 0;
+  padding: 9px 0 11px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-faint);
+}
+.cardFootnoteLink {
+  color: var(--brand-strong);
+  font-weight: 700;
+  white-space: nowrap;
+}
 .cardKey {
   color: var(--text-faint);
   font-size: 14px;

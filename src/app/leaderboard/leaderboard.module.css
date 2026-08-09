@@ -265,9 +265,24 @@
   gap: 3px;
 }
 .rankHead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   font-size: 14px;
   font-weight: 800;
   letter-spacing: -0.02em;
+}
+/* 미니 그래프 — 자산군 글자의 우측 하단에 붙는다 (베이스라인보다 살짝 아래).
+   글자와 같은 줄 중앙에 띄우면 아이콘이고, 발치에 붙여야 첨자(주석)로 읽힌다 */
+.rankGlyph {
+  display: inline-flex;
+  align-self: flex-end;
+  margin-bottom: 1px;
+}
+/* 확신 종합 별점 — 방향 문구가 있던 자리. 자기 신고 값이라 잉크(StarRating 기본색) */
+.rankStars {
+  display: inline-flex;
+  margin-left: 2px;
 }
 .rankSub {
   display: flex;

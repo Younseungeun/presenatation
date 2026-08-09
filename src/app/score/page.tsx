@@ -94,6 +94,21 @@ export default function ScorePage() {
               </p>
             </div>
           </li>
+          <li className={s.rule}>
+            <span className={s.ruleNum}>6</span>
+            <div className={s.ruleBody}>
+              <div className={s.ruleTitle}>화면의 별점은 승률로 읽는다</div>
+              <p className={s.ruleText}>
+                신뢰도·안정성 별점은 다이얼값(1~10)을 반으로 접은 것이 아니라, 그 신고가
+                손해가 아니려면 리서처가 스스로 믿어야 하는 최소 승률 × 별 5개입니다.
+                신뢰도 3이 별 3.75개인 이유는 그 신고가 승률 75%를 함의하기 때문입니다
+                (신뢰도 c → c/(c+1), 안정성 s → (s−1)/s, 안정성 1은 불참이라 별 0개).
+                그래서 별 5개는 승률 100%라 존재하지 않고, 위로 갈수록 별 반 개가
+                기하급수적으로 어려워집니다. 이 규칙은 표시일 뿐 점수 계산에는 영향이
+                없습니다.
+              </p>
+            </div>
+          </li>
         </ol>
 
         <div className={styles.section}>계산에 쓰이는 값</div>

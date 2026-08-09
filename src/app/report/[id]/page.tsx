@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { RISK_LEVEL_LABEL, RISK_LEVEL_NOTE, type RiskLevel } from "@/domain/instrumentRisk";
@@ -14,7 +15,7 @@ import { Disclaimer } from "../../Disclaimer";
 import { fmtDateTime } from "../../format";
 import { maskedHeadline } from "../../MaskedCard";
 import { ResearcherCallout } from "../../ResearcherCallout";
-import { StarRating, tenScaleToStars } from "../../StarRating";
+import { confidenceStars, stabilityStars, StarRating } from "../../StarRating";
 import { StatusChip, type StatusKind } from "../../StatusChip";
 import { JudgmentReceipt } from "./JudgmentReceipt";
 import { PurchaseButton } from "./PurchaseButton";
@@ -143,13 +144,13 @@ export default async function ReportDetail({
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>신뢰도</span>
             <span className={styles.cardVal}>
-              <StarRating stars={tenScaleToStars(card.confidence)} label="신뢰도" />
+              <StarRating stars={confidenceStars(card.confidence)} label="신뢰도" />
             </span>
           </div>
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>안정성</span>
             <span className={styles.cardVal}>
-              <StarRating stars={tenScaleToStars(card.selfStability)} label="안정성" />
+              <StarRating stars={stabilityStars(card.selfStability)} label="안정성" />
             </span>
           </div>
           <div className={styles.cardRow}>
@@ -162,6 +163,15 @@ export default async function ReportDetail({
               )}
             </span>
           </div>
+          {/* 별점 읽는 법 — 구매자의 알 권리. 별은 다이얼 원값(1~10)이 아니라 그 신고가
+              함의하는 최소 승률 × 5다. 이 규칙을 모르면 별 4개를 "만점의 8할"로 읽는다 */}
+          <p className={styles.cardFootnote}>
+            신뢰도·안정성 별점은 리서처 신고값이 함의하는 최소 승률입니다 (별 4개 = 80%,
+            별 5개 = 승률 100%라 존재하지 않음).{" "}
+            <Link href="/score" className={styles.cardFootnoteLink}>
+              산정 방식 직접 계산해 보기 →
+            </Link>
+          </p>
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>선결제</span>
             <span className={styles.cardVal}>

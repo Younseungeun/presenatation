@@ -1,8 +1,11 @@
 import Link from "next/link";
 import type { MarketCard } from "@/server/marketQueries";
 import { RankMark } from "../brand/RankMark";
+import { DirectionGlyph } from "../DirectionGlyph";
 import { dday } from "../format";
-import { maskedHeadline } from "../MaskedCard";
+import { assetLabel } from "../MaskedCard";
+import { StarRating } from "../StarRating";
+import { convictionStars } from "../starSummary";
 import { TierChip } from "../TierChip";
 import styles from "./leaderboard.module.css";
 
@@ -14,6 +17,11 @@ import styles from "./leaderboard.module.css";
 //
 // 1~3위는 브랜드 순위 표식(잉크 명도 사다리), 4위 이하는 숫자 텍스트 —
 // 표식이 흔해지면 상위 3위의 무게가 사라진다 (브랜드 README §4-5).
+//
+// 머리줄 = 자산군 + 방향 미니 그래프 + 확신 종합 별점.
+//   · "▲ 상승" 문구 대신 미니 그래프 — 방향은 모양이, 수익성은 면 채움 진하기가 맡는다
+//   · 별점은 신뢰도·안정성을 v3 점수 기여 비율로 합친 것 (starSummary — 정산 상수에서 유도)
+//   · 글자에 방향색을 입히지 않는다 — "국내주식"이 빨간 글씨면 자산군이 나쁘다는 뜻으로 읽힌다
 
 export function BestSellers({ cards, now }: { cards: MarketCard[]; now: Date }) {
   return (
@@ -25,11 +33,21 @@ export function BestSellers({ cards, now }: { cards: MarketCard[]; now: Date }) 
               {i < 3 ? <RankMark rank={(i + 1) as 1 | 2 | 3} size={24} /> : i + 1}
             </span>
             <span className={styles.rankMain}>
-              <span
-                className={styles.rankHead}
-                style={{ color: c.direction === "UP" ? "var(--pos)" : "var(--neg)" }}
-              >
-                {maskedHeadline(c)}
+              <span className={styles.rankHead}>
+                {assetLabel(c.assetClass)}
+                <span className={styles.rankGlyph}>
+                  <DirectionGlyph direction={c.direction} profitability={c.profitability} />
+                </span>
+                {(() => {
+                  const stars = convictionStars(c.assetClass, c.confidence, c.stability);
+                  return (
+                    stars !== null && (
+                      <span className={styles.rankStars}>
+                        <StarRating stars={stars} label="신뢰도·안정성 종합" />
+                      </span>
+                    )
+                  );
+                })()}
               </span>
               <span className={styles.rankSub}>
                 {c.researcherName}

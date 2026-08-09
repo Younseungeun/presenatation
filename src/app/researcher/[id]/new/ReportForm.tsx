@@ -11,6 +11,7 @@ import {
 } from "@/domain/instrumentRisk";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import { ScoreCalculatorEntry } from "../../../score/ScoreCalculatorEntry";
+import { confidenceStars, stabilityStars, StarRating } from "../../../StarRating";
 import styles from "../../researcher.module.css";
 import { ComplianceHints } from "./ComplianceHints";
 
@@ -53,6 +54,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
   const [targetValue, setTargetValue] = useState("");
   const [deadline, setDeadline] = useState("");
   const [confidence, setConfidence] = useState("5");
+  const [selfStability, setSelfStability] = useState("1");
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
 
@@ -390,10 +392,27 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             ))}
           </select>
           <span className={styles.hint}>높을수록 적중 시 배점↑·실패 시 벌점↑</span>
+          {/* 별점 미리보기 — "3을 골랐는데 왜 별 3.75개?"라는 물음이 생기기 전에,
+              고르는 바로 그 자리에서 표시 규칙(함의 승률 × 5)을 보여준다 */}
+          {(() => {
+            const c = toNumber(confidence)!;
+            return (
+              <span className={styles.hint}>
+                구매자 화면 표시: <StarRating stars={confidenceStars(c)} label="신뢰도" />{" "}
+                {confidenceStars(c).toFixed(2)}개 — 별점은 다이얼값이 아니라 이 신고가
+                함의하는 최소 승률({Math.round((100 * c) / (c + 1))}%)입니다
+              </span>
+            );
+          })()}
         </div>
         <div className={styles.field}>
           <label className={styles.label}>안정성 (자기평가 1~10)</label>
-          <select className={styles.select} name="selfStability" defaultValue="1">
+          <select
+            className={styles.select}
+            name="selfStability"
+            value={selfStability}
+            onChange={(e) => setSelfStability(e.target.value)}
+          >
             {RATING.map((n) => (
               <option key={n} value={n}>
                 {n}
@@ -403,6 +422,23 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
           <span className={styles.hint}>
             정밀도 배팅 — 실현이 예측 수익률에 가까울수록 가점, 멀수록 감점 (초과는 관대). 1은 불참
           </span>
+          {(() => {
+            const s = toNumber(selfStability)!;
+            return (
+              <span className={styles.hint}>
+                구매자 화면 표시:{" "}
+                {s <= 1 ? (
+                  <>별 0개 — 불참은 아무 확률도 걸지 않은 상태라 빈 별로 나갑니다</>
+                ) : (
+                  <>
+                    <StarRating stars={stabilityStars(s)} label="안정성" />{" "}
+                    {stabilityStars(s).toFixed(2)}개 — 함의 정밀 착지율{" "}
+                    {Math.round((100 * (s - 1)) / s)}%
+                  </>
+                )}
+              </span>
+            );
+          })()}
         </div>
         {/* 수익성은 예측 수익률에서 자동 산출된다 — 입력 항목이 아니다 */}
       </div>

@@ -12,7 +12,7 @@ import {
   type PeriodBucket,
 } from "./directionTrace";
 import { dday, directionLabel } from "./format";
-import { StarRating, tenScaleToStars } from "./StarRating";
+import { confidenceStars, stabilityStars, StarRating } from "./StarRating";
 import { TierChip } from "./TierChip";
 import styles from "./maskedCard.module.css";
 
@@ -139,16 +139,16 @@ function TrackRecord({ c }: { c: MaskedCardFull }) {
   );
 }
 
-/** 자기 평가 3종 (신뢰도·안정성은 1~10이라 반 개 단위, 수익성은 5구간이라 정수) */
+/** 자기 평가 3종 — 신뢰도·안정성은 함의 승률 스케일(StarRating 주석), 수익성은 5구간 정수 */
 const RATINGS = [
   { key: "수익성", of: (c: MaskedCardData) => c.profitability },
   {
     key: "안정성",
-    of: (c: MaskedCardData) => (c.stability === null ? null : tenScaleToStars(c.stability)),
+    of: (c: MaskedCardData) => (c.stability === null ? null : stabilityStars(c.stability)),
   },
   {
     key: "신뢰도",
-    of: (c: MaskedCardData) => (c.confidence === null ? null : tenScaleToStars(c.confidence)),
+    of: (c: MaskedCardData) => (c.confidence === null ? null : confidenceStars(c.confidence)),
   },
 ] as const;
 
