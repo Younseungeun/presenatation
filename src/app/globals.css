@@ -23,6 +23,14 @@
   --radius-lg: 20px;
   --radius: 14px;
   --radius-sm: 10px;
+
+  /* 예측 카드 치수 — 구매 전(MaskedCard)과 구매 후(OwnedCard)가 **같은 상자**여야 한다.
+     목록에서 카드마다 크기가 달라지면 산 카드가 다른 종류의 물건처럼 보이고 줄도 흐트러진다.
+     내용은 바뀌어도 상자는 그대로 — 그래서 두 컴포넌트가 이 토큰 하나를 공유한다.
+     (min-height라 내용이 넘치면 늘어난다. 줄이려면 여기 한 곳만 고치면 된다) */
+  --card-radius: 18px;
+  --card-h: 210px;
+  --card-h-compact: 183px;
   --shadow-sm: 0 1px 2px rgba(0, 27, 55, 0.04), 0 1px 3px rgba(0, 27, 55, 0.06);
   --shadow: 0 6px 24px rgba(0, 27, 55, 0.08);
 

@@ -5,10 +5,15 @@
   position: relative;
   display: flex;
   flex-direction: column;
+  /* 구매 전 카드와 **같은 상자**다 (globals.css --card-*). 내용은 달라져도 크기·모양이
+     달라지면 산 카드가 다른 종류의 물건처럼 보이고 목록의 줄이 흐트러진다.
+     남는 세로 공간은 space-between이 고르게 나눠 채운다 */
+  justify-content: space-between;
   gap: 10px;
+  min-height: var(--card-h);
   margin-bottom: 10px;
   padding: 13px 16px 12px;
-  border-radius: 18px;
+  border-radius: var(--card-radius);
   background: color-mix(in srgb, var(--bg) 42%, transparent);
   backdrop-filter: blur(14px) saturate(170%);
   color: inherit;
@@ -24,6 +29,7 @@
 .compact {
   flex: 0 0 auto;
   width: 250px;
+  min-height: var(--card-h-compact);
   margin-bottom: 0;
   padding: 12px 14px 11px;
   gap: 9px;
