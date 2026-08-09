@@ -211,6 +211,23 @@ export function targetPriceToMagnitudePct(targetPrice: number, basePrice: number
   return (Math.abs(targetPrice - basePrice) / basePrice) * 100;
 }
 
+/**
+ * 위의 역 — 수익률형 카드가 가리키는 목표가.
+ * 구매자가 산 것은 "8%"라는 비율이 아니라 "198,000원이 178,200원까지"라는 주장이라,
+ * 구매 후 화면은 이 숫자를 보여준다. 화면에서 곱셈을 하지 않고 여기 두는 이유는
+ * targetPriceToMagnitudePct와 **서로의 역이어야** 하기 때문 — 둘이 갈라지면
+ * 화면이 말한 목표가와 채점이 쓴 크기가 어긋난다(테스트가 왕복을 강제한다).
+ */
+export function magnitudePctToTargetPrice(
+  basePrice: number,
+  direction: Direction,
+  magnitudePct: number,
+): number {
+  if (basePrice <= 0) throw new Error(`기준가가 유효하지 않습니다: ${basePrice}`);
+  const signed = direction === 'UP' ? magnitudePct : -magnitudePct;
+  return basePrice * (1 + signed / 100);
+}
+
 export interface JudgedCardScoreInput {
   direction: Direction;
   targetType: TargetType;

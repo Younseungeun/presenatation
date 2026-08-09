@@ -19,6 +19,7 @@ import { confidenceStars, stabilityStars, StarRating } from "../../StarRating";
 import { StatusChip, type StatusKind } from "../../StatusChip";
 import { JudgmentReceipt } from "./JudgmentReceipt";
 import { PurchaseButton } from "./PurchaseButton";
+import { RevealedCard } from "./RevealedCard";
 import { TossCheckoutButton } from "./TossCheckoutButton";
 import styles from "../../market.module.css";
 
@@ -64,11 +65,8 @@ export default async function ReportDetail({
         : { label: "적중 · 정산 완료", status: "HIT" }
     : null;
 
+  // 마스킹 상태의 표에서만 쓴다 — 열린 뒤의 방향·크기는 RevealedCard가 맡는다
   const dir = card?.direction === "UP" ? "▲ 상승 (buy)" : "▼ 하락 (sell)";
-  const size =
-    card?.targetType === "RETURN_PCT"
-      ? `${card.targetValue}%`
-      : `목표가 ${card?.targetValue.toLocaleString()}`;
 
   // 구매 전 마스킹 — 종목·목표 수익률이 곧 상품이라, 사기 전에는
   // 자산군·방향·수익성(자동 산출 5구간)·시한·신뢰도·안정성까지만 보여준다.
@@ -121,20 +119,28 @@ export default async function ReportDetail({
         </div>
       )}
 
+      {/* 구매로 열린 카드 — 종목·방향·목표가가 히어로.
+          마스킹이 풀린 상태(구매자·리서처 본인·판정 완료·운영자)에서만 그린다.
+          표에 값만 채우면 방금 돈 내고 얻은 것이 선결제 비율과 같은 무게로 나열된다 */}
+      {card && !masked && <RevealedCard card={card} now={new Date()} />}
+
       {card && (
         <div className={styles.cardBox}>
-          <div className={styles.cardRow}>
-            <span className={styles.cardKey}>자산</span>
-            <span className={styles.cardVal}>
-              {masked
-                ? `${ASSET_CLASS_LABEL[card.assetClass as AssetClass]} (종목은 구매 후 공개)`
-                : `${ASSET_CLASS_LABEL[card.assetClass as AssetClass]} ${card.assetName} (${card.ticker})`}
-            </span>
-          </div>
-          <div className={styles.cardRow}>
-            <span className={styles.cardKey}>{masked ? "방향" : "방향 · 크기"}</span>
-            <span className={styles.cardVal}>{masked ? dir : `${dir} · ${size}`}</span>
-          </div>
+          {/* 자산·방향은 마스킹 상태에서만 표에 남는다 — 열린 뒤에는 위 카드가 맡는다 */}
+          {masked && (
+            <>
+              <div className={styles.cardRow}>
+                <span className={styles.cardKey}>자산</span>
+                <span className={styles.cardVal}>
+                  {`${ASSET_CLASS_LABEL[card.assetClass as AssetClass]} (종목은 구매 후 공개)`}
+                </span>
+              </div>
+              <div className={styles.cardRow}>
+                <span className={styles.cardKey}>방향</span>
+                <span className={styles.cardVal}>{dir}</span>
+              </div>
+            </>
+          )}
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>검증 시한</span>
             <span className={styles.cardVal}>
