@@ -200,6 +200,9 @@ model Purchase {
   paymentInfo   String? // 마스킹된 표시용 결제 정보(카드 끝 4자리·가상계좌 은행/번호). 카드번호 원문은 절대 저장 금지
   escrowStatus  String   @default("HELD") // HELD | SETTLED | REFUNDED
   paidAt        DateTime @default(now())
+  // 판매 마감 확인 — 마감된 내 카드는 리더보드에 계속 보이다가, 구매자가 확인을
+  // 누르면 목록에서 내려간다 (MY 구매 내역에는 계속 남는다)
+  salesCloseAckAt DateTime?
 
   settlement Settlement?
 

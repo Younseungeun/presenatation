@@ -31,6 +31,7 @@ import { WalletIcon } from "../brand/WalletIcon";
 import { EmptyState } from "../EmptyState";
 import { MaskedCard } from "../MaskedCard";
 import { TraceNotice } from "../TraceNotice";
+import { AckSalesClose } from "./AckSalesClose";
 import { BestSellers } from "./BestSellers";
 import { FilterBar } from "./FilterBar";
 import { FollowedSections } from "./FollowedSections";
@@ -187,12 +188,36 @@ export default async function LeaderboardPage({
         .filter((s) => s.cards.length > 0)
     : followedRaw;
 
+  // 판매 마감된 내 카드 — 남들 목록에서는 빠졌지만 구매자에게는 아직 결과를 기다리는
+  // 내 물건이다. 확인(salesCloseAckAt)을 누를 때까지 이 화면에 남는다.
+  // 현재 자산군 탭의 것만 — 목록의 문법(자산군별)을 그대로 따른다
+  const closedOwnedIds =
+    viewerId && !searching && !filter.hideOwned
+      ? (
+          await prisma.purchase.findMany({
+            where: {
+              buyerId: viewerId,
+              salesCloseAckAt: null,
+              report: {
+                status: "PUBLISHED",
+                salesClosedAt: { not: null },
+                predictionCard: {
+                  is: { assetClass: asset, judgment: null, withdrawnAt: null },
+                },
+              },
+            },
+            select: { reportId: true },
+          })
+        ).map((p) => p.reportId)
+      : [];
+
   // 산 카드는 구성이 통째로 다르므로(OwnedCard) 공개 데이터를 따로 싣는다.
   // 화면에 실제로 있는 id로만 좁힌다 — 보유 전체를 조회하면 시세 호출이 낭비된다
   const visibleIds = [...cards, ...bestSelling, ...topTier, ...results]
     .map((c) => c.reportId)
     .concat(followedSections.flatMap((s) => s.cards.map((c) => c.reportId)))
-    .filter((id) => ownedIds.has(id));
+    .filter((id) => ownedIds.has(id))
+    .concat(closedOwnedIds);
   const ownedViews = await getOwnedCardViews(prisma, viewerId, [...new Set(visibleIds)]);
 
   // 목록은 정렬 기준 그 자체로 구간을 나눈다 — 임의 간격 눈금은 리듬처럼 보일 뿐
@@ -381,6 +406,27 @@ export default async function LeaderboardPage({
       <div className={styles.sortRow}>
         <SortPicker asset={asset} sort={sort} filter={filter} />
       </div>
+
+      {/* 판매 마감된 내 카드 — 목록 맨 위. 정렬 대상이 아니라 정리 대기 상태라
+          구간에 섞지 않고 따로 세운다. 확인을 누르면 내려간다 (MY에는 계속) */}
+      {closedOwnedIds.length > 0 && (
+        <>
+          <div className={lb.groupHead}>
+            <span className={lb.groupLabel}>판매 마감된 내 카드</span>
+            <span className={lb.groupCount}>{closedOwnedIds.length}장</span>
+          </div>
+          {closedOwnedIds.map((id) => {
+            const mine = ownedViews.get(id);
+            return (
+              mine && (
+                <AckSalesClose key={id} reportId={id}>
+                  <OwnedCard v={mine} now={now} />
+                </AckSalesClose>
+              )
+            );
+          })}
+        </>
+      )}
 
       {cards.length === 0 ? (
         <EmptyState

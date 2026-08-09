@@ -9,6 +9,7 @@ import {
   RISK_LEVEL_LABEL,
   type RiskLevel,
 } from "@/domain/instrumentRisk";
+import { salesWindowEnd } from "@/domain/salesWindow";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import { ScoreCalculatorEntry } from "../../../score/ScoreCalculatorEntry";
 import { confidenceStars, stabilityStars, StarRating } from "../../../StarRating";
@@ -23,6 +24,17 @@ const toNumber = (v: string): number | null => {
 };
 
 /** 검증 시한까지 남은 일수 — 크기 상한은 기간과 함께 봐야 판단된다 */
+/** 판매 기간 미리보기 문구 — 시한 입력 순간(이벤트)에만 계산한다 (렌더 순수성) */
+const salesWindowLabel = (deadline: string): string | null => {
+  if (!deadline) return null;
+  const d = new Date(deadline);
+  if (Number.isNaN(d.getTime()) || d.getTime() <= Date.now()) return null;
+  const ms = salesWindowEnd(new Date(), d).getTime() - Date.now();
+  return ms >= 86_400_000
+    ? `약 ${Math.round(ms / 86_400_000)}일`
+    : `약 ${Math.max(1, Math.round(ms / 3_600_000))}시간`;
+};
+
 const toHorizonDays = (deadline: string): number | null => {
   if (!deadline) return null;
   const at = new Date(deadline).getTime();
@@ -53,6 +65,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
   // 예측 카드 수치도 상태로 둔다 — 작성 중 사전 검사가 크기·기간을 함께 봐야 하기 때문
   const [targetValue, setTargetValue] = useState("");
   const [deadline, setDeadline] = useState("");
+  const [windowLabel, setWindowLabel] = useState<string | null>(null);
   const [confidence, setConfidence] = useState("5");
   const [selfStability, setSelfStability] = useState("1");
   const [summary, setSummary] = useState("");
@@ -369,11 +382,23 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
           type="datetime-local"
           required
           value={deadline}
-          onChange={(e) => setDeadline(e.target.value)}
+          onChange={(e) => {
+            setDeadline(e.target.value);
+            setWindowLabel(salesWindowLabel(e.target.value));
+          }}
         />
         <span className={styles.hint}>
           코인 최소 1일 / 국내주식 개장 전 게시 시 당일, 그 외 +2일 / 미국주식 +2일 · 최대 365일
         </span>
+        {/* 판매 기간 고지 — 게시를 누르기 전에 알아야 하는 조건이라 여기서 미리 보여준다.
+            시한을 바꾸면 판매 기간이 따라 바뀌는 것이 눈에 보여야 "1/3 규칙"이 학습된다 */}
+        {windowLabel && (
+          <span className={styles.hint}>
+            <strong>판매 기간: 게시 후 {windowLabel}</strong> (검증 기간의 1/3, 최대 30일) —
+            이후엔 판매가 자동 마감되고 카드는 시한에 정상 판정됩니다. 목표에 근접하면(잔여
+            수익률이 구간 최소치의 2/3 미만 종가) 더 일찍 마감될 수 있습니다.
+          </span>
+        )}
       </div>
 
       <div className={styles.row}>

@@ -884,6 +884,37 @@
     0 3px 14px rgb(12 30 26 / 9%);
 }
 
+/* ── 판매 마감된 내 카드 — 구매자에게만 보이는 정리 대기 상태 ── */
+.ackWrap {
+  margin-bottom: 14px;
+}
+.ackNote {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-weak);
+}
+.ackBtn {
+  display: block;
+  width: 100%;
+  margin-top: 2px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-weak);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.ackBtn:hover {
+  background: var(--surface-2);
+}
+.ackBtn:disabled {
+  opacity: 0.6;
+}
+
 /* 목록 구간 제목 — 정렬 기준이 만든 구간 (오늘 마감 / 이번 주 …).
    섹션 제목(.secTitle)보다 한 단 작게: 여기는 목록 안의 눈금이지 새 섹션이 아니다.
    스크롤 중에도 지금 어느 구간인지 보이도록 붙여 둔다 */
