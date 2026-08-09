@@ -8,10 +8,12 @@
   /* 구매 전 카드와 **같은 상자**다 (globals.css --card-*). 내용은 달라져도 크기·모양이
      달라지면 산 카드가 다른 종류의 물건처럼 보이고 목록의 줄이 흐트러진다.
      남는 세로 공간은 space-between이 고르게 나눠 채운다 */
-  justify-content: space-between;
-  /* 요소 사이를 좁힌다 — 바이라인이 한 줄 늘었지만 상자 크기는 구매 전 카드와
-     같아야 하므로(공유 토큰), 늘어난 만큼은 간격에서 낸다 */
-  gap: 7px;
+  /* 요소들을 위에서부터 촘촘히 쌓고(gap), 남는 세로 공간은 전부 바닥 앞에 몰아
+     foot이 카드 아래에 붙게 한다(.foot margin-top: auto).
+     space-between이었을 때는 gap을 줄여도 여유 공간이 요소 사이로 다시 벌어져
+     "간격을 좁힌다"가 화면에 나타나지 않았다 */
+  justify-content: flex-start;
+  gap: 6px;
   min-height: var(--card-h);
   margin-bottom: 10px;
   padding: 13px 16px 12px;
@@ -34,21 +36,41 @@
   min-height: var(--card-h-compact);
   margin-bottom: 0;
   padding: 12px 14px 11px;
-  gap: 6px;
+  gap: 5px;
 }
 
-/* ── ⓪ 바이라인 — 이름만. 카드에서 가장 조용한 줄이다 ── */
+/* ── ⓪ 바이라인 — 리서처 이름 · 리포트 제목. 카드에서 가장 조용한 줄이다.
+   제목이 길면 이름을 밀어내지 않고 제목만 잘린다(이름은 책임 주체라 늘 온전히 보여야 한다) */
 .byline {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
+  min-width: 0;
   font-size: 11.5px;
   font-weight: 700;
   color: var(--text-faint);
   letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.bylineWho {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+}
+.bylineDot {
+  flex: none;
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+}
+.bylineTitle {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 600;
 }
 
 /* ── ① 종목 ── */
@@ -123,12 +145,19 @@
   box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bg) 85%, transparent);
 }
 
-/* ── ③ 수치 ── */
+/* ── ③ 수치 — 긴 카드에서는 오른쪽 끝에 구매가가 같은 줄로 앉는다 ── */
+.readoutRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
 .readout {
   display: flex;
   align-items: baseline;
   gap: 7px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 .readoutMain {
   font-size: 12.5px;
@@ -142,12 +171,14 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── ④ 기한·가격 ── */
+/* ── ④ 바닥 — 좌: 검증 기한 / 우: 기준·현재·목표.
+   margin-top: auto가 남는 세로 공간을 전부 위로 밀어 이 줄을 카드 바닥에 붙인다 ── */
 .foot {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 10px;
+  margin-top: auto;
 }
 .dday {
   font-size: 13px;
@@ -161,11 +192,13 @@
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
 }
+/* 세 값은 한 덩어리로 읽혀야 해서 오른쪽으로 몰아 붙인다 */
 .prices {
   font-size: 10.5px;
   font-weight: 600;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 /* 도달 고지 — 막대가 결과를 약속하는 것처럼 읽히지 않게 */
 .note {

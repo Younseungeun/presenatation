@@ -65,12 +65,16 @@ export function OwnedCard({
       href={`/report/${v.reportId}`}
       className={`${styles.card} ${compact ? styles.compact : ""}`}
     >
-      {/* ⓪ 바이라인 — 누가 쓴 예측인가. 산 뒤에도 책임 주체는 남아야 한다.
-          구매 전 카드처럼 아바타·등급·실적까지 얹지 않는 이유: 그것들은 "살까?"를
-          판단하는 재료인데 이미 샀다. 여기서는 이름만 있으면 된다 */}
+      {/* ⓪ 바이라인 — 누가 쓴 무슨 글인가. 산 뒤에도 책임 주체는 남아야 하고,
+          제목은 구매로 열린 정보 중 하나다(구매 전에는 종목명이 새어 감춰져 있었다).
+          아바타·등급·실적은 "살까?"를 판단하는 재료라 빼고 이름과 제목만 둔다 */}
       <span className={styles.byline}>
-        {v.researcherName}
-        {v.careerBadge && <VerifiedBadge size={11} />}
+        <span className={styles.bylineWho}>
+          {v.researcherName}
+          {v.careerBadge && <VerifiedBadge size={11} />}
+        </span>
+        <span className={styles.bylineDot} aria-hidden="true" />
+        <span className={styles.bylineTitle}>{v.title}</span>
       </span>
 
       {/* ① 종목 — 구매로 열린 것 */}
@@ -115,7 +119,9 @@ export function OwnedCard({
         )}
       </span>
 
-      {/* ③ 막대가 말하는 것을 글로 한 번 더 — 색·위치만으로는 정확한 값이 안 읽힌다 */}
+      {/* ③ 막대가 말하는 것을 글로 한 번 더 — 색·위치만으로는 정확한 값이 안 읽힌다.
+          긴 카드에서는 이 줄 오른쪽 끝에 구매가가 앉는다 (같은 줄, 반대편) */}
+      <span className={styles.readoutRow}>
       <span className={styles.readout}>
         {hasPrice ? (
           <>
@@ -142,13 +148,9 @@ export function OwnedCard({
           </span>
         )}
       </span>
-
-      {/* ④ 기한과 가격. 판정이 끝났으면 진행이 아니라 결과를 보러 가는 카드다 */}
-      <span className={styles.foot}>
-        <span className={styles.dday}>
-          {p.awaitingJudgment && !v.judged ? "판정 대기" : dday(v.deadline, now)}
-        </span>
-        <span className={styles.paid}>{v.priceKrw.toLocaleString()}원에 구매</span>
+        {!compact && (
+          <span className={styles.paid}>{v.priceKrw.toLocaleString()}원에 구매</span>
+        )}
       </span>
 
       {/* 목표 도달은 판정이 아니다 — 시한 전 되돌림이면 실패로 판정된다.
@@ -162,14 +164,28 @@ export function OwnedCard({
         </span>
       )}
 
-      {v.basePrice != null && v.targetPrice != null && !compact && (
-        <span className={styles.prices}>
-          기준 {fmtPrice(v.basePrice, v.currency)}
-          {v.currentPrice != null && ` · 현재 ${fmtPrice(v.currentPrice, v.currency)}`}
-          {" · 목표 "}
-          <strong style={{ color: tone }}>{fmtPrice(v.targetPrice, v.currency)}</strong>
+      {/* ④ 바닥 — 좌: 언제 결과가 나오나 / 우: 얼마에서 얼마로.
+          가격 3종을 오른쪽으로 몬 이유는 세 값이 한 덩어리로 읽혀야 하기 때문이고,
+          그 자리를 비우고 나니 "검증 기한"이 좌하단의 주인이 됐다.
+          짧은 카드는 가격 3종을 싣지 않으므로 그 자리에 구매가가 남는다 */}
+      <span className={styles.foot}>
+        <span className={styles.dday}>
+          {p.awaitingJudgment && !v.judged ? "판정 대기" : dday(v.deadline, now)}
         </span>
-      )}
+        {compact ? (
+          <span className={styles.paid}>{v.priceKrw.toLocaleString()}원에 구매</span>
+        ) : (
+          v.basePrice != null &&
+          v.targetPrice != null && (
+            <span className={styles.prices}>
+              기준 {fmtPrice(v.basePrice, v.currency)}
+              {v.currentPrice != null && ` · 현재 ${fmtPrice(v.currentPrice, v.currency)}`}
+              {" · 목표 "}
+              <strong style={{ color: tone }}>{fmtPrice(v.targetPrice, v.currency)}</strong>
+            </span>
+          )
+        )}
+      </span>
     </Link>
   );
 }
