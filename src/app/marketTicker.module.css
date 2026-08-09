@@ -25,9 +25,9 @@
     transform: translateX(-50%);
   }
 }
-.band:hover .track {
-  animation-play-state: paused;
-}
+/* 흐름은 어떤 입력에도 멈추지 않는다 (2026-08-09 확정) — hover 정지를 뒀더니
+   모바일 터치가 hover로 잡혀 스치기만 해도 띠가 서 버렸다. 이 띠는 읽는 것이
+   아니라 스치며 잡는 것이라, 멈춰서 읽게 하는 장치 자체가 목적과 어긋난다 */
 
 .run {
   display: flex;

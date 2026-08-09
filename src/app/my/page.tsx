@@ -323,7 +323,7 @@ function ModeSwitch({ mode }: { mode: Mode }) {
   );
 }
 
-/** MY 상단 헤더 — 좌: 설정, 가운데: 모드 전환, 우: 장바구니(담은 건수 배지) */
+/** MY 상단 헤더 — 좌: 설정, 가운데: 모드 전환, 우: 카드지갑(3장부터 건수 배지) */
 function MyHeader({ mode, cartCount }: { mode: Mode; cartCount: number }) {
   return (
     <AppHeader
@@ -335,10 +335,10 @@ function MyHeader({ mode, cartCount }: { mode: Mode; cartCount: number }) {
         </Link>
       }
       right={
-        <Link href="/cart" className="appbarIconBtn" aria-label="장바구니">
-          {/* 인투빌 장바구니(카드지갑) — 담긴 상태는 min(개수,2), 실제 개수는 배지 */}
+        <Link href="/cart" className="appbarIconBtn" aria-label="카드지갑">
+          {/* 인투빌 카드지갑 — 0·1·2장은 그림이 구별, 배지는 3장부터 (리더보드와 동일 규칙) */}
           <WalletIcon count={cartCount} />
-          {cartCount > 0 && (
+          {cartCount > 2 && (
             <span className="appbarBadge">{cartCount > 99 ? "99+" : cartCount}</span>
           )}
         </Link>

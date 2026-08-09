@@ -28,7 +28,7 @@ export function PurchaseButton({
   const [added, setAdded] = useState(false);
   const [method, setMethod] = useState<"CARD" | "VBANK">("CARD");
 
-  // 장바구니 담기는 결제가 아니므로 환불 규정 동의를 받지 않는다(동의는 결제 시점에 받는다)
+  // 카드지갑 담기는 결제가 아니므로 환불 규정 동의를 받지 않는다(동의는 결제 시점에 받는다)
   async function addToCart() {
     if (!hasIdentity) {
       router.push(`/login?next=/report/${reportId}`);
@@ -44,7 +44,7 @@ export function PurchaseButton({
       });
       const body = await res.json();
       if (!res.ok) {
-        setError(body.error ?? "장바구니 담기 실패");
+        setError(body.error ?? "카드지갑 담기 실패");
         return;
       }
       setAdded(true);
@@ -146,7 +146,7 @@ export function PurchaseButton({
         onClick={addToCart}
         disabled={cartBusy || added}
       >
-        {added ? "장바구니에 담김" : cartBusy ? "담는 중…" : "장바구니에 담기"}
+        {added ? "카드지갑에 담김" : cartBusy ? "담는 중…" : "카드지갑에 담기"}
       </button>
       {error && <p className={styles.err}>{error}</p>}
     </div>

@@ -12,7 +12,9 @@ import styles from "../market.module.css";
 
 export const dynamic = "force-dynamic";
 
-// 장바구니 — 담아둔 리포트를 한 번에 결제한다.
+// 카드지갑 — 담아둔 리포트를 한 번에 결제한다. (제품 명칭 2026-08-09 변경:
+// 장바구니 → 카드지갑. 아이콘이 카드지갑이라 이름도 그에 맞춘다. 경로 /cart와
+// 코드 식별자 cart*는 유지 — 이름은 화면의 것, 식별자는 코드의 것)
 // 담은 뒤 상태가 바뀐 건(시한 경과·판매 종료·이미 구매)은 결제 대상에서 빠지고 사유를 보여준다.
 
 export default async function CartPage() {
@@ -25,11 +27,11 @@ export default async function CartPage() {
 
   return (
     <>
-      <AppHeader title="장바구니" backHref="/my" />
+      <AppHeader title="카드지갑" backHref="/my" />
       <main className={styles.page}>
         {entries.length === 0 ? (
           <EmptyState
-            title="장바구니가 비어 있어요"
+            title="카드지갑이 비어 있어요"
             actionHref="/leaderboard"
             actionLabel="리더보드에서 리서처 둘러보기"
           />

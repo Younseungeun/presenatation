@@ -196,18 +196,18 @@ export default async function LeaderboardPage({
           (스크린리더·문서 구조용) — 홈 화면과 같은 처리 */}
       <h1 className="srOnly">리더보드 — 지금 살 수 있는 예측 카드</h1>
 
-      {/* 검색바 + 장바구니 — 검색바를 살짝 좁히고 그 오른쪽에 장바구니를 둔다 (KREAM 상단 구조).
+      {/* 검색바 + 카드지갑 — 검색바를 살짝 좁히고 그 오른쪽에 카드지갑을 둔다 (KREAM 상단 구조).
           카드를 담아 두고 계속 탐색하는 화면이라, 담은 것으로 돌아가는 길이 탐색 화면 안에
-          있어야 한다. 담은 수 배지는 MY 헤더의 장바구니와 같은 규칙.
+          있어야 한다. 배지 규칙은 MY 헤더의 카드지갑과 동일.
           줄(유리 바) 자체는 SearchBar가 그린다 — 패널 열림이 줄의 z-층을 바꿔야 해서 */}
       <SearchBar
         initial={rawQuery}
         cart={
-          <Link href="/cart" className={lb.cartBtn} aria-label="장바구니">
-            {/* 인투빌 장바구니(카드지갑) — 담긴 상태는 min(개수,2)의 카드 그림,
-                실제 개수는 배지 숫자 (브랜드 규정) */}
+          <Link href="/cart" className={lb.cartBtn} aria-label="카드지갑">
+            {/* 인투빌 카드지갑 — 0·1·2장은 그림이 구별하므로 배지는 그림이 셀 수 없는
+                3장부터만 (2장 = 그림 표시 상한) */}
             <WalletIcon count={cartCount} />
-            {cartCount > 0 && (
+            {cartCount > 2 && (
               <span className={lb.cartBadge}>{cartCount > 99 ? "99+" : cartCount}</span>
             )}
           </Link>
