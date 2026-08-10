@@ -7,7 +7,8 @@ import { applyInstrumentListings, syncAllInstruments } from '../src/server/instr
 
 // 종목 마스터 동기화: npm run sync:instruments [-- --fixture]
 // - 기본: 시세 공급자의 상장 목록 API에서 동기화
-//   (업비트 market/all은 키 불필요 / KR은 FSC_API_KEY, US는 TWELVEDATA_API_KEY 필요)
+//   (업비트 market/all은 키 불필요 / 국내·미국은 목록 API를 주는 공급자가 현재 없다 —
+//    KIS는 종목정보파일(다운로드)로 제공하므로 별도 어댑터가 필요하다. 그 전까지는 픽스처 시드)
 // - --fixture: 오프라인 개발용 고정 목록 시드 (공급자 호출 없음)
 // 운영은 이 스크립트를 일 배치로 돌려 상장·상폐를 반영한다.
 
@@ -66,7 +67,7 @@ async function main() {
 
     const results = await syncAllInstruments(prisma, createDefaultRegistry());
     if (results.length === 0) {
-      console.error('목록 조회를 지원하는 공급자가 없습니다 — API 키(FSC/TWELVEDATA)를 확인하세요');
+      console.error('목록 조회를 지원하는 공급자가 없습니다 (현재 업비트만 지원) — --fixture로 시드하세요');
       process.exit(1);
     }
     for (const r of results) {
