@@ -53,8 +53,9 @@
   gap: 2px;
   min-width: 0;
   margin-bottom: auto;
-  /* 우측 상단 시간 눈금(.gaugeSlot)이 앉을 자리 — 눈금은 흐름 밖이라 스스로 밀어내지 못한다 */
-  padding-right: 36px;
+  /* 우측 상단 시간 눈금(.gaugeSlot)이 앉을 자리 — 눈금은 흐름 밖이라 스스로 밀어내지 못한다.
+     눈금 폭 30px + 숨 쉴 틈 8px */
+  padding-right: 38px;
 }
 /* 제목은 잉크로 또렷하게. 다만 종목명(.name)보다는 작다 —
    이 카드의 주인공은 여전히 "내가 산 종목"이고 제목은 그 글의 이름이다.
