@@ -17,11 +17,12 @@ const priceCache = new Map<string, { at: number; price: number | null }>();
 // (픽스처 카드의 기준가 7천만원과 진짜 비트코인 시세가 충돌해 결제 게이트가
 // 무작위로 발동하는 사고가 실제로 났다.) vitest에서는 기본이 "시세 없음"이고,
 // 게이트 동작 자체를 시험하고 싶은 테스트만 setPriceForTests로 값을 꽂는다.
-let testPriceFn: ((assetClass: string, ticker: string) => number | null) | null = null;
+// 반환형에 Promise를 허용한다 — 테스트가 "시세를 조회하는 그 순간"에 다른 일(예: 배치가
+// 리포트를 닫는 것)을 끼워 넣어 경합을 **결정적으로** 재현할 수 있어야 하기 때문이다.
+type TestPriceFn = (assetClass: string, ticker: string) => number | null | Promise<number | null>;
+let testPriceFn: TestPriceFn | null = null;
 
-export function setPriceForTests(
-  fn: ((assetClass: string, ticker: string) => number | null) | null,
-): void {
+export function setPriceForTests(fn: TestPriceFn | null): void {
   testPriceFn = fn;
 }
 

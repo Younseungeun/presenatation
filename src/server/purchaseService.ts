@@ -137,15 +137,36 @@ export async function purchaseReport(
     throw new Error('본인 인증 후 구매할 수 있습니다');
   }
 
-  // @@unique([reportId, buyerId])가 중복 구매를 차단한다
-  return prisma.purchase.create({
-    data: {
-      reportId,
-      buyerId,
-      amountKrw: report.priceKrw,
-      paymentMethod: payment.method,
-      paymentInfo: paymentInfoOverride ?? stubPaymentInfo(payment.method),
-      escrowStatus: 'HELD',
-    },
-  });
+  // **확인과 쓰기를 한 덩어리로 묶는다.**
+  //
+  // 위의 assertPurchasable은 이 함수가 시작할 때 읽어 둔 값으로 판단한다. 그런데 그
+  // 사이에 시세 조회(assertNotSuspendedIntraday)가 끼어 수백 ms가 흐르고, 그동안
+  // 판매 마감 배치가 같은 리포트를 닫을 수 있다. 그러면 서버는 이미 낡아버린 값을 보고
+  // "판매 중"이라 판단해 구매를 만든다.
+  //
+  // 그래서 구매 생성을 **리포트 조건에 묶어** 한 트랜잭션으로 실행한다:
+  // 그 사이에 상태가 바뀌었으면 update가 대상을 못 찾아(P2025) 트랜잭션 전체가
+  // 되돌아가고 구매는 만들어지지 않는다. 다시 읽어서 확인하는 방식으로는
+  // "읽고 나서 쓰기까지"의 틈이 그대로 남는다.
+  //
+  // data: {} — 값을 바꾸려는 게 아니라 조건 검사가 목적이다.
+  // (게시 상태 전이가 쓰는 것과 같은 패턴 — reportService.finalizePublish)
+  const [, purchase] = await prisma.$transaction([
+    prisma.report.update({
+      where: { id: reportId, status: 'PUBLISHED', salesClosedAt: null },
+      data: {},
+    }),
+    // @@unique([reportId, buyerId])가 중복 구매를 차단한다
+    prisma.purchase.create({
+      data: {
+        reportId,
+        buyerId,
+        amountKrw: report.priceKrw,
+        paymentMethod: payment.method,
+        paymentInfo: paymentInfoOverride ?? stubPaymentInfo(payment.method),
+        escrowStatus: 'HELD',
+      },
+    }),
+  ]);
+  return purchase;
 }
