@@ -79,6 +79,31 @@ export function salesWindowEnd(publishedAt: Date, deadline: Date): Date {
   return new Date(publishedAt.getTime() + window);
 }
 
+/**
+ * 시간 규칙으로 지금 판매 중인가 — **저장된 플래그가 아니라 계산으로 답한다.**
+ *
+ * 왜 계산인가: 시간 규칙은 게시 순간 확정되는 값(게시일·시한)만으로 완전히 결정된다.
+ * 외부 시세도, 사람의 판단도 필요 없다. 그런데 이것을 `Report.salesClosedAt` 플래그로만
+ * 판단하면 **배치가 도는 순간까지 답이 틀린다** — 하루 1회 배치라면 마감된 카드가
+ * 최대 하루 동안 팔린다. 답을 알 수 있는데 기록되기를 기다릴 이유가 없다.
+ *
+ * 플래그는 여전히 필요하다(마감 사유·시각의 감사 기록, 리서처 알림, BAND_EXIT는 종가를
+ * 기다려야 하므로 계산이 불가능). 이 함수는 그것을 대체하는 것이 아니라 **앞에 세우는
+ * 가드**다: 계산으로 닫히면 즉시 닫히고, 배치는 그 사실을 기록하러 뒤따라온다.
+ *
+ * 값이 없으면 `true`(열림)를 돌려준다 — 게시 전이거나 카드가 없는 리포트라
+ * 시간 규칙을 적용할 근거 자체가 없다. 막는 쪽으로 지어내지 않는 것이 이 도메인의
+ * 일관된 태도다(장중 중단 검사도 시세가 없으면 통과시킨다).
+ */
+export function isSalesWindowOpen(
+  publishedAt: Date | null | undefined,
+  deadline: Date | null | undefined,
+  now: Date,
+): boolean {
+  if (!publishedAt || !deadline) return true;
+  return now.getTime() < salesWindowEnd(publishedAt, deadline).getTime();
+}
+
 /** 종가 기준 마감 여부 — ② BAND_EXIT */
 export function closesAtDailyClose(
   assetClass: AssetClass,

@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { AssetClass, Direction } from '@/domain/constants';
 import { cardProfitabilityLevel } from '@/domain/profitability';
-import { remainingReturnPct, suspendsIntraday } from '@/domain/salesWindow';
+import { isSalesWindowOpen, remainingReturnPct, suspendsIntraday } from '@/domain/salesWindow';
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isFreeReport } from './freeReportService';
 import { fetchCachedPrice } from './priceCache';
@@ -39,6 +39,8 @@ interface PurchasableReport {
   status: string;
   priceKrw: number;
   salesClosedAt?: Date | null;
+  /** 시간 규칙(판매 기간)을 그 자리에서 계산하기 위해 필요하다 — 아래 주석 참고 */
+  publishedAt?: Date | null;
   researcher: { userId: string };
   predictionCard: { deadline: Date } | null;
 }
@@ -59,9 +61,19 @@ export function assertPurchasable(report: PurchasableReport, buyerId: string, no
   if (report.salesClosedAt) {
     throw new Error('판매가 마감된 리포트입니다');
   }
-  // 시한이 지난 카드는 곧 판정되므로 신규 구매 차단 (결과를 보고 사는 것 방지)
+  // 시한이 지난 카드는 곧 판정되므로 신규 구매 차단 (결과를 보고 사는 것 방지).
+  // **판매 기간보다 먼저 본다** — 판매 기간은 시한보다 항상 먼저 끝나므로 시한이 지난
+  // 카드는 판매 기간도 지나 있다. 그때 "판매 기간이 끝났다"고 답하면 덜 말한 것이 된다
   if (report.predictionCard && report.predictionCard.deadline <= now) {
     throw new Error('검증 시한이 지난 리포트는 구매할 수 없습니다');
+  }
+  // **시간 규칙은 플래그를 기다리지 않는다.**
+  // salesClosedAt을 쓰는 것은 하루 1회 도는 배치(batch:salesclose)라, 이 검사가 없으면
+  // 판매 기간이 끝난 카드가 다음 배치까지 계속 팔린다. 시간 규칙은 게시일·시한만으로
+  // 완전히 결정되므로 여기서 바로 계산하는 것이 맞다 (BAND_EXIT는 종가를 기다려야
+  // 하므로 계산이 불가능 — 그쪽만 배치·플래그에 남는다).
+  if (!isSalesWindowOpen(report.publishedAt, report.predictionCard?.deadline, now)) {
+    throw new Error('판매 기간이 끝난 리포트입니다');
   }
 }
 

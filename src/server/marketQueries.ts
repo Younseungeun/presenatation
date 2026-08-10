@@ -6,7 +6,7 @@ import {
   PROFITABILITY_LABEL,
   type ProfitabilityLevel,
 } from '@/domain/profitability';
-import { salesWindowEnd } from '@/domain/salesWindow';
+import { isSalesWindowOpen, salesWindowEnd } from '@/domain/salesWindow';
 
 // 리더보드(리포트 탐색) 화면용 조회.
 // 리서처 순위는 랭킹 화면(leaderboardQueries)이 담당하고, 여기서는 "지금 살 수 있는
@@ -169,6 +169,10 @@ function toMarketCard(r: ReportWithCard): MarketCard {
 /**
  * 지금 구매 가능한 카드만 — 게시 상태 + 시한이 남아 있고 + 철회되지 않은 것.
  * 시한이 지난 카드는 곧 판정되므로 구매가 막힌다(purchaseService와 같은 기준).
+ *
+ * **이 함수만으로는 부족하다 — 반드시 buyableCards()와 짝으로 쓴다.**
+ * 판매 기간(시간 규칙)은 `게시일 + min(검증기간/3, 30일)`이라 SQL 조건으로 쓸 수 없고,
+ * salesClosedAt은 하루 1회 배치가 채우는 값이라 그 사이에는 비어 있다.
  */
 function buyableWhere(now: Date) {
   return {
@@ -178,6 +182,24 @@ function buyableWhere(now: Date) {
     salesClosedAt: null,
     predictionCard: { is: { deadline: { gt: now }, withdrawnAt: null } },
   } as const;
+}
+
+/**
+ * 조회 결과 → 실제로 살 수 있는 카드 — **buyableWhere의 나머지 절반.**
+ *
+ * 두 관문이 필요한 이유는 판매 마감의 두 규칙이 성질이 다르기 때문이다:
+ *   · BAND_EXIT(가격) — 종가를 봐야 알 수 있다 → 배치가 salesClosedAt에 기록 → SQL이 거른다
+ *   · WINDOW_END(시간) — 게시일·시한만으로 지금 계산된다 → **여기서 거른다**
+ * 시간 규칙을 배치에만 맡기면 판매 기간이 끝난 카드가 다음 배치까지 목록에 남고,
+ * 목록에 남으면 구매 버튼도 살아 있다(구매 관문은 purchaseService가 따로 막지만,
+ * 살 수 없는 물건을 진열하는 것 자체가 화면의 거짓말이다).
+ *
+ * 이름을 buyableWhere와 맞춘 것은 의도적이다 — 한쪽만 쓰면 눈에 띄게.
+ */
+function buyableCards(reports: ReportWithCard[], now: Date): MarketCard[] {
+  return reports
+    .filter((r) => isSalesWindowOpen(r.publishedAt, r.predictionCard?.deadline, now))
+    .map(toMarketCard);
 }
 
 /** 판매량 상위 — "지금 가장 잘 팔리는" */
@@ -193,7 +215,10 @@ export async function getBestSellingCards(
     take: limit,
   });
   // 아직 아무도 안 산 카드까지 "잘 팔리는"으로 보여주지 않는다
-  return withSignals(prisma, reports.filter((r) => r._count.purchases > 0).map(toMarketCard));
+  return withSignals(
+    prisma,
+    buyableCards(reports, now).filter((c) => c.salesCount > 0),
+  );
 }
 
 /** 상위 등급 리서처가 쓴 카드 — 등급 높은 순, 같으면 최신순 */
@@ -207,14 +232,15 @@ export async function getTopTierCards(
     include: cardInclude,
     orderBy: { publishedAt: 'desc' },
   });
-  // 등급은 문자열이라 DB 정렬로는 순서가 안 나온다 — TIERS 순서로 메모리 정렬
+  // 등급은 문자열이라 DB 정렬로는 순서가 안 나온다 — TIERS 순서로 메모리 정렬.
+  // **자르기 전에 거른다** — 판매 기간이 끝난 카드를 먼저 빼지 않으면 상위 5장 중
+  // 몇 자리를 살 수 없는 카드가 차지한 채 레일이 짧아진다
   const rank = (t: string) => TIERS.indexOf(t as Tier);
   return withSignals(
     prisma,
-    reports
-      .sort((a, b) => rank(b.researcher.tier) - rank(a.researcher.tier))
-      .slice(0, limit)
-      .map(toMarketCard),
+    buyableCards(reports, now)
+      .sort((a, b) => rank(b.tier) - rank(a.tier))
+      .slice(0, limit),
   );
 }
 
@@ -471,6 +497,11 @@ export async function getResearcherConsensus(
  * 선별 기준은 **시간 규칙까지만** — 게시 시점에 고정된 값이라 아무것도 새지 않는다.
  * 가격 규칙(구간 이탈) 임박을 골라내면 안 된다: 매일 시세를 따라 움직이는 신호를
  * 마스킹된 카드에 다는 것이고, "곧 마감 = 거의 적중"이라는 최악의 구매를 광고하게 된다.
+ *
+ * **마감선이 이미 지난 카드를 반드시 먼저 걸러야 한다** (buyableCards).
+ * 이 레일은 마감선 오름차순인데 하한이 없으면 *이미 지난* 카드가 가장 작은 값이라
+ * 정확히 1번 자리에 온다 — 앱이 가장 눈에 띄는 곳에서 살 수 없는 카드를
+ * "임박했으니 서두르라"고 광고하게 된다.
  */
 export async function getSalesClosingSoonCards(
   prisma: PrismaClient,
@@ -478,8 +509,7 @@ export async function getSalesClosingSoonCards(
   now = new Date(),
 ): Promise<MarketCard[]> {
   const reports = await prisma.report.findMany({ where: buyableWhere(now), include: cardInclude });
-  const cards = reports
-    .map(toMarketCard)
+  const cards = buyableCards(reports, now)
     .filter((c) => c.publishedAt !== null && c.deadline !== null)
     .sort(
       (a, b) =>
@@ -652,7 +682,7 @@ export async function getFollowedSections(
   const bios = new Map(profiles.map((p) => [p.id, p.bio]));
   const freeCounts = new Map(freeGroups.map((g) => [g.researcherId, g._count.researcherId]));
 
-  const withSignal = await withSignals(prisma, reports.map(toMarketCard));
+  const withSignal = await withSignals(prisma, buyableCards(reports, now));
 
   // **자르기 전에 정렬한다** — 최신 6장을 뽑아 놓고 인기순으로 다시 세우면
   // "이 사람의 인기 카드"가 아니라 "최근 6장 중 인기 카드"가 된다
@@ -725,7 +755,7 @@ export async function getCardsByAssetClass(
     include: cardInclude,
   });
   // 정렬 기준 대부분이 관계 필드(시한·판매수·등급)라 한 번 읽어와 메모리에서 정렬한다
-  return withSignals(prisma, sortCards(reports.map(toMarketCard), sort));
+  return withSignals(prisma, sortCards(buyableCards(reports, now), sort));
 }
 
 /**
@@ -777,7 +807,7 @@ export async function searchCards(
     include: cardInclude,
   });
 
-  let cards = await withSignals(prisma, reports.map(toMarketCard));
+  let cards = await withSignals(prisma, buyableCards(reports, now));
 
   // 수익성은 예측 크기에서 파생되는 값이라 DB 조건으로 걸 수 없다
   if (q.minProfitability != null) {

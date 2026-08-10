@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { parseCardQuery } from '@/domain/cardQuery';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import {
@@ -8,6 +9,7 @@ import {
   getRecentJudgments,
   getTopTierCards,
   getSalesClosingSoonCards,
+  searchCards,
 } from '../marketQueries';
 import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import { purchaseReport } from '../purchaseService';
@@ -21,6 +23,8 @@ let goldId: string;
 let hot: string;
 let quiet: string;
 let expired: string;
+/** 판매 기간(게시+기간/3)은 지났지만 검증 시한은 아직 남은 카드 — 배치가 늦은 상태를 흉내낸다 */
+let windowClosed: string;
 
 const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 const PUBLISH_NOW = new Date('2026-07-12T00:00:00Z');
@@ -89,6 +93,9 @@ beforeAll(async () => {
   hot = await publish(bronzeId, 'KRW-AAA', new Date('2026-12-01T00:00:00Z'));
   quiet = await publish(goldId, 'KRW-BBB', new Date('2026-12-15T00:00:00Z'));
   expired = await publish(bronzeId, 'KRW-CCC', new Date('2026-08-01T00:00:00Z'));
+  // 게시 07-12 + 시한 08-20 → 검증기간 39일 → 판매 기간 13일 → 마감선 07-25 (NOW 08-02보다 과거).
+  // salesClosedAt은 일부러 비워 둔다 — 배치가 아직 안 돈 상태가 바로 이 테스트의 대상이다
+  windowClosed = await publish(goldId, 'KRW-DDD', new Date('2026-08-20T00:00:00Z'));
 
   await purchaseReport(prisma, hot, buyer.id, PUBLISH_NOW);
 });
@@ -179,5 +186,33 @@ describe('홈 화면 조회', () => {
     expect(feed[0].realizedReturnPct).toBe(12.5);
     // 종목명은 게시 시 종목 마스터 기준으로 정규화된다(입력값이 아니라 마스터의 이름)
     expect(feed[0].assetName).toBe('CCC');
+  });
+});
+
+// 판매 기간이 끝난 카드는 배치(salesClosedAt)를 기다리지 않고 모든 목록에서 빠진다.
+//
+// windowClosed는 salesClosedAt이 비어 있어 SQL 조건(buyableWhere)을 그대로 통과한다.
+// 걸러내는 것은 buyableCards의 계산이고, 이 describe가 그 짝이 유지되는지 지킨다.
+describe('판매 기간 종료 카드는 목록에서 빠진다 (배치 지연과 무관)', () => {
+  it('자산군별 목록', async () => {
+    const rows = await getCardsByAssetClass(prisma, 'CRYPTO', 'DEADLINE', NOW);
+    expect(rows.map((r) => r.reportId)).not.toContain(windowClosed);
+  });
+
+  it('상위 등급 레일 — 이 카드의 리서처가 최상위 등급인데도 빠진다', async () => {
+    const rows = await getTopTierCards(prisma, 5, NOW);
+    expect(rows.map((r) => r.reportId)).not.toContain(windowClosed);
+  });
+
+  it('홈 "판매 마감 임박" 레일 — 마감선이 가장 이르다고 1번 자리에 오면 안 된다', async () => {
+    const rows = await getSalesClosingSoonCards(prisma, 5, NOW);
+    expect(rows.map((r) => r.reportId)).not.toContain(windowClosed);
+    // 하한이 없던 시절에는 마감선이 이미 지난 이 카드가 정확히 맨 앞에 왔다
+    expect(rows[0]?.reportId).not.toBe(windowClosed);
+  });
+
+  it('검색 결과', async () => {
+    const rows = await searchCards(prisma, parseCardQuery('#코인'), 'DEADLINE', NOW);
+    expect(rows.map((r) => r.reportId)).not.toContain(windowClosed);
   });
 });

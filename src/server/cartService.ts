@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { isSalesWindowOpen } from '@/domain/salesWindow';
 import { cardProfitabilityLevel, type ProfitabilityLevel } from '@/domain/profitability';
 import { isFreeReport } from './freeReportService';
 import { researcherSignals } from './marketQueries';
@@ -126,7 +127,14 @@ export async function getCart(
     else if (r.status !== 'PUBLISHED') issue = 'NOT_PUBLISHED';
     // 담아둔 사이에 판매가 마감될 수 있다 — 시한과 같은 "상태 변화" 계열
     else if (r.salesClosedAt) issue = 'SALES_CLOSED';
+    // **시한 경과를 판매 기간보다 먼저 본다.** 판매 기간은 시한보다 항상 먼저 끝나므로
+    // 시한이 지난 카드는 판매 기간도 지나 있다. 그때 "판매 기간이 끝났다"고 말하면
+    // 틀린 말은 아니어도 덜 말한 것이다 — 그 카드는 이미 판정을 기다리는 중이다
     else if (r.predictionCard && r.predictionCard.deadline <= now) issue = 'DEADLINE_PASSED';
+    // 시간 규칙은 배치가 salesClosedAt을 채우기 전에도 이미 참이므로 여기서 계산한다 —
+    // 카드지갑이 "구매 가능"이라 말한 뒤 결제에서 거부되면 그게 더 나쁜 경험이다
+    else if (!isSalesWindowOpen(r.publishedAt, r.predictionCard?.deadline, now))
+      issue = 'SALES_CLOSED';
 
     const card = r.predictionCard;
     return {

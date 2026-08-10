@@ -5,6 +5,7 @@ import {
   remainingReturnPct,
   salesCloseLinePct,
   salesSuspendLinePct,
+  isSalesWindowOpen,
   salesWindowEnd,
   suspendsIntraday,
 } from '../salesWindow';
@@ -83,5 +84,34 @@ describe('시간 규칙 — min(검증기간×1/3, 30일)', () => {
   it('1일짜리 코인 단타 → 8시간 창', () => {
     const end = salesWindowEnd(pub, new Date('2026-08-02T00:00:00Z'));
     expect(end.getTime() - pub.getTime()).toBe(8 * 3600_000);
+  });
+});
+
+// 시간 규칙은 **저장된 플래그가 아니라 계산**이 답한다.
+// 이 테스트가 지키는 것: 배치가 늦어도 판매 기간이 끝난 카드는 즉시 닫힌다.
+describe('isSalesWindowOpen', () => {
+  const published = new Date('2026-07-01T00:00:00Z');
+  const deadline = new Date('2026-07-31T00:00:00Z'); // 30일 → 판매 기간 10일
+  const end = salesWindowEnd(published, deadline);
+
+  it('마감선 직전은 열려 있다', () => {
+    expect(isSalesWindowOpen(published, deadline, new Date(end.getTime() - 1))).toBe(true);
+  });
+
+  it('마감선 그 순간부터 닫힌다 — 경계는 닫힘 쪽', () => {
+    expect(isSalesWindowOpen(published, deadline, end)).toBe(false);
+    expect(isSalesWindowOpen(published, deadline, new Date(end.getTime() + 1))).toBe(false);
+  });
+
+  it('30일 상한이 걸린 장기 카드도 같은 규칙으로 닫힌다', () => {
+    const far = new Date('2027-07-01T00:00:00Z'); // 365일 → 1/3보다 30일 상한이 먼저
+    const cap = salesWindowEnd(published, far);
+    expect(cap.getTime() - published.getTime()).toBe(30 * 86_400_000);
+    expect(isSalesWindowOpen(published, far, new Date(cap.getTime() + 1))).toBe(false);
+  });
+
+  it('게시일이나 시한이 없으면 판단하지 않는다 — 막는 쪽으로 지어내지 않는다', () => {
+    expect(isSalesWindowOpen(null, deadline, new Date('2030-01-01'))).toBe(true);
+    expect(isSalesWindowOpen(published, null, new Date('2030-01-01'))).toBe(true);
   });
 });
