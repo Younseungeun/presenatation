@@ -2,6 +2,7 @@ import Link from "next/link";
 import type { MarketCard } from "@/server/marketQueries";
 import { RankMark } from "../brand/RankMark";
 import { DirectionGlyph } from "../DirectionGlyph";
+import { salesWindowEnd } from "@/domain/salesWindow";
 import { dday } from "../format";
 import { assetLabel } from "../MaskedCard";
 import { StarRating } from "../StarRating";
@@ -67,7 +68,10 @@ export function BestSellers({
                 {c.researcherName}
                 <TierChip tier={c.tier} />
                 <span className={styles.rankDot} />
-                {dday(c.deadline, now)}
+                {/* 카드와 같은 규칙 — 구매 전에는 판매 마감을 센다 */}
+                {c.publishedAt && c.deadline
+                  ? `판매 ${dday(salesWindowEnd(c.publishedAt, c.deadline), now)}`
+                  : dday(c.deadline, now)}
               </span>
             </span>
             {/* 이미 산 행은 우측이 값에서 행동으로 바뀐다 — 카드와 같은 규칙.

@@ -6,6 +6,7 @@ import {
   PROFITABILITY_LABEL,
   type ProfitabilityLevel,
 } from '@/domain/profitability';
+import { salesWindowEnd } from '@/domain/salesWindow';
 
 // 리더보드(리포트 탐색) 화면용 조회.
 // 리서처 순위는 랭킹 화면(leaderboardQueries)이 담당하고, 여기서는 "지금 살 수 있는
@@ -229,8 +230,10 @@ export const MARKET_SORTS = [
 ] as const;
 export type MarketSort = (typeof MARKET_SORTS)[number];
 
+// "마감"은 이제 판매 마감을 뜻한다 — 검증 시한 기반인 이 정렬·구간 라벨은
+// "판정"으로 부른다 (섞이면 어느 마감인지 매번 물어야 한다)
 export const MARKET_SORT_LABEL: Record<MarketSort, string> = {
-  DEADLINE: '마감 임박순',
+  DEADLINE: '판정 가까운 순',
   NEW: '최신순',
   POPULAR: '판매 많은 순',
   PRICE_ASC: '낮은 가격순',
@@ -341,9 +344,9 @@ function bucketOf(c: MarketCard, sort: MarketSort, now: Date): string {
   switch (sort) {
     case 'DEADLINE': {
       const days = c.deadline ? (c.deadline.getTime() - now.getTime()) / DAY_MS : Infinity;
-      if (days <= 1) return '오늘 마감';
-      if (days <= 7) return '이번 주 마감';
-      if (days <= 30) return '한 달 안에 마감';
+      if (days <= 1) return '오늘 판정';
+      if (days <= 7) return '이번 주 판정';
+      if (days <= 30) return '한 달 안에 판정';
       return '그 이후';
     }
     case 'NEW': {
@@ -458,14 +461,32 @@ export async function getResearcherConsensus(
     .slice(0, limit);
 }
 
-/** 자산군 무관 마감 임박 카드 — 홈 레일용 */
-export async function getUpcomingDeadlineCards(
+/**
+ * 판매 마감이 가까운 카드 — 홈 레일용 (자산군 무관).
+ *
+ * 예전에는 검증 시한 임박순이었는데, 판매 마감 규칙이 생기면서 그 기준은 구조적으로
+ * 깨졌다: 판매는 검증 기간의 1/3에 닫히므로 "검증 시한이 가까운 카드"는 이미 판매가
+ * 끝난 카드다. 구매자의 긴박함은 "언제 판정되나"가 아니라 **"언제까지 살 수 있나"**다.
+ *
+ * 선별 기준은 **시간 규칙까지만** — 게시 시점에 고정된 값이라 아무것도 새지 않는다.
+ * 가격 규칙(구간 이탈) 임박을 골라내면 안 된다: 매일 시세를 따라 움직이는 신호를
+ * 마스킹된 카드에 다는 것이고, "곧 마감 = 거의 적중"이라는 최악의 구매를 광고하게 된다.
+ */
+export async function getSalesClosingSoonCards(
   prisma: PrismaClient,
   limit = 5,
   now = new Date(),
 ): Promise<MarketCard[]> {
   const reports = await prisma.report.findMany({ where: buyableWhere(now), include: cardInclude });
-  return withSignals(prisma, sortCards(reports.map(toMarketCard), 'DEADLINE').slice(0, limit));
+  const cards = reports
+    .map(toMarketCard)
+    .filter((c) => c.publishedAt !== null && c.deadline !== null)
+    .sort(
+      (a, b) =>
+        salesWindowEnd(a.publishedAt!, a.deadline!).getTime() -
+        salesWindowEnd(b.publishedAt!, b.deadline!).getTime(),
+    );
+  return withSignals(prisma, cards.slice(0, limit));
 }
 
 export interface JudgedFeedItem {

@@ -148,7 +148,10 @@ export function HomeSignedIn({
       {upcoming.length > 0 && (
         <>
           <div className={styles.sectionHead}>
-            <span className={styles.sectionTitle}>마감 임박 카드</span>
+            {/* "판매" 마감이다 — 검증 시한이 아니라. 판매는 검증 기간의 1/3에 닫히므로
+                시한 임박 카드는 이미 살 수 없는 카드이고, 구매자의 긴박함은
+                "언제 판정되나"가 아니라 "언제까지 살 수 있나"다 */}
+            <span className={styles.sectionTitle}>판매 마감 임박</span>
             <Link href="/leaderboard" className={styles.sectionMore}>
               더 보기 →
             </Link>

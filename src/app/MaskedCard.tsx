@@ -11,6 +11,7 @@ import {
   traceLineJoin,
   type PeriodBucket,
 } from "./directionTrace";
+import { salesWindowEnd } from "@/domain/salesWindow";
 import { dday, directionLabel } from "./format";
 import { confidenceStars, stabilityStars, StarRating } from "./StarRating";
 import { TierChip } from "./TierChip";
@@ -251,7 +252,15 @@ export function MaskedCard({
           결정에 쓰이지 않으므로 가격 자리에 "본문 열기"가 오는 것이 정직하다.
           배지보다 이쪽이 강한 신호다: 카드가 무엇을 하라고 말하는지가 바뀐다 */}
       <div className={styles.foot}>
-        <span className={styles.dday}>{dday(c.deadline, now)}</span>
+        {/* 구매 전 카드가 세는 것은 **판매 마감**이다 — 검증 시한이 아니라.
+            판매는 검증 기간의 1/3에 닫히므로 시한 D-day를 보여주면 실제로 살 수 있는
+            기간의 3배를 광고하는 셈이 된다. 판정 시점은 구매 후 카드가 센다.
+            게시일을 모르는 카드(레거시)는 계산할 수 없어 시한으로 물러선다 */}
+        <span className={styles.dday}>
+          {c.publishedAt && c.deadline
+            ? `판매 ${dday(salesWindowEnd(c.publishedAt, c.deadline), now)}`
+            : dday(c.deadline, now)}
+        </span>
         <span className={styles.footRight}>
           {owned ? (
             <span className={styles.openBody}>본문 열기 →</span>

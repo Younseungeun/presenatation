@@ -7,7 +7,7 @@ import {
   getCardsByAssetClass,
   getRecentJudgments,
   getTopTierCards,
-  getUpcomingDeadlineCards,
+  getSalesClosingSoonCards,
 } from '../marketQueries';
 import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import { purchaseReport } from '../purchaseService';
@@ -147,10 +147,13 @@ describe('getCardsByAssetClass', () => {
 });
 
 describe('홈 화면 조회', () => {
-  it('마감 임박은 자산군 구분 없이 시한 가까운 순', async () => {
-    const rows = await getUpcomingDeadlineCards(prisma, 5, NOW);
-    expect(rows.map((r) => r.reportId)).toEqual([hot, quiet]);
-    expect(rows.map((r) => r.reportId)).not.toContain(expired);
+  // 홈 레일은 **판매 마감**이 가까운 순 — 검증 시한이 아니다.
+  // 판매는 검증 기간의 1/3에 닫히므로 시한 임박 카드는 이미 살 수 없다.
+  // 같은 날 게시된 hot(12/01 시한)·quiet(12/15 시한)은 판매 창도 같은 순서다.
+  it('판매 마감 가까운 순 — 자산군 구분 없이, 판매 중인 카드만', async () => {
+    const rows = await getSalesClosingSoonCards(prisma, 5, NOW);
+    expect(rows.map((r: { reportId: string }) => r.reportId)).toEqual([hot, quiet]);
+    expect(rows.map((r: { reportId: string }) => r.reportId)).not.toContain(expired);
   });
 
   it('판정 피드는 최근 판정 순 — 판정 전 카드는 나오지 않는다', async () => {

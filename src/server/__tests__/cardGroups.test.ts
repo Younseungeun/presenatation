@@ -31,7 +31,7 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
   };
 }
 
-describe('마감 임박순 — 시간 구간', () => {
+describe('판정 가까운 순 — 시간 구간', () => {
   it('오늘 / 이번 주 / 한 달 / 그 이후로 갈린다', () => {
     const groups = groupCards(
       [
@@ -44,9 +44,9 @@ describe('마감 임박순 — 시간 구간', () => {
       NOW,
     );
     expect(groups.map((g) => g.label)).toEqual([
-      '오늘 마감',
-      '이번 주 마감',
-      '한 달 안에 마감',
+      '오늘 판정',
+      '이번 주 판정',
+      '한 달 안에 판정',
       '그 이후',
     ]);
     expect(groups.every((g) => g.cards.length === 1)).toBe(true);

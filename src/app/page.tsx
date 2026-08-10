@@ -7,7 +7,7 @@ import {
   getPurchasedReportIds,
   getRecentJudgments,
   getResearcherConsensus,
-  getUpcomingDeadlineCards,
+  getSalesClosingSoonCards,
 } from "@/server/marketQueries";
 import { getSessionUserId } from "@/server/session";
 import { HomeSignedIn } from "./HomeSignedIn";
@@ -51,7 +51,7 @@ export default async function Home() {
       getResearcherConsensus(prisma, 100, now),
       getFreeReports(prisma, 4),
       getRecentJudgments(prisma, 6),
-      getUpcomingDeadlineCards(prisma, 5, now),
+      getSalesClosingSoonCards(prisma, 5, now),
       getPurchasedReportIds(prisma, userId),
     ]);
 
