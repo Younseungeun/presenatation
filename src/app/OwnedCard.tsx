@@ -185,24 +185,30 @@ export function OwnedCard({
         </span>
       ) : (
         <span className={styles.footStack}>
-          {v.basePrice != null && (
-            <span className={styles.priceLine}>
-              기준 {fmtPrice(v.basePrice, v.currency)}
-              {v.currentPrice != null && ` · 현재 ${fmtPrice(v.currentPrice, v.currency)}`}
-            </span>
-          )}
+          {/* 기한은 두 가격 줄의 **세로 중앙**에 선다. 셋을 같은 간격으로 쌓으면
+              성격이 다른 값(시간 하나 + 가격 둘)이 한 목록처럼 읽힌다 —
+              가격 둘을 붙여 한 덩어리로 만들고 기한을 그 옆에 세우면
+              "이 구간을 이만큼 남기고 지나는 중"이 한눈에 잡힌다 */}
           <span className={styles.ddayLine}>
             {showDdayLead && <span className={styles.ddayLead}>판정까지</span>}
             {ddayLabel}
           </span>
-          {v.targetPrice != null && (
-            <span className={styles.priceLine}>
-              목표{" "}
-              <strong className={styles.targetVal} style={{ color: tone }}>
-                {fmtPrice(v.targetPrice, v.currency)}
-              </strong>
-            </span>
-          )}
+          <span className={styles.priceStack}>
+            {v.basePrice != null && (
+              <span className={styles.priceLine}>
+                기준 {fmtPrice(v.basePrice, v.currency)}
+                {v.currentPrice != null && ` · 현재 ${fmtPrice(v.currentPrice, v.currency)}`}
+              </span>
+            )}
+            {v.targetPrice != null && (
+              <span className={styles.priceLine}>
+                목표{" "}
+                <strong className={styles.targetVal} style={{ color: tone }}>
+                  {fmtPrice(v.targetPrice, v.currency)}
+                </strong>
+              </span>
+            )}
+          </span>
         </span>
       )}
     </Link>

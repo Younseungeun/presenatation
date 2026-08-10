@@ -211,11 +211,22 @@
 }
 /* 긴 카드 바닥 — 세로 3단: 기준·현재(우) / D-day(좌, 크게) / 목표(우).
    한 줄에 몰면 좁은 화면에서 줄바꿈이 나 D-day까지 두 동강 났다 */
+/* 긴 카드 바닥 — 좌: 판정 기한(가격 두 줄의 세로 중앙) / 우: 기준·현재 위, 목표 아래.
+   셋을 같은 간격으로 쌓으면 성격이 다른 값(시간 하나 + 가격 둘)이 한 목록처럼 읽힌다.
+   가격 둘을 붙여 한 덩어리로 만들고 기한을 그 옆 중앙에 세운다 */
 .footStack {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   margin-top: 6px;
+}
+.priceStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  min-width: 0;
 }
 .priceLine {
   font-size: 11px;
