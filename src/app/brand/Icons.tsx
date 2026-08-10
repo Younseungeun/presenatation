@@ -41,20 +41,36 @@ export function SettingsIcon() {
   );
 }
 
-/** 알림 — 윤곽 돔 + 솔리드 림 + 추. 추와 림 사이 1.7이 세트 하한 20px을 정한다 */
+/**
+ * 알림 — 윤곽 돔 + 윤곽 림 + 솔리드 추. 림은 비어 있다.
+ * 채운 슬래브(18×5.6)였을 때 세트에서 가장 큰 덩어리라 연필·문서 옆에서 쨍했다.
+ * 림 깊이 4.2 = 획 1.8 + 안쪽 2.4 — 3.8이면 안쪽 2.0이라 20px에서 도로 메워진다.
+ */
 export function BellIcon() {
   return (
     <svg {...BOX}>
-      <path
-        d="M6.4 12.2 V8.6 A5.6 5.6 0 0 1 17.6 8.6 V12.2"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-      <rect x="3" y="12.2" width="18" height="5.6" rx="2.8" fill="currentColor" />
-      <path d="M9.8 19.5 A2.2 2.2 0 0 0 14.2 19.5 Z" fill="currentColor" />
+      <g transform="translate(0.01 0.13)">
+        <path
+          d="M6.4 12.2 V8.6 A5.6 5.6 0 0 1 17.6 8.6 V12.2"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <rect
+          x="3.9"
+          y="12.6"
+          width="16.2"
+          height="4.2"
+          rx="2.1"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+        />
+        <path d="M9.8 19.5 A2.2 2.2 0 0 0 14.2 19.5 Z" fill="currentColor" />
+      </g>
     </svg>
   );
 }
@@ -112,10 +128,10 @@ export function PenIcon() {
 export function HitRateIcon() {
   return (
     <svg {...BOX}>
-      <g transform="translate(-0.11 -0.6)">
+      <g transform="translate(-0.1 -0.72)">
         <g fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="butt">
-          <path d="M17.74 9.82 A7.9 7.9 0 1 1 16.11 7.54" />
-          <path d="M14.9 12.53 A4.35 4.35 0 1 1 13.6 10.05" />
+          <path d="M17.89 9.67 A8.1 8.1 0 1 1 16.26 7.4" />
+          <path d="M14.49 12.89 A3.9 3.9 0 1 1 13.28 10.37" />
         </g>
         <path
           d="M11.8 13.84 L20.57 5.07"
@@ -156,15 +172,16 @@ export function DocIcon() {
 }
 
 /**
- * 에스크로 보관 — 손잡이가 장식이 아니다. 빼면 윤곽 사각형에 솔리드 띠 하나라
- * 24px에서 카드지갑과 헷갈린다. 걸쇠는 띠를 파고들지 않고 위로 1.6 솟는다.
+ * 에스크로 보관 — 윤곽 케이스·손잡이 + 잠금선 + 그 위에 얹힌 작은 걸쇠.
+ * 채운 띠(16.6×2.8)였을 때 세트에서 가장 무거워(27%) 쨍했다. 선 + 걸쇠가 같은 말을
+ * 훨씬 적은 덩어리로 한다. 손잡이는 장식이 아니다 — 빼면 24px에서 카드지갑과 헷갈린다.
  */
 export function EscrowIcon() {
   return (
     <svg {...BOX}>
-      <g transform="translate(0 0.5)">
+      <g transform="translate(0.01 0.01)">
         <path
-          d="M8.8 6.6 V5.3 A1.9 1.9 0 0 1 10.7 3.4 H13.3 A1.9 1.9 0 0 1 15.2 5.3 V6.6"
+          d="M8.8 7.1 V5.8 A1.9 1.9 0 0 1 10.7 3.9 H13.3 A1.9 1.9 0 0 1 15.2 5.8 V7.1"
           fill="none"
           stroke="currentColor"
           strokeWidth="1.8"
@@ -173,7 +190,7 @@ export function EscrowIcon() {
         />
         <rect
           x="2.8"
-          y="6.6"
+          y="7.1"
           width="18.4"
           height="13"
           rx="2.4"
@@ -182,7 +199,14 @@ export function EscrowIcon() {
           strokeWidth="1.8"
           strokeLinejoin="round"
         />
-        <path d="M3.7 11.4 H10.2 V9.8 H13.8 V11.4 H20.3 V14.2 H3.7 Z" fill="currentColor" />
+        <path
+          d="M3.4 12.6 H20.6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="butt"
+        />
+        <rect x="10.2" y="10.3" width="3.6" height="4.2" rx="1" fill="currentColor" />
       </g>
     </svg>
   );
