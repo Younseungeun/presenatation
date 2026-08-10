@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { tierAtLeast, type CardQuery } from '@/domain/cardQuery';
-import { TIER_NAME, TIERS, type AssetClass, type Tier } from '@/domain/constants';
+import { ASSET_CLASSES, TIER_NAME, TIERS, type AssetClass, type Tier } from '@/domain/constants';
 import {
   cardProfitabilityLevel,
   PROFITABILITY_LABEL,
@@ -555,6 +555,40 @@ export async function getRecentJudgments(
  *
  * 조회는 리서처 수와 무관하게 3회 — 카드 1회, 팔로워 집계 1회, 신뢰 지표 1회(withSignals).
  */
+// 팔로우 레일의 카드 정렬 — 리서처 순서(고정한 순)와는 다른 축이다.
+// "이 사람이 뭘 냈나"를 보는 자리라 축도 사람 기준이 아니라 카드 기준이어야 한다.
+export const FOLLOWED_CARD_SORTS = ['NEW', 'POPULAR', 'ASSET'] as const;
+export type FollowedCardSort = (typeof FOLLOWED_CARD_SORTS)[number];
+
+export const FOLLOWED_CARD_SORT_LABEL: Record<FollowedCardSort, string> = {
+  NEW: '최신순',
+  POPULAR: '인기순',
+  ASSET: '자산군순',
+};
+
+/** 자산군 정렬은 ASSET_CLASSES 순서를 따른다 — 화면 탭 순서와 같아야 예측 가능하다 */
+function assetRank(assetClass: string | null): number {
+  const i = (ASSET_CLASSES as readonly string[]).indexOf(assetClass ?? '');
+  return i < 0 ? ASSET_CLASSES.length : i;
+}
+
+function sortFollowedCards(cards: MarketCard[], sort: FollowedCardSort): MarketCard[] {
+  const byNew = (a: MarketCard, b: MarketCard) =>
+    (b.publishedAt?.getTime() ?? 0) - (a.publishedAt?.getTime() ?? 0);
+  return [...cards].sort((a, b) => {
+    switch (sort) {
+      case 'POPULAR':
+        // 판매량 동률이면 최신이 앞 — 아무도 안 산 카드끼리 임의 순서가 되지 않게
+        return b.salesCount - a.salesCount || byNew(a, b);
+      case 'ASSET':
+        return assetRank(a.assetClass) - assetRank(b.assetClass) || byNew(a, b);
+      case 'NEW':
+      default:
+        return byNew(a, b);
+    }
+  });
+}
+
 export interface FollowedSection {
   researcherId: string;
   researcherName: string;
@@ -581,6 +615,8 @@ export async function getFollowedSections(
   now = new Date(),
   /** 고정한 리서처 id — 고정한 순서대로. 이들이 목록 맨 앞에 온다 */
   pinnedIds: string[] = [],
+  /** 각 리서처 레일 안에서 카드를 어떤 순서로 놓을지 */
+  cardSort: FollowedCardSort = 'NEW',
 ): Promise<FollowedSection[]> {
   if (researcherIds.length === 0) return [];
 
@@ -618,8 +654,12 @@ export async function getFollowedSections(
 
   const withSignal = await withSignals(prisma, reports.map(toMarketCard));
 
+  // **자르기 전에 정렬한다** — 최신 6장을 뽑아 놓고 인기순으로 다시 세우면
+  // "이 사람의 인기 카드"가 아니라 "최근 6장 중 인기 카드"가 된다
+  const sorted = sortFollowedCards(withSignal, cardSort);
+
   const byResearcher = new Map<string, MarketCard[]>();
-  for (const c of withSignal) {
+  for (const c of sorted) {
     const list = byResearcher.get(c.researcherId) ?? [];
     if (list.length < perResearcher) list.push(c);
     byResearcher.set(c.researcherId, list);

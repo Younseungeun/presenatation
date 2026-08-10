@@ -132,8 +132,11 @@ export function OwnedCard({
       <span className={styles.readout}>
         {hasPrice ? (
           <>
-            {/* 역방향일 때 "목표까지 385%"는 숫자가 커질수록 가까워 보이는 오독을 낳는다 —
-                출발선 뒤에서는 남은 거리가 아니라 상태를 말한다 */}
+            {/* **숫자와 막대가 같은 것을 말해야 한다** — 예전에는 남은 몫(68%)을 적고
+                막대는 채운 몫(32%)을 그려서, 둘이 서로의 여집합이라 한눈에 안 들어왔다.
+                이제 둘 다 달성률이다.
+                역방향은 "−n%"가 아니라 상태로 말한다: 출발선 뒤에서 숫자를 적으면
+                커질수록 가까워 보이는 오독이 생긴다 */}
             <span
               className={styles.readoutMain}
               style={{ color: p.achievement! < 0 ? "var(--text-weak)" : tone }}
@@ -142,7 +145,7 @@ export function OwnedCard({
                 ? "목표 도달"
                 : p.achievement! < 0
                   ? "아직 반대 방향"
-                  : `목표까지 ${Math.round((1 - p.achievement!) * 100)}%`}
+                  : `목표까지 ${Math.round(p.achievement! * 100)}% 달성`}
             </span>
             <span className={styles.readoutSub}>
               현재 {p.currentReturnPct! >= 0 ? "+" : ""}

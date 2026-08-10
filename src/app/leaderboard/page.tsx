@@ -8,6 +8,7 @@ import {
   BUDGET_OPTIONS,
   getBestSellingCards,
   getCardsByAssetClass,
+  FOLLOWED_CARD_SORTS,
   getFollowedSections,
   getPurchasedReportIds,
   getTopTierCards,
@@ -17,6 +18,7 @@ import {
   searchCards,
   WITHIN_DAY_OPTIONS,
   type CardGroup,
+  type FollowedCardSort,
   type MarketFilter,
   type MarketSort,
 } from "@/server/marketQueries";
@@ -33,6 +35,7 @@ import { MaskedCard } from "../MaskedCard";
 import { TraceNotice } from "../TraceNotice";
 import { AckSalesClose } from "./AckSalesClose";
 import { BestSellers } from "./BestSellers";
+import { FollowedSortPicker } from "./FollowedSortPicker";
 import { FilterBar } from "./FilterBar";
 import { FollowedSections } from "./FollowedSections";
 import { MoreCards } from "./MoreCards";
@@ -115,6 +118,7 @@ export default async function LeaderboardPage({
     budget?: string;
     within?: string;
     hideowned?: string;
+    fsort?: string;
     q?: string;
   }>;
 }) {
@@ -135,6 +139,24 @@ export default async function LeaderboardPage({
     withinDays: pickNumber(sp.within, WITHIN_DAY_OPTIONS),
     hideOwned: sp.hideowned === "1",
   };
+
+  // 팔로우 레일의 카드 정렬 — 다른 필터·정렬과 독립된 축이라 별도 파라미터
+  const followedSort = ((FOLLOWED_CARD_SORTS as readonly string[]).includes(sp.fsort ?? "")
+    ? sp.fsort
+    : "NEW") as FollowedCardSort;
+  // 팔로우 정렬만 바꾼 URL들 — 나머지 조건(자산군·정렬·필터)은 그대로 들고 간다.
+  // 클라이언트 컴포넌트에 함수를 넘길 수 없어 미리 만들어 건넨다(경우의 수 셋)
+  const followedSortHrefs = Object.fromEntries(
+    FOLLOWED_CARD_SORTS.map((s) => {
+      const q = new URLSearchParams({ asset, sort });
+      if (filter.refundOnly) q.set("refund", "1");
+      if (filter.maxPriceKrw) q.set("budget", String(filter.maxPriceKrw));
+      if (filter.withinDays) q.set("within", String(filter.withinDays));
+      if (filter.hideOwned) q.set("hideowned", "1");
+      if (s !== "NEW") q.set("fsort", s);
+      return [s, `/leaderboard?${q}`];
+    }),
+  ) as Record<FollowedCardSort, string>;
 
   // 검색 중에는 추천 섹션을 걷어내고 결과만 보여준다 — 찾으러 온 사람에게
   // 추천을 계속 들이미는 건 방해다
@@ -162,7 +184,7 @@ export default async function LeaderboardPage({
     searching ? [] : getBestSellingCards(prisma, 5, now),
     searching ? [] : getTopTierCards(prisma, 5, now),
     searching ? [] : getCardsByAssetClass(prisma, asset, sort, now, filter),
-    searching ? [] : getFollowedSections(prisma, followedIds, 6, now, pinnedIds),
+    searching ? [] : getFollowedSections(prisma, followedIds, 6, now, pinnedIds, followedSort),
     searching ? searchCards(prisma, query, sort, now) : [],
   ]);
 
@@ -304,7 +326,11 @@ export default async function LeaderboardPage({
             {/* 아이브로우 = 이 섹션의 정렬 규칙. 우측 잔글씨가 아니라 제목 위에 두는 이유:
                 "무슨 순서로 나열됐나"는 목록을 읽는 방법이라 제목보다 먼저 잡혀야 한다 */}
             <span className={lb.secLead}>
-              <span className={lb.secEyebrow}>고정한 순 · 새 카드 낸 순</span>
+              {/* 아이브로우가 곧 정렬 버튼 — 그 자리의 일이 "무슨 순서로 나열됐나"라서 */}
+              <span className={lb.secEyebrow}>
+                카드
+                <FollowedSortPicker sort={followedSort} hrefs={followedSortHrefs} />
+              </span>
               <span className={lb.secTitle}>팔로우한 리서처</span>
             </span>
             {followedSections.length > FOLLOWED_ON_LEADERBOARD && (

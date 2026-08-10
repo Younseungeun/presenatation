@@ -440,6 +440,61 @@
     transparent 62%
   );
 }
+/* 팔로우 레일 카드 정렬 — 아이브로우 자리의 인라인 드롭다운(히트맵 자산군 버튼과 같은 문법).
+   아이브로우의 일이 "무슨 순서로 나열됐나"이므로, 그 자리가 곧 순서를 바꾸는 자리가 된다.
+   크기는 아이브로우 스케일에 맞추되 색은 브랜드 — 누를 수 있다는 유일한 신호다 */
+.fsortWrap {
+  position: relative;
+  display: inline-flex;
+}
+.fsortBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: var(--brand-strong);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.fsortBtn svg {
+  transition: transform 0.15s ease;
+}
+.fsortChevronUp {
+  transform: rotate(180deg);
+}
+.fsortMenu {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  /* 아래 카드에 겹쳐도 문구가 읽히게 — 히트맵 드롭다운과 같은 재질 */
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(3px);
+  box-shadow: 0 2px 10px rgb(12 30 26 / 10%);
+}
+.fsortOption {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: var(--text, #191f28);
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+.fsortOption:hover {
+  color: var(--brand-strong);
+}
+
 .secTitle {
   font-size: 19px;
   font-weight: 800;
