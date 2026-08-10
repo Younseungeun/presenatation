@@ -11,6 +11,7 @@ import {
   type SalesCloseReason,
 } from '@/domain/salesWindow';
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
+import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
 import { createDefaultRegistry } from '@/infra/marketData/registry';
 
 // 판매 마감 배치 — 하루 1회 이상 (npm run batch:salesclose).
@@ -76,37 +77,35 @@ export async function runSalesCloseBatch(
 
   const result: SalesCloseResult = { checked: candidates.length, closed: [], skipped: [] };
 
-  // 종가는 종목 단위로 한 번만 조회한다.
+  // 시세 조회는 **종목 단위**다 — 같은 종목 카드가 몇 장이든 공급자 호출은 한 번.
+  // 판정 배치와 같은 장치(memoizeRegistry)를 쓴다: 종목 단위 캐시를 여기저기
+  // 손으로 만들면 구현이 갈라지고, 갈라지면 한쪽만 고치는 사고가 난다.
   //
   // **마지막 종가가 아니라 판매 기간 전체의 종가를 본다.** 규칙은 "잔여가 마감선 밑인
   // 종가가 *찍히면* 마감"이지 "오늘 종가가 밑이면"이 아니다. 마지막 것만 보면 배치가
   // 하루라도 밀린 사이에 뚫었다가 회복한 카드가 그냥 살아남는다 —
   // 그 사이에 산 구매자에게 한 보장("구간 최소치의 2/3는 남아 있다")이 깨진 채로.
-  // 배치 주기·장애와 무관하게 같은 답이 나와야 하므로 판단 근거를 기간 전체로 넓혔다.
   //
   // 조회 범위가 무한정 늘지는 않는다: 판매 기간은 최대 30일이고 그 전에 WINDOW_END로
   // 닫히므로, 아직 판매 중인 카드의 게시일은 항상 30일 이내다.
-  const quoteCache = new Map<string, DailyQuote[] | null>();
-  async function closesSincePublish(assetClass: string, ticker: string): Promise<DailyQuote[] | null> {
-    const key = `${assetClass}:${ticker}`;
-    if (quoteCache.has(key)) return quoteCache.get(key)!;
-    let quotes: DailyQuote[] | null = null;
+  const memo = memoizeRegistry(registry);
+  async function closesSincePublish(
+    assetClass: string,
+    ticker: string,
+  ): Promise<DailyQuote[] | null> {
+    const provider = memo[assetClass as AssetClass];
+    if (!provider) return null;
     try {
-      const provider = registry[assetClass as AssetClass];
-      if (provider) {
-        const to = toMarketDateString(now, assetClass as AssetClass);
-        const from = toMarketDateString(
-          new Date(now.getTime() - (SALES_WINDOW_MAX_DAYS + 1) * 86_400_000),
-          assetClass as AssetClass,
-        );
-        const rows = await provider.getDailyQuotes(ticker, from, to);
-        quotes = rows.length > 0 ? rows : null;
-      }
+      const to = toMarketDateString(now, assetClass as AssetClass);
+      const from = toMarketDateString(
+        new Date(now.getTime() - (SALES_WINDOW_MAX_DAYS + 1) * 86_400_000),
+        assetClass as AssetClass,
+      );
+      const rows = await provider.getDailyQuotes(ticker, from, to);
+      return rows.length > 0 ? rows : null;
     } catch {
-      quotes = null;
+      return null;
     }
-    quoteCache.set(key, quotes);
-    return quotes;
   }
 
   for (const r of candidates) {
@@ -129,8 +128,8 @@ export async function runSalesCloseBatch(
       result.skipped.push({ reportId: r.id, cause: 'NO_LEVEL' });
       continue;
     }
-    const quotes = await closesSincePublish(card.assetClass, card.ticker);
-    if (quotes === null) {
+    const closes = await closesSincePublish(card.assetClass, card.ticker);
+    if (closes === null) {
       result.skipped.push({ reportId: r.id, cause: 'NO_QUOTE' });
       continue;
     }
@@ -142,7 +141,7 @@ export async function runSalesCloseBatch(
     const publishDate = r.publishedAt
       ? toMarketDateString(r.publishedAt, card.assetClass as AssetClass)
       : '';
-    const breached = quotes.some((q) => {
+    const breached = closes.some((q) => {
       if (q.date < publishDate) return false;
       const remaining = remainingReturnPct(card.direction as Direction, q.close, targetPrice);
       return closesAtDailyClose(card.assetClass as AssetClass, level, remaining);

@@ -5,6 +5,7 @@ import type { ProviderRegistry } from '@/domain/marketData';
 import { scoreJudgedCard } from '@/domain/scoring';
 import { toJudgeableCard } from './cardMapper';
 import { buildJudgmentWrites } from './judgmentWriter';
+import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
 
 // 판정 배치: 시한이 지난 미판정 카드를 찾아 판정 → 점수 산정 → 에스크로 정산까지
 // 하나의 트랜잭션으로 실행한다 (docs/market-data.md §4).
@@ -46,6 +47,9 @@ export async function judgeAndSettleDueCards(
     orderBy: { deadline: 'asc' },
   });
 
+  // 같은 종목의 만기 카드가 여러 장이면 조회는 한 번이면 된다 (memoRegistry)
+  const quotes = memoizeRegistry(registry);
+
   const summary: BatchSummary = { judged: 0, deferred: 0, failed: 0, staleDeferred: [] };
 
   for (const card of dueCards) {
@@ -54,7 +58,7 @@ export async function judgeAndSettleDueCards(
     try {
       const { result, audit, resolvedBasePrice } = await runJudgmentFromRegistry(
         judgeable,
-        registry,
+        quotes,
         now,
       );
       const basePrice = resolvedBasePrice ?? card.basePrice;

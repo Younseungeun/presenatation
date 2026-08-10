@@ -5,6 +5,7 @@ import type { ProviderRegistry } from '@/domain/marketData';
 import { scoreJudgedCard } from '@/domain/scoring';
 import { toJudgeableCard } from './cardMapper';
 import { buildJudgmentWrites } from './judgmentWriter';
+import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
 
 // 조기 판정(터치형) — 시한 전에 결과가 이미 확정된 카드를 그 자리에서 판정·정산한다.
 // npm run batch:earlyjudge (판정 배치와 같은 주기로 돌린다)
@@ -76,6 +77,11 @@ export async function runEarlyJudgmentBatch(
     orderBy: { deadline: 'asc' },
   });
 
+  // **종목 단위 조회.** 판정 파이프라인은 카드 하나를 다루는 절차라 그대로 두고,
+  // 공급자만 감싸서 같은 종목을 두 번 부르지 않게 한다. 이 배치는 목표에 닿을 때까지
+  // 매일 돌기 때문에, 카드 단위로 부르면 호출이 카드 수에 비례해 매일 반복된다.
+  const quotes = memoizeRegistry(registry);
+
   const summary: EarlyJudgmentSummary = {
     checked: cards.length,
     judged: 0,
@@ -93,7 +99,7 @@ export async function runEarlyJudgmentBatch(
       // (극값은 구간이 길어질수록 커지기만 한다).
       const { result, audit, resolvedBasePrice } = await runJudgmentFromRegistry(
         { ...judgeable, deadline: now },
-        registry,
+        quotes,
         now,
       );
 

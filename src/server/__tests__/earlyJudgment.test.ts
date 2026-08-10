@@ -133,3 +133,23 @@ describe('조기 판정', () => {
     expect(b.judgment?.outcome).toBe(a.judgment?.outcome);
   });
 });
+
+// 호출량 — 같은 종목 카드가 여러 장이어도 시세 조회는 종목 수만큼만 나가야 한다.
+describe('조기 판정 배치는 종목 단위로 조회한다', () => {
+  it('같은 종목 카드 3장 → 시세 조회 1회', async () => {
+    await Promise.all([publish('TARGET_PRICE', 500), publish('TARGET_PRICE', 600), publish('TARGET_PRICE', 700)]);
+
+    const inner = new FixtureMarketDataProvider().setCurrentPrice(TICKER, 100);
+    inner.setQuotes(TICKER, [{ date: '2026-07-02', open: 100, high: 100, low: 100, close: 100, volume: 1 }]);
+    let calls = 0;
+    const counting = {
+      sourceId: inner.sourceId,
+      getDailyQuotes: (t: string, f: string, to: string) => { calls++; return inner.getDailyQuotes(t, f, to); },
+      getSecurityStatus: (t: string) => inner.getSecurityStatus(t),
+    };
+
+    await runEarlyJudgmentBatch(prisma, { CRYPTO: counting } as ProviderRegistry, new Date('2026-07-21T00:00:00Z'));
+    // 후보 카드는 여러 장인데 종목은 하나뿐이다
+    expect(calls).toBe(1);
+  });
+});
