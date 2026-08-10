@@ -1,11 +1,12 @@
 import Link from "next/link";
-import type { FollowedSection } from "@/server/marketQueries";
+import type { FollowedCardSort, FollowedSection } from "@/server/marketQueries";
 import type { OwnedCardView } from "@/server/ownedCardViews";
 import { OwnedCard } from "../OwnedCard";
 import { DefaultAvatar } from "../Avatar";
 import { CareerBadge } from "../brand/CareerBadge";
 import { MaskedCard } from "../MaskedCard";
 import { TierChip } from "../TierChip";
+import { FollowedSortPicker } from "./FollowedSortPicker";
 import { PinButton } from "./PinButton";
 import { SpineRail } from "./SpineRail";
 import styles from "./leaderboard.module.css";
@@ -19,7 +20,9 @@ import styles from "./leaderboard.module.css";
 //   ① 프로필 박스 — 좌: 아바타 + 적중률·표본 / 우: 이름·배지 + 소개말
 //        소개말의 첫 글자가 이름의 첫 글자와 같은 선에 선다. 둘은 한 사람의 두 마디라
 //        들쭉날쭉하면 서로 다른 정보처럼 읽힌다
-//   ② 선반 — 판매 중 N장 / 무료 글 N편 → , 그 아래 카드 레일(맨바탕) + 스파인
+//   ② 선반 — 판매 중 N장 · 정렬 ▾ / 무료 글 N편 → , 그 아래 카드 레일(맨바탕) + 스파인
+//        정렬 버튼이 여기 있는 이유: 바꾸는 자리는 결과가 보이는 자리여야 한다.
+//        섹션 제목까지 올라가면 카드에서 눈을 떼야 하고, 바꾼 결과는 다시 내려와야 보인다
 //
 // 겉을 감싸던 회색 컨테이너는 없앴다 — 회색 상자 → 흰 프로필 상자 → 흰 카드로
 // "담겨 있다"가 세 번 반복될 뿐 새 정보가 없었다. 그린 상자는 프로필과 카드,
@@ -43,6 +46,8 @@ export function FollowedSections({
   now,
   showPin = true,
   ownedViews,
+  sort,
+  sortHrefs,
 }: {
   sections: FollowedSection[];
   now: Date;
@@ -50,6 +55,15 @@ export function FollowedSections({
   showPin?: boolean;
   /** 이미 산 카드의 공개 뷰 — 있으면 구성이 다른 카드(OwnedCard)로 그린다 */
   ownedViews?: Map<string, OwnedCardView>;
+  /**
+   * 레일 카드 정렬 — 선반 머리("판매 중 N장" 옆)에서 바꾼다.
+   * **레일마다 붙는다.** 값은 전 레일 공통이라 화면당 한 번만 두는 편이 짧지만,
+   * 그러면 정렬을 바꾸려고 카드에서 눈을 떼고 섹션 제목까지 올라가야 한다 —
+   * 순서를 바꾸는 자리는 순서가 보이는 자리여야 한다.
+   * hrefs가 함수가 아니라 값인 이유는 FollowedSortPicker 주석 참고
+   */
+  sort?: FollowedCardSort;
+  sortHrefs?: Record<FollowedCardSort, string>;
 }) {
   return (
     <>
@@ -109,7 +123,20 @@ export function FollowedSections({
             {/* ② 선반 — 무엇이 있나 */}
             <div className={styles.prShelf}>
               <div className={styles.prShelfHead}>
-                <span className={styles.prShelfCount}>판매 중 {s.cards.length}장</span>
+                <span className={styles.prShelfLead}>
+                  <span className={styles.prShelfCount}>판매 중 {s.cards.length}장</span>
+                  {/* 카드가 한 장뿐인 레일에서는 정렬이 아무 일도 하지 않으므로 그리지 않는다.
+                      단 **기본값이 아닐 때는 항상 그린다** — 기본이 아닌 상태에서 버튼이
+                      사라지면 되돌릴 길이 없어진다(hideOwned 칩과 같은 규칙) */}
+                  {sort && sortHrefs && (s.cards.length > 1 || sort !== "NEW") && (
+                    <>
+                      <span className={styles.prShelfDot} aria-hidden="true">
+                        ·
+                      </span>
+                      <FollowedSortPicker sort={sort} hrefs={sortHrefs} />
+                    </>
+                  )}
+                </span>
                 {s.freeCount > 0 && (
                   <Link href={`/free?r=${s.researcherId}`} className={styles.prFreeLink}>
                     무료 글 {s.freeCount}편 →

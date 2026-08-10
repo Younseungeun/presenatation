@@ -5,6 +5,7 @@ import type { OwnedCardView } from "@/server/ownedCardViews";
 import { VerifiedBadge } from "./brand/VerifiedBadge";
 import { dday } from "./format";
 import { StockLogo } from "./StockLogo";
+import { TimeGauge } from "./TimeGauge";
 import styles from "./ownedCard.module.css";
 
 // 구매한 예측 카드 — **구매 전 카드와 다른 물건이다.**
@@ -65,7 +66,10 @@ export function OwnedCard({
   // **구매 전 카드는 판매 마감을, 구매 후 카드는 판정 시점을 센다** — 산 사람에게
   // 남은 관심사는 "언제까지 살 수 있나"가 아니라 "언제 결과가 나오나"다
   const showDdayLead = ddayLabel.startsWith("D-");
-  const fill = hasPrice ? fillPercent(p.achievement) : p.timeRatio * 100;
+  // 막대는 **가격 전용**이다 — 시세가 없으면 시간으로 대신 채우지 않고 빈 궤도로 둔다.
+  // 채워진 막대가 화면마다 다른 것을 뜻하면 막대를 읽을 때마다 무엇의 진행인지
+  // 되물어야 한다 (시간은 우측 상단 눈금이 항상 센다)
+  const fill = hasPrice ? fillPercent(p.achievement) : 0;
 
   return (
     <Link
@@ -82,6 +86,12 @@ export function OwnedCard({
           {v.researcherName}
           {v.careerBadge && <VerifiedBadge size={10} />}
         </span>
+      </span>
+
+      {/* 시간 경과 — 막대에서 떼어 온 축. 우측 상단에 눈금 4칸으로 선다.
+          가격은 연속(막대), 시간은 이산(눈금)이라 형태가 다르므로 겹쳐 읽히지 않는다 */}
+      <span className={styles.gaugeSlot}>
+        <TimeGauge timeRatio={p.timeRatio} />
       </span>
 
       {/* ① 종목 — 구매로 열린 것 */}
@@ -104,25 +114,23 @@ export function OwnedCard({
         </span>
       </span>
 
-      {/* ② 상황 막대 — 가격 진행을 채우고 시간을 마커로 얹는다.
-          두 막대로 나누면 정작 중요한 "시간 대비 진도"가 안 보인다 */}
+      {/* ② 상황 막대 — **가격 진행 하나만** 그린다 (시간은 우측 상단 눈금).
+          색이 옅은 곳에서 진한 곳으로 넉넉히 건너간다: 폭만으로는 30%와 45%가
+          구별되지 않지만 색까지 함께 움직이면 곁눈질로도 잡힌다.
+          15% → 45% → 100%로 세 단(중간 단이 없으면 대부분 구간이 흐릿한 채 지난다) */}
       <span className={styles.bar}>
+        {/* 채울 것이 없으면 그리지 않는다 — min-width가 만든 3px 조각은 "조금 왔다"로 읽힌다 */}
+        {fill > 0 && (
         <span
           className={styles.barFill}
           style={{
             width: `${fill}%`,
-            background: hasPrice
-              ? `linear-gradient(to right, color-mix(in srgb, ${tone} 55%, transparent), ${tone})`
-              : "color-mix(in srgb, var(--text-faint) 40%, transparent)",
+            background: `linear-gradient(90deg,
+              color-mix(in srgb, ${tone} 15%, transparent) 0%,
+              color-mix(in srgb, ${tone} 45%, transparent) 42%,
+              ${tone} 100%)`,
           }}
         />
-        {/* 시간 마커 — 가격 막대 위에서만 뜻이 있다 (시간 전용 막대에서는 채움이 곧 시간) */}
-        {hasPrice && (
-          <span
-            className={styles.barTime}
-            style={{ left: `${p.timeRatio * 100}%` }}
-            aria-hidden="true"
-          />
         )}
       </span>
 
@@ -147,15 +155,14 @@ export function OwnedCard({
                   ? "아직 반대 방향"
                   : `목표까지 ${Math.round(p.achievement! * 100)}% 달성`}
             </span>
+            {/* 시간 경과는 여기서 뺐다 — 우측 상단 눈금이 세므로 두 번 적을 이유가 없다 */}
             <span className={styles.readoutSub}>
               현재 {p.currentReturnPct! >= 0 ? "+" : ""}
-              {p.currentReturnPct!.toFixed(1)}% · 시간 {Math.round(p.timeRatio * 100)}% 경과
+              {p.currentReturnPct!.toFixed(1)}%
             </span>
           </>
         ) : (
-          <span className={styles.readoutSub}>
-            시세 연동 대기 · 기간 {Math.round(p.timeRatio * 100)}% 경과
-          </span>
+          <span className={styles.readoutSub}>시세 연동 대기</span>
         )}
       </span>
         {!compact && (

@@ -12,8 +12,6 @@ import { AppHeader } from "../AppHeader";
 import { EmptyState } from "../EmptyState";
 import { TraceNotice } from "../TraceNotice";
 import { FollowedSections } from "../leaderboard/FollowedSections";
-import { FollowedSortPicker } from "../leaderboard/FollowedSortPicker";
-import lb from "../leaderboard/leaderboard.module.css";
 import styles from "../market.module.css";
 
 export const dynamic = "force-dynamic";
@@ -78,24 +76,22 @@ export default async function FollowingPage({
             <p className={styles.sub}>
               압정을 누르면 리더보드 맨 위에 고정됩니다. 고정한 순서대로 놓입니다.
             </p>
-            {/* 리더보드와 같은 정렬 버튼 — 이 화면이 그 섹션의 확대판이라 조작도 같아야 한다 */}
-            <div className={lb.secHead}>
-              <span className={lb.secEyebrow}>
-                카드
-                <FollowedSortPicker
-                  sort={followedSort}
-                  hrefs={
-                    Object.fromEntries(
-                      FOLLOWED_CARD_SORTS.map((s) => [
-                        s,
-                        s === "NEW" ? "/following" : `/following?fsort=${s}`,
-                      ]),
-                    ) as Record<FollowedCardSort, string>
-                  }
-                />
-              </span>
-            </div>
-            <FollowedSections sections={sections} now={now} ownedViews={ownedViews} />
+            {/* 정렬 버튼은 리더보드와 같이 각 리서처의 선반 머리에 붙는다 —
+                이 화면이 그 섹션의 확대판이라 조작도 같은 자리에 있어야 한다 */}
+            <FollowedSections
+              sections={sections}
+              now={now}
+              ownedViews={ownedViews}
+              sort={followedSort}
+              sortHrefs={
+                Object.fromEntries(
+                  FOLLOWED_CARD_SORTS.map((s) => [
+                    s,
+                    s === "NEW" ? "/following" : `/following?fsort=${s}`,
+                  ]),
+                ) as Record<FollowedCardSort, string>
+              }
+            />
             <TraceNotice />
           </>
         )}

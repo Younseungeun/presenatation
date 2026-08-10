@@ -53,6 +53,8 @@
   gap: 2px;
   min-width: 0;
   margin-bottom: auto;
+  /* 우측 상단 시간 눈금(.gaugeSlot)이 앉을 자리 — 눈금은 흐름 밖이라 스스로 밀어내지 못한다 */
+  padding-right: 36px;
 }
 /* 제목은 잉크로 또렷하게. 다만 종목명(.name)보다는 작다 —
    이 카드의 주인공은 여전히 "내가 산 종목"이고 제목은 그 글의 이름이다.
@@ -131,7 +133,22 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── ② 상황 막대 — 가격 진행 채움 + 시간 마커 ── */
+/* 시간 눈금 자리 — 카드 우측 상단. 흐름에서 빼내 절대 배치하는 이유:
+   머리글 줄에 끼워 넣으면 제목 길이에 따라 눈금이 위아래로 흔들려,
+   여러 장을 훑을 때 같은 자리에서 같은 것을 읽는다는 감각이 깨진다.
+   자리를 비켜 주는 몫은 .header의 padding-right가 낸다 */
+.gaugeSlot {
+  position: absolute;
+  top: 13px;
+  right: 16px;
+  line-height: 0;
+}
+.compact .gaugeSlot {
+  top: 12px;
+  right: 14px;
+}
+
+/* ── ② 상황 막대 — **가격 진행 전용** (시간은 위 눈금이 센다) ── */
 .bar {
   position: relative;
   display: block;
@@ -147,18 +164,6 @@
   bottom: 0;
   border-radius: 3px;
   min-width: 3px;
-}
-/* 시간 마커 — 막대를 가로지르는 얇은 잉크 선. 채움(가격)과 겹쳐 놓아야
-   "시간은 여기까지 왔는데 진도는 저기"라는 비교가 한눈에 잡힌다 */
-.barTime {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  width: 2px;
-  margin-left: -1px;
-  border-radius: 1px;
-  background: var(--text, #191f28);
-  box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--bg) 85%, transparent);
 }
 
 /* ── ③ 수치 — 긴 카드에서는 오른쪽 끝에 구매가가 같은 줄로 앉는다 ── */

@@ -3,8 +3,10 @@ import type { Direction } from './constants';
 // 구매한 카드의 진행 상황 — 순수 계산.
 //
 // 축이 둘이다: **시간**(게시 → 시한)과 **가격**(기준가 → 목표가).
-// 둘을 따로 그리면 정작 중요한 것이 안 보인다 — "시간은 61% 지났는데 목표는 42%"라는
-// **페이스**다. 그래서 화면은 같은 막대에 가격 진행을 채우고 시간을 마커로 얹는다.
+// 화면은 둘을 **다른 물건으로 그린다** (2026-08-10 개편):
+// 막대는 가격 진행만 채우고, 시간은 카드 우측 상단의 4칸 눈금(timeGaugeStep)이 센다.
+// 한 막대에 채움(가격)과 마커(시간)를 겹쳤을 때는 둘이 같은 축의 두 값처럼 읽혀
+// "이 막대는 무엇의 진행인가"가 매번 다시 해석되어야 했다.
 //
 // 이 값들은 **판정이 아니다**. 판정은 시한 도래 시점의 확정 시세로만 이뤄지므로,
 // 여기 100%가 떠도 시한 전 되돌림이면 실패로 판정된다. 화면이 그 사실을 함께 적어야 한다.
@@ -73,4 +75,20 @@ export function computeCardProgress(input: CardProgressInput): CardProgress {
 export function fillPercent(achievement: number | null): number {
   if (achievement === null) return 0;
   return Math.min(100, Math.max(0, achievement * 100));
+}
+
+/** 시간 눈금 칸 수 — 25%마다 한 칸 */
+export const TIME_GAUGE_STEPS = 4;
+
+/**
+ * 시간 경과 눈금 1~4 — **채워진 칸 수 = 지금 몇 번째 사분면에 있는가.**
+ *
+ * 내림(floor)이 아니라 올림(ceil)인 이유: 방금 게시된 카드가 0칸이면 눈금이 통째로
+ * 비어 고장 난 것처럼 보인다. 올림을 쓰면 1칸(회색 = 아직 초반)에서 시작해
+ * 칸 수가 곧 구간 번호가 되므로 "지금 어디쯤"이 개수만으로 읽힌다.
+ * 정확한 퍼센트는 눈금이 말할 수 없으므로 라벨(aria-label·title)이 따로 싣는다.
+ */
+export function timeGaugeStep(timeRatio: number): number {
+  const r = Math.min(1, Math.max(0, timeRatio));
+  return Math.min(TIME_GAUGE_STEPS, Math.max(1, Math.ceil(r * TIME_GAUGE_STEPS)));
 }

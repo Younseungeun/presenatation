@@ -1,0 +1,33 @@
+/* 시간 경과 눈금 — TimeGauge.tsx 전용.
+   색은 칸 수가 정한다(회색 → 초록 → 노랑 → 빨강). 채워진 칸이 그 색을 쓰고,
+   빈 칸은 색을 따라가지 않고 항상 같은 잉크 자국으로 남는다 —
+   빈 칸까지 빨개지면 4칸이 전부 빨간 4칸과 구별되지 않는다. */
+.gauge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2.5px;
+  line-height: 0;
+}
+.on {
+  color: currentColor;
+}
+/* 빈 칸 — 지우지 않고 남긴다. 눈금의 전체 길이가 보여야 "4칸 중 2칸"이 읽힌다 */
+.off {
+  color: color-mix(in srgb, var(--text-faint) 26%, transparent);
+}
+
+/* 1칸 = 회색: 아직 초반이라 재촉할 것이 없다.
+   2~4칸은 경고 사다리 — --pos/--neg는 방향(상승·하락)도 쓰는 색이지만,
+   눈금은 모양(느낌표)과 자리(우측 상단)가 달라 방향 신호와 섞이지 않는다 */
+.t1 {
+  color: var(--text-faint);
+}
+.t2 {
+  color: var(--pos);
+}
+.t3 {
+  color: var(--warn);
+}
+.t4 {
+  color: var(--neg);
+}

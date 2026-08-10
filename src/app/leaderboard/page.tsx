@@ -35,7 +35,6 @@ import { MaskedCard } from "../MaskedCard";
 import { TraceNotice } from "../TraceNotice";
 import { AckSalesClose } from "./AckSalesClose";
 import { BestSellers } from "./BestSellers";
-import { FollowedSortPicker } from "./FollowedSortPicker";
 import { FilterBar } from "./FilterBar";
 import { FollowedSections } from "./FollowedSections";
 import { MoreCards } from "./MoreCards";
@@ -326,11 +325,9 @@ export default async function LeaderboardPage({
             {/* 아이브로우 = 이 섹션의 정렬 규칙. 우측 잔글씨가 아니라 제목 위에 두는 이유:
                 "무슨 순서로 나열됐나"는 목록을 읽는 방법이라 제목보다 먼저 잡혀야 한다 */}
             <span className={lb.secLead}>
-              {/* 아이브로우가 곧 정렬 버튼 — 그 자리의 일이 "무슨 순서로 나열됐나"라서 */}
-              <span className={lb.secEyebrow}>
-                카드
-                <FollowedSortPicker sort={followedSort} hrefs={followedSortHrefs} />
-              </span>
+              {/* 아이브로우가 말하는 것은 **사람의 순서**다. 카드의 순서는 축이 달라
+                  각 리서처의 선반 머리("판매 중 N장 · 최신순 ▾")가 따로 맡는다 */}
+              <span className={lb.secEyebrow}>고정한 순 · 새 카드 낸 순</span>
               <span className={lb.secTitle}>팔로우한 리서처</span>
             </span>
             {followedSections.length > FOLLOWED_ON_LEADERBOARD && (
@@ -344,6 +341,8 @@ export default async function LeaderboardPage({
             now={now}
             showPin={false}
             ownedViews={ownedViews}
+            sort={followedSort}
+            sortHrefs={followedSortHrefs}
           />
         </>
       )}

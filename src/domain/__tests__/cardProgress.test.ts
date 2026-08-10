@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeCardProgress, fillPercent } from '../cardProgress';
+import { computeCardProgress, fillPercent, timeGaugeStep } from '../cardProgress';
 
 // 진행 계산 — 화면이 "잘 되고 있나"에 답하는 근거다.
 // 방향 분기를 두지 않는 것이 설계의 핵심이라, 상승·하락이 같은 식으로 맞는지 못 박는다.
@@ -120,5 +120,29 @@ describe('달성률 — 방향 분기 없이 부호가 맞아야 한다', () => 
       direction: 'UP',
     });
     expect(p.achievement).toBeNull();
+  });
+});
+
+// 시간 눈금 — 채워진 칸 수가 곧 "지금 몇 번째 사분면인가".
+describe('timeGaugeStep', () => {
+  it('갓 게시된 카드도 1칸에서 시작한다 — 0칸은 눈금이 고장 난 것처럼 보인다', () => {
+    expect(timeGaugeStep(0)).toBe(1);
+    expect(timeGaugeStep(0.0001)).toBe(1);
+  });
+
+  it('사분면마다 한 칸씩 오른다', () => {
+    expect(timeGaugeStep(0.24)).toBe(1);
+    expect(timeGaugeStep(0.25)).toBe(1); // 경계는 그 구간의 끝
+    expect(timeGaugeStep(0.26)).toBe(2);
+    expect(timeGaugeStep(0.5)).toBe(2);
+    expect(timeGaugeStep(0.51)).toBe(3);
+    expect(timeGaugeStep(0.75)).toBe(3);
+    expect(timeGaugeStep(0.76)).toBe(4);
+    expect(timeGaugeStep(1)).toBe(4);
+  });
+
+  it('범위를 벗어난 값도 1~4에 갇힌다', () => {
+    expect(timeGaugeStep(-3)).toBe(1);
+    expect(timeGaugeStep(9)).toBe(4);
   });
 });
