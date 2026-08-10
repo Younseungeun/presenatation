@@ -140,6 +140,10 @@ model PredictionCard {
   confidence    Int       @default(5) // 신뢰도 1~10 (필수) — 점수 증폭 배율 (scoring.ts)
   selfStability Int       @default(1) // 자기 평가 안정성 1~10 — 정밀도 배팅 (1 = 불참이 기본: 모르고 배팅당하는 사고 방지, scoring.ts)
   // 수익성은 저장하지 않는다 — 예측 크기에서 자동 산출 (domain/profitability.ts)
+  // 조기 판정 적용 여부 — **게시 시점에 고정한다.** 규칙을 나중에 바꿔도 이미 팔린
+  // 카드의 판정 조건이 소급해 바뀌면 안 되기 때문(상품 사양이 사후에 달라지는 셈).
+  // 기존 카드는 false로 남아 예전 규칙 그대로 시한에만 판정된다.
+  earlyJudgment Boolean   @default(false)
   withdrawnAt   DateTime? // 철회 시각 (철회해도 기록 유지)
   createdAt     DateTime  @default(now())
 

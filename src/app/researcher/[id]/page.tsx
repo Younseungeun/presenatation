@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { isSalesWindowOpen } from "@/domain/salesWindow";
 import { prisma } from "@/server/db";
 import { getResearcherFinance } from "@/server/financeQueries";
 import { getResearcherDashboard, type DashboardReport } from "@/server/reportQueries";
@@ -38,6 +39,7 @@ export default async function ResearcherDashboard({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const now = new Date();
   const data = await getResearcherDashboard(prisma, id);
   if (!data) notFound();
   const finance = await getResearcherFinance(prisma, id);
@@ -130,7 +132,18 @@ export default async function ResearcherDashboard({
                 );
               })()}
             </div>
-            <ReportActions reportId={report.id} status={report.status} />
+            <ReportActions
+              reportId={report.id}
+              status={report.status}
+              salesClosed={report.salesClosedAt !== null}
+              /* 시간 규칙 판단은 서버에서 — 렌더 중 현재 시각을 읽으면 순수성 규칙에 걸린다 */
+              canCloseSales={
+                report.salesClosedAt === null &&
+                report.predictionCard !== null &&
+                report.predictionCard.withdrawnAt === null &&
+                isSalesWindowOpen(report.publishedAt, report.predictionCard.deadline, now)
+              }
+            />
           </div>
         ))
       )}

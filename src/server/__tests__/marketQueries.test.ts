@@ -7,6 +7,7 @@ import {
   getBestSellingCards,
   getCardsByAssetClass,
   getRecentJudgments,
+  getResearcherConsensus,
   getTopTierCards,
   getSalesClosingSoonCards,
   searchCards,
@@ -214,5 +215,40 @@ describe('판매 기간 종료 카드는 목록에서 빠진다 (배치 지연�
   it('검색 결과', async () => {
     const rows = await searchCards(prisma, parseCardQuery('#코인'), 'DEADLINE', NOW);
     expect(rows.map((r) => r.reportId)).not.toContain(windowClosed);
+  });
+});
+
+// 예측 히트맵의 표본 경계 — **검증 시한이 기준이지 판매 기한이 아니다.**
+// 히트맵은 "지금 검증 중인 예측의 종목별 방향 분포"라, 판매가 끝났어도 예측은
+// 살아서 판정을 기다리는 중이므로 계속 세야 한다. 코드는 이미 그렇게 동작하지만
+// 지키는 테스트가 없었다 — salesClosedAt 조건이 실수로 끼면 조용히 틀어진다.
+describe('예측 히트맵 표본 = 검증 시한 기준', () => {
+  it('판매가 마감된 카드도 시한 전이면 계속 센다', async () => {
+    const before = await getResearcherConsensus(prisma, 100, NOW);
+    const total = (rows: typeof before) => rows.reduce((n, r) => n + r.total, 0);
+    const n0 = total(before);
+
+    await prisma.report.update({
+      where: { id: quiet },
+      data: { salesClosedAt: NOW, salesCloseReason: 'WINDOW_END' },
+    });
+    const after = await getResearcherConsensus(prisma, 100, NOW);
+    expect(total(after), '판매 마감이 히트맵 표본을 줄이면 안 된다').toBe(n0);
+
+    await prisma.report.update({
+      where: { id: quiet },
+      data: { salesClosedAt: null, salesCloseReason: null },
+    });
+  });
+
+  it('검증 시한이 지나면 그때부터 세지 않는다', async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { reportId: quiet } });
+    const inWindow = await getResearcherConsensus(prisma, 100, NOW);
+    expect(inWindow.some((r) => r.ticker === card.ticker)).toBe(true);
+
+    // 시한 직후를 기준 시각으로 두면 같은 카드가 표본에서 빠진다
+    const past = new Date(card.deadline.getTime() + 1000);
+    const afterDeadline = await getResearcherConsensus(prisma, 100, past);
+    expect(afterDeadline.some((r) => r.ticker === card.ticker)).toBe(false);
   });
 });
