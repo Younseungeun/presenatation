@@ -42,7 +42,8 @@ interface PurchasableReport {
   /** 시간 규칙(판매 기간)을 그 자리에서 계산하기 위해 필요하다 — 아래 주석 참고 */
   publishedAt?: Date | null;
   researcher: { userId: string };
-  predictionCard: { deadline: Date } | null;
+  /** judgment: 조기 판정으로 시한 전에 결과가 나올 수 있어 반드시 함께 본다 */
+  predictionCard: { deadline: Date; judgment?: { outcome: string } | null } | null;
 }
 
 /** 구매·결제 요청 양쪽에서 공유하는 검증 — 한쪽만 고치고 다른 쪽을 깜빡하는 일을 막는다 */
@@ -60,6 +61,13 @@ export function assertPurchasable(report: PurchasableReport, buyerId: string, no
   // 판매 마감(시간 규칙 또는 구간 이탈 종가) — 확정 상태라 재개되지 않는다
   if (report.salesClosedAt) {
     throw new Error('판매가 마감된 리포트입니다');
+  }
+  // **판정이 끝난 카드는 결과를 아는 사람이 사게 된다.**
+  // 조기 판정이 생기기 전에는 이 검사가 필요 없었다 — 판정은 시한 이후에만 일어나므로
+  // 아래 "시한이 지났나"가 "이미 판정됐나"를 함께 막아 줬다. 조기 판정이 그 전제를
+  // 깨뜨렸으므로(시한이 남았는데 결과가 나온 카드) 판정 여부를 직접 본다.
+  if (report.predictionCard?.judgment) {
+    throw new Error('판정이 끝난 리포트는 구매할 수 없습니다');
   }
   // 시한이 지난 카드는 곧 판정되므로 신규 구매 차단 (결과를 보고 사는 것 방지).
   // **판매 기간보다 먼저 본다** — 판매 기간은 시한보다 항상 먼저 끝나므로 시한이 지난

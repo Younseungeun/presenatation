@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { RISK_LEVEL_LABEL, RISK_LEVEL_NOTE, type RiskLevel } from "@/domain/instrumentRisk";
 import { cardProfitabilityLevel } from "@/domain/profitability";
-import { salesGuaranteeText } from "@/domain/salesWindow";
+import { isSalesWindowOpen, salesGuaranteeText } from "@/domain/salesWindow";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getResearcherCallout } from "@/server/marketQueries";
@@ -76,6 +76,17 @@ export default async function ReportDetail({
   const isOwner = viewerId !== null && report.researcher.user.id === viewerId;
   const masked = !!card && !purchased && !judgment && !isOwner;
   const profitabilityLevel = card ? cardProfitabilityLevel(card) : null;
+  const now = new Date();
+
+  // 지금 실제로 살 수 있나 — **결제 관문(assertPurchasable)과 같은 기준으로 판단한다.**
+  // 저장된 salesClosedAt만 보면 화면이 서버보다 헐거워진다: 판매 기간이 끝났는데
+  // 배치가 아직 기록 전이면 구매 버튼이 그대로 떠 있고, 눌러야 에러를 만난다.
+  // 화면이 "살 수 있다"고 말한 것은 서버도 그렇게 답해야 한다
+  const sellable =
+    !report.salesClosedAt &&
+    !judgment &&
+    (!card || card.deadline > now) &&
+    isSalesWindowOpen(report.publishedAt, card?.deadline, now);
 
   // 예측 사양표 — **구매 여부에 따라 위치가 달라지므로** 변수로 뽑아 둔다.
   //
@@ -226,7 +237,7 @@ export default async function ReportDetail({
       {/* 구매로 열린 카드 — 종목·방향·목표가가 히어로.
           마스킹이 풀린 상태(구매자·리서처 본인·판정 완료·운영자)에서만 그린다.
           표에 값만 채우면 방금 돈 내고 얻은 것이 선결제 비율과 같은 무게로 나열된다 */}
-      {card && !masked && <RevealedCard card={card} now={new Date()} />}
+      {card && !masked && <RevealedCard card={card} now={now} />}
 
       {/* 구매 전에는 사양표가 결정의 재료라 본문(잠김) 앞에 온다.
           구매 후에는 본문 뒤로 내려간다 — 아래 purchased 분기에서 그린다 */}
@@ -324,7 +335,7 @@ export default async function ReportDetail({
           </>
           )}
         </>
-      ) : report.status === "PUBLISHED" && report.salesClosedAt ? (
+      ) : report.status === "PUBLISHED" && !sellable ? (
         // 판매 마감 — 공개 문구는 사유 무관 이 한 줄로 통일한다. 사유("목표 접근" 등)를
         // 공개하면 자산군·방향·구간·시각과 조합해 종목이 좁혀진다(마스킹 붕괴).
         // 상세 사유는 리서처 본인 알림으로만 간다

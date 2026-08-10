@@ -180,7 +180,9 @@ function buyableWhere(now: Date) {
     // 판매 마감(시간·구간 이탈)된 카드는 목록의 "지금 살 수 있는"에서 빠진다 —
     // 카드는 살아서 시한에 판정되지만, 이 화면들의 약속은 구매 가능성이다
     salesClosedAt: null,
-    predictionCard: { is: { deadline: { gt: now }, withdrawnAt: null } },
+    // judgment: null — 조기 판정으로 **시한 전에 결과가 나온 카드**를 거른다.
+    // 예전에는 판정이 시한 이후에만 일어나 deadline 조건이 이것까지 막아 줬다
+    predictionCard: { is: { deadline: { gt: now }, withdrawnAt: null, judgment: null } },
   } as const;
 }
 
