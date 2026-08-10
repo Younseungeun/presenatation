@@ -3,9 +3,11 @@ import os from 'node:os';
 import path from 'node:path';
 import type {
   DailyQuote,
+  InstrumentListing,
   MarketDataProvider,
   SecurityStatus,
 } from '@/domain/marketData';
+import { fetchKrInstruments, fetchUsInstruments } from './kisInstrumentMaster';
 
 // 한국투자증권 KIS Open API — 국내주식 + 미국주식을 **한 공급자**가 담당한다.
 // https://apiportal.koreainvestment.com
@@ -291,6 +293,16 @@ export class KisMarketDataProvider implements MarketDataProvider {
    */
   async getSecurityStatus(): Promise<SecurityStatus> {
     return { delisted: false, halted: false };
+  }
+
+  /**
+   * 상장 종목 전체 — 종목 마스터(Instrument) 동기화용.
+   * **REST가 아니라 정적 마스터 파일**에서 읽는다(kisInstrumentMaster.ts): 인증도
+   * 호출 제한도 없고 파일 하나에 전 종목이 들어 있다. 그래서 이 메서드만 호출 큐를
+   * 타지 않는다 — 시세 조회와 성격이 다른 일이다.
+   */
+  listInstruments(): Promise<InstrumentListing[]> {
+    return this.market === 'KR' ? fetchKrInstruments() : fetchUsInstruments();
   }
 
   private exchangeOrder(ticker: string): readonly string[] {
