@@ -77,6 +77,109 @@ export default async function ReportDetail({
   const masked = !!card && !purchased && !judgment && !isOwner;
   const profitabilityLevel = card ? cardProfitabilityLevel(card) : null;
 
+  // 예측 사양표 — **구매 여부에 따라 위치가 달라지므로** 변수로 뽑아 둔다.
+  //
+  //   구매 전: 히어로 카드 → **사양표** → 잠긴 본문
+  //     아직 안 산 사람에게 이 표는 결정의 재료다. 본문이 잠겨 있으니 살지 말지를
+  //     판단할 것이 시한·확신 3종·선결제뿐이라 위에 있어야 한다.
+  //
+  //   구매 후: 히어로 카드 → **본문** → 사양표 → 구매 정보
+  //     사고 나면 표의 값은 이미 결정에 쓰이지 않는다. 돈을 낸 이유는 본문을 읽으려는
+  //     것인데 표 두 개를 지나야 글이 나오면, 매번 아는 값을 스크롤로 넘겨야 한다.
+  //     표는 사라지지 않고 참고 자료로 글 뒤에 남는다 (판정 조건 확인용).
+  const specBox = card && (
+    <div className={styles.cardBox}>
+      {/* 자산·방향은 마스킹 상태에서만 표에 남는다 — 열린 뒤에는 위 카드가 맡는다 */}
+      {masked && (
+        <>
+          <div className={styles.cardRow}>
+            <span className={styles.cardKey}>자산</span>
+            <span className={styles.cardVal}>
+              {`${ASSET_CLASS_LABEL[card.assetClass as AssetClass]} (종목은 구매 후 공개)`}
+            </span>
+          </div>
+          <div className={styles.cardRow}>
+            <span className={styles.cardKey}>방향</span>
+            <span className={styles.cardVal}>{dir}</span>
+          </div>
+        </>
+      )}
+      <div className={styles.cardRow}>
+        <span className={styles.cardKey}>검증 시한</span>
+        <span className={styles.cardVal}>
+          {new Date(card.deadline).toLocaleString("ko-KR")}
+        </span>
+      </div>
+      <div className={styles.cardRow}>
+        <span className={styles.cardKey}>신뢰도</span>
+        <span className={styles.cardVal}>
+          <StarRating stars={confidenceStars(card.confidence)} label="신뢰도" />
+        </span>
+      </div>
+      <div className={styles.cardRow}>
+        <span className={styles.cardKey}>안정성</span>
+        <span className={styles.cardVal}>
+          <StarRating stars={stabilityStars(card.selfStability)} label="안정성" />
+        </span>
+      </div>
+      <div className={styles.cardRow}>
+        <span className={styles.cardKey}>수익성</span>
+        <span className={styles.cardVal}>
+          {profitabilityLevel === null ? (
+            "—"
+          ) : (
+            <StarRating stars={profitabilityLevel} label="수익성" />
+          )}
+        </span>
+      </div>
+      {/* 별점 읽는 법 — 구매자의 알 권리. 별은 다이얼 원값(1~10)이 아니라 그 신고가
+          함의하는 최소 승률 × 5다. 이 규칙을 모르면 별 4개를 "만점의 8할"로 읽는다 */}
+      <p className={styles.cardFootnote}>
+        신뢰도·안정성 별점은 리서처 신고값이 함의하는 최소 승률입니다 (별 4개 = 80%,
+        별 5개 = 승률 100%라 존재하지 않음).{" "}
+        <Link href="/score" className={styles.cardFootnoteLink}>
+          산정 방식 직접 계산해 보기 →
+        </Link>
+      </p>
+      {/* 판매 중 보장 고지 — 실제로 집행되는 규칙(잔여 < 구간 바닥×2/3 종가 → 자동 마감)을
+          구매자 언어로. **공개 정보(구간)에서만 유도한다** — 실제 잔여 수치를 적으면
+          시세와 대조해 종목이 역산된다. 고지는 보장선까지, 집행이 그 말을 참으로 만든다 */}
+      {masked && profitabilityLevel !== null && (
+        <p className={styles.cardFootnote}>
+          {salesGuaranteeText(card.assetClass as AssetClass, profitabilityLevel)}
+        </p>
+      )}
+      <div className={styles.cardRow}>
+        <span className={styles.cardKey}>선결제</span>
+        <span className={styles.cardVal}>
+          {report.prepaymentRatio}%{" "}
+          {report.prepaymentRatio === 0 && "(틀리면 100% 현금 환불)"}
+        </span>
+      </div>
+      {judgment && (
+        <div className={styles.cardRow}>
+          <span className={styles.cardKey}>판정 결과</span>
+          <span className={styles.cardVal}>
+            <StatusChip
+              status={
+                judgment.outcome === "HIT"
+                  ? "HIT"
+                  : judgment.outcome === "MISS"
+                    ? "MISS"
+                    : "UNDECIDABLE"
+              }
+            />
+            {judgment.realizedReturnPct != null &&
+              ` 실현 ${judgment.realizedReturnPct >= 0 ? "+" : ""}${judgment.realizedReturnPct.toFixed(1)}%`}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+
+  // 판정 근거 영수증 — 사양표와 한 덩어리로 움직인다 (둘 다 "이 예측이 무엇이었나")
+  const receipt = card && judgment && <JudgmentReceipt card={card} judgment={judgment} />;
+
   return (
     <>
       {/* 무료 글은 홈에서 들어오므로 홈으로 나간다. 리서처 프로필로 강제로 내보내면
@@ -125,98 +228,10 @@ export default async function ReportDetail({
           표에 값만 채우면 방금 돈 내고 얻은 것이 선결제 비율과 같은 무게로 나열된다 */}
       {card && !masked && <RevealedCard card={card} now={new Date()} />}
 
-      {card && (
-        <div className={styles.cardBox}>
-          {/* 자산·방향은 마스킹 상태에서만 표에 남는다 — 열린 뒤에는 위 카드가 맡는다 */}
-          {masked && (
-            <>
-              <div className={styles.cardRow}>
-                <span className={styles.cardKey}>자산</span>
-                <span className={styles.cardVal}>
-                  {`${ASSET_CLASS_LABEL[card.assetClass as AssetClass]} (종목은 구매 후 공개)`}
-                </span>
-              </div>
-              <div className={styles.cardRow}>
-                <span className={styles.cardKey}>방향</span>
-                <span className={styles.cardVal}>{dir}</span>
-              </div>
-            </>
-          )}
-          <div className={styles.cardRow}>
-            <span className={styles.cardKey}>검증 시한</span>
-            <span className={styles.cardVal}>
-              {new Date(card.deadline).toLocaleString("ko-KR")}
-            </span>
-          </div>
-          <div className={styles.cardRow}>
-            <span className={styles.cardKey}>신뢰도</span>
-            <span className={styles.cardVal}>
-              <StarRating stars={confidenceStars(card.confidence)} label="신뢰도" />
-            </span>
-          </div>
-          <div className={styles.cardRow}>
-            <span className={styles.cardKey}>안정성</span>
-            <span className={styles.cardVal}>
-              <StarRating stars={stabilityStars(card.selfStability)} label="안정성" />
-            </span>
-          </div>
-          <div className={styles.cardRow}>
-            <span className={styles.cardKey}>수익성</span>
-            <span className={styles.cardVal}>
-              {profitabilityLevel === null ? (
-                "—"
-              ) : (
-                <StarRating stars={profitabilityLevel} label="수익성" />
-              )}
-            </span>
-          </div>
-          {/* 별점 읽는 법 — 구매자의 알 권리. 별은 다이얼 원값(1~10)이 아니라 그 신고가
-              함의하는 최소 승률 × 5다. 이 규칙을 모르면 별 4개를 "만점의 8할"로 읽는다 */}
-          <p className={styles.cardFootnote}>
-            신뢰도·안정성 별점은 리서처 신고값이 함의하는 최소 승률입니다 (별 4개 = 80%,
-            별 5개 = 승률 100%라 존재하지 않음).{" "}
-            <Link href="/score" className={styles.cardFootnoteLink}>
-              산정 방식 직접 계산해 보기 →
-            </Link>
-          </p>
-          {/* 판매 중 보장 고지 — 실제로 집행되는 규칙(잔여 < 구간 바닥×2/3 종가 → 자동 마감)을
-              구매자 언어로. **공개 정보(구간)에서만 유도한다** — 실제 잔여 수치를 적으면
-              시세와 대조해 종목이 역산된다. 고지는 보장선까지, 집행이 그 말을 참으로 만든다 */}
-          {masked && profitabilityLevel !== null && (
-            <p className={styles.cardFootnote}>
-              {salesGuaranteeText(card.assetClass as AssetClass, profitabilityLevel)}
-            </p>
-          )}
-          <div className={styles.cardRow}>
-            <span className={styles.cardKey}>선결제</span>
-            <span className={styles.cardVal}>
-              {report.prepaymentRatio}%{" "}
-              {report.prepaymentRatio === 0 && "(틀리면 100% 현금 환불)"}
-            </span>
-          </div>
-          {judgment && (
-            <div className={styles.cardRow}>
-              <span className={styles.cardKey}>판정 결과</span>
-              <span className={styles.cardVal}>
-                <StatusChip
-                  status={
-                    judgment.outcome === "HIT"
-                      ? "HIT"
-                      : judgment.outcome === "MISS"
-                        ? "MISS"
-                        : "UNDECIDABLE"
-                  }
-                />
-                {judgment.realizedReturnPct != null &&
-                  ` 실현 ${judgment.realizedReturnPct >= 0 ? "+" : ""}${judgment.realizedReturnPct.toFixed(1)}%`}
-              </span>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* 판정 근거 영수증 — 기준가→판정 가격→실현 등락→결과. 조작 불가능한 평판의 물증 */}
-      {card && judgment && <JudgmentReceipt card={card} judgment={judgment} />}
+      {/* 구매 전에는 사양표가 결정의 재료라 본문(잠김) 앞에 온다.
+          구매 후에는 본문 뒤로 내려간다 — 아래 purchased 분기에서 그린다 */}
+      {!purchased && specBox}
+      {!purchased && receipt}
 
       {free ? (
         <>
@@ -234,6 +249,24 @@ export default async function ReportDetail({
           {!purchase && (
             <p className={styles.sub}>운영자 권한으로 검토를 위해 본문을 열람 중입니다.</p>
           )}
+
+          {/* **본문이 먼저다.** 돈을 낸 이유가 이 글이다. 사양표·구매 정보는 사고 나면
+              더 이상 결정에 쓰이지 않는 값이라, 그 둘을 앞에 두면 매번 아는 것을
+              스크롤로 넘긴 뒤에야 글이 나온다 */}
+          <div className={styles.section}>리포트 본문</div>
+          <div className={styles.content}>{report.content}</div>
+          {purchase?.settlement && (
+            <p className={styles.sub}>
+              {purchase.settlement.buyerRefundKrw > 0
+                ? `이 예측은 성과 조건을 충족하지 못해 ${purchase.settlement.buyerRefundKrw.toLocaleString()}원이 현금 환불됩니다.`
+                : "이 예측은 적중해 정상 정산되었습니다."}
+            </p>
+          )}
+
+          {/* 사양표는 사라지지 않고 판정 조건 참고 자료로 글 뒤에 남는다 */}
+          {specBox}
+          {receipt}
+
           {/* 운영자는 구매 없이도 본문을 보므로 구매 정보 블록은 실제 구매자에게만 */}
           {purchase && (
           <>
@@ -289,16 +322,6 @@ export default async function ReportDetail({
             )}
           </div>
           </>
-          )}
-
-          <div className={styles.section}>리포트 본문</div>
-          <div className={styles.content}>{report.content}</div>
-          {purchase?.settlement && (
-            <p className={styles.sub}>
-              {purchase.settlement.buyerRefundKrw > 0
-                ? `이 예측은 성과 조건을 충족하지 못해 ${purchase.settlement.buyerRefundKrw.toLocaleString()}원이 현금 환불됩니다.`
-                : "이 예측은 적중해 정상 정산되었습니다."}
-            </p>
           )}
         </>
       ) : report.status === "PUBLISHED" && report.salesClosedAt ? (
