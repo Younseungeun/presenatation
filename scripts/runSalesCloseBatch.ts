@@ -1,5 +1,6 @@
 // 판매 마감 배치 — npm run batch:salesclose [-- --dry]
 // 하루 1회 이상. --dry는 무엇이 닫힐지 보여주기만 하고 저장하지 않는다.
+// 시간 규칙(WINDOW_END)만 기록한다 — 시세는 전혀 조회하지 않는다 (salesCloseService 참고).
 import { PrismaClient } from '@prisma/client';
 import { runSalesCloseBatch } from '../src/server/salesCloseService';
 
@@ -17,15 +18,13 @@ async function main() {
       },
     }) as PrismaClient;
     const r = await runSalesCloseBatch(fake);
-    console.log(`[dry] 검사 ${r.checked}건 / 닫힐 카드 ${r.closed.length}건 / 보류 ${r.skipped.length}건`);
+    console.log(`[dry] 검사 ${r.checked}건 / 닫힐 카드 ${r.closed.length}건`);
     for (const c of r.closed) console.log(`  [dry] ${c.reportId} ← ${c.reason}`);
-    for (const s of r.skipped) console.log(`  [보류] ${s.reportId} ← ${s.cause}`);
     return;
   }
   const r = await runSalesCloseBatch(prisma);
-  console.log(`검사 ${r.checked}건 / 마감 ${r.closed.length}건 / 보류 ${r.skipped.length}건`);
+  console.log(`검사 ${r.checked}건 / 마감 ${r.closed.length}건`);
   for (const c of r.closed) console.log(`  마감 ${c.reportId} ← ${c.reason}`);
-  for (const s of r.skipped) console.log(`  보류 ${s.reportId} ← ${s.cause}`);
 }
 
 main()

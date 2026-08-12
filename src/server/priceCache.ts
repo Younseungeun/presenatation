@@ -36,13 +36,22 @@ export async function fetchCachedPrice(
   const now = Date.now();
   if (hit && now - hit.at < PRICE_TTL_MS) return hit.price;
 
+  // 실시간 현재가 → 실패하면 최근 일봉 종가로 **폴백**한다.
+  // 판매 중단 검사가 이 값 하나에 의존하므로, 실시간 API가 잠깐 흔들렸다고
+  // 가격 방어가 통째로 꺼지면 안 된다. 전일 종가는 낡았지만 "없음"보다 낫고,
+  // 중단선(광고 폭의 절반)은 넓은 띠라 하루치 오차로 결론이 잘 바뀌지 않는다.
+  const provider = createDefaultRegistry()[assetClass as AssetClass];
   let price: number | null = null;
-  try {
-    const provider = createDefaultRegistry()[assetClass as AssetClass];
-    if (provider) {
-      if (provider.getCurrentPrice) {
+  if (provider) {
+    if (provider.getCurrentPrice) {
+      try {
         price = await provider.getCurrentPrice(ticker);
-      } else {
+      } catch {
+        price = null; // 아래 일봉 폴백으로
+      }
+    }
+    if (price === null || !Number.isFinite(price) || price <= 0) {
+      try {
         const to = toMarketDateString(new Date(), assetClass as AssetClass);
         const from = toMarketDateString(
           new Date(Date.now() - 10 * 86_400_000),
@@ -50,10 +59,10 @@ export async function fetchCachedPrice(
         );
         const quotes = await provider.getDailyQuotes(ticker, from, to);
         price = quotes.length > 0 ? quotes[quotes.length - 1].close : null;
+      } catch {
+        price = null;
       }
     }
-  } catch {
-    price = null;
   }
 
   priceCache.set(key, { at: now, price });

@@ -46,32 +46,36 @@ beforeAll(async () => {
   prisma = createTestDb('sales-audit-');
   await seedTestInstruments(prisma);
   const u = await prisma.user.create({
-    data: { email: 'r@a.io', identityVerified: true, researcherProfile: { create: {} } },
+    data: { email: 'r@a.io', identityVerified: true, researcherProfile: { create: { tier: 'CHALLENGER' } } }, // 활성 카드 상한(15) — 테스트가 카드 6장을 만든다
     include: { researcherProfile: true },
   });
   researcherId = u.researcherProfile!.id;
 });
 afterAll(async () => { await prisma.$disconnect(); });
 
-describe('배치가 놓치는 종가', () => {
-  it('배치를 거른 사이 마감선을 뚫은 종가가 있어도, 회복하면 마감되지 않는다', async () => {
-    // 기준가 100, 목표 +20% → 목표가 120. 수익성 구간 2 → 마감선 = 잔여 10%
-    // 잔여 10% = 현재가가 120/1.10 ≈ 109.1 이상이면 마감
+// 가격 규칙 폐지(2026-08-10) — 배치는 시간 규칙(WINDOW_END)만 기록한다.
+// 가격 괴리는 결제 관문의 가역적 중단(purchaseService)이, 목표 도달은 도달 판정
+// (reachedJudgmentBatch)이 맡는다. 이 배치가 시세를 조회하지 않음을 여기서 고정한다.
+describe('판매 마감 배치 = 시간 규칙만', () => {
+  it('가격이 아무리 움직여도 배치는 판매를 닫지 않는다 — 판매 기간 안이면 그대로', async () => {
     const id = await makeCard(new Date('2026-12-01T00:00:00Z'));
-    const now = new Date('2026-07-10T00:00:00Z');
+    // 게시 07-02, 검증 ~12-01 → 판매 기간은 약 50일 → 30일 상한 → 08-01까지
+    const res = await runSalesCloseBatch(prisma, new Date('2026-07-10T00:00:00Z'));
+    expect(res.closed.find((c) => c.reportId === id)).toBeUndefined();
+    const after = await prisma.report.findUniqueOrThrow({
+      where: { id }, select: { salesClosedAt: true },
+    });
+    expect(after.salesClosedAt).toBeNull();
+  });
 
-    // 07-08에 115(잔여 4.3% → 마감선 아래, 마감돼야 함) → 07-09에 100으로 회복
-    const reg = provider([
-      { date: '2026-07-07', close: 100 },
-      { date: '2026-07-08', close: 115 }, // ← 이 종가가 규칙상 마감 사유
-      { date: '2026-07-09', close: 100 }, // ← 회복
-    ]);
-    const res = await runSalesCloseBatch(prisma, now, reg);
-    const after = await prisma.report.findUniqueOrThrow({ where: { id }, select: { salesClosedAt: true } });
-
-    // 규칙: "잔여가 마감선 밑인 **종가가 찍히면** 마감" → 07-08에 찍혔으므로 마감이어야 한다
-    expect(res.checked).toBeGreaterThan(0);
-    expect(after.salesClosedAt, '배치가 마지막 종가만 봐서 07-08 이탈을 놓쳤다').not.toBeNull();
+  it('판매 기간이 끝나면 WINDOW_END로 기록하고 리서처에게 알린다', async () => {
+    const id = await makeCard(new Date('2026-12-01T00:00:00Z'));
+    const res = await runSalesCloseBatch(prisma, new Date('2026-08-05T00:00:00Z')); // 30일 상한 지남
+    expect(res.closed.some((c) => c.reportId === id && c.reason === 'WINDOW_END')).toBe(true);
+    const after = await prisma.report.findUniqueOrThrow({
+      where: { id }, select: { salesClosedAt: true, salesCloseReason: true },
+    });
+    expect(after.salesCloseReason).toBe('WINDOW_END');
   });
 });
 

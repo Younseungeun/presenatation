@@ -27,7 +27,7 @@
     "batch:compliance": "tsx scripts/complianceOps.ts",
     "calibrate:semantic": "tsx scripts/calibrateSemantic.ts",
     "batch:salesclose": "tsx scripts/runSalesCloseBatch.ts",
-    "batch:earlyjudge": "tsx scripts/runEarlyJudgmentBatch.ts"
+    "batch:reached": "tsx scripts/runReachedJudgmentBatch.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

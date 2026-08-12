@@ -236,13 +236,6 @@ export async function publishReport(
  * 즉시 게시(PASS)와 운영자 승인(PENDING_REVIEW) 두 경로가 공유한다.
  * 승인 경로에서도 이 시점의 시세·컷오프·활성 카드 수로 다시 검증된다.
  */
-/**
- * 새로 게시하는 목표가형 카드에 조기 판정을 적용할지 — **운영 스위치.**
- * 끄면 이후 게시분만 예전 규칙으로 돌아가고, 이미 게시된 카드는 자기 게시 시점의
- * 값을 그대로 유지한다(소급 없음). 등급 임계값 재점검 전까지 되돌릴 여지를 남긴다.
- */
-const EARLY_JUDGMENT_ENABLED = true;
-
 async function finalizePublish(
   prisma: PrismaClient,
   registry: ProviderRegistry,
@@ -327,11 +320,8 @@ async function finalizePublish(
       data: {
         basePrice: snapshot.basePrice,
         baseMode: snapshot.baseMode,
-        // **조기 판정 여부를 게시 시점에 박는다.** 나중에 규칙을 바꿔도 이미 팔린
-        // 카드의 판정 조건은 그대로여야 한다 — 상품 사양이 사후에 달라지면 안 된다.
-        // 목표가형만 켠다: 수익률형은 시한 종가로 판정하므로 조기 확정이 불가능하다
-        // (자세한 근거는 server/earlyJudgmentBatch.ts)
-        earlyJudgment: EARLY_JUDGMENT_ENABLED && card.targetType === 'TARGET_PRICE',
+        // 도달 판정(reachedJudgmentBatch)은 카드별 플래그 없이 전 카드에 적용된다 —
+        // 판정 규칙이 하나뿐이라(기한 내 종가 도달 = 적중) 켜고 끌 대상이 없다
       },
     }),
     ...followerNotifications,

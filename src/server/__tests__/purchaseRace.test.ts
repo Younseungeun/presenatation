@@ -73,7 +73,7 @@ describe('결제 도중 판매 마감', () => {
     // 시세를 조회하려고 await하는 바로 그 지점에서 배치가 끼어든 상황을 재현한다.
     setPriceForTests(async () => {
       await prisma.report.update({
-        where: { id }, data: { salesClosedAt: NOW, salesCloseReason: 'BAND_EXIT' },
+        where: { id }, data: { salesClosedAt: NOW, salesCloseReason: 'WINDOW_END' },
       });
       return 100;
     });

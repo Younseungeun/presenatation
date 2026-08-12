@@ -1,94 +1,93 @@
 import { describe, expect, it } from 'vitest';
 import {
-  bandFloorPct,
-  closesAtDailyClose,
-  remainingReturnPct,
-  salesCloseLinePct,
-  salesSuspendLinePct,
   isSalesWindowOpen,
+  NOTICE_EXCESS_Q,
+  NOTICE_SHORTFALL_Q,
+  remainingFraction,
+  remainingReturnPct,
+  salesNoticeState,
   salesWindowEnd,
-  suspendsIntraday,
+  SUSPEND_ALPHA,
+  suspendsPurchase,
 } from '../salesWindow';
 
-// 판매 마감 규칙 — 소비자에게 한 약속("라벨 최소치의 2/3 보장")이 수식과 일치하는지 고정.
+// 판매 규칙 — 소비자에게 한 약속("결제 승인 = 광고 폭의 절반 이상 보장")이
+// 수식과 일치하는지 고정한다. 상수 근거: scripts/simSalesBand.ts (2026-08-10).
 
-describe('마감선 — 구간 바닥 × 2/3', () => {
-  it('구간 바닥이 경계 정의(1.5/2/3/5 × F)와 일치한다', () => {
-    expect(bandFloorPct('KR_EQUITY', 1)).toBe(5);
-    expect(bandFloorPct('KR_EQUITY', 2)).toBe(7.5);
-    expect(bandFloorPct('KR_EQUITY', 3)).toBe(10);
-    expect(bandFloorPct('KR_EQUITY', 4)).toBe(15);
-    expect(bandFloorPct('KR_EQUITY', 5)).toBe(25);
-    expect(bandFloorPct('CRYPTO', 3)).toBe(20);
+describe('remainingReturnPct — 방향 분기 없이 부호가 맞는다', () => {
+  it('상승: (목표 − 현재)/현재', () => {
+    expect(remainingReturnPct('UP', 100, 110)).toBeCloseTo(10);
+    expect(remainingReturnPct('UP', 105, 110)).toBeCloseTo(4.7619, 3);
   });
 
-  it('마감선과 중단선의 서열: 중단선 < 마감선 < 바닥', () => {
-    for (const lv of [1, 2, 3, 4, 5] as const) {
-      const floor = bandFloorPct('KR_EQUITY', lv);
-      const close = salesCloseLinePct('KR_EQUITY', lv);
-      const susp = salesSuspendLinePct('KR_EQUITY', lv);
-      expect(close).toBeCloseTo((floor * 2) / 3, 10);
-      expect(susp).toBeCloseTo(floor / 2, 10);
-      expect(susp).toBeLessThan(close);
-      expect(close).toBeLessThan(floor);
-    }
+  it('하락: 목표를 지나쳤으면 음수', () => {
+    expect(remainingReturnPct('DOWN', 100, 90)).toBeCloseTo(10);
+    expect(remainingReturnPct('DOWN', 85, 90)).toBeCloseTo(-5.882, 2);
   });
 });
 
-describe('잔여 수익률 — 방향 분기 없이 부호가 맞는다', () => {
-  it('상승: 기준 100→목표 112, 현재 106이면 잔여 +5.66%', () => {
-    expect(remainingReturnPct('UP', 106, 112)).toBeCloseTo(5.66, 2);
+describe('q = 남은 몫 ÷ 광고 폭', () => {
+  it('게시 직후는 1 부근, 절반 왔으면 ~0.5', () => {
+    // 기준 100 → 목표 110 (광고 +10%)
+    expect(remainingFraction('UP', 100, 110, 10)).toBeCloseTo(1);
+    expect(remainingFraction('UP', 105, 110, 10)).toBeCloseTo(0.476, 2);
   });
 
-  it('하락: 목표 90, 현재 96이면 잔여 +6.25%', () => {
-    expect(remainingReturnPct('DOWN', 96, 90)).toBeCloseTo(6.25, 2);
+  it('반대로 빠지면 1보다 커진다 — 분모·분자 양쪽에서 부풀어 2를 쉽게 넘는다', () => {
+    expect(remainingFraction('UP', 91, 110, 10)).toBeGreaterThan(2);
   });
 
-  it('목표를 지나치면 음수 — 어느 방향이든', () => {
-    expect(remainingReturnPct('UP', 120, 112)).toBeLessThan(0);
-    expect(remainingReturnPct('DOWN', 85, 90)).toBeLessThan(0);
-  });
-});
-
-describe('마감·중단 판정', () => {
-  // 국내주식 3구간(바닥 10%): 마감선 6.67%, 중단선 5%
-  it('종가 잔여 6% → 마감, 7% → 유지', () => {
-    expect(closesAtDailyClose('KR_EQUITY', 3, 6)).toBe(true);
-    expect(closesAtDailyClose('KR_EQUITY', 3, 7)).toBe(false);
-  });
-
-  it('장중 잔여 4.9% → 결제 중단, 5.5% → 통과 (마감선보다 아래에서만 막는다)', () => {
-    expect(suspendsIntraday('KR_EQUITY', 3, 4.9)).toBe(true);
-    expect(suspendsIntraday('KR_EQUITY', 3, 5.5)).toBe(false);
-  });
-
-  it('목표 도달(잔여 ≤ 0)은 어느 선에서든 걸린다', () => {
-    expect(closesAtDailyClose('CRYPTO', 5, -1)).toBe(true);
-    expect(suspendsIntraday('CRYPTO', 5, -1)).toBe(true);
+  it('장중에 목표를 지나쳤으면 음수', () => {
+    expect(remainingFraction('UP', 112, 110, 10)).toBeLessThan(0);
   });
 });
 
-describe('시간 규칙 — min(검증기간×1/3, 30일)', () => {
-  const pub = new Date('2026-08-01T00:00:00Z');
-
-  it('30일짜리 카드 → 10일 창', () => {
-    const end = salesWindowEnd(pub, new Date('2026-08-31T00:00:00Z'));
-    expect(end.toISOString()).toBe('2026-08-11T00:00:00.000Z');
+describe('판매 중단 (가역) — q < 1/2', () => {
+  it('절반 이상 남았으면 판다', () => {
+    expect(suspendsPurchase(1)).toBe(false);
+    expect(suspendsPurchase(SUSPEND_ALPHA)).toBe(false); // 경계는 판매 쪽
   });
 
-  it('180일짜리 카드 → 60일이 아니라 절대 상한 30일', () => {
-    const end = salesWindowEnd(pub, new Date('2027-01-28T00:00:00Z'));
-    expect(end.toISOString()).toBe('2026-08-31T00:00:00.000Z');
-  });
-
-  it('1일짜리 코인 단타 → 8시간 창', () => {
-    const end = salesWindowEnd(pub, new Date('2026-08-02T00:00:00Z'));
-    expect(end.getTime() - pub.getTime()).toBe(8 * 3600_000);
+  it('절반 밑이면 막는다 — 목표를 지나친 상태(음수)도 당연히 막힌다', () => {
+    expect(suspendsPurchase(SUSPEND_ALPHA - 0.001)).toBe(true);
+    expect(suspendsPurchase(-0.5)).toBe(true);
   });
 });
 
-// 시간 규칙은 **저장된 플래그가 아니라 계산**이 답한다.
-// 이 테스트가 지키는 것: 배치가 늦어도 판매 기간이 끝난 카드는 즉시 닫힌다.
+describe('괴리 고지 — 문턱이 비대칭인 것이 설계다', () => {
+  // 초과 상태는 대칭 문턱(0.2)이면 판매일의 37~50%를 차지해 "고지"가 기본 상태가 된다.
+  // 부족은 0.8 밑, 초과는 2.0 위 — 초과 고지는 "반대로 광고 폭 이상 벌어졌다"는 경고다
+  it('부족: 광고 폭의 8할 밑', () => {
+    expect(salesNoticeState(NOTICE_SHORTFALL_Q - 0.01)).toBe('SHORTFALL');
+    expect(salesNoticeState(NOTICE_SHORTFALL_Q)).toBe('NONE');
+  });
+
+  it('초과: 반대 방향으로 광고 폭 이상 벌어짐', () => {
+    expect(salesNoticeState(NOTICE_EXCESS_Q)).toBe('NONE');
+    expect(salesNoticeState(NOTICE_EXCESS_Q + 0.01)).toBe('EXCESS');
+  });
+
+  it('그 사이는 고지 없음', () => {
+    expect(salesNoticeState(1)).toBe('NONE');
+  });
+});
+
+// 시간 규칙 — 게시 + min(검증기간 × 1/3, 30일). 유지 확정 (2026-08-10).
+describe('salesWindowEnd', () => {
+  const published = new Date('2026-07-01T00:00:00Z');
+
+  it('검증 30일 → 판매 10일', () => {
+    const end = salesWindowEnd(published, new Date('2026-07-31T00:00:00Z'));
+    expect(end.toISOString()).toBe('2026-07-11T00:00:00.000Z');
+  });
+
+  it('검증 365일 → 30일 상한이 먼저 걸린다', () => {
+    const end = salesWindowEnd(published, new Date('2027-07-01T00:00:00Z'));
+    expect(end.getTime() - published.getTime()).toBe(30 * 86_400_000);
+  });
+});
+
+// 시간 규칙은 저장된 플래그가 아니라 계산이 답한다 — 배치가 늦어도 즉시 닫힌다.
 describe('isSalesWindowOpen', () => {
   const published = new Date('2026-07-01T00:00:00Z');
   const deadline = new Date('2026-07-31T00:00:00Z'); // 30일 → 판매 기간 10일
@@ -101,13 +100,6 @@ describe('isSalesWindowOpen', () => {
   it('마감선 그 순간부터 닫힌다 — 경계는 닫힘 쪽', () => {
     expect(isSalesWindowOpen(published, deadline, end)).toBe(false);
     expect(isSalesWindowOpen(published, deadline, new Date(end.getTime() + 1))).toBe(false);
-  });
-
-  it('30일 상한이 걸린 장기 카드도 같은 규칙으로 닫힌다', () => {
-    const far = new Date('2027-07-01T00:00:00Z'); // 365일 → 1/3보다 30일 상한이 먼저
-    const cap = salesWindowEnd(published, far);
-    expect(cap.getTime() - published.getTime()).toBe(30 * 86_400_000);
-    expect(isSalesWindowOpen(published, far, new Date(cap.getTime() + 1))).toBe(false);
   });
 
   it('게시일이나 시한이 없으면 판단하지 않는다 — 막는 쪽으로 지어내지 않는다', () => {

@@ -1,13 +1,21 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
+import { ASSET_CLASS_LABEL, type AssetClass, type Direction } from "@/domain/constants";
 import { RISK_LEVEL_LABEL, RISK_LEVEL_NOTE, type RiskLevel } from "@/domain/instrumentRisk";
 import { cardProfitabilityLevel } from "@/domain/profitability";
-import { isSalesWindowOpen, salesGuaranteeText } from "@/domain/salesWindow";
+import {
+  isSalesWindowOpen,
+  remainingFraction,
+  salesGuaranteeText,
+  salesNoticeState,
+  type SalesNoticeState,
+} from "@/domain/salesWindow";
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getResearcherCallout } from "@/server/marketQueries";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/server/purchaseService";
+import { magnitudePctToTargetPrice } from "@/domain/scoring";
+import { fetchCachedPrice } from "@/server/priceCache";
 import { isFreeReport } from "@/server/freeReportService";
 import { getSessionUserId } from "@/server/session";
 import { TOSS_CLIENT_KEY } from "@/server/tossPayments";
@@ -88,6 +96,32 @@ export default async function ReportDetail({
     (!card || card.deadline > now) &&
     isSalesWindowOpen(report.publishedAt, card?.deadline, now);
 
+  // 괴리 고지 상태 — 결제 직전과 같은 실시간 시세(60초 캐시)로 잰다.
+  // 시세·기준가가 없으면 고지하지 않는다 (지어내지 않는다). 문구는 비율만 쓴다
+  let salesNotice: SalesNoticeState = "NONE";
+  if (card && !purchased && sellable && card.basePrice != null && card.basePrice > 0) {
+    const cur = await fetchCachedPrice(card.assetClass, card.ticker);
+    if (cur !== null) {
+      const targetPrice =
+        card.targetType === "TARGET_PRICE"
+          ? card.targetValue
+          : magnitudePctToTargetPrice(
+              card.basePrice,
+              card.direction as Direction,
+              card.targetValue,
+            );
+      const magnitudePct =
+        card.targetType === "RETURN_PCT"
+          ? card.targetValue
+          : (Math.abs(card.targetValue - card.basePrice) / card.basePrice) * 100;
+      if (magnitudePct > 0) {
+        salesNotice = salesNoticeState(
+          remainingFraction(card.direction as Direction, cur, targetPrice, magnitudePct),
+        );
+      }
+    }
+  }
+
   // 예측 사양표 — **구매 여부에 따라 위치가 달라지므로** 변수로 뽑아 둔다.
   //
   //   구매 전: 히어로 카드 → **사양표** → 잠긴 본문
@@ -152,12 +186,24 @@ export default async function ReportDetail({
           산정 방식 직접 계산해 보기 →
         </Link>
       </p>
-      {/* 판매 중 보장 고지 — 실제로 집행되는 규칙(잔여 < 구간 바닥×2/3 종가 → 자동 마감)을
-          구매자 언어로. **공개 정보(구간)에서만 유도한다** — 실제 잔여 수치를 적으면
-          시세와 대조해 종목이 역산된다. 고지는 보장선까지, 집행이 그 말을 참으로 만든다 */}
-      {masked && profitabilityLevel !== null && (
+      {/* 판매 중 보장 고지 — 실제로 집행되는 규칙(결제 순간 남은 몫 < 광고 폭의 절반 →
+          결제 차단)을 구매자 언어로. **비율만 말한다** — 실제 수치를 적으면 비공개인
+          목표 수익률이 역산된다. 고지는 규칙까지, 결제 관문의 집행이 그 말을 참으로 만든다 */}
+      {masked && <p className={styles.cardFootnote}>{salesGuaranteeText()}</p>}
+      {/* 괴리 고지 — 결제 직전 실시간 시세로 잰 상태 (사용자 확정: 실시간).
+          부족: 광고 폭을 다 못 챙기는 상태. 초과: 예측이 반대로 가 있는 상태 —
+          "더 먹을 수 있다"가 아니라 **경고**다 (그 상태의 구매는 적중 확률이
+          게시 직후의 3~5할이다, scripts/simSalesBand.ts) */}
+      {masked && salesNotice === "SHORTFALL" && (
         <p className={styles.cardFootnote}>
-          {salesGuaranteeText(card.assetClass as AssetClass, profitabilityLevel)}
+          ⚠ 지금 시세 기준, 광고한 목표 폭을 전부 확보할 수는 없는 상태입니다. 결제는 남은
+          폭이 광고 폭의 절반 이상일 때만 승인됩니다.
+        </p>
+      )}
+      {masked && salesNotice === "EXCESS" && (
+        <p className={styles.cardFootnote}>
+          ⚠ 현재 시세가 게시 시점보다 예측 반대 방향에 있습니다. 남은 폭은 커 보이지만,
+          지금까지는 예측이 빗나가는 중이라는 뜻이니 유의하세요.
         </p>
       )}
       <div className={styles.cardRow}>

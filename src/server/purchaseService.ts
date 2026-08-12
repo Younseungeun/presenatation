@@ -1,7 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
-import type { AssetClass, Direction } from '@/domain/constants';
-import { cardProfitabilityLevel } from '@/domain/profitability';
-import { isSalesWindowOpen, remainingReturnPct, suspendsIntraday } from '@/domain/salesWindow';
+import type { Direction } from '@/domain/constants';
+import { isSalesWindowOpen, remainingFraction, suspendsPurchase } from '@/domain/salesWindow';
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isFreeReport } from './freeReportService';
 import { fetchCachedPrice } from './priceCache';
@@ -58,7 +57,7 @@ export function assertPurchasable(report: PurchasableReport, buyerId: string, no
   if (report.researcher.userId === buyerId) {
     throw new Error('자기 리포트는 구매할 수 없습니다 (자기 구매 조작 방지)');
   }
-  // 판매 마감(시간 규칙 또는 구간 이탈 종가) — 확정 상태라 재개되지 않는다
+  // 판매 마감(시간 규칙·리서처 단축) — 확정 상태라 재개되지 않는다
   if (report.salesClosedAt) {
     throw new Error('판매가 마감된 리포트입니다');
   }
@@ -78,8 +77,7 @@ export function assertPurchasable(report: PurchasableReport, buyerId: string, no
   // **시간 규칙은 플래그를 기다리지 않는다.**
   // salesClosedAt을 쓰는 것은 하루 1회 도는 배치(batch:salesclose)라, 이 검사가 없으면
   // 판매 기간이 끝난 카드가 다음 배치까지 계속 팔린다. 시간 규칙은 게시일·시한만으로
-  // 완전히 결정되므로 여기서 바로 계산하는 것이 맞다 (BAND_EXIT는 종가를 기다려야
-  // 하므로 계산이 불가능 — 그쪽만 배치·플래그에 남는다).
+  // 완전히 결정되므로 여기서 바로 계산하는 것이 맞다.
   if (!isSalesWindowOpen(report.publishedAt, report.predictionCard?.deadline, now)) {
     throw new Error('판매 기간이 끝난 리포트입니다');
   }
@@ -94,21 +92,35 @@ interface IntradayCard {
   basePrice: number | null;
 }
 
-/** 장중 결제 중단 검사 — 기준가·시세가 없으면 판단하지 않는다 (막는 쪽으로 지어내지 않는다) */
+/**
+ * 결제 순간의 판매 중단 검사 (2026-08-10 재설계) — **가역**이다.
+ *
+ * 결제 버튼을 누르는 그 순간의 실시간 시세로
+ *   q = 남은 수익률 ÷ 광고한 목표 수익률
+ * 을 재고, q < 1/2 이면 이 결제만 막는다. 시세가 구간으로 돌아오면 다시 팔린다 —
+ * 영구 마감이 아니므로 순간 꼬리(wick)로 남의 판매를 죽이는 조작이 성립하지 않는다.
+ *
+ * 이것이 "구매 승인 = 광고 폭의 절반 이상 보장"이라는 고지를 참으로 만드는 집행이다.
+ * 기준가·시세가 없으면 판단하지 않는다 (막는 쪽으로 지어내지 않는다).
+ */
 async function assertNotSuspendedIntraday(card: IntradayCard | null): Promise<void> {
   if (!card || card.basePrice === null) return;
-  const level = cardProfitabilityLevel(card);
-  if (level === null) return;
   const price = await fetchCachedPrice(card.assetClass, card.ticker);
   if (price === null) return;
   const targetPrice =
     card.targetType === 'TARGET_PRICE'
       ? card.targetValue
       : magnitudePctToTargetPrice(card.basePrice, card.direction as Direction, card.targetValue);
-  const remaining = remainingReturnPct(card.direction as Direction, price, targetPrice);
-  if (suspendsIntraday(card.assetClass as AssetClass, level, remaining)) {
+  // 광고한 목표 수익률(%) — 목표가형은 기준가 대비로 환산한다
+  const magnitudePct =
+    card.targetType === 'RETURN_PCT'
+      ? card.targetValue
+      : (Math.abs(card.targetValue - card.basePrice) / card.basePrice) * 100;
+  if (magnitudePct <= 0) return;
+  const q = remainingFraction(card.direction as Direction, price, targetPrice, magnitudePct);
+  if (suspendsPurchase(q)) {
     throw new Error(
-      '목표까지 남은 폭이 보장선 아래로 내려가 판매가 일시 중단되었습니다. 오늘 종가 기준으로 마감 여부가 확정됩니다.',
+      '목표까지 남은 폭이 광고한 폭의 절반 밑이라 판매가 일시 중단되었습니다. 시세가 돌아오면 다시 구매할 수 있습니다.',
     );
   }
 }
@@ -127,9 +139,8 @@ export async function purchaseReport(
     include: { researcher: true, predictionCard: true },
   });
   assertPurchasable(report, buyerId, now);
-  // 장중 보호 — 종가 배치가 아직 안 닫았어도 결제 순간 잔여가 중단선(구간 바닥×1/2)
-  // 밑이면 막는다. 피해자는 구매하는 순간에 생기므로 검사도 그 순간에 한다.
-  // 시세가 없으면(장애·미지원 자산군) 그냥 통과 — 종가 규칙이 다음 회차에 지킨다
+  // 가격 보호 — 결제 순간 실시간 시세로 남은 몫(q)을 재고 광고의 절반 밑이면 막는다.
+  // 피해자는 구매하는 순간에 생기므로 검사도 그 순간에 한다
   await assertNotSuspendedIntraday(report.predictionCard);
 
   const buyer = await prisma.user.findUniqueOrThrow({ where: { id: buyerId } });
