@@ -8,6 +8,7 @@ import {
   type Tier,
 } from './constants';
 import { calcFeeRateBp } from './fees';
+import { holidayName } from './marketCalendar';
 import { marketClock } from './marketData';
 import { disciplineFor, MIN_MAGNITUDE_PCT, targetPriceToMagnitudePct } from './scoring';
 
@@ -185,8 +186,9 @@ export interface BaseModePlan {
  *   (US는 애프터마켓·주간거래·프리마켓이 연속이라 '개장 전' 창구 자체가 없음)
  * 그 외(코인·장기 카드): 게시 시점 확정 (실시간가 또는 직전 종가)
  *
- * 공휴일 게시는 달력 없이 걸러낼 수 없다 — 그날 시세가 없으면 판정이 이월 후
- * 수동 보류 큐로 가므로 오판정으로 이어지지 않는다.
+ * 공휴일은 거래일 달력(marketCalendar)으로 걸러 주말과 똑같이 다룬다. 달력 범위를
+ * 벗어난 날짜는 거래일로 보게 되는데, 그때도 그날 시세가 없으면 판정이 이월 후
+ * 수동 보류 큐로 가므로 오판정으로 이어지지는 않는다.
  */
 export function planBaseMode(
   assetClass: AssetClass,
@@ -202,8 +204,12 @@ export function planBaseMode(
   const clock = marketClock(now, timeZone);
 
   if (assetClass === 'KR_EQUITY') {
-    const weekend = clock.weekday === 'Sat' || clock.weekday === 'Sun';
-    if (!weekend && clock.time < KR_PUBLISH_CUTOFF.cutoff) {
+    // 휴장일은 주말과 같다 — "당일 종가"가 존재하지 않는 날이라 이 창구를 열면 안 된다
+    const closed =
+      clock.weekday === 'Sat' ||
+      clock.weekday === 'Sun' ||
+      holidayName('KR_EQUITY', clock.date) !== null;
+    if (!closed && clock.time < KR_PUBLISH_CUTOFF.cutoff) {
       return { baseMode: 'PREV_CLOSE_AT_JUDGMENT', issues: [] };
     }
   }

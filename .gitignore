@@ -42,3 +42,10 @@ next-env.d.ts
 
 # prisma dev database
 prisma/dev.db*
+
+# DB 백업 (npm run db:backup) — 실서비스 데이터가 들어 있으므로 절대 커밋하지 않는다
+/backups
+
+# pm2 로그
+/logs
+.pm2

@@ -1,7 +1,10 @@
 import 'dotenv/config';
+import path from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import type { AssetClass } from '../src/domain/constants';
-import { isJustAfterClose, isMarketOpen, marketToday } from '../src/domain/marketHours';
+import { isJustAfterClose, isMarketOpen, isTradingDay, marketToday } from '../src/domain/marketHours';
+import { coverageEndsIn, holidayName } from '../src/domain/marketCalendar';
+import { backupDatabase } from '../src/server/dbBackup';
 import { createDefaultRegistry } from '../src/infra/marketData/registry';
 import { toRiskLevel, type RiskLevel } from '../src/domain/instrumentRisk';
 import { fetchUsHalts, fetchUsListings, financialStatusRisk } from '../src/infra/marketData/nasdaqTrader';
@@ -121,6 +124,34 @@ function tick(): void {
     enqueue('코인 일일 판정', () => judgeMarket('CRYPTO'));
   }
 
+  // ── 거래일 달력 만료 경고 (매주 1회) ────────────────────
+  // 달력이 끝나면 그 뒤 공휴일은 조용히 거래일로 취급된다 — 배치가 헛돌 뿐이지만
+  // 아무도 모른 채 넘어가므로, 만료 30일 전부터 주 1회 운영자에게 알린다
+  const weekKey = Math.floor(Date.parse(`${kstNow}T00:00:00Z`) / (7 * 86_400_000));
+  for (const market of MARKETS) {
+    const left = coverageEndsIn(market, marketToday(market, now));
+    if (left > 30 || !onceADay(`calendar:${market}:${weekKey}`, kstNow)) continue;
+    enqueue('거래일 달력 만료 경고', () =>
+      notifyOperators(
+        `거래일 달력 갱신 필요 — ${market}`,
+        left < 0
+          ? `${market} 휴장일 달력이 ${-left}일 전에 끝났습니다. 지금은 공휴일도 거래일로 취급해 배치가 헛돕니다. src/domain/marketCalendar.ts에 다음 연도 휴장일을 추가해주세요.`
+          : `${market} 휴장일 달력이 ${left}일 뒤 끝납니다. src/domain/marketCalendar.ts에 다음 연도 휴장일을 추가해주세요.`,
+        '/admin',
+      ),
+    );
+  }
+
+  // ── DB 백업 (매일 04:00 KST) ────────────────────────────
+  // 어느 시장도 열려 있지 않고 아침 배치들보다 앞선 시각이다. 그날의 배치가 DB를
+  // 망가뜨렸을 때 **망가지기 직전 상태**로 돌아갈 수 있어야 하므로 배치보다 먼저 뜬다
+  if (kstClock >= '04:00' && kstClock < '05:00' && onceADay('backup', kstNow)) {
+    enqueue('DB 백업', async () => {
+      const r = await backupDatabase();
+      console.log(`  ${path.basename(r.file)} — ${(r.bytes / 1_048_576).toFixed(1)}MB / 리포트 ${r.reports}건`);
+    });
+  }
+
   // ── 종목 마스터 동기화 (정적 파일 — 호출 제한 무관) ─────
   if (kstClock >= '06:00' && kstClock < '07:00' && onceADay('sync:instruments', kstNow)) {
     enqueue('종목 마스터 동기화', async () => {
@@ -199,7 +230,13 @@ function tick(): void {
   // ── 국내 시장경보·거래정지 (매일 07:10 KST) ─────────────
   // 마스터 파일은 관리종목까지만 준다. 투자경고·거래정지·정리매매는 현재가 응답에만
   // 있어 종목당 1회가 필요하므로, **카드가 걸린 종목만** 본다 (server/syncKrRisk 규칙)
-  if (kstClock >= '07:10' && kstClock < '08:10' && onceADay('risk:kr', kstNow)) {
+  // 휴장일은 건너뛴다 — 시장경보 지정은 거래일에만 바뀐다
+  if (
+    kstClock >= '07:10' &&
+    kstClock < '08:10' &&
+    isTradingDay('KR_EQUITY', now) &&
+    onceADay('risk:kr', kstNow)
+  ) {
     enqueue('국내 종목 경보 갱신', async () => {
       const s = await syncKrCardInstrumentRisk(prisma, registry);
       console.log(`  대상 ${s.checked}종목 — 상향 ${s.raised} / 수동값 유지 ${s.keptManual}`);
@@ -252,7 +289,15 @@ function catchUpOnBoot(): void {
   });
 }
 
-console.log('스케줄러 시작 — 마감+5분 판정 / 장중 2분 감시 갱신 / 06:00 마스터 동기화');
+console.log('스케줄러 시작 — 마감+5분 판정 / 장중 2분 감시 갱신 / 04:00 백업 / 06:00 마스터 동기화');
+for (const market of MARKETS) {
+  const day = marketToday(market, new Date());
+  const holiday = holidayName(market, day);
+  console.log(
+    `  ${market} ${day}: ${holiday ? `휴장 (${holiday})` : '거래일'}` +
+      ` / 달력 잔여 ${coverageEndsIn(market, day)}일`,
+  );
+}
 catchUpOnBoot();
 tick();
 const timer = setInterval(tick, TICK_MS);

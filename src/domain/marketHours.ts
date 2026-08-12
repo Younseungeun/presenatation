@@ -1,4 +1,5 @@
 import type { AssetClass } from './constants';
+import { closeTimeOn, holidayName } from './marketCalendar';
 import { marketClock, MARKET_TIMEZONE } from './marketData';
 
 // 시장 시간 — **배치를 언제 돌릴지**의 단일 기준.
@@ -22,9 +23,15 @@ export const MARKET_SESSION: Record<Exclude<AssetClass, 'CRYPTO'>, { open: strin
  */
 export const CLOSE_GRACE_MIN = 5;
 
-/** 주말은 어느 시장이든 쉰다 (법정 공휴일은 시세 결측으로 드러난다 — 달력을 들고 있지 않는다) */
 function isWeekend(weekday: string): boolean {
   return weekday === 'Sat' || weekday === 'Sun';
+}
+
+/** 그 시장이 오늘 여는 날인가 — 주말·휴장일 (코인은 언제나 true) */
+export function isTradingDay(assetClass: AssetClass, now: Date): boolean {
+  if (assetClass === 'CRYPTO') return true;
+  const clock = marketClock(now, MARKET_TIMEZONE[assetClass]);
+  return !isWeekend(clock.weekday) && holidayName(assetClass, clock.date) === null;
 }
 
 /** 지금 정규장이 열려 있나. 코인은 항상 true */
@@ -32,8 +39,8 @@ export function isMarketOpen(assetClass: AssetClass, now: Date): boolean {
   if (assetClass === 'CRYPTO') return true;
   const session = MARKET_SESSION[assetClass];
   const clock = marketClock(now, MARKET_TIMEZONE[assetClass]);
-  if (isWeekend(clock.weekday)) return false;
-  return clock.time >= session.open && clock.time <= session.close;
+  if (!isTradingDay(assetClass, now)) return false;
+  return clock.time >= session.open && clock.time <= closeTimeOn(assetClass, clock.date, session.close);
 }
 
 /**
@@ -44,8 +51,10 @@ export function isMarketOpen(assetClass: AssetClass, now: Date): boolean {
 export function isJustAfterClose(assetClass: AssetClass, now: Date, windowMin = 60): boolean {
   if (assetClass === 'CRYPTO') return false;
   const clock = marketClock(now, MARKET_TIMEZONE[assetClass]);
-  if (isWeekend(clock.weekday)) return false;
-  const [h, m] = MARKET_SESSION[assetClass].close.split(':').map(Number);
+  // 휴장일에는 그날 종가 자체가 없다 — 창구를 열면 배치가 헛돌며 호출만 쓴다
+  if (!isTradingDay(assetClass, now)) return false;
+  const regular = MARKET_SESSION[assetClass].close;
+  const [h, m] = closeTimeOn(assetClass, clock.date, regular).split(':').map(Number);
   const closeMin = h * 60 + m + CLOSE_GRACE_MIN;
   const [nh, nm] = clock.time.split(':').map(Number);
   const nowMin = nh * 60 + nm;
