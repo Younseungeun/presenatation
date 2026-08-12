@@ -3,7 +3,9 @@ import { PrismaClient } from '@prisma/client';
 import type { AssetClass } from '../src/domain/constants';
 import { isJustAfterClose, isMarketOpen, marketToday } from '../src/domain/marketHours';
 import { createDefaultRegistry } from '../src/infra/marketData/registry';
-import { syncAllInstruments } from '../src/server/instrumentService';
+import { toRiskLevel, type RiskLevel } from '../src/domain/instrumentRisk';
+import { fetchUsHalts, fetchUsListings, financialStatusRisk } from '../src/infra/marketData/nasdaqTrader';
+import { setInstrumentRisk, syncAllInstruments } from '../src/server/instrumentService';
 import { judgeAndSettleDueCards } from '../src/server/judgmentBatch';
 import { runReachedJudgmentBatch } from '../src/server/reachedJudgmentBatch';
 import { runSalesCloseBatch } from '../src/server/salesCloseService';
@@ -31,6 +33,7 @@ const registry = createDefaultRegistry();
 
 const TICK_MS = 60_000;
 const QUOTE_INTERVAL_MS = 2 * 60_000;
+const RISK_RANK: RiskLevel[] = ['NONE', 'CAUTION', 'WARNING', 'DANGER'];
 const MARKETS: Exclude<AssetClass, 'CRYPTO'>[] = ['KR_EQUITY', 'US_EQUITY'];
 
 /** 하루 한 번짜리 일을 "그 시장 날짜" 기준으로 기억한다 — 자정 넘김·재시작에 안전하다 */
@@ -97,6 +100,40 @@ function tick(): void {
       for (const r of results) {
         console.log(`  ${r.assetClass}: ${r.upserted}종 (비활성 ${r.deactivated})`);
       }
+    });
+    // 미국 상태는 나스닥 공개 파일에서 온다 (KIS가 주지 않는다) — 같은 시간대에 이어서.
+    // 인증·요율 제한이 없어 전 종목을 한 번에 훑는다
+    enqueue('미국 종목 상태(나스닥)', async () => {
+      const [listings, halts] = await Promise.all([fetchUsListings(), fetchUsHalts()]);
+      const ours = new Map(
+        (
+          await prisma.instrument.findMany({
+            where: { assetClass: 'US_EQUITY' },
+            select: { ticker: true, riskLevel: true },
+          })
+        ).map((r) => [r.ticker, r.riskLevel]),
+      );
+      let raised = 0;
+      for (const l of listings) {
+        const current = ours.get(l.ticker);
+        if (!current) continue;
+        const signal = financialStatusRisk(l.financialStatus);
+        if (!signal) continue;
+        const next = toRiskLevel(signal);
+        // 등급은 올리기만 한다 — 운영자가 올려 둔 경고를 배치가 지우면 안 된다
+        if (RISK_RANK.indexOf(next) <= RISK_RANK.indexOf(current as RiskLevel)) continue;
+        await setInstrumentRisk(prisma, 'US_EQUITY', l.ticker, next, signal.note ?? null, {
+          delistingRisk: signal.delisting,
+        });
+        raised++;
+      }
+      let halted = 0;
+      for (const h of halts.filter((x) => !x.resumptionDate)) {
+        if (!ours.has(h.ticker)) continue;
+        await setInstrumentRisk(prisma, 'US_EQUITY', h.ticker, 'DANGER', `거래정지 (${h.reasonCode})`);
+        halted++;
+      }
+      console.log(`  미국: 등급 상향 ${raised} / 거래정지 ${halted}`);
     });
   }
 

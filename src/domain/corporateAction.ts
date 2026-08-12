@@ -20,8 +20,22 @@ import type { TargetType } from './constants';
 // 임계값을 고를 필요가 없고, 가격이 오르내린 것과 무관하다. 저장 비용은 카드당
 // 실수 하나다.
 
-/** 반올림 오차 허용치 — 이보다 큰 차이는 권리 사건으로 본다 */
+/** 반올림 오차 허용치 — 이보다 작으면 아무 일도 없었던 것으로 본다 */
 export const ADJUSTMENT_EPSILON = 0.002;
+
+/**
+ * 권리 사건으로 인정하는 최소 배수 차이 — **2%**.
+ *
+ * 왜 필요한가 (실측 2026-08-12): 미국 수정주가는 **현금배당까지 소급 반영**한다.
+ * 같은 날짜의 수정주가와 원주가를 비교하면 KO −0.64%, XOM −0.67%, AAPL −0.18%
+ * (4.5개월 누적)로 벌어진다. 반올림 문턱(0.2%)만 두면 배당이 분할로 오인되고,
+ * 원주가 교차검증도 같은 이유로 벌어지므로 **검증을 통과해 자동 리베이스된다.**
+ * 국내는 현금배당을 수정주가에 넣지 않아(실측 배수 1.00000) 이 문제가 없다.
+ *
+ * 2%인 근거: 실제 권리 사건 중 가장 작은 축인 5% 무상증자가 배수 0.952,
+ * 2:1 분할이 0.5다. 배당 드리프트(≤0.7%)와 그 사이가 넉넉히 벌어진다.
+ */
+export const CORPORATE_ACTION_MIN = 0.02;
 
 /**
  * 자동 리베이스를 허용하는 배수 범위.
@@ -34,6 +48,12 @@ export const MAX_FACTOR = 100;
 export interface AdjustmentDetection {
   /** 새 눈금 ÷ 옛 눈금. 2:1 분할이면 0.5 */
   factor: number;
+  /**
+   * drift = 배당 소급 같은 미세 조정. 카드의 조건을 건드리지 않고 **앵커만 갱신**한다
+   * (그대로 두면 드리프트가 쌓여 언젠가 권리 사건으로 오탐한다).
+   * action = 분할·병합·무상증자. 기준가·목표가를 새 눈금으로 옮긴다.
+   */
+  kind: 'drift' | 'action';
   /** 자동으로 고쳐도 되는 범위인가 — 아니면 기록만 남기고 사람에게 올린다 */
   applicable: boolean;
 }
@@ -48,8 +68,14 @@ export function detectAdjustment(
 ): AdjustmentDetection | null {
   if (!(anchorAtPublish > 0) || !(anchorNow > 0)) return null;
   const factor = anchorNow / anchorAtPublish;
-  if (Math.abs(factor - 1) <= ADJUSTMENT_EPSILON) return null;
-  return { factor, applicable: factor >= MIN_FACTOR && factor <= MAX_FACTOR };
+  const diff = Math.abs(factor - 1);
+  if (diff <= ADJUSTMENT_EPSILON) return null;
+  if (diff <= CORPORATE_ACTION_MIN) return { factor, kind: 'drift', applicable: true };
+  return {
+    factor,
+    kind: 'action',
+    applicable: factor >= MIN_FACTOR && factor <= MAX_FACTOR,
+  };
 }
 
 export interface RebaseInput {

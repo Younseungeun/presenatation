@@ -6,6 +6,7 @@ import type {
 } from '@/domain/marketData';
 import type { ProviderRiskSignal } from '@/domain/instrumentRisk';
 import { fetchKrInstruments, fetchUsInstruments } from './kisInstrumentMaster';
+import { isUsHalted } from './nasdaqTrader';
 import {
   MIN_CALL_GAP_MS,
   readTokenFile,
@@ -380,7 +381,12 @@ export class KisMarketDataProvider implements MarketDataProvider {
    * 비어 오고, 판정 파이프라인이 데이터 결측으로 이월시킨 뒤 운영자 큐로 올린다.
    */
   async getSecurityStatus(ticker: string): Promise<SecurityStatus> {
-    if (this.market !== 'KR') return { delisted: false, halted: false };
+    if (this.market !== 'KR') {
+      // 미국은 KIS가 상태를 주지 않는다(실측) — 나스닥이 직접 게시하는 정지 피드를 본다.
+      // 무료·무인증이고 5분 캐시라 카드가 몇 장이든 한 회차에 한 번만 받는다.
+      // 상장폐지는 다음 날 마스터에서 사라져 동기화가 active=false로 바꾼다(별도 경로).
+      return { delisted: false, halted: await isUsHalted(ticker) };
+    }
     // 응답이 비면 krQuote가 던진다 — "정상"이라고 단정하지 않는다
     // (판정 파이프라인이 결측으로 다루고 이월시킨다)
     const out = await this.krQuote(ticker);

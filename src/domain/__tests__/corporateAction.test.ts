@@ -68,3 +68,36 @@ describe('rebase — 새 눈금으로 옮기기', () => {
     );
   });
 });
+
+// ── 배당 소급과 권리 사건 가르기 (2026-08-12 실측) ─────────────────
+// 미국 수정주가는 현금배당까지 소급한다: KO −0.64%, XOM −0.67%, AAPL −0.18% (4.5개월).
+// 반올림 문턱(0.2%)만 두면 이것이 분할로 오인되고, 원주가 교차검증도 같은 이유로
+// 벌어지므로 검증을 통과해 **자동 리베이스된다**. 그래서 2% 문턱을 따로 둔다.
+
+describe('배당 드리프트를 권리 사건으로 오인하지 않는다', () => {
+  it('아주 작은 드리프트(AAPL 0.18%)는 반올림 문턱 아래라 아무 일도 아니다', () => {
+    expect(detectAdjustment(100, 100 * (1 - 0.18 / 100))).toBeNull();
+  });
+
+  it('실측 배당 드리프트(KO 0.64% · XOM 0.67%)는 drift로 분류된다 — 카드를 건드리지 않는다', () => {
+    for (const pct of [0.64, 0.67, 1.5]) {
+      const d = detectAdjustment(100, 100 * (1 - pct / 100))!;
+      expect(d.kind, `${pct}%`).toBe('drift');
+    }
+  });
+
+  it('실제 권리 사건은 action으로 분류된다', () => {
+    expect(detectAdjustment(100, 50)!.kind).toBe('action'); // 2:1 분할
+    expect(detectAdjustment(100, 100 / 1.05)!.kind).toBe('action'); // 5% 무상증자
+    expect(detectAdjustment(100, 500)!.kind).toBe('action'); // 1:5 병합
+  });
+
+  it('경계는 2% — 그 아래는 카드를 건드리지 않는다', () => {
+    expect(detectAdjustment(100, 98.5)!.kind).toBe('drift');
+    expect(detectAdjustment(100, 97)!.kind).toBe('action');
+  });
+
+  it('국내는 애초에 드리프트가 없다 — 수정주가가 현금배당을 반영하지 않는다(실측 배수 1.00000)', () => {
+    expect(detectAdjustment(189_600, 189_600)).toBeNull();
+  });
+});

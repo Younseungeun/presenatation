@@ -91,6 +91,17 @@ export async function rebaseIfAdjusted(
   const detected = detectAdjustment(card.baseCloseAnchor, current);
   if (!detected) return null;
 
+  // 배당 소급 같은 미세 조정 — **카드는 건드리지 않고 앵커만 갱신한다.**
+  // 그대로 두면 드리프트가 쌓여 언젠가 권리 사건으로 오탐한다(미국은 수정주가가
+  // 현금배당까지 반영해 몇 달이면 0.5~0.7%씩 벌어진다 — domain/corporateAction.ts).
+  if (detected.kind === 'drift') {
+    await prisma.predictionCard.update({
+      where: { id: card.id },
+      data: { baseCloseAnchor: current },
+    });
+    return null;
+  }
+
   // ── 교차검증: 원주가와 대조한다 ──────────────────────────────
   // 수정주가만 바뀌고 원주가는 그대로여야 권리 사건이다. 둘 다 바뀌었거나 배수가
   // 다르면 데이터 정정·오류이므로 자동 반영하지 않는다.
