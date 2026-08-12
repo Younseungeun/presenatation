@@ -77,6 +77,7 @@ npx eslint src scripts  # 린트
 | `npm run risk:sync` | 국내 종목 시장경보·관리종목 갱신 (검증 중 카드의 종목만) |
 | `npm run sync:instruments` | 종목 마스터 동기화 (`-- --fixture`로 오프라인 시드) |
 | `npm run op:grant -- <email>` | 운영자 권한 부여 (`--revoke`로 회수) |
+| `npm run batch:quotes` | 장중 시세 갱신 — **감시 대상 종목만** (2분 주기 권장) |
 | `npm run batch:salesclose` | 판매 마감 기록 (시간 규칙 + 역방향 목표폭 이탈 — 시세 조회 필요) |
 | `npm run seed:dev` / `seed:demo` | 개발·데모 데이터 시드 |
 | `npm run seed:login` | **로그인 가능한 데모 계정** 생성 (휴대폰 `010-1234-5678`, 필명 데모유저) |

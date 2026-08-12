@@ -7,8 +7,10 @@ import {
   type ProfitabilityLevel,
 } from '@/domain/profitability';
 import { compositeStars } from '@/domain/ratingStars';
-import { isSalesWindowOpen, salesWindowEnd } from '@/domain/salesWindow';
+import { isSalesWindowOpen, salesWindowEnd, suspendsPurchase } from '@/domain/salesWindow';
+import { SNAPSHOT_STALE_MS } from '@/domain/quoteWatch';
 import { cardStabilityLevel, type StabilityLevel } from '@/domain/stability';
+import { cardQ } from './quoteWatchService';
 
 // 리더보드(리포트 탐색) 화면용 조회.
 // 리서처 순위는 랭킹 화면(leaderboardQueries)이 담당하고, 여기서는 "지금 살 수 있는
@@ -44,6 +46,12 @@ export interface MarketCard {
   deadline: Date | null;
   salesCount: number;
   publishedAt: Date | null;
+  /**
+   * 지금 결제가 막히는 상태인가 (남은 몫이 광고 폭의 절반 밑).
+   * 스냅샷이 신선할 때만 true — 모르면 false로 두고 목록에 남긴다
+   * (모르는 상태에서 상품을 지우지 않는다, domain/quoteWatch.ts).
+   */
+  purchaseSuspended: boolean;
 }
 
 type ReportWithCard = {
@@ -59,6 +67,7 @@ type ReportWithCard = {
   };
   predictionCard: {
     assetClass: string;
+    ticker: string;
     direction: string;
     targetType: string;
     targetValue: number;
@@ -166,14 +175,58 @@ function toMarketCard(r: ReportWithCard): MarketCard {
     deadline: card?.deadline ?? null,
     salesCount: r._count.purchases,
     publishedAt: r.publishedAt,
+    // 스냅샷을 보고 채운다 (withSuspension) — 여기서는 기본값
+    purchaseSuspended: false,
   };
+}
+
+/**
+ * 시세 스냅샷으로 "지금 결제가 막히는 카드"를 표시한다 — **시세를 새로 부르지 않는다.**
+ *
+ * 목록을 그릴 때 종목마다 실시간 시세를 부르면 초당 1회 제한에서 20종목이 22초다.
+ * 그래서 문턱 근처 종목만 장중에 갱신해 둔 스냅샷(InstrumentQuote)을 읽는다.
+ * 스냅샷이 없거나 낡았으면 **막지 않는다** — 결제 관문이 실시간으로 최종 판단하므로
+ * 목록이 틀려도 오늘보다 나빠지지 않고, 확실하지 않은 근거로 상품을 지우지 않는다.
+ *
+ * 계산은 **원본 행에서** 한다. MarketCard에는 종목·목표가가 없기 때문이다(마스킹) —
+ * 결과인 boolean 하나만 뷰모델로 넘어가므로 목록이 종목을 흘리지 않는다.
+ */
+async function suspendedReportIds(
+  prisma: PrismaClient,
+  reports: ReportWithCard[],
+  now: Date,
+): Promise<Set<string>> {
+  const withCard = reports.filter((r) => r.predictionCard?.basePrice != null);
+  if (withCard.length === 0) return new Set();
+
+  const rows = await prisma.instrumentQuote.findMany({
+    where: { ticker: { in: [...new Set(withCard.map((r) => r.predictionCard!.ticker))] } },
+    select: { assetClass: true, ticker: true, price: true, at: true },
+  });
+  if (rows.length === 0) return new Set();
+  const quotes = new Map(rows.map((r) => [`${r.assetClass}:${r.ticker}`, r]));
+
+  const out = new Set<string>();
+  for (const r of withCard) {
+    const card = r.predictionCard!;
+    const snap = quotes.get(`${card.assetClass}:${card.ticker}`);
+    if (!snap || now.getTime() - snap.at.getTime() >= SNAPSHOT_STALE_MS) continue;
+    const q = cardQ(card, snap.price);
+    if (q !== null && suspendsPurchase(q)) out.add(r.id);
+  }
+  return out;
+}
+
+/** "지금 살 수 있는" 목록에서 결제가 막힌 카드를 뺀다 (검색·프로필은 표시만 바꾼다) */
+function dropSuspended(cards: MarketCard[]): MarketCard[] {
+  return cards.filter((c) => !c.purchaseSuspended);
 }
 
 /**
  * 지금 구매 가능한 카드만 — 게시 상태 + 시한이 남아 있고 + 철회되지 않은 것.
  * 시한이 지난 카드는 곧 판정되므로 구매가 막힌다(purchaseService와 같은 기준).
  *
- * **이 함수만으로는 부족하다 — 반드시 buyableCards()와 짝으로 쓴다.**
+ * **이 함수만으로는 부족하다 — 반드시 buyableCardsLive()와 짝으로 쓴다.**
  * 판매 기간(시간 규칙)은 `게시일 + min(검증기간/3, 30일)`이라 SQL 조건으로 쓸 수 없고,
  * salesClosedAt은 하루 1회 배치가 채우는 값이라 그 사이에는 비어 있다.
  */
@@ -201,10 +254,27 @@ function buyableWhere(now: Date) {
  *
  * 이름을 buyableWhere와 맞춘 것은 의도적이다 — 한쪽만 쓰면 눈에 띄게.
  */
-function buyableCards(reports: ReportWithCard[], now: Date): MarketCard[] {
-  return reports
-    .filter((r) => isSalesWindowOpen(r.publishedAt, r.predictionCard?.deadline, now))
-    .map(toMarketCard);
+/**
+ * 판매 가능 카드 + **결제 중단 상태 표시**.
+ *
+ * `hide: true`인 목록("지금 살 수 있는 …")은 중단된 카드를 아예 빼고, 검색·프로필은
+ * 남기되 표시만 바꾼다(사용자 확정 A안). 이름이 약속인 목록은 그 약속을 지키고,
+ * 찾아 들어온 사람에게는 카드가 증발하지 않게 하는 절충이다.
+ */
+async function buyableCardsLive(
+  prisma: PrismaClient,
+  reports: ReportWithCard[],
+  now: Date,
+  opts: { hide: boolean },
+): Promise<MarketCard[]> {
+  const open = reports.filter((r) =>
+    isSalesWindowOpen(r.publishedAt, r.predictionCard?.deadline, now),
+  );
+  const suspended = await suspendedReportIds(prisma, open, now);
+  const cards = open.map((r) =>
+    suspended.has(r.id) ? { ...toMarketCard(r), purchaseSuspended: true } : toMarketCard(r),
+  );
+  return opts.hide ? dropSuspended(cards) : cards;
 }
 
 /** 판매량 상위 — "지금 가장 잘 팔리는" */
@@ -222,7 +292,7 @@ export async function getBestSellingCards(
   // 아직 아무도 안 산 카드까지 "잘 팔리는"으로 보여주지 않는다
   return withSignals(
     prisma,
-    buyableCards(reports, now).filter((c) => c.salesCount > 0),
+    (await buyableCardsLive(prisma, reports, now, { hide: true })).filter((c) => c.salesCount > 0),
   );
 }
 
@@ -243,7 +313,7 @@ export async function getTopTierCards(
   const rank = (t: string) => TIERS.indexOf(t as Tier);
   return withSignals(
     prisma,
-    buyableCards(reports, now)
+    (await buyableCardsLive(prisma, reports, now, { hide: true }))
       .sort((a, b) => rank(b.tier) - rank(a.tier))
       .slice(0, limit),
   );
@@ -509,7 +579,7 @@ export async function getSalesClosingSoonCards(
   now = new Date(),
 ): Promise<MarketCard[]> {
   const reports = await prisma.report.findMany({ where: buyableWhere(now), include: cardInclude });
-  const cards = buyableCards(reports, now)
+  const cards = (await buyableCardsLive(prisma, reports, now, { hide: true }))
     .filter((c) => c.publishedAt !== null && c.deadline !== null)
     .sort(
       (a, b) =>
@@ -682,7 +752,10 @@ export async function getFollowedSections(
   const bios = new Map(profiles.map((p) => [p.id, p.bio]));
   const freeCounts = new Map(freeGroups.map((g) => [g.researcherId, g._count.researcherId]));
 
-  const withSignal = await withSignals(prisma, buyableCards(reports, now));
+  const withSignal = await withSignals(
+    prisma,
+    await buyableCardsLive(prisma, reports, now, { hide: true }),
+  );
 
   // **자르기 전에 정렬한다** — 최신 6장을 뽑아 놓고 인기순으로 다시 세우면
   // "이 사람의 인기 카드"가 아니라 "최근 6장 중 인기 카드"가 된다
@@ -755,7 +828,10 @@ export async function getCardsByAssetClass(
     include: cardInclude,
   });
   // 정렬 기준 대부분이 관계 필드(시한·판매수·등급)라 한 번 읽어와 메모리에서 정렬한다
-  return withSignals(prisma, sortCards(buyableCards(reports, now), sort));
+  return withSignals(
+    prisma,
+    sortCards(await buyableCardsLive(prisma, reports, now, { hide: true }), sort),
+  );
 }
 
 /**
@@ -804,7 +880,8 @@ export async function searchCards(
     include: cardInclude,
   });
 
-  let cards = await withSignals(prisma, buyableCards(reports, now));
+  // 검색은 찾아 들어온 자리라 카드를 지우지 않는다 — 중단 표시만 붙인다
+  let cards = await withSignals(prisma, await buyableCardsLive(prisma, reports, now, { hide: false }));
 
   // 수익성은 예측 크기에서 파생되는 값이라 DB 조건으로 걸 수 없다
   if (q.minProfitability != null) {

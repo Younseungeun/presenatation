@@ -28,6 +28,7 @@
     "eval:screening": "tsx scripts/evalScreening.ts",
     "batch:compliance": "tsx scripts/complianceOps.ts",
     "calibrate:semantic": "tsx scripts/calibrateSemantic.ts",
+    "batch:quotes": "tsx scripts/runQuoteRefresh.ts",
     "batch:salesclose": "tsx scripts/runSalesCloseBatch.ts",
     "anchor:backfill": "tsx scripts/backfillAnchor.ts",
     "sigma:backfill": "tsx scripts/backfillSigma.ts",

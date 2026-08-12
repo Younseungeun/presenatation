@@ -14,6 +14,7 @@ import {
 } from '@/domain/salesWindow';
 import { targetPriceToMagnitudePct } from '@/domain/scoring';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
+import { seedWatchFromClose } from './quoteWatchService';
 
 // 판매 마감 배치 — 하루 1회 이상 (npm run batch:salesclose).
 //
@@ -120,6 +121,9 @@ export async function runSalesCloseBatch(
     try {
       const close = await latestClose(quotes, card.assetClass as AssetClass, card.ticker, now);
       if (close === null || close <= 0) continue;
+      // 장이 닫힌 사이 문턱 근처로 온 종목을 다음 장중 갱신 대상으로 넣는다 —
+      // 이 종가는 어차피 받은 값이라 추가 호출이 없다 (server/quoteWatchService.ts)
+      await seedWatchFromClose(prisma, card.assetClass, card.ticker, close, now);
       const adverse = adverseMoveFraction(
         card.direction as Direction,
         card.basePrice,

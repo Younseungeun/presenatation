@@ -49,6 +49,12 @@ export interface MaskedCardData {
   /** 종목 변동성 5구간 — 시스템 산정 (domain/stability.ts), σ 미상이면 null */
   stability: StabilityLevel | null;
   confidence: number | null;
+  /**
+   * 지금 결제가 막히는 상태 — "지금 살 수 있는" 목록에서는 아예 빠지고,
+   * 검색·프로필처럼 **찾아 들어온 자리**에서만 이 표시로 남는다.
+   * 가역이라 시세가 돌아오면 저절로 풀린다 (domain/quoteWatch.ts).
+   */
+  purchaseSuspended?: boolean;
 }
 
 export interface MaskedCardFull extends MaskedCardData {
@@ -197,6 +203,13 @@ export function MaskedCard({
 
       <span className={styles.chipRow}>
         <span className={styles.assetChip}>{assetLabel(c.assetClass)}</span>
+        {/* 결제가 막힌 상태 — 왜 못 사는지 여기서 말하지 않으면, 눌러서 거절당해야 안다.
+            "마감"이 아니라 "중단"인 것이 중요하다: 시세가 돌아오면 다시 팔린다 */}
+        {c.purchaseSuspended && !owned && (
+          <span className={styles.suspendedChip} title="목표까지 남은 폭이 광고 폭의 절반 밑입니다">
+            일시 중단
+          </span>
+        )}
         {/* 소유 표시는 무채색 잉크 — 민트는 플랫폼 검증 전용이라(브랜드 §4-3)
             "내가 샀다"는 사실에 쓰면 플랫폼이 보증한 것으로 읽힌다 */}
         {owned && (

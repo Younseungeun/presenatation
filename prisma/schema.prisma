@@ -155,6 +155,32 @@ model PredictionCard {
   corporateActions CorporateActionLog[]
 }
 
+// 종목 시세 스냅샷 — 목록이 "지금 살 수 있는가"를 시세 호출 없이 답하게 하는 값.
+//
+// 왜 DB인가: 인메모리 캐시(server/priceCache)는 프로세스 안에서만 유효해 웹과 배치가
+// 따로 부른다. 목록·상세·갱신 배치가 같은 값을 봐야 화면과 관문이 어긋나지 않는다.
+//
+// 왜 종목 단위인가: 같은 종목 카드가 몇 장이든 시세는 하나다. 카드 단위로 두면
+// 카드 수만큼 호출이 늘어난다 (초당 1회 제한에서는 그대로 대기 시간이다).
+model InstrumentQuote {
+  id         String   @id @default(cuid())
+  assetClass String
+  ticker     String
+  price      Float
+  /** 이 시세를 받은 시각 — 낡으면 목록에서 숨기지 않는다 (domain/quoteWatch.ts) */
+  at         DateTime
+  /** 장중 갱신 대상인가 — 문턱 근처 종목만 true */
+  watching   Boolean  @default(false)
+  /** 이 종목 판매 중 카드들 중 가장 문턱에 가까운 q (없으면 null) */
+  minQ       Float?
+  /** 감시로 들어온 경로 — batch(일봉) | gate(결제 전 호출) | refresh(장중 갱신) */
+  source     String   @default("batch")
+  updatedAt  DateTime @updatedAt
+
+  @@unique([assetClass, ticker])
+  @@index([watching])
+}
+
 // 권리 사건으로 카드의 가격 기준을 옮긴 기록.
 // 이미 팔린 상품의 조건(기준가·목표가)을 바꾸는 일이라 반드시 남긴다 — 구매자가
 // "내가 산 목표가와 다르다"고 물었을 때 재현할 수 있어야 한다.

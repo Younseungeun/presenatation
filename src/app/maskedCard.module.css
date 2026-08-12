@@ -288,3 +288,20 @@
   font-weight: 800;
   letter-spacing: -0.02em;
 }
+
+/* 일시 중단 — "지금 살 수 있는" 목록에서는 아예 빠지고, 검색·프로필처럼 찾아 들어온
+   자리에서만 남는 표시. 마감(불가역)과 구별되어야 해서 회색 계열로 두고, 위험을
+   뜻하는 붉은색은 쓰지 않는다 — 나쁜 카드가 아니라 지금만 못 사는 카드다 */
+.suspendedChip {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--text-weak, #8b95a1) 16%, transparent);
+  color: var(--text-weak, #8b95a1);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}

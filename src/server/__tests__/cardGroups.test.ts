@@ -26,6 +26,7 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
     confidence: 3,
     deadline: new Date(NOW.getTime() + 5 * DAY),
     salesCount: 0,
+    purchaseSuspended: false,
     publishedAt: new Date(NOW.getTime() - 2 * DAY),
     ...over,
   };

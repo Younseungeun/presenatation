@@ -10,6 +10,7 @@ import {
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isFreeReport } from './freeReportService';
 import { fetchCachedPrice } from './priceCache';
+import { recordQuote } from './quoteWatchService';
 
 // 구매 → 에스크로 보관. PG(웹 결제) 연동 전까지는 결제 성공을 가정하는 스텁 —
 // 실제 연동 시 PG 승인 후 이 함수를 호출하는 구조가 된다 (금액·상태 기록은 동일).
@@ -109,10 +110,26 @@ interface IntradayCard {
  * 이것이 "구매 승인 = 광고 폭의 절반 이상 보장"이라는 고지를 참으로 만드는 집행이다.
  * 기준가·시세가 없으면 판단하지 않는다 (막는 쪽으로 지어내지 않는다).
  */
-async function assertNotSuspendedIntraday(card: IntradayCard | null): Promise<void> {
+async function assertNotSuspendedIntraday(
+  prisma: PrismaClient,
+  card: IntradayCard | null,
+  now: Date,
+): Promise<void> {
   if (!card || card.basePrice === null) return;
   const price = await fetchCachedPrice(card.assetClass, card.ticker);
   if (price === null) return;
+
+  // **이 호출이 감시 대상을 발굴한다** (2026-08-12 사용자 확정).
+  // 문턱에서 먼 종목은 장중에 갱신하지 않으므로, 그 사이 문턱으로 다가온 것을 아무도
+  // 모른다. 그런데 "사려는 사람"이 누르는 이 순간이 곧 그 종목의 실시간 관측이다 —
+  // 여기서 얻은 시세를 스냅샷에 남기고, 문턱 근처면 그 자리에서 감시로 편입한다.
+  // 그러면 다음 사람부터는 목록 단계에서 이미 걸러진다.
+  // 실패해도 결제는 계속한다 — 감시는 부가 기능이고 이 함수의 본업은 차단이다
+  try {
+    await recordQuote(prisma, card.assetClass, card.ticker, price, 'gate', now);
+  } catch {
+    /* 스냅샷 기록 실패가 결제를 막지 않는다 */
+  }
   const targetPrice =
     card.targetType === 'TARGET_PRICE'
       ? card.targetValue
@@ -163,7 +180,7 @@ export async function purchaseReport(
   assertPurchasable(report, buyerId, now);
   // 가격 보호 — 결제 순간 실시간 시세로 남은 몫(q)을 재고 광고의 절반 밑이면 막는다.
   // 피해자는 구매하는 순간에 생기므로 검사도 그 순간에 한다
-  await assertNotSuspendedIntraday(report.predictionCard);
+  await assertNotSuspendedIntraday(prisma, report.predictionCard, now);
 
   const buyer = await prisma.user.findUniqueOrThrow({ where: { id: buyerId } });
   if (!buyer.identityVerified) {
