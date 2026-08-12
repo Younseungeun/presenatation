@@ -49,6 +49,15 @@ export const MIN_RETURN_SAMPLES = 20;
 export const MAX_RETURN_SAMPLES = 60;
 
 /**
+ * 종가가 실제로 움직인 날의 최소 비율. 이보다 낮으면 σ를 내지 않는다.
+ * 거래정지·정리매매·SPAC 유닛처럼 며칠씩 같은 값이 이어지는 종목을 걸러낸다 —
+ * 그런 종목의 낮은 σ는 "안정적"이 아니라 "거래가 없다"는 뜻이다.
+ * 0.6은 넉넉한 선이다: 정상 종목은 종가가 같은 날이 거의 없고(≈1.0),
+ * 정지 종목은 0에 가깝다.
+ */
+export const MIN_MOVING_RATIO = 0.6;
+
+/**
  * 일봉 종가열 → 실현 변동성 (하루 로그수익률의 표본 표준편차).
  * 종가는 과거 → 최근 순서로 준다. 표본이 모자라면 null — 어림값을 지어내지 않는다.
  */
@@ -60,6 +69,14 @@ export function realizedDailySigma(closes: readonly number[]): number | null {
     returns.push(Math.log(recent[i] / recent[i - 1]));
   }
   if (returns.length < MIN_RETURN_SAMPLES) return null;
+
+  // **움직이지 않는 종가열은 σ가 아니라 거래 부재의 신호다.**
+  // 거래정지 종목·SPAC 유닛·초저유동 종목은 종가가 며칠씩 그대로라 σ가 0에 수렴하고,
+  // 그대로 두면 "가장 안정적인 종목"으로 분류된다(실측: 캘리브레이션 표본의 최하위가
+  // 전부 정지·SPAC이었다). 안정성 별점의 뜻이 "조용하다"가 아니라 "안 팔린다"가 된다.
+  // 값을 지어내지 않고 null을 돌려준다 — 화면은 "—", 점수는 자산군 σ̄로 물러선다.
+  const moved = returns.filter((r) => r !== 0).length;
+  if (moved < returns.length * MIN_MOVING_RATIO) return null;
 
   const mean = returns.reduce((a, b) => a + b, 0) / returns.length;
   const variance =
