@@ -13,7 +13,7 @@
 // 안정성 몫 0%·스팸 EV ≈ 0·최적 M이 실력 따라 커지는 것이 v4가 고친 결과다.
 
 import { scoreJudgedCard } from '../src/domain/scoring';
-import { MIN_MAGNITUDE_PCT } from '../src/domain/scoring';
+import { PROFITABILITY_BASE_PCT } from '../src/domain/scoring';
 
 interface Market {
   label: string;
@@ -55,7 +55,7 @@ function simulateOutcome(sigma: number, drift: number, M: number, H: number) {
 }
 
 for (const mkt of MARKETS) {
-  const floor = MIN_MAGNITUDE_PCT[mkt.assetClass];
+  const floor = PROFITABILITY_BASE_PCT[mkt.assetClass];
   console.log(`\n━━━ ${mkt.label} · 하한 ${floor}% ━━━`);
   for (const skill of SKILLS) {
     // M별 결과 분포를 한 번 만들고 (c,s) 그리드는 같은 결과에 점수만 다시 매긴다

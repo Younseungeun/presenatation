@@ -1,4 +1,4 @@
-import { DISCIPLINE_LADDER, MIN_MAGNITUDE_PCT } from "@/domain/scoring";
+import { DISCIPLINE_LADDER, MAGNITUDE_FLOOR_K } from "@/domain/scoring";
 import { AppHeader } from "../AppHeader";
 import { Disclaimer } from "../Disclaimer";
 import { ScoreCalculator } from "./ScoreCalculator";
@@ -117,8 +117,7 @@ export default function ScorePage() {
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>예측 크기 하한</span>
             <span className={styles.cardVal}>
-              국내·미국주식 {MIN_MAGNITUDE_PCT.KR_EQUITY}% · 코인{" "}
-              {MIN_MAGNITUDE_PCT.CRYPTO}%
+              {MAGNITUDE_FLOOR_K} × 종목 변동성 × √기한
             </span>
           </div>
           <div className={styles.cardRow}>

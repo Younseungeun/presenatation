@@ -95,7 +95,10 @@ describe('validateListedInstrument — 유니버스 검증', () => {
         assetName,
         direction: 'UP' as const,
         targetType: 'RETURN_PCT' as const,
-        targetValue: 15,
+        // 이 종목들은 실제 동기화 경로로 넣어 σ가 없다 → 코인 자산군 평균(4%/일)으로
+        // 물러서고, 30일 하한이 약 26%가 된다. 여기서 보는 것은 유니버스 검증이라
+        // 하한을 넉넉히 넘겨 둔다
+        targetValue: 30,
         confidence: 5,
         selfStability: 5,
         deadline,

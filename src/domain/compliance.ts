@@ -149,6 +149,11 @@ export interface ScreeningInput {
   horizonDays?: number | null;
   /** 자기 신고 신뢰도 1~10 (점수 증폭 배율) */
   confidence?: number | null;
+  /**
+   * 종목의 실현 변동성 — 크기의 현실성은 **그 종목이 실제로 얼마나 움직이는가**로 봐야 한다.
+   * 없으면 자산군 고정 상한으로 판단한다(종전 동작).
+   */
+  sigmaDaily?: number | null;
 }
 
 // ── 1단계: 결정적 규칙 ────────────────────────────────────────────────
@@ -374,14 +379,16 @@ export function applyRules(input: ScreeningInput): Finding[] {
   }
 
   // 기간 대비 달성 불가능한 예측 크기.
-  // 크기 하한(MIN_MAGNITUDE_PCT)은 "방향 맞히기로 만점 받기"를 막고,
+  // 크기 하한(scoring.minMagnitudePct)은 "방향 맞히기로 만점 받기"를 막고,
   // 이 상한은 반대로 "달성할 생각 없는 숫자로 눈길 끌기"를 막는다.
+  // **종목 σ를 함께 본다** — 거친 종목의 큰 예측은 낚시가 아니라 사실이라,
+  // 자산군 고정 상한만 보면 게시가 허용된 크기를 검수가 지적하는 모순이 생긴다.
   if (
     input.targetType === 'RETURN_PCT' &&
     input.magnitudePct != null &&
     input.horizonDays != null
   ) {
-    const cap = maxMagnitudePct(input.assetClass, input.horizonDays);
+    const cap = maxMagnitudePct(input.assetClass, input.horizonDays, input.sigmaDaily);
     if (input.magnitudePct > cap) {
       const days = Math.max(1, Math.round(input.horizonDays));
       findings.push({

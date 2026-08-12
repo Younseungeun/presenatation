@@ -7,7 +7,9 @@ import {
   lossAmplifier,
   magnitudePctToTargetPrice,
   maxMagnitudePct,
-  MIN_MAGNITUDE_PCT,
+  minMagnitudePct,
+  ABSOLUTE_MIN_MAGNITUDE_PCT,
+  DAILY_SIGMA,
   noSkillTouchProbability,
   scoreJudgedCard,
   targetPriceToMagnitudePct,
@@ -222,10 +224,59 @@ describe('마이너스 점수 규율', () => {
   });
 });
 
-describe('하한 상수의 정합', () => {
-  it('MIN_MAGNITUDE_PCT는 자산군마다 정의되어 있다', () => {
-    expect(MIN_MAGNITUDE_PCT.KR_EQUITY).toBeGreaterThan(0);
-    expect(MIN_MAGNITUDE_PCT.US_EQUITY).toBeGreaterThan(0);
-    expect(MIN_MAGNITUDE_PCT.CRYPTO).toBeGreaterThan(0);
+describe('예측 크기 하한 — 종목 변동성 연동', () => {
+  it('**핵심 불변식**: 하한 카드의 무정보 도달 확률이 종목 변동성과 무관하다', () => {
+    // 이것이 "변동성으로만 hit을 노릴 수 없다"의 수학적 진술이다.
+    // 하한 = k·σ·√H라 정규화 장벽 거리가 k로 고정되고, p₀는 그 거리의 함수다.
+    const p0 = [0.008, 0.021, 0.037, 0.06].map((sigma) =>
+      noSkillTouchProbability('UP', minMagnitudePct('KR_EQUITY', sigma, 30), 'KR_EQUITY', 30, sigma),
+    );
+    // 잔차는 이산 관측 보정(BGK)과 마팅게일 드리프트에서만 나온다 — 3%p 안쪽
+    expect(Math.max(...p0) - Math.min(...p0)).toBeLessThan(0.03);
+  });
+
+  it('고정 하한이었다면 그 확률이 크게 벌어진다 (회귀 방지 대조군)', () => {
+    const fixed = [0.008, 0.06].map((sigma) =>
+      noSkillTouchProbability('UP', 5, 'KR_EQUITY', 30, sigma),
+    );
+    // 고정 5%: 조용한 종목 ~22% vs 거친 종목 ~76% — 거친 종목을 고르는 것만으로 이득
+    expect(fixed[1] - fixed[0]).toBeGreaterThan(0.4);
+  });
+
+  it('거친 종목일수록, 기한이 길수록 하한이 올라간다', () => {
+    expect(minMagnitudePct('KR_EQUITY', 0.06, 30)).toBeGreaterThan(
+      minMagnitudePct('KR_EQUITY', 0.008, 30),
+    );
+    expect(minMagnitudePct('KR_EQUITY', 0.021, 90)).toBeGreaterThan(
+      minMagnitudePct('KR_EQUITY', 0.021, 7),
+    );
+  });
+
+  it('σ가 없으면 자산군 평균으로 물러선다 — 지어내지 않되 계산은 계속된다', () => {
+    expect(minMagnitudePct('KR_EQUITY', null, 30)).toBeCloseTo(
+      minMagnitudePct('KR_EQUITY', DAILY_SIGMA.KR_EQUITY, 30),
+      6,
+    );
+  });
+
+  it('절대 바닥 아래로 내려가지 않는다 — 왕복 거래비용보다 작은 목표는 조언이 아니다', () => {
+    expect(minMagnitudePct('KR_EQUITY', 0.0005, 1)).toBe(ABSOLUTE_MIN_MAGNITUDE_PCT);
+  });
+
+  it('**하한이 상한을 넘지 않는다** — 넘으면 게시 가능한 크기가 하나도 없어진다', () => {
+    for (const assetClass of ['KR_EQUITY', 'US_EQUITY', 'CRYPTO'] as const) {
+      for (const sigma of [0.005, 0.021, 0.06, 0.1, 0.25]) {
+        for (const days of [1, 3, 7, 30, 90, 365]) {
+          expect(minMagnitudePct(assetClass, sigma, days)).toBeLessThan(
+            maxMagnitudePct(assetClass, days, sigma),
+          );
+        }
+      }
+    }
+  });
+
+  it('σ를 모르면 상한은 종전 고정값 그대로 — 검수 규칙의 동작이 바뀌지 않는다', () => {
+    expect(maxMagnitudePct('KR_EQUITY', 30)).toBe(50);
+    expect(maxMagnitudePct('CRYPTO', 30)).toBe(120);
   });
 });

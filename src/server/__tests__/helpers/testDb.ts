@@ -39,6 +39,8 @@ export async function seedTestInstruments(
     name?: string;
     shortable?: boolean;
     active?: boolean;
+    /** 하한을 시험하려는 테스트만 지정한다 (기본은 조용한 종목) */
+    sigmaDaily?: number;
   }> = [],
 ) {
   const defaults: typeof entries = [
@@ -61,10 +63,17 @@ export async function seedTestInstruments(
         shortable: e.shortable ?? false,
         active: e.active ?? true,
         source: 'test-seed',
+        // 예측 크기 하한이 σ로 정해지므로(scoring.minMagnitudePct) 픽스처도 σ를 명시한다.
+        // 조용한 종목으로 두는 이유: 이 테스트들이 시험하는 것은 판매·결제·판정이지
+        // 하한이 아니라서, 카드가 하한에 걸리지 않고 통과해야 한다.
+        // 값을 비워 두면 자산군 평균으로 물러서는데, 그 상수가 바뀌면 무관한 테스트가
+        // 무더기로 깨진다 — 픽스처는 자기 전제를 스스로 들고 있어야 한다.
+        sigmaDaily: e.sigmaDaily ?? 0.005,
       },
       update: {
         shortable: e.shortable ?? false,
         active: e.active ?? true,
+        sigmaDaily: e.sigmaDaily ?? 0.005,
       },
     });
   }

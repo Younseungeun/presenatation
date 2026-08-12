@@ -7,7 +7,7 @@ import {
   DAILY_SIGMA,
   honestConfidence,
   lossAmplifier,
-  MIN_MAGNITUDE_PCT,
+  minMagnitudePct,
   noSkillTouchProbability,
   winAmplifier,
 } from "@/domain/scoring";
@@ -43,12 +43,13 @@ export function ScoreCalculator() {
   /** 종목 변동성(하루 %) — 자산군 평균에서 출발하되 사용자가 움직인 뒤에는 그 값을 쓴다 */
   const [sigmaPct, setSigmaPct] = useState<number | null>(null);
 
-  const floor = MIN_MAGNITUDE_PCT[assetClass];
   const direction = up ? ("UP" as const) : ("DOWN" as const);
-  // 크기 하한 미만은 애초에 게시가 막히므로 계산기에서도 같은 하한을 강제한다
-  const size = Math.max(magnitude, floor);
   // 손대지 않았으면 자산군 평균 — 자산군을 바꾸면 기본값도 따라 바뀐다
   const sigma = sigmaPct ?? DAILY_SIGMA[assetClass] * 100;
+  // 하한은 종목 변동성·기한의 함수다 — 변동성 슬라이더를 움직이면 하한도 따라 움직인다.
+  // 게시가 막히는 크기는 계산기에서도 만들 수 없어야 화면과 규칙이 어긋나지 않는다
+  const floor = minMagnitudePct(assetClass, sigma / 100, horizonDays);
+  const size = Math.max(magnitude, floor);
   const stability = cardStabilityLevel(sigma / 100);
 
   const r = useMemo(() => {

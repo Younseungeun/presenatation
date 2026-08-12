@@ -33,6 +33,8 @@ interface CheckInput {
   magnitudePct?: number | null;
   horizonDays?: number | null;
   confidence?: number | null;
+  /** 크기 상한 규칙이 종목 변동성을 함께 본다 */
+  sigmaDaily?: number | null;
 }
 
 type CategoryRates = Partial<Record<RiskCategory, { flagged: number; approved: number }>>;

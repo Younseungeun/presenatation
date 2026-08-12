@@ -46,14 +46,70 @@ export const CONFIDENCE_RANGE = { min: 1, max: 10 } as const;
 export const DIRECTION_SCALE = 10;
 
 /**
- * 자산군별 예측 크기(%) 하한 — 초안, 운영 데이터로 조정 예정.
- * 게시 검증(publishReport)에서 쓴다.
+ * 수익성 5구간의 기준 단위 F (domain/profitability.ts) — **하한이 아니다.**
+ *
+ * 2026-08-13까지 이 상수가 예측 크기 하한을 겸했는데, 두 역할은 분리해야 한다:
+ *  · 하한은 "무정보로도 닿는 크기"를 막는 장치라 **종목 변동성에 따라 움직여야** 한다
+ *    (아래 minMagnitudePct)
+ *  · 수익성 라벨은 "맞으면 얼마나 버나"라 **절대 크기**여야 한다 — 종목마다 F가 달라지면
+ *    "수익성 적극"이 삼성전자에서 10%, 테마주에서 40%를 뜻하게 되어 구매자가 라벨에서
+ *    기대할 수 있는 것이 사라진다
+ * 하나의 상수가 둘을 겸하면 한쪽을 고칠 때 다른 쪽이 조용히 따라 움직인다.
  */
-export const MIN_MAGNITUDE_PCT: Record<AssetClass, number> = {
+export const PROFITABILITY_BASE_PCT: Record<AssetClass, number> = {
   KR_EQUITY: 5,
   US_EQUITY: 5,
   CRYPTO: 10,
 };
+
+/**
+ * 예측 크기 하한의 비례 상수 — 하한 = k · σ · √(기한).
+ *
+ * ── 왜 σ·√H에 비례하는가 (수학) ──────────────────────────────
+ * 무정보 도달 확률 p₀는 로그 장벽 거리를 확산 규모 σ√H로 나눈 **정규화 거리**의 함수다
+ * (반사원리 — noSkillTouchProbability). 하한을 k·σ√H로 두면 그 정규화 거리가 항상 k로
+ * 고정되므로 **∂p₀/∂σ ≈ 0** — 어떤 종목을 골라도 하한 카드의 무정보 적중률이 같아진다.
+ * 이것이 "변동성으로만 hit을 노릴 수 없다"의 정확한 진술이다.
+ * 고정 %는 이 성질이 없었다 (실측: 고정 5%의 p₀가 σ 0.8%→6.0%에서 21.7%→76.3%).
+ *
+ * ── k = 1.2인 근거 (scripts/simMagnitudeFloor.ts) ─────────────
+ * "실력자 EV 최대화"는 기준이 못 된다 — 실력을 드리프트로 보면 우위가 √기간으로 커져
+ * 최적 k가 기간에 따라 1.1→2.5로 움직인다. 그래서 **적중률 표시가 실력의 신호로
+ * 남는가**로 골랐다: 시즌 20장에서 "승률 50% 이상"으로 보일 확률(이항 꼬리).
+ *
+ *   k      무정보자        준수 실력자   (σ=2.1%, 30일)
+ *   0.8    15.3%          99.5%
+ *   1.0     2.9%          95.4%
+ *   1.2     0.3%          82.5%   ← 무릎
+ *   1.4     0.0%          56.8%
+ *   1.6     0.0%          28.8%
+ *
+ * 1.2 아래로는 무정보자가 운으로 실력처럼 보이고, 위로는 진짜 실력자가 자기 실력을
+ * 표시하지 못한다. 기간을 3~180일로 바꿔도 같은 자리에서 갈린다(무정보 ≤1%).
+ * 부수 효과로 파밍 이득이 54.6%p → 1.2%p로 닫히고, 단타 하한이 완화된다
+ * (대형주 3일: 5% → 4.4%). 몬테카를로 4만 경로로 닫힌꼴 p₀를 검증(오차 ≤1.1%p).
+ */
+export const MAGNITUDE_FLOOR_K = 1.2;
+
+/**
+ * 절대 바닥(%) — 왕복 거래비용(수수료·세금·호가 스프레드)이 국내 주식 기준 0.2%대라,
+ * 그 다섯 배는 되어야 "따라 매매해서 남는" 조언이 된다. σ가 아주 작은 종목의
+ * 초단기 카드가 0.5%짜리 목표로 내려앉는 것을 막는 상품 성립선이다.
+ */
+export const ABSOLUTE_MIN_MAGNITUDE_PCT = 1;
+
+/**
+ * 하한과 상한 사이에 최소한 남겨야 하는 여지.
+ *
+ * σ가 아주 큰 종목(주식 기준 σ > 7.6%)에서는 하한(∝σ√H)이 고정 상한(∝√H)을 넘어
+ * **게시 가능한 크기가 하나도 없어진다** — 둘 다 √H로 스케일해 기간을 늘려도 열리지 않는다.
+ *
+ * 하한을 눌러 창을 만드는 방법은 쓰지 않는다. 눌린 하한은 그 종목에서 무정보 도달
+ * 확률을 다시 올려 **정확히 파밍이 노리는 자리에 구멍을 낸다**(테스트가 이 회귀를 잡는다).
+ * 대신 **상한을 밀어 올린다**: σ=10%인 종목이 30일에 66% 움직이는 것은 실제로 통상
+ * 변동폭 안이라, 그 종목에서 고정 상한 50%가 틀린 값이다.
+ */
+const FLOOR_CAP_RATIO = 0.7;
 
 /**
  * 자산군별 일 변동성 σ̄ (거래일 기준) — **종목 σ를 모를 때만 쓰는 폴백**.
@@ -108,9 +164,55 @@ export const MONTHLY_MAGNITUDE_CAP_PCT: Record<AssetClass, number> = {
  * 변동성은 시간의 제곱근에 비례하므로(랜덤워크) 30일 기준 상한을 √(일수/30)로 스케일한다.
  * 고정 상한을 쓰면 단기 카드에는 너무 헐겁고 장기 카드에는 너무 빡빡해진다.
  */
-export function maxMagnitudePct(assetClass: AssetClass, horizonDays: number): number {
+export function maxMagnitudePct(
+  assetClass: AssetClass,
+  horizonDays: number,
+  /**
+   * 그 종목의 실현 변동성. 주면 상한이 **하한 위로 밀려 올라간다** — 아주 거친 종목에서
+   * 고정 상한이 하한 아래로 내려앉아 게시 가능한 크기가 사라지는 것을 막는다.
+   * 안 주면 자산군 고정 상한 그대로 (검수 규칙처럼 σ를 모르는 자리).
+   */
+  sigmaDaily?: number | null,
+): number {
   const days = Math.max(1, horizonDays);
-  return MONTHLY_MAGNITUDE_CAP_PCT[assetClass] * Math.sqrt(days / 30);
+  const fixed = MONTHLY_MAGNITUDE_CAP_PCT[assetClass] * Math.sqrt(days / 30);
+  if (sigmaDaily == null) return fixed;
+  return Math.max(fixed, rawMagnitudeFloor(assetClass, sigmaDaily, days) / FLOOR_CAP_RATIO);
+}
+
+/** 클램프 전 하한 — 상한 계산과 서로를 부르지 않게 따로 둔다 */
+function rawMagnitudeFloor(
+  assetClass: AssetClass,
+  sigmaDaily: number | null | undefined,
+  horizonDays: number,
+): number {
+  const sigma =
+    sigmaDaily == null
+      ? DAILY_SIGMA[assetClass]
+      : Math.min(SIGMA_MAX, Math.max(SIGMA_MIN, sigmaDaily));
+  return MAGNITUDE_FLOOR_K * sigma * Math.sqrt(Math.max(1, horizonDays)) * 100;
+}
+
+/**
+ * 예측 크기(%) 하한 — **그 종목의 실현 변동성과 기한으로 정해진다.**
+ *
+ * 하한 = clamp(k · σ · √기한 · 100, 절대 바닥, 상한 × 0.7)
+ *
+ * σ를 못 쟀으면 자산군 σ̄로 물러선다 (p₀ 폴백과 같은 규칙) — 지어내지 않되 계산은 계속된다.
+ * 그 경우 하한은 종목이 아니라 자산군의 평균적 거칢을 반영하므로, σ가 큰 종목에서는
+ * 파밍이 일부 열린다 (결측 치유 배치가 σ를 메우는 이유다 — server/cardDataHealer).
+ */
+export function minMagnitudePct(
+  assetClass: AssetClass,
+  sigmaDaily: number | null | undefined,
+  horizonDays: number,
+): number {
+  // 위로는 누르지 않는다 — 누르는 순간 그 종목의 무정보 도달 확률이 올라
+  // 파밍이 노리는 자리에 구멍이 생긴다. 상한이 대신 밀려 올라간다(maxMagnitudePct)
+  return Math.max(
+    ABSOLUTE_MIN_MAGNITUDE_PCT,
+    rawMagnitudeFloor(assetClass, sigmaDaily, horizonDays),
+  );
 }
 
 /** 적중 시 증폭 배율 */

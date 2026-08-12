@@ -60,10 +60,15 @@ export async function createDraftReport(
   );
 
   // 초안 단계에서도 형식 오류는 즉시 돌려준다 (게시 시점 재검증은 별도)
+  //
+  // 크기 하한이 종목 변동성으로 정해지므로 σ를 함께 넘긴다. **캐시된 값을 쓴다** —
+  // 작성 화면이 종목을 고르는 순간 /api/instruments/sigma로 채워 둔 바로 그 값이라,
+  // 리서처가 화면에서 본 하한과 서버가 적용하는 하한이 어긋나지 않는다.
+  // 비어 있으면 자산군 σ̄로 물러서고, 게시 시점에 실측 σ로 다시 검증된다.
   const issues = [
     ...instrument.issues,
     ...validateReportText(input),
-    ...validateCardDraft(input.card, now),
+    ...validateCardDraft({ ...input.card, sigmaDaily: instrument.sigmaDaily }, now),
     ...validateConditions({
       priceKrw: input.priceKrw,
       prepaymentRatio: input.prepaymentRatio,
@@ -189,6 +194,9 @@ export async function publishReport(
       // 판정은 전적으로 카드로 이뤄지는데 구매자는 본문을 보고 사므로,
       // 카드를 검수 입력에서 빼면 그 둘이 어긋난 리포트를 아무도 못 잡는다.
       ...cardScreeningFields(cardDraft, now),
+      // 크기 상한 규칙이 종목 변동성을 함께 본다 — 거친 종목의 큰 예측은 낚시가 아니다.
+      // 작성 화면 사전 검사가 쓰는 것과 같은 캐시값이라 두 화면의 판정이 어긋나지 않는다
+      sigmaDaily: instrument.sigmaDaily,
     },
     screener,
     now,
@@ -293,7 +301,9 @@ async function finalizePublish(
   });
 
   const snapshot = preparePublish(
-    cardDraft,
+    // 방금 잰 σ로 크기 하한을 다시 검증한다 — 초안은 캐시된 값으로 통과했을 수 있고,
+    // 그 사이 종목이 거칠어졌다면 하한도 올라가 있어야 한다
+    { ...cardDraft, sigmaDaily },
     {
       priceKrw: report.priceKrw,
       prepaymentRatio: report.prepaymentRatio as PrepaymentRatio,

@@ -8,6 +8,7 @@ import {
   type CardDraft,
   type PublishConditions,
 } from '../publishReport';
+import { minMagnitudePct } from '../scoring';
 
 const NOW = new Date('2026-07-12T00:00:00Z');
 
@@ -21,6 +22,9 @@ const validCard: CardDraft = {
   deadline: new Date('2026-10-12T00:00:00Z'),
   confidence: 3,
   selfStability: 5,
+  // 크기 하한이 종목 변동성으로 정해지므로 픽스처도 σ를 명시한다 — 조용한 종목(0.5%/일).
+  // 비워 두면 자산군 평균으로 물러서는데, 그 상수가 바뀌면 하한과 무관한 테스트가 깨진다
+  sigmaDaily: 0.005,
 };
 
 const validCond: PublishConditions = {
@@ -77,12 +81,26 @@ describe('validateCardDraft', () => {
     ).not.toEqual([]);
   });
 
-  it('자산군별 크기 하한: 주식 5%, 코인 10% 미만의 수익률형 예측 거부', () => {
-    expect(validateCardDraft({ ...validCard, targetValue: 4.9 }, NOW)).not.toEqual([]);
-    expect(validateCardDraft({ ...validCard, targetValue: 5 }, NOW)).toEqual([]);
-    const crypto = { ...validCard, assetClass: 'CRYPTO' as const, ticker: 'KRW-BTC' };
-    expect(validateCardDraft({ ...crypto, targetValue: 9 }, NOW)).not.toEqual([]);
-    expect(validateCardDraft({ ...crypto, targetValue: 10 }, NOW)).toEqual([]);
+  it('크기 하한은 **종목 변동성**으로 정해진다 — 거친 종목일수록 더 큰 크기를 요구한다', () => {
+    // 같은 기간(92일)·같은 크기(10%)라도 종목이 거칠면 거부된다.
+    // 저절로 닿을 크기를 예측으로 팔 수 없게 하는 것이 하한의 목적이기 때문
+    const floorAt = (sigmaDaily: number) =>
+      minMagnitudePct('KR_EQUITY', sigmaDaily, 92);
+
+    expect(validateCardDraft({ ...validCard, targetValue: 10 }, NOW)).toEqual([]);
+    expect(floorAt(0.005)).toBeLessThan(10);
+
+    const wild = { ...validCard, sigmaDaily: 0.04 };
+    expect(floorAt(0.04)).toBeGreaterThan(10);
+    expect(validateCardDraft({ ...wild, targetValue: 10 }, NOW)).not.toEqual([]);
+    expect(validateCardDraft({ ...wild, targetValue: floorAt(0.04) + 0.1 }, NOW)).toEqual([]);
+  });
+
+  it('σ가 없으면 자산군 평균으로 물러선다 — 검증이 멈추지 않는다', () => {
+    const noSigma = { ...validCard, sigmaDaily: null, targetValue: 10 };
+    // KR σ̄=2%, 92일 → 하한 약 23% → 10%는 거부된다
+    expect(validateCardDraft(noSigma, NOW)).not.toEqual([]);
+    expect(validateCardDraft({ ...noSigma, targetValue: 25 }, NOW)).toEqual([]);
   });
 
   // 종목 유니버스·하락 예측 제한은 종목 마스터(DB) 검증으로 이동 — instrumentService.test.ts
@@ -273,9 +291,9 @@ describe('preparePublish', () => {
   });
 
   it('목표가형: 기준가 대비 크기가 하한 미만이면 게시 거부', () => {
-    // 기준가 70,000 → 목표가 71,000 = 1.4% (< KR 5%)
+    // 기준가 70,000 → 목표가 71,000 = 1.4% (σ 0.5%·92일의 하한 약 5.8% 미만)
     const card: CardDraft = { ...validCard, targetType: 'TARGET_PRICE', targetValue: 71_000 };
-    expect(() => preparePublish(card, validCond, 70_000, NOW)).toThrow(/최소 5%/);
+    expect(() => preparePublish(card, validCond, 70_000, NOW)).toThrow(/예측 크기 하한/);
   });
 
   it('기준가 소급 확정 단기 카드는 수익률형만 허용 (목표가형 거부)', () => {

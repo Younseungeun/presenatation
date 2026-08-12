@@ -10,7 +10,7 @@ import {
 import { calcFeeRateBp } from './fees';
 import { holidayName } from './marketCalendar';
 import { marketClock } from './marketData';
-import { disciplineFor, MIN_MAGNITUDE_PCT, targetPriceToMagnitudePct } from './scoring';
+import { disciplineFor, minMagnitudePct, targetPriceToMagnitudePct } from './scoring';
 
 // 리포트 게시 검증 규칙 (순수 로직).
 // 게시는 되돌릴 수 없는 행위다: 수수료·선결제 비율·기준가가 고정되고 예측 카드가 잠긴다.
@@ -141,6 +141,11 @@ export interface CardDraft {
   confidence: number;
   /** 자기 평가 안정성 1~10 (필수) — 정밀도 배팅 배율 */
   selfStability: number;
+  /**
+   * 그 종목의 실현 변동성 (최근 60거래일). **크기 하한이 이 값으로 정해진다.**
+   * 없으면 자산군 σ̄로 물러선다 — 작성 화면은 종목을 고르는 순간 받아 하한을 보여준다.
+   */
+  sigmaDaily?: number | null;
 }
 
 export interface PublishConditions {
@@ -230,6 +235,19 @@ export function planBaseMode(
   return { baseMode: 'DAY_CLOSE_AT_JUDGMENT', issues };
 }
 
+/**
+ * 하한 미달 안내 — **왜 이 숫자인지**까지 적는다.
+ * 하한이 종목·기간마다 달라지므로 "최소 5%"처럼 외울 수 있는 값이 아니게 됐다.
+ * 이유를 함께 주지 않으면 리서처에게는 그냥 임의의 벽으로 보인다.
+ */
+function magnitudeFloorMessage(floor: number, requested: number): string {
+  return (
+    `이 종목·기간의 예측 크기 하한은 ${floor.toFixed(1)}%입니다 (요청: ${requested}%). ` +
+    '하한은 종목의 최근 60거래일 변동성과 검증 기한으로 정해집니다 — ' +
+    '변동성이 큰 종목일수록 저절로 닿을 확률이 높아 더 큰 크기를 요구합니다.'
+  );
+}
+
 export function validateCardDraft(card: CardDraft, now = new Date()): string[] {
   const issues: string[] = [];
 
@@ -245,10 +263,10 @@ export function validateCardDraft(card: CardDraft, now = new Date()): string[] {
     issues.push(`목표 수치는 양수여야 합니다 (RETURN_PCT는 등락률 크기): ${card.targetValue}`);
   }
   // 초소형 크기 예측 방지: 수익률형은 초안 단계에서 즉시 검증 (목표가형은 기준가 확정 시)
-  if (card.targetType === 'RETURN_PCT' && card.targetValue < MIN_MAGNITUDE_PCT[card.assetClass]) {
-    issues.push(
-      `${card.assetClass} 예측 크기는 최소 ${MIN_MAGNITUDE_PCT[card.assetClass]}% 이상이어야 합니다: ${card.targetValue}% — 작은 크기는 사실상 방향 맞히기로 만점이 되기 때문입니다`,
-    );
+  const horizonDays = (card.deadline.getTime() - now.getTime()) / 86_400_000;
+  const floor = minMagnitudePct(card.assetClass, card.sigmaDaily, horizonDays);
+  if (card.targetType === 'RETURN_PCT' && card.targetValue < floor) {
+    issues.push(magnitudeFloorMessage(floor, card.targetValue));
   }
   // 수익성은 예측 크기에서 자동 산출된다(profitability.ts) — 입력 검증 대상이 아니다
   for (const [label, value] of [
@@ -359,10 +377,13 @@ export function preparePublish(
         issues.push(`하락 예측의 목표가(${card.targetValue})가 기준가(${basePrice}) 이상입니다`);
       }
       const magnitude = targetPriceToMagnitudePct(card.targetValue, basePrice);
-      if (magnitude < MIN_MAGNITUDE_PCT[card.assetClass]) {
-        issues.push(
-          `${card.assetClass} 예측 크기는 최소 ${MIN_MAGNITUDE_PCT[card.assetClass]}% 이상이어야 합니다 (목표가 기준 ${magnitude.toFixed(1)}%)`,
-        );
+      const floor = minMagnitudePct(
+        card.assetClass,
+        card.sigmaDaily,
+        (card.deadline.getTime() - now.getTime()) / 86_400_000,
+      );
+      if (magnitude < floor) {
+        issues.push(magnitudeFloorMessage(floor, Number(magnitude.toFixed(1))));
       }
     }
   }

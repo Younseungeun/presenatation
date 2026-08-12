@@ -18,6 +18,9 @@ const card: CardDraft = {
   deadline: new Date('2026-10-12T00:00:00Z'),
   confidence: 1,
   selfStability: 5,
+  // 이 테스트가 보는 것은 규율 래더지 크기 하한이 아니다 — 조용한 종목으로 고정해
+  // 하한에 걸리지 않게 한다 (하한은 σ·기한의 함수다: scoring.minMagnitudePct)
+  sigmaDaily: 0.005,
 };
 
 const cond: PublishConditions = {

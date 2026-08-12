@@ -2,7 +2,8 @@ import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import type { AssetClass, Direction, TargetType } from '../src/domain/constants';
 import type { DailyQuote, ProviderRegistry } from '../src/domain/marketData';
-import { maxMagnitudePct, MIN_MAGNITUDE_PCT } from '../src/domain/scoring';
+import { maxMagnitudePct, minMagnitudePct } from '../src/domain/scoring';
+import { realizedDailySigma } from '../src/domain/stability';
 import { TIER_MAX_PREPAYMENT } from '../src/domain/fees';
 import type { Tier } from '../src/domain/constants';
 import { FixtureMarketDataProvider } from '../src/infra/marketData/fixtureProvider';
@@ -182,7 +183,6 @@ function planFor(
   idx: number,
   shortable: boolean,
 ): Plan | null {
-  const floor = MIN_MAGNITUDE_PCT[s.assetClass];
   // 판매 기간 = min(검증기간/3, 30일)이라, "판매 중"이어야 하는 상태는 게시 시점을
   // 그 안쪽으로 잡아야 한다. 처음엔 20일 전 게시 + 60일 시한으로 잡았다가 판매 기간이
   // 정확히 끝나 버려 리더보드가 통째로 비었다(실제로 그렇게 나왔다).
@@ -197,6 +197,13 @@ function planFor(
 
   const window = s.quotes.filter((q) => q.date > pubDate && q.date <= toMarketDateString(deadline < now ? deadline : now, s.assetClass));
   if (window.length < 5) return null;
+
+  // 크기 하한은 종목 변동성·기한의 함수다 — 게시 검증과 같은 함수를 써야 시드가
+  // 통과하지 못할 카드를 만들지 않는다 (게시일까지의 종가로 σ를 잰다)
+  const sigmaDaily = realizedDailySigma(
+    s.quotes.filter((q) => q.date <= pubDate).map((q) => q.close),
+  );
+  const floor = minMagnitudePct(s.assetClass, sigmaDaily, horizonDays);
 
   const closes = window.map((q) => q.close);
   const maxUp = (Math.max(...closes) / base.close - 1) * 100;

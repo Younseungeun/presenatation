@@ -37,6 +37,8 @@ const bodySchema = z.object({
   magnitudePct: z.number().nullish(),
   horizonDays: z.number().nullish(),
   confidence: z.number().nullish(),
+  // 크기의 현실성은 그 종목이 실제로 얼마나 움직이는지와 함께 봐야 한다
+  sigmaDaily: z.number().nullish(),
 });
 
 export async function POST(req: NextRequest) {

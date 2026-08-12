@@ -1,12 +1,18 @@
 import type { AssetClass } from './constants';
-import { MIN_MAGNITUDE_PCT, targetPriceToMagnitudePct } from './scoring';
+import { PROFITABILITY_BASE_PCT, targetPriceToMagnitudePct } from './scoring';
 
 // 수익성 — 리서처가 입력하는 값이 아니라 예측 크기에서 자동 산출되는 표시 지표.
 // 구매 전에는 목표 수익률 원값을 가리므로(마스킹), 구매자는 이 5단계로
 // "얼마나 공격적인 베팅인가"만 본다. 판정·구매 후에는 원값이 그대로 공개된다.
 //
-// 경계는 자산군 크기 하한 F(주식 5% / 코인 10%)의 배수 — 주식 10%와 코인 20%가
+// 경계는 자산군 기준 단위 F(주식 5% / 코인 10%)의 배수 — 주식 10%와 코인 20%가
 // 같은 "2×F = LV3"에 놓여 자산군이 달라도 공격성이 같은 축에서 읽힌다.
+//
+// **F는 자산군 상수다. 종목별로 바꾸지 않는다** (2026-08-13): 예측 크기 하한은 같은 날
+// 종목 변동성 연동(scoring.minMagnitudePct)으로 바뀌었지만 이쪽은 따라가지 않는다.
+// 수익성이 답하는 질문은 "맞으면 얼마나 버나"라 절대 크기여야 하기 때문 —
+// F가 종목마다 달라지면 "수익성 적극"이 삼성전자에서 10%, 테마주에서 40%를 뜻하게 되어
+// 구매자가 라벨 하나로 기대할 수 있는 것이 사라진다.
 //
 // 경계 1.5/2/3/5는 시뮬레이션으로 확정 (scripts/simProfitabilityBuckets.ts, 2026-08-05):
 //  · 변별력: 신고 분포(중앙값 1.6×F) 기준 점유율 45/21/22/11/2% — LV5는 의도된 희소 라벨
@@ -34,7 +40,7 @@ export function profitabilityLevel(
   assetClass: AssetClass,
   predictedMagnitudePct: number,
 ): ProfitabilityLevel {
-  const multiple = predictedMagnitudePct / MIN_MAGNITUDE_PCT[assetClass];
+  const multiple = predictedMagnitudePct / PROFITABILITY_BASE_PCT[assetClass];
   let level = 1;
   for (const bound of PROFITABILITY_BOUNDS) {
     if (multiple >= bound) level++;

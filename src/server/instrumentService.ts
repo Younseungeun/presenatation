@@ -90,6 +90,8 @@ export async function validateListedInstrument(
   riskNote?: string | null;
   delistingRisk?: boolean;
   marketCap?: number | null;
+  /** 캐시된 실현 변동성 — 초안 검증의 크기 하한이 이 값으로 정해진다 */
+  sigmaDaily?: number | null;
 }> {
   const inst = await prisma.instrument.findUnique({
     where: { assetClass_ticker: { assetClass, ticker } },
@@ -125,6 +127,7 @@ export async function validateListedInstrument(
     riskNote: inst.riskNote,
     delistingRisk: inst.delistingRisk,
     marketCap: inst.marketCap,
+    sigmaDaily: inst.sigmaDaily,
   };
 }
 

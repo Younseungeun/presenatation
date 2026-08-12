@@ -10,7 +10,7 @@ import {
   type RiskLevel,
 } from "@/domain/instrumentRisk";
 import { salesWindowEnd } from "@/domain/salesWindow";
-import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
+import { minMagnitudePct } from "@/domain/scoring";
 import { ScoreCalculatorEntry } from "../../../score/ScoreCalculatorEntry";
 import { noSkillTouchProbability } from "@/domain/scoring";
 import { cardStabilityLevel } from "@/domain/stability";
@@ -170,7 +170,10 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
       })
     : [];
 
-  const sizeFloor = MIN_MAGNITUDE_PCT[assetClass];
+  // 크기 하한은 **고른 종목과 기한**으로 정해진다 — 서버 검증과 같은 함수를 부른다.
+  // 기한을 아직 안 정했으면 30일로 미리 보여준다(값이 없다고 칸을 비우면 무엇을
+  // 적어야 할지 알 수 없다). 기한을 고르는 순간 이 숫자가 따라 움직인다
+  const sizeFloor = minMagnitudePct(assetClass, sigmaDaily, toHorizonDays(deadline) ?? 30);
   const searchHint = shortOnly
     ? "하락 예측: 구매자가 숏 포지션(개별주식선물·인버스 ETF·코인 선물)을 잡을 수 있는 종목만 검색됩니다"
     : "시세 공급자가 지원하는 종목만 선택 가능 — 코드 또는 종목명으로 검색";
@@ -288,6 +291,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             magnitudePct: targetType === "RETURN_PCT" ? toNumber(targetValue) : null,
             horizonDays: toHorizonDays(deadline),
             confidence: toNumber(confidence),
+            sigmaDaily,
           }}
         />
       </div>
@@ -395,7 +399,10 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
           />
           {targetType === "RETURN_PCT" && (
             <span className={styles.hint}>
-              {ASSET_CLASS_LABEL[assetClass]} 최소 크기 {sizeFloor}% 이상
+              최소 크기 {sizeFloor.toFixed(1)}% 이상
+              {sigmaDaily !== null
+                ? ` — 이 종목의 변동성(하루 ${(sigmaDaily * 100).toFixed(1)}%)과 기한으로 정해집니다. 저절로 닿을 만한 크기는 예측으로 치지 않습니다`
+                : ` — ${ASSET_CLASS_LABEL[assetClass]} 평균 변동성 기준 (종목을 고르면 그 종목 기준으로 바뀝니다)`}
             </span>
           )}
         </div>
