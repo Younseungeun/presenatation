@@ -1,4 +1,5 @@
 import { PROFITABILITY_BOUNDS, type ProfitabilityLevel } from './profitability';
+import { CONFIDENCE_RANGE, lossAmplifier, winAmplifier } from './scoring';
 
 // 별점의 단일 기준 — 표시·정렬·융합 별점이 모두 여기서 나온다.
 //
@@ -10,9 +11,30 @@ import { PROFITABILITY_BOUNDS, type ProfitabilityLevel } from './profitability';
 //   · 안정성  = 가는 길이 얼마나 출렁이나 (종목 실현 변동성, stability.ts)
 //   · 신뢰도  = 얼마나 맞을 것 같나 (리서처가 건 승산 → 함의 승률)
 
-/** 신뢰도 c → 별. 함의 개선 승률 c/(c+1) × 5 (다이얼은 선형이 아니라 승산 사다리다) */
+/** 신뢰도 c의 함의 승률 — c가 c−1보다 유리할 조건 p ≥ c/(c+1)에서 나온다 */
+const impliedWinRate = (c: number) => c / (c + 1);
+
+/** 신뢰도 별의 위쪽 끝 — 예전 스케일(승률×5)의 최대치를 그대로 물려받는다 */
+const CONFIDENCE_STAR_TOP = 5 * impliedWinRate(CONFIDENCE_RANGE.max);
+
+/**
+ * 신뢰도 c → 별 (1 ~ 4.55).
+ *
+ * 다이얼은 선형이 아니라 **승산 사다리**라, 별도 승률 축에서 매긴다.
+ * 예전에는 `승률 × 5`를 그대로 썼는데(c=1 → ★2.5), **신뢰도 하한이 2로 오르면서
+ * 아무도 쓸 수 없는 c=1이 별점의 바닥을 차지**하게 됐다. 그대로 두면 실제로 쓰이는
+ * 구간이 ★3.33~4.55의 좁은 위쪽에 몰려, 최소 신뢰도 카드가 "5점 만점에 3.3점"으로
+ * 보인다 — 스케일이 다시 거짓말을 하는 자리다.
+ *
+ * 그래서 **쓸 수 있는 구간을 별 눈금에 편다**: c=2가 ★1, c=최대가 예전과 같은 ★4.55.
+ * ★5는 여전히 도달 불가다(승률 100%가 필요하다) — 정직한 천장은 유지된다.
+ * 정확한 함의 승률은 별이 아니라 각주가 싣는다(작성 화면·상세·/score 3곳).
+ */
 export function confidenceStars(confidence: number): number {
-  return (5 * confidence) / (confidence + 1);
+  const lo = impliedWinRate(CONFIDENCE_RANGE.min);
+  const hi = impliedWinRate(CONFIDENCE_RANGE.max);
+  const t = (impliedWinRate(confidence) - lo) / (hi - lo);
+  return 1 + (CONFIDENCE_STAR_TOP - 1) * t;
 }
 
 /**
@@ -51,16 +73,31 @@ export function profitabilityPayoutStars(level: ProfitabilityLevel): number {
  * "별점 높은 순"이 곧 "점수를 크게 움직이는 확신 순"이 되도록.
  *
  * 유도 (점수 v4: 적중 +B·M·c·(1−p₀) / 실패 −B·M·c(c+1)/2·p₀, scoring.ts) —
- * 별 한 칸이 점수 크기를 몇 배 움직이는지(칸당 로그 기울기)를 두 축에서 잰다:
- *   · 수익성: 점수 ∝ M. 별 1→5의 대표 배수가 1.22F → 6.32F이니 ln(6.32/1.22)/4 = 0.41
- *   · 신뢰도: 별이 함의 승률 스케일이라 c 1→10이 별 2.5→4.55(2.05칸). 증폭은 승·패가
- *     달라(c vs c(c+1)/2) 두 쪽 로그 평균으로: (ln10 + ln55)/2 / 2.05 = 1.54
- * 무게 = 기울기 비율 → 수익성 0.21 / 신뢰도 0.79. 신뢰도가 무거운 것이 맞다 —
- * 같은 한 칸이라도 신뢰도 쪽이 점수(특히 실패 벌점)를 훨씬 크게 움직인다.
+ * 별 **한 칸**이 점수 크기를 몇 배 움직이는지(칸당 로그 기울기)를 두 축에서 잰다:
+ *   · 수익성: 점수 ∝ M. 별 1→5의 대표 배수가 1.22F → 6.32F → ln(6.32/1.22)/4
+ *   · 신뢰도: 증폭이 승·패에서 다르므로(c vs c(c+1)/2) 두 쪽 로그 폭의 평균을
+ *     신뢰도 별의 칸 수로 나눈다
+ * 무게 = 기울기 비율.
+ *
+ * **상수를 손으로 적지 않고 계산한다** — 신뢰도 하한(2)이나 별 스케일이 바뀌면
+ * 이 값도 반드시 따라 움직여야 하는데, 손으로 적어 두면 한쪽만 고치고 다른 쪽을
+ * 잊는다(실제로 2026-08-13 하한을 2로 올리며 칸 수가 2.05 → 3.55로 바뀌었다).
  *
  * 안정성은 여기 없다: 점수 기여가 0이므로 무게도 0 (종목 변동성 표시 전용).
  */
-export const RATING_WEIGHT = { profitability: 0.21, confidence: 0.79 } as const;
+export const RATING_WEIGHT: { profitability: number; confidence: number } = (() => {
+  const profitSlope =
+    Math.log(PROFITABILITY_PAYOUT_MULTIPLE[5] / PROFITABILITY_PAYOUT_MULTIPLE[1]) / 4;
+
+  const { min, max } = CONFIDENCE_RANGE;
+  const winSpan = Math.log(winAmplifier(max) / winAmplifier(min));
+  const lossSpan = Math.log(lossAmplifier(max) / lossAmplifier(min));
+  const starSpan = confidenceStars(max) - confidenceStars(min);
+  const confidenceSlope = (winSpan + lossSpan) / 2 / starSpan;
+
+  const total = profitSlope + confidenceSlope;
+  return { profitability: profitSlope / total, confidence: confidenceSlope / total };
+})();
 
 /**
  * 융합 별점 (0~5) — 수익성·신뢰도를 점수 기여 가중으로 합친다.

@@ -1,15 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { profitabilityPayoutStars } from "@/domain/ratingStars";
+import { profitabilityPayoutStars, RATING_WEIGHT } from "@/domain/ratingStars";
+import { CONFIDENCE_RANGE } from "@/domain/scoring";
 import { confidenceStars } from "../StarRating";
 import { convictionStars } from "../starSummary";
 
 // 함의 승률 별점 — 다이얼값이 정직하려면 걸어야 하는 최소 확률 × 5 (ratingStars 주석).
 describe("함의 승률 매핑", () => {
-  it("신뢰도: c/(c+1) × 5 — 최소 신고도 승률 50%를 함의하므로 별 2.5부터 시작", () => {
-    expect(confidenceStars(1)).toBeCloseTo(2.5, 10);
-    expect(confidenceStars(3)).toBeCloseTo(3.75, 10);
-    expect(confidenceStars(5)).toBeCloseTo((5 * 5) / 6, 10);
-    expect(confidenceStars(10)).toBeCloseTo(50 / 11, 10);
+  it("쓸 수 있는 구간이 별 눈금을 다 쓴다 — 하한 신고가 ★1, 최대가 ★4.55", () => {
+    // 예전에는 `승률 × 5`를 그대로 써서 c=1이 ★2.5였는데, 신뢰도 하한이 2로 오르면서
+    // 그 자리가 죽었다. 그대로 뒀다면 실제 구간이 ★3.33~4.55에 몰려
+    // "최소 신뢰도 카드가 5점 만점에 3.3점"으로 보였을 것이다
+    expect(confidenceStars(CONFIDENCE_RANGE.min)).toBeCloseTo(1, 10);
+    expect(confidenceStars(CONFIDENCE_RANGE.max)).toBeCloseTo(50 / 11, 10);
+    // 순서는 여전히 함의 승률 순이다
+    expect(confidenceStars(5)).toBeGreaterThan(confidenceStars(3));
   });
 
   it("별 5개(승률 100%)는 도달 불가 — 정직한 천장", () => {
@@ -17,7 +21,7 @@ describe("함의 승률 매핑", () => {
   });
 
   it("위로 갈수록 촘촘해진다 — 한 단계의 별 증가폭이 단조 감소", () => {
-    for (let v = 2; v < 10; v++) {
+    for (let v = CONFIDENCE_RANGE.min + 1; v < CONFIDENCE_RANGE.max; v++) {
       expect(confidenceStars(v + 1) - confidenceStars(v)).toBeLessThan(
         confidenceStars(v) - confidenceStars(v - 1),
       );
@@ -51,9 +55,12 @@ describe("수익성 → 버는 크기 별점", () => {
 // 안정성은 섞지 않는다: 점수 기여가 0이고, 이 별은 리서처가 건 확신의 요약이다.
 describe("convictionStars — 점수 기여 가중", () => {
   it("두 축의 가중 평균이다", () => {
+    // 무게는 상수가 아니라 점수 모델에서 유도된다(RATING_WEIGHT) — 숫자를 여기 적으면
+    // 신뢰도 범위·별 스케일이 바뀔 때 테스트가 낡은 값을 지키게 된다
     const stars = convictionStars("KR_EQUITY", 6, 3)!;
     expect(stars).toBeCloseTo(
-      0.21 * profitabilityPayoutStars(3) + 0.79 * confidenceStars(6),
+      RATING_WEIGHT.profitability * profitabilityPayoutStars(3) +
+        RATING_WEIGHT.confidence * confidenceStars(6),
       10,
     );
   });

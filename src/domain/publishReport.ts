@@ -10,7 +10,12 @@ import {
 import { calcFeeRateBp } from './fees';
 import { holidayName } from './marketCalendar';
 import { marketClock } from './marketData';
-import { disciplineFor, minMagnitudePct, targetPriceToMagnitudePct } from './scoring';
+import {
+  CONFIDENCE_RANGE,
+  disciplineFor,
+  minMagnitudePct,
+  targetPriceToMagnitudePct,
+} from './scoring';
 
 // 리포트 게시 검증 규칙 (순수 로직).
 // 게시는 되돌릴 수 없는 행위다: 수수료·선결제 비율·기준가가 고정되고 예측 카드가 잠긴다.
@@ -269,13 +274,23 @@ export function validateCardDraft(card: CardDraft, now = new Date()): string[] {
     issues.push(magnitudeFloorMessage(floor, card.targetValue));
   }
   // 수익성은 예측 크기에서 자동 산출된다(profitability.ts) — 입력 검증 대상이 아니다
-  for (const [label, value] of [
-    ['신뢰도', card.confidence],
-    ['안정성', card.selfStability],
-  ] as const) {
-    if (!Number.isInteger(value) || value < 1 || value > 10) {
-      issues.push(`${label}(자기 평가)은 1~10 정수여야 합니다: ${value}`);
-    }
+  // 신뢰도 하한이 2인 이유는 scoring.CONFIDENCE_RANGE에 있다 —
+  // c=1은 무정보 기대 점수가 정확히 0이라 스팸이 손해 없이 머무는 은신처였다.
+  if (
+    !Number.isInteger(card.confidence) ||
+    card.confidence < CONFIDENCE_RANGE.min ||
+    card.confidence > CONFIDENCE_RANGE.max
+  ) {
+    issues.push(
+      `신뢰도는 ${CONFIDENCE_RANGE.min}~${CONFIDENCE_RANGE.max} 정수여야 합니다: ${card.confidence}` +
+        (card.confidence === 1
+          ? ' — 신뢰도 1은 어떤 예측이든 기대 점수가 0이라 사용할 수 없습니다'
+          : ''),
+    );
+  }
+  // 안정성 자기 신고는 v4에서 폐지됐고 스키마 호환용으로만 남아 있다 (1 고정 전송)
+  if (!Number.isInteger(card.selfStability) || card.selfStability < 1 || card.selfStability > 10) {
+    issues.push(`안정성(자기 평가)은 1~10 정수여야 합니다: ${card.selfStability}`);
   }
 
   const daysToDeadline = (card.deadline.getTime() - now.getTime()) / 86_400_000;

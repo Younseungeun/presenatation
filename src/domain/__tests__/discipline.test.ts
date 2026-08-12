@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CONFIDENCE_RANGE,
   disciplineFor,
   lossAmplifier,
   winAmplifier,
@@ -16,7 +17,7 @@ const card: CardDraft = {
   targetType: 'RETURN_PCT',
   targetValue: 10,
   deadline: new Date('2026-10-12T00:00:00Z'),
-  confidence: 1,
+  confidence: 2, // 신뢰도 하한 (c=1은 무정보 EV가 0이라 폐지)
   selfStability: 5,
   // 이 테스트가 보는 것은 규율 래더지 크기 하한이 아니다 — 조용한 종목으로 고정해
   // 하한에 걸리지 않게 한다 (하한은 σ·기한의 함수다: scoring.minMagnitudePct)
@@ -32,8 +33,8 @@ const cond: PublishConditions = {
 
 describe('disciplineFor — 마이너스 점수 규율 래더', () => {
   it('0점 이상·얕은 마이너스는 제약 없음', () => {
-    expect(disciplineFor(0)).toEqual({ minConfidence: 1, publishSuspended: false });
-    expect(disciplineFor(-999)).toEqual({ minConfidence: 1, publishSuspended: false });
+    expect(disciplineFor(0)).toEqual({ minConfidence: CONFIDENCE_RANGE.min, publishSuspended: false });
+    expect(disciplineFor(-999)).toEqual({ minConfidence: CONFIDENCE_RANGE.min, publishSuspended: false });
   });
 
   it('마이너스가 깊어질수록 최소 신뢰도 상승 (1단은 v3 완화: 3→2)', () => {
@@ -48,7 +49,7 @@ describe('disciplineFor — 마이너스 점수 규율 래더', () => {
 
   it('점수가 회복되면 자동 완화 (현재 점수의 함수)', () => {
     expect(disciplineFor(-2_999).minConfidence).toBe(2);
-    expect(disciplineFor(-500).minConfidence).toBe(1);
+    expect(disciplineFor(-500).minConfidence).toBe(CONFIDENCE_RANGE.min);
   });
 });
 
@@ -68,17 +69,22 @@ describe('규율의 경제적 효과 — 저품질 대량 게시 차단', () => 
 });
 
 describe('preparePublish 규율 연동', () => {
-  it('점수 -1,000 이하: 신뢰도 1 카드 게시 거부, 신뢰도 2면 허용', () => {
-    expect(() =>
-      preparePublish(card, { ...cond, assetClassScore: -1_500 }, 70_000, NOW),
-    ).toThrow(/신뢰도 2 이상/);
+  it('**래더 1단(-1,000 → c≥2)은 이제 아무 제약이 아니다** — 하한이 이미 2다', () => {
+    // 신뢰도 하한이 2로 오르면서 1단이 전역 하한과 같아져 무효가 됐다.
+    // 남겨 둔 이유는 래더의 다음 칸들이 그대로 유효하기 때문이고, 1단을 3으로 올릴지는
+    // 게시 가능 인원이 바뀌는 운영 결정이라 값을 임의로 손대지 않았다.
     expect(
-      preparePublish(
-        { ...card, confidence: 2 },
-        { ...cond, assetClassScore: -1_500 },
-        70_000,
-        NOW,
-      ).feeRateBp,
+      preparePublish(card, { ...cond, assetClassScore: -1_500 }, 70_000, NOW).feeRateBp,
+    ).toBe(2000);
+  });
+
+  it('점수 -3,000 이하: 신뢰도 5 미만 거부, 5면 허용 — 여기서부터 실제로 조인다', () => {
+    expect(() =>
+      preparePublish({ ...card, confidence: 4 }, { ...cond, assetClassScore: -3_500 }, 70_000, NOW),
+    ).toThrow(/신뢰도 5 이상/);
+    expect(
+      preparePublish({ ...card, confidence: 5 }, { ...cond, assetClassScore: -3_500 }, 70_000, NOW)
+        .feeRateBp,
     ).toBe(2000);
   });
 

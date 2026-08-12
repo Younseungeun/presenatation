@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { compositeStars, profitabilityPayoutStars } from '@/domain/ratingStars';
+import {
+  compositeStars,
+  confidenceStars,
+  profitabilityPayoutStars,
+  RATING_WEIGHT,
+} from '@/domain/ratingStars';
 import {
   groupCards,
   hasActiveFilter,
@@ -39,7 +44,7 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
   };
 }
 
-describe('별점 평균 — 수익성·신뢰도를 점수 기여 가중(0.21 : 0.79)으로 합친다', () => {
+describe('별점 평균 — 수익성·신뢰도를 점수 기여 가중으로 합친다 (RATING_WEIGHT)', () => {
   it('순위표에 뜨는 확신 종합 별점과 같은 값이다 — 정렬과 표시가 갈라지면 안 된다', () => {
     const c = card({ profitability: 3, confidence: 8 });
     expect(ratingAverage(c)).toBe(
@@ -47,10 +52,15 @@ describe('별점 평균 — 수익성·신뢰도를 점수 기여 가중(0.21 : 
     );
   });
 
-  it('신뢰도 별은 카드 표시와 같은 함의 승률 스케일(5c/(c+1))로 들어간다', () => {
-    // 수익성 구간3 → 버는 크기 별 2.689 / 신뢰도 8 → 별 40/9≈4.444
-    // → 0.21·2.689 + 0.79·4.444 ≈ 4.076
-    expect(ratingAverage(card({ profitability: 3, confidence: 8 }))).toBeCloseTo(4.076, 2);
+  it('신뢰도 별은 카드 표시와 같은 스케일로 들어간다 — 목록과 카드가 갈라지면 안 된다', () => {
+    // 값을 손으로 적지 않는다: 무게(RATING_WEIGHT)가 점수 모델에서 유도되므로
+    // 신뢰도 범위나 별 스케일이 바뀌면 여기도 함께 움직여야 한다
+    const c = card({ profitability: 3, confidence: 8 });
+    expect(ratingAverage(c)).toBeCloseTo(
+      RATING_WEIGHT.profitability * profitabilityPayoutStars(3) +
+        RATING_WEIGHT.confidence * confidenceStars(8),
+      6,
+    );
   });
 
   it('신뢰도가 무겁다 — 같은 한 칸 차이라도 신뢰도 쪽이 평균을 더 움직인다', () => {
@@ -91,9 +101,9 @@ describe('별점 정렬', () => {
   it('구간은 4점 이상 / 3점대 / 그 미만 / 미상으로 갈린다', () => {
     const groups = groupCards(
       [
-        card({ profitability: 5, confidence: 9 }), // 0.21·5 + 0.79·4.5 ≈ 4.60
-        card({ profitability: 3, confidence: 3 }), // 0.21·3 + 0.79·3.75 ≈ 3.59
-        card({ profitability: 1, confidence: 1 }), // 0.21·1 + 0.79·2.5 ≈ 2.19
+        card({ profitability: 5, confidence: 9 }), // ★4점 이상
+        card({ profitability: 4, confidence: 5 }), // ★3점대
+        card({ profitability: 1, confidence: 2 }), // ★1 — 두 축 모두 하한
         card({ profitability: null, confidence: null }),
       ],
       'RATING_DESC',

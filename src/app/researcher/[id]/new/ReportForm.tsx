@@ -10,7 +10,7 @@ import {
   type RiskLevel,
 } from "@/domain/instrumentRisk";
 import { salesWindowEnd } from "@/domain/salesWindow";
-import { minMagnitudePct } from "@/domain/scoring";
+import { CONFIDENCE_RANGE, minMagnitudePct } from "@/domain/scoring";
 import { ScoreCalculatorEntry } from "../../../score/ScoreCalculatorEntry";
 import { noSkillTouchProbability } from "@/domain/scoring";
 import { cardStabilityLevel } from "@/domain/stability";
@@ -18,7 +18,11 @@ import { confidenceStars, StarRating } from "../../../StarRating";
 import styles from "../../researcher.module.css";
 import { ComplianceHints } from "./ComplianceHints";
 
-const RATING = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+/** 신뢰도 선택지 — 하한이 2다 (c=1은 무정보 기대 점수가 0이라 은신처가 된다) */
+const RATING = Array.from(
+  { length: CONFIDENCE_RANGE.max - CONFIDENCE_RANGE.min + 1 },
+  (_, i) => CONFIDENCE_RANGE.min + i,
+);
 
 const toNumber = (v: string): number | null => {
   const n = Number(v);
@@ -439,7 +443,9 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
 
       <div className={styles.row}>
         <div className={styles.field}>
-          <label className={styles.label}>신뢰도 (점수 증폭 1~10)</label>
+          <label className={styles.label}>
+            신뢰도 (점수 증폭 {CONFIDENCE_RANGE.min}~{CONFIDENCE_RANGE.max})
+          </label>
           <select
             className={styles.select}
             name="confidence"

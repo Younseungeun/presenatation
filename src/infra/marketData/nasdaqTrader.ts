@@ -30,6 +30,15 @@ export interface UsListing {
    * G·H·J·K 복합. 나스닥 외 거래소(otherlisted)는 제공하지 않아 null.
    */
   financialStatus: string | null;
+  /**
+   * 나스닥 상장 등급 — Q 글로벌셀렉트 / G 글로벌 / S 캐피털마켓.
+   * 상장 요건(시총·주주 수·재무)의 사다리라 **규모의 대리변수**로 쓴다
+   * (마스터에 시가총액이 없다 — 안정성 눈금 계층화가 이 값을 쓴다).
+   * 나스닥 외 거래소는 null이고 대신 exchange가 채워진다.
+   */
+  marketCategory: string | null;
+  /** 나스닥 외 거래소 코드 (N NYSE / A NYSE American / P Arca …) */
+  exchange: string | null;
 }
 
 /**
@@ -77,6 +86,8 @@ export async function fetchUsListings(): Promise<UsListing[]> {
       etf: r['ETF'] === 'Y',
       testIssue: r['Test Issue'] === 'Y',
       financialStatus: r['Financial Status'] || null,
+      marketCategory: r['Market Category'] || null,
+      exchange: null,
     });
   }
   for (const r of other) {
@@ -88,6 +99,8 @@ export async function fetchUsListings(): Promise<UsListing[]> {
       etf: r['ETF'] === 'Y',
       testIssue: r['Test Issue'] === 'Y',
       financialStatus: null, // 나스닥 외 거래소는 재무 상태를 주지 않는다
+      marketCategory: null,
+      exchange: r['Exchange'] || null,
     });
   }
   return [...out.values()];

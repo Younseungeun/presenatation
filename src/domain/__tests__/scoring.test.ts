@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeReachScore,
+  CONFIDENCE_RANGE,
   DISCIPLINE_LADDER,
   disciplineFor,
   honestConfidence,
@@ -64,24 +65,30 @@ describe('무정보 도달 확률 p₀', () => {
 
 describe('공정배당 — 무정보 EV ≤ 0 (스팸이 구조적으로 못 번다)', () => {
   // EV₀ = p₀·hit + (1−p₀)·miss = −B·p₀(1−p₀)·c(c−1)/2 — c=1에서만 0
-  it('어떤 (크기, 기간, c)를 골라도 무정보 기대 점수는 0 이하다', () => {
+  it('**쓸 수 있는 모든 (크기, 기간, c)에서 무정보 기대 점수가 0보다 작다**', () => {
+    // 신뢰도 하한이 2로 오르면서 은신처가 닫혔다. 예전에는 c=1에서 EV가 정확히 0이라
+    // "벌지는 못하지만 잃지도 않는" 자리가 남아 있었다 (아래 테스트가 그 사실을 고정한다)
     for (const m of [5, 10, 25, 40]) {
       for (const h of [7, 30, 120]) {
-        for (const c of [1, 2, 5, 10]) {
+        for (let c = CONFIDENCE_RANGE.min; c <= CONFIDENCE_RANGE.max; c++) {
           const { p0, score: hit } = computeReachScore('UP', m, c, 'KR_EQUITY', h, true);
           const { score: miss } = computeReachScore('UP', m, c, 'KR_EQUITY', h, false);
-          const ev = p0 * hit + (1 - p0) * miss;
-          expect(ev, `M=${m} H=${h} c=${c}`).toBeLessThanOrEqual(1e-9);
-          if (c > 1) expect(ev).toBeLessThan(0);
+          expect(p0 * hit + (1 - p0) * miss, `M=${m} H=${h} c=${c}`).toBeLessThan(0);
         }
       }
     }
   });
 
-  it('c=1의 무정보 EV는 정확히 0 — 공정 배당의 정의', () => {
-    const { p0, score: hit } = computeReachScore('UP', 10, 1, 'CRYPTO', 30, true);
-    const { score: miss } = computeReachScore('UP', 10, 1, 'CRYPTO', 30, false);
-    expect(p0 * hit + (1 - p0) * miss).toBeCloseTo(0, 9);
+  it('c=1이 은신처였다는 사실이 하한 2의 근거다 — 공식으로 고정한다', () => {
+    // c=1은 이제 범위 밖이라 computeReachScore가 거부한다(그게 하한의 집행이다).
+    // 무정보 EV = −B·p₀(1−p₀)·c(c−1)/2 는 c=1에서 정확히 0이고 c=2부터 음수다.
+    expect(CONFIDENCE_RANGE.min).toBe(2);
+    expect(() => computeReachScore('UP', 10, 1, 'CRYPTO', 30, true)).toThrow();
+
+    const p0 = noSkillTouchProbability('UP', 10, 'CRYPTO', 30);
+    const noSkillEv = (c: number) => -10 * 10 * p0 * (1 - p0) * ((c * (c - 1)) / 2);
+    expect(noSkillEv(1)).toBeCloseTo(0, 12);
+    expect(noSkillEv(CONFIDENCE_RANGE.min)).toBeLessThan(0);
   });
 });
 
@@ -102,12 +109,14 @@ describe('정직한 신뢰도 — c* = 무정보 대비 승산 배수', () => {
     expect(ev(c + 1, pB - 0.01)).toBeLessThan(ev(c, pB - 0.01));
   });
 
-  it('honestConfidence는 배수를 그대로 돌려주고 1~10에 갇힌다', () => {
-    expect(honestConfidence(0.5, 0.5)).toBe(1);
+  it('honestConfidence는 배수를 그대로 돌려주고 허용 범위에 갇힌다', () => {
+    // 승산 우위가 없어도 하한 2로 올라온다 — 그런 사람은 애초에 게시하지 않는 것이 맞고,
+    // 게시한다면 그 카드의 기대 점수는 음수다(위 공정배당 테스트)
+    expect(honestConfidence(0.5, 0.5)).toBe(CONFIDENCE_RANGE.min);
     // odds(0.75)=3, odds(0.5)=1 → 3배
     expect(honestConfidence(0.75, 0.5)).toBe(3);
-    expect(honestConfidence(0.999, 0.05)).toBe(10);
-    expect(honestConfidence(0.01, 0.5)).toBe(1);
+    expect(honestConfidence(0.999, 0.05)).toBe(CONFIDENCE_RANGE.max);
+    expect(honestConfidence(0.01, 0.5)).toBe(CONFIDENCE_RANGE.min);
   });
 });
 
@@ -207,16 +216,16 @@ describe('기간 반영 크기 상한', () => {
 
 describe('마이너스 점수 규율', () => {
   it('점수가 깊어질수록 최소 신뢰도가 오르고 최하단은 게시 정지', () => {
-    expect(disciplineFor(0).minConfidence).toBe(1);
+    expect(disciplineFor(0).minConfidence).toBe(CONFIDENCE_RANGE.min);
     expect(disciplineFor(-1_000).minConfidence).toBe(2);
     expect(disciplineFor(-3_000).minConfidence).toBe(5);
     expect(disciplineFor(-6_000).minConfidence).toBe(7);
     expect(disciplineFor(-10_000).publishSuspended).toBe(true);
   });
 
-  it('래더가 c≥2를 강제하는 순간 무정보 EV가 음수로 떨어진다 — 규율의 수학적 근거', () => {
-    // c=1 은신처(EV=0)는 남지만, 1단 래더(-1,000)가 c=2를 강제하면
-    // EV = −B·p₀(1−p₀)·c(c−1)/2 < 0 — 하강이 가속된다
+  it('래더가 c를 더 올리면 하강이 가속된다', () => {
+    // 하한 2로 무정보 EV는 이미 음수다. 래더는 그 음수를 더 깊게 만든다
+    // (EV = −B·p₀(1−p₀)·c(c−1)/2 — c에 대해 이차로 커진다)
     const { p0, score: hit } = computeReachScore('UP', 5, 2, 'KR_EQUITY', 30, true);
     const { score: miss } = computeReachScore('UP', 5, 2, 'KR_EQUITY', 30, false);
     expect(p0 * hit + (1 - p0) * miss).toBeLessThan(0);
