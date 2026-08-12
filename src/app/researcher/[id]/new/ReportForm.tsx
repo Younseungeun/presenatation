@@ -422,8 +422,10 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
         {windowLabel && (
           <span className={styles.hint}>
             <strong>판매 기간: 게시 후 {windowLabel}</strong> (검증 기간의 1/3, 최대 30일) —
-            이후엔 판매가 자동 마감되고 카드는 시한에 정상 판정됩니다. 목표에 근접하면(잔여
-            수익률이 구간 최소치의 2/3 미만 종가) 더 일찍 마감될 수 있습니다.
+            이후엔 판매가 자동 마감되고 카드는 시한에 정상 판정됩니다. 그 전에도 판매가
+            끝나는 경우가 있습니다: 일봉 종가가 <strong>목표에 도달</strong>하면 그 자리에서
+            판정되고, 반대로 <strong>목표 폭만큼 어긋나면</strong>(일봉 종가 기준) 판매가
+            영구 마감됩니다. 카드는 어느 경우에도 그대로 검증되어 판정됩니다.
           </span>
         )}
       </div>

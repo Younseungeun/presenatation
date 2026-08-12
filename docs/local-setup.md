@@ -77,8 +77,14 @@ npx eslint src scripts  # 린트
 | `npm run batch:season` | 분기 시즌 재산정 (등급 승급·강등) |
 | `npm run sync:instruments` | 종목 마스터 동기화 (`-- --fixture`로 오프라인 시드) |
 | `npm run op:grant -- <email>` | 운영자 권한 부여 (`--revoke`로 회수) |
+| `npm run batch:salesclose` | 판매 마감 기록 (시간 규칙 + 역방향 목표폭 이탈 — 시세 조회 필요) |
 | `npm run seed:dev` / `seed:demo` | 개발·데모 데이터 시드 |
 | `npm run seed:login` | **로그인 가능한 데모 계정** 생성 (휴대폰 `010-1234-5678`, 필명 데모유저) |
+| `npm run sigma:backfill` | 카드의 종목 실현 변동성(σ) 채우기 — **시드 뒤 한 번 돌린다** |
+
+시드 스크립트는 카드에 σ를 넣지 않는다(시세 호출이 필요해서다). 그대로 두면 안정성
+별점이 "—"로 뜨고 p₀가 자산군 평균으로 계산되므로, 데모 데이터를 만든 뒤에는
+`npm run sigma:backfill`을 한 번 돌린다 (종목 단위로 한 번씩만 조회한다).
 
 ## 운영자 화면 접근
 

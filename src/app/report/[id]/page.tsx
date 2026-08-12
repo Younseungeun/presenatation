@@ -257,7 +257,8 @@ export default async function ReportDetail({
       {masked && salesNotice === "EXCESS" && (
         <p className={styles.cardFootnote}>
           ⚠ 현재 시세가 게시 시점보다 예측 반대 방향에 있습니다. 남은 폭은 커 보이지만,
-          지금까지는 예측이 빗나가는 중이라는 뜻이니 유의하세요.
+          지금까지는 예측이 빗나가는 중이라는 뜻이니 유의하세요. 반대로 목표 폭만큼
+          벌어지면 판매는 그 시점에 마감됩니다.
         </p>
       )}
       <div className={styles.cardRow}>

@@ -44,6 +44,12 @@ async function main() {
       where: { id: { in: ids } },
       data: { sigmaDaily: sigma },
     });
+    // 같은 측정으로 종목 캐시도 채운다 — 작성 화면이 이 종목을 고를 때 시세를 다시
+    // 부르지 않게 (한 번 재서 여러 곳이 읽는다는 원칙, server/instrumentSigma.ts)
+    await prisma.instrument.updateMany({
+      where: { assetClass, ticker },
+      data: { sigmaDaily: sigma, sigmaSyncedAt: new Date() },
+    });
     filled += ids.length;
     console.log(
       `  ✓ ${assetClass} ${ticker}: σ=${(sigma * 100).toFixed(2)}%/일 → 안정성 ★${stabilityLevel(sigma)} (카드 ${ids.length}장)`,
