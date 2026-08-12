@@ -11,6 +11,11 @@ import { runReachedJudgmentBatch } from '../src/server/reachedJudgmentBatch';
 import { runSalesCloseBatch } from '../src/server/salesCloseService';
 import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
+import { runComplianceOps } from '../src/server/complianceOpsService';
+import { recalcSeasonTiers } from '../src/server/seasonRecalcService';
+import { syncKrCardInstrumentRisk } from '../src/server/krRiskSync';
+import { healMissingCardData } from '../src/server/cardDataHealer';
+import { STALE_DEFER_DAYS } from '../src/server/judgmentBatch';
 
 // 배치 스케줄러 — npm run scheduler (상시 실행 프로세스)
 //
@@ -69,6 +74,29 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
   console.log(
     `  ${assetClass}: 도달 ${reached.judged} / 기한 ${due.judged}(이월 ${due.deferred}) / 판매마감 ${sales.closed.length}`,
   );
+
+  // **이월이 오래된 카드는 사람이 봐야 한다.** 지금까지 이 목록은 배치 로그에만 남아
+  // 아무도 읽지 않았다 — 돈이 묶인 카드가 조용히 방치되는 경로다
+  if (due.staleDeferred.length > 0) {
+    await notifyOperators(
+      `판정 이월 ${due.staleDeferred.length}건 — 수동 확인 필요`,
+      `${STALE_DEFER_DAYS}일 넘게 판정되지 못한 카드입니다. 운영자 판정 큐에서 처리하세요.\n` +
+        due.staleDeferred.slice(0, 10).join('\n'),
+      '/admin/judgments',
+    );
+  }
+}
+
+/** 운영자 전원에게 알림 — 사람이 개입해야 하는 일을 콘솔에만 남기지 않는다 */
+async function notifyOperators(title: string, body: string, link: string): Promise<void> {
+  const operators = await prisma.user.findMany({
+    where: { role: 'OPERATOR' },
+    select: { id: true },
+  });
+  if (operators.length === 0) return;
+  await prisma.notification.createMany({
+    data: operators.map((o) => ({ userId: o.id, type: 'OPS_ALERT', title, body, link })),
+  });
 }
 
 function tick(): void {
@@ -157,9 +185,75 @@ function tick(): void {
       await takeMarketSnapshot(prisma);
     });
   }
+
+  // ── 보류 큐 운영 (매일 07:00 KST) ───────────────────────
+  // 이 배치가 없으면 컴플라이언스 보류 큐는 운영자가 열어볼 때까지 아무 일도 일어나지
+  // 않는 블랙홀이 된다 (시한 경과 건의 초안 복귀·운영자 알림이 여기서 난다)
+  if (kstClock >= '07:00' && kstClock < '08:00' && onceADay('compliance', kstNow)) {
+    enqueue('보류 큐 운영', async () => {
+      const s = await runComplianceOps(prisma);
+      console.log(`  시한 경과 초안 복귀 ${s.expired.length}건`);
+    });
+  }
+
+  // ── 국내 시장경보·거래정지 (매일 07:10 KST) ─────────────
+  // 마스터 파일은 관리종목까지만 준다. 투자경고·거래정지·정리매매는 현재가 응답에만
+  // 있어 종목당 1회가 필요하므로, **카드가 걸린 종목만** 본다 (server/syncKrRisk 규칙)
+  if (kstClock >= '07:10' && kstClock < '08:10' && onceADay('risk:kr', kstNow)) {
+    enqueue('국내 종목 경보 갱신', async () => {
+      const s = await syncKrCardInstrumentRisk(prisma, registry);
+      console.log(`  대상 ${s.checked}종목 — 상향 ${s.raised} / 수동값 유지 ${s.keptManual}`);
+    });
+  }
+
+  // ── 결측값 치유 (매일 07:20 KST) ────────────────────────
+  // 게시 때 시세가 잠깐 흔들려 σ·앵커가 빈 카드를 메운다. 안 하면 그 카드는 판정까지
+  // 안정성 "—"에 분할 감지도 안 된다
+  if (kstClock >= '07:20' && kstClock < '08:20' && onceADay('heal', kstNow)) {
+    enqueue('카드 결측값 치유', async () => {
+      const s = await healMissingCardData(prisma, registry);
+      if (s.sigmaFilled + s.anchorFilled > 0) {
+        console.log(`  σ ${s.sigmaFilled} / 앵커 ${s.anchorFilled} 채움 (실패 ${s.failed})`);
+      }
+    });
+  }
+
+  // ── 분기 시즌 재산정 (1/4/7/10월 1일 00:10 KST) ─────────
+  // 등급 승급·강등이 일어나는 유일한 자리다. 빠져 있으면 등급이 영원히 고정된다
+  const [mm, dd] = kstNow.split('-').slice(1);
+  if (
+    ['01', '04', '07', '10'].includes(mm) &&
+    dd === '01' &&
+    kstClock >= '00:10' &&
+    kstClock < '01:10' &&
+    onceADay('season', kstNow)
+  ) {
+    enqueue('분기 시즌 재산정', async () => {
+      const s = await recalcSeasonTiers(prisma);
+      console.log(
+        `  ${s.season}: 평가 ${s.evaluated}명 — 승급 ${s.promoted} / 강등 ${s.demoted}`,
+      );
+    });
+  }
+}
+
+/**
+ * 기동 직후 한 번 따라잡기.
+ *
+ * 판정은 "마감 +5분부터 한 시간" 창구에서만 돈다. 그 시간에 스케줄러가 꺼져 있었으면
+ * 그날 판정이 통째로 비고, 다음 창구까지 하루가 밀린다. 그래서 시작할 때 **시장을
+ * 가리지 않고 한 번** 돌려 밀린 것을 정리한다 (판정은 멱등이라 중복 실행이 안전하다).
+ */
+function catchUpOnBoot(): void {
+  enqueue('기동 따라잡기', async () => {
+    for (const assetClass of ['KR_EQUITY', 'US_EQUITY', 'CRYPTO'] as AssetClass[]) {
+      await judgeMarket(assetClass);
+    }
+  });
 }
 
 console.log('스케줄러 시작 — 마감+5분 판정 / 장중 2분 감시 갱신 / 06:00 마스터 동기화');
+catchUpOnBoot();
 tick();
 const timer = setInterval(tick, TICK_MS);
 
