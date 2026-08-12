@@ -125,8 +125,8 @@ src/domain/marketData.ts        공급자 인터페이스, 자산군별 시간�
 src/domain/judgmentPipeline.ts  카드 1건: 데이터 조회 → 판정 → 감사 기록
 src/infra/marketData/
   fixtureProvider.ts            개발·테스트용 인메모리 공급자
-  fscProvider.ts                공공데이터포털(금융위) — KR_EQUITY
-  twelveDataProvider.ts         Twelve Data — US_EQUITY (운영 후보)
+  kisProvider.ts                한국투자증권 KIS — KR_EQUITY·US_EQUITY (시세·종목상태)
+  kisAuth.ts                    KIS 계정 관문 (토큰 캐시·초당 호출 간격)
   stooqProvider.ts              Stooq — US_EQUITY (개발·검증 전용, 상용 금지)
   upbitProvider.ts              업비트 공개 API — CRYPTO
 ```

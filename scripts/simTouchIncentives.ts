@@ -83,7 +83,7 @@ for (const mkt of MARKETS) {
         for (const r of rows) {
           const sc = scoreJudgedCard({
             direction: 'UP', targetType: 'RETURN_PCT', targetValue: M,
-            confidence: c, stability: s, assetClass: mkt.assetClass, sigmaDaily: null,
+            confidence: c, assetClass: mkt.assetClass, sigmaDaily: null,
             basePrice: 100, settledPrice: r.settled, horizonDays: mkt.H, outcome: r.hit ? 'HIT' : 'MISS',
           });
           evCur += sc.score; evDir += sc.directionScore;

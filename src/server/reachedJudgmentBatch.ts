@@ -112,7 +112,6 @@ export async function runReachedJudgmentBatch(
         targetType: card.targetType as TargetType,
         targetValue: card.targetValue,
         confidence: card.confidence,
-        stability: card.selfStability,
         assetClass: card.assetClass as AssetClass,
         sigmaDaily: card.sigmaDaily,
         basePrice,

@@ -138,7 +138,6 @@ describe('scoreJudgedCard', () => {
     targetType: 'RETURN_PCT' as const,
     targetValue: 10,
     confidence: 5,
-    stability: 5,
     assetClass: 'CRYPTO' as const,
     // 종목 σ 미상 — 자산군 σ̄로 폴백되는 경로를 기본으로 둔다
     sigmaDaily: null,
@@ -153,12 +152,11 @@ describe('scoreJudgedCard', () => {
     expect(r.realizedReturnPct).toBeCloseTo(10);
   });
 
-  it('안정성은 v4에서 점수 기여가 없다 — 어떤 값이어도 결과가 같고 성분은 0', () => {
-    const s1 = scoreJudgedCard({ ...base, stability: 1, settledPrice: 110, outcome: 'HIT' });
-    const s10 = scoreJudgedCard({ ...base, stability: 10, settledPrice: 110, outcome: 'HIT' });
-    expect(s1.score).toBe(s10.score);
-    expect(s1.stabilityScore).toBe(0);
-    expect(s10.stabilityScore).toBe(0);
+  it('안정성 성분은 v4에서 항상 0이다 — 입력 자체가 사라졌고 반환값만 호환용으로 남는다', () => {
+    const r = scoreJudgedCard({ ...base, settledPrice: 110, outcome: 'HIT' });
+    expect(r.stabilityScore).toBe(0);
+    // 방향·크기 성분이 곧 총점 (감사·화면 표시가 같은 값을 본다)
+    expect(r.directionScore).toBe(r.score);
   });
 
   it('목표가형은 기준가 대비 크기로 환산해 같은 규칙을 탄다', () => {

@@ -286,8 +286,6 @@ export interface JudgedCardScoreInput {
   /** 예측 크기: RETURN_PCT는 등락률(%), TARGET_PRICE는 목표가 */
   targetValue: number;
   confidence: number;
-  /** @deprecated v4에서 점수 기여 없음 — 경로 안정성 배팅 재설계 전까지 무시된다 */
-  stability: number;
   /** 자산군 — 종목 σ가 없을 때의 폴백 변동성 결정 */
   assetClass: AssetClass;
   /**

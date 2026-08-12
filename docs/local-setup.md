@@ -30,8 +30,7 @@ DATABASE_URL="file:./dev.db"
 |---|---|---|
 | `AUTH_SECRET` | 세션 쿠키 서명 키 | 개발용 기본값 사용 |
 | `IDENTITY_PEPPER` | 본인인증 CI 해시용 pepper | 개발용 기본값 사용 |
-| `FSC_API_KEY` | 금융위 국내주식 시세·종목 목록 | KR 자산군 공급자 미등록 |
-| `TWELVEDATA_API_KEY` | 미국주식 시세·종목 목록 | 개발 모드에선 Stooq로 폴백 |
+| `KIS_APP_KEY` / `KIS_APP_SECRET` | 국내·미국주식 시세·종목 상태 (한국투자증권) | KR 미등록, US는 개발 모드에서 Stooq 폴백 |
 | `ANTHROPIC_API_KEY` | 게시 전 컴플라이언스 AI 검수 | 결정적 규칙만 적용 (AI 검수 생략) |
 
 > 운영 배포 시에는 `AUTH_SECRET`·`IDENTITY_PEPPER`를 반드시 실제 난수로 설정한다.
@@ -42,11 +41,11 @@ DATABASE_URL="file:./dev.db"
 ```bash
 npx prisma migrate dev          # SQLite(dev.db) 생성 + 전체 마이그레이션 적용
 npm run sync:instruments -- --fixture   # 종목 마스터 오프라인 시드 (API 키 불필요)
-npm run seed:demo               # (선택) 데모 리서처·리포트·판정 이력
+npm run seed:real               # (권장) 실시세 기반 데모 — 기준가·목표가가 진짜 시세다
 ```
 
-종목 마스터를 실데이터로 채우려면 API 키를 넣고 `npm run sync:instruments` (플래그 없이) 실행한다.
-업비트(코인)는 키 없이 동작하고, 국내·미국주식은 위 API 키가 필요하다.
+종목 마스터를 실데이터로 채우려면 KIS 키(KIS_APP_KEY·KIS_APP_SECRET)를 넣고 `npm run sync:instruments` (플래그 없이) 실행한다.
+업비트(코인)는 키 없이 동작하고, 국내·미국주식은 KIS 키가 필요하다.
 
 ## 4. 개발 서버
 

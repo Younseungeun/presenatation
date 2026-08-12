@@ -83,7 +83,7 @@ function mcTouch(mPct: number, k: number, n = 30_000): number {
 function cardScore(M: number, c: number, hit: boolean): number {
   return scoreJudgedCard({
     direction: 'UP', targetType: 'RETURN_PCT', targetValue: M,
-    confidence: c, stability: 1, assetClass: 'KR_EQUITY', sigmaDaily: null,
+    confidence: c, assetClass: 'KR_EQUITY', sigmaDaily: null,
     basePrice: 100, settledPrice: hit ? 100 * (1 + M / 100) : 100,
     horizonDays: H, outcome: hit ? 'HIT' : 'MISS',
   }).score;

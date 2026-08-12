@@ -1,6 +1,3 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import type {
   DailyQuote,
   InstrumentListing,
@@ -9,6 +6,14 @@ import type {
 } from '@/domain/marketData';
 import type { ProviderRiskSignal } from '@/domain/instrumentRisk';
 import { fetchKrInstruments, fetchUsInstruments } from './kisInstrumentMaster';
+import {
+  MIN_CALL_GAP_MS,
+  readTokenFile,
+  sharedGate,
+  TOKEN_SAFETY_MS,
+  writeTokenFile,
+  type SharedGate,
+} from './kisAuth';
 
 // 한국투자증권 KIS Open API — 국내주식 + 미국주식을 **한 공급자**가 담당한다.
 // https://apiportal.koreainvestment.com
@@ -33,18 +38,19 @@ import { fetchKrInstruments, fetchUsInstruments } from './kisInstrumentMaster';
 const REAL_BASE = 'https://openapi.koreainvestment.com:9443';
 const MOCK_BASE = 'https://openapivts.koreainvestment.com:29443';
 
-/** 실측으로 정한 최소 호출 간격 — 1000ms에서는 간헐적으로 밀려 여유를 뒀다 */
-const MIN_CALL_GAP_MS = 1_100;
-
-/** 토큰 만료 여유 — 경계에서 만료된 토큰을 쓰지 않도록 일찍 갱신한다 */
-const TOKEN_SAFETY_MS = 10 * 60_000;
-
 /**
  * 미국 거래소 코드. KIS는 종목이 어느 거래소에 있는지를 인자로 받는데,
  * 우리 종목 마스터는 심볼만 들고 있다. 나스닥·뉴욕·아멕스를 차례로 시도한다
  * (첫 조회에서 맞은 거래소를 기억해 두 번째부터는 한 번에 맞춘다).
  */
 const US_EXCHANGES = ['NAS', 'NYS', 'AMS'] as const;
+
+/**
+ * 국내 현재가 응답 캐시 수명. 상위 결제 관문이 이미 60초 캐시(server/priceCache)를
+ * 쓰고 있어 이보다 짧으면 신선도가 나빠지지 않는다. 판정 한 건이 같은 종목에 대해
+ * 현재가·종목상태·위험신호를 잇달아 물을 때의 중복 호출만 걷어내는 것이 목적이다.
+ */
+const KR_QUOTE_TTL_MS = 15_000;
 
 interface TokenResponse {
   access_token?: string;
@@ -92,6 +98,15 @@ export class KisMarketDataProvider implements MarketDataProvider {
   private readonly shared: SharedGate;
   /** 미국 종목이 실제로 있던 거래소 — 두 번째 조회부터 탐색을 건너뛴다 */
   private readonly exchangeHint = new Map<string, string>();
+  /**
+   * 국내 현재가 응답의 짧은 캐시.
+   *
+   * 이 응답 하나에 **현재가와 종목상태(거래정지·관리종목·시장경보)가 함께** 들어 있어,
+   * 판정 한 건이 같은 종목에 대해 같은 엔드포인트를 두세 번 부르고 있었다. 초당 1회로
+   * 직렬화된 관문에서는 그대로 대기 시간이다. TTL은 상위 계층(server/priceCache 60초)보다
+   * 짧게 둬서 결제 관문이 이미 받아들인 신선도보다 나빠지지 않게 한다.
+   */
+  private readonly krQuoteCache = new Map<string, { at: number; out: KrStatusOutput }>();
 
   constructor(
     private readonly appKey: string,
@@ -298,17 +313,27 @@ export class KisMarketDataProvider implements MarketDataProvider {
 
   // ── 현재가 (장중 보호용) ─────────────────────────────────────
 
+  /**
+   * 국내 현재가 응답 — **현재가와 종목상태의 공통 출처.**
+   * 셋(getCurrentPrice·getSecurityStatus·getRiskSignal)이 같은 응답을 쓰므로 한 번만 부른다.
+   */
+  private async krQuote(ticker: string): Promise<KrStatusOutput> {
+    const hit = this.krQuoteCache.get(ticker);
+    if (hit && Date.now() - hit.at < KR_QUOTE_TTL_MS) return hit.out;
+
+    const params = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: ticker });
+    const body = await this.call<KrStatusOutput>(
+      `/uapi/domestic-stock/v1/quotations/inquire-price?${params}`,
+      'FHKST01010100',
+    );
+    if (!body.output) throw new Error(`KIS 현재가 응답 없음: ${ticker}`);
+    this.krQuoteCache.set(ticker, { at: Date.now(), out: body.output });
+    return body.output;
+  }
+
   async getCurrentPrice(ticker: string): Promise<number> {
     if (this.market === 'KR') {
-      const params = new URLSearchParams({
-        FID_COND_MRKT_DIV_CODE: 'J',
-        FID_INPUT_ISCD: ticker,
-      });
-      const body = await this.call<PriceOutput>(
-        `/uapi/domestic-stock/v1/quotations/inquire-price?${params}`,
-        'FHKST01010100',
-      );
-      const price = Number(body.output?.stck_prpr);
+      const price = Number((await this.krQuote(ticker)).stck_prpr);
       if (!Number.isFinite(price) || price <= 0) throw new Error(`KIS 현재가 없음: ${ticker}`);
       return price;
     }
@@ -356,19 +381,10 @@ export class KisMarketDataProvider implements MarketDataProvider {
    */
   async getSecurityStatus(ticker: string): Promise<SecurityStatus> {
     if (this.market !== 'KR') return { delisted: false, halted: false };
-
-    const params = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: ticker });
-    const body = await this.call<KrStatusOutput>(
-      `/uapi/domestic-stock/v1/quotations/inquire-price?${params}`,
-      'FHKST01010100',
-    );
-    const out = body.output;
-    // 응답이 비면 "정상"이라고 단정하지 않는다 — 판정 파이프라인이 결측으로 다루게 둔다
-    if (!out) throw new Error(`KIS 종목상태 없음: ${ticker}`);
-    return {
-      delisted: out.sltr_yn === 'Y',
-      halted: out.temp_stop_yn === 'Y',
-    };
+    // 응답이 비면 krQuote가 던진다 — "정상"이라고 단정하지 않는다
+    // (판정 파이프라인이 결측으로 다루고 이월시킨다)
+    const out = await this.krQuote(ticker);
+    return { delisted: out.sltr_yn === 'Y', halted: out.temp_stop_yn === 'Y' };
   }
 
   /**
@@ -378,14 +394,7 @@ export class KisMarketDataProvider implements MarketDataProvider {
    */
   async getRiskSignal(ticker: string): Promise<ProviderRiskSignal> {
     if (this.market !== 'KR') return {};
-
-    const params = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: ticker });
-    const body = await this.call<KrStatusOutput>(
-      `/uapi/domestic-stock/v1/quotations/inquire-price?${params}`,
-      'FHKST01010100',
-    );
-    const out = body.output;
-    if (!out) return {};
+    const out = await this.krQuote(ticker);
 
     const warn = out.mrkt_warn_cls_code ?? '00';
     const managed = out.mang_issu_cls_code === 'Y';
@@ -420,55 +429,6 @@ export class KisMarketDataProvider implements MarketDataProvider {
     const hint = this.exchangeHint.get(ticker);
     return hint ? [hint, ...US_EXCHANGES.filter((e) => e !== hint)] : US_EXCHANGES;
   }
-}
-
-// ── 토큰 파일 캐시 ───────────────────────────────────────────
-//
-// 위치는 OS 임시 폴더 — 저장소에 남기지 않는다(토큰은 24시간짜리 비밀이다).
-// 파일명에 앱키 해시를 넣어 계정이 바뀌면 자동으로 다른 파일이 된다.
-//
-// **한계**: 서버를 여러 대로 늘리면 대수만큼 발급이 나가 분당 1회에 걸린다.
-// 그때는 이 자리를 공용 저장소(DB·Redis)로 바꿔야 한다 — 지금은 단일 인스턴스 전제.
-function tokenFilePath(appKey: string): string {
-  let h = 0;
-  for (let i = 0; i < appKey.length; i++) h = (h * 31 + appKey.charCodeAt(i)) | 0;
-  return path.join(os.tmpdir(), `kis-token-${(h >>> 0).toString(36)}.json`);
-}
-
-function readTokenFile(appKey: string): { value: string; expiresAt: number } | null {
-  try {
-    const raw = fs.readFileSync(tokenFilePath(appKey), 'utf8');
-    const t = JSON.parse(raw) as { value: string; expiresAt: number };
-    return typeof t.value === 'string' && typeof t.expiresAt === 'number' ? t : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeTokenFile(appKey: string, token: { value: string; expiresAt: number }): void {
-  try {
-    fs.writeFileSync(tokenFilePath(appKey), JSON.stringify(token), { mode: 0o600 });
-  } catch {
-    // 파일을 못 써도 동작은 한다 — 메모리 캐시로 이 프로세스 안에서는 재사용된다
-  }
-}
-
-interface SharedGate {
-  token: { value: string; expiresAt: number } | null;
-  issuing: Promise<string> | null;
-  lastCallAt: number;
-  queue: Promise<unknown>;
-}
-
-/** 앱키 하나당 게이트 하나 — 같은 계정의 모든 인스턴스가 토큰과 호출 간격을 나눠 쓴다 */
-const GATES = new Map<string, SharedGate>();
-function sharedGate(appKey: string): SharedGate {
-  let g = GATES.get(appKey);
-  if (!g) {
-    g = { token: null, issuing: null, lastCallAt: 0, queue: Promise.resolve() };
-    GATES.set(appKey, g);
-  }
-  return g;
 }
 
 /** KIS는 YYYYMMDD로 준다 */

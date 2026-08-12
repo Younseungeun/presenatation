@@ -12,6 +12,7 @@
     "smoke:market": "tsx scripts/smokeMarketData.ts",
     "sync:instruments": "tsx scripts/syncInstruments.ts",
     "seed:dev": "tsx scripts/seedDev.ts",
+    "seed:real": "tsx scripts/seedRealistic.ts",
     "seed:demo": "tsx scripts/seedDemo.ts",
     "seed:login": "tsx scripts/seedLoginDemo.ts",
     "seed:heatmap": "tsx scripts/seedHeatmapDemo.ts",
