@@ -29,11 +29,14 @@ export async function judgeAndSettleDueCards(
   prisma: PrismaClient,
   registry: ProviderRegistry,
   now = new Date(),
+  /** 자산군 스코프 — 시장별로 마감 직후 그 시장만 판정한다 (없으면 전부) */
+  assetClass?: AssetClass,
 ): Promise<BatchSummary> {
   // HELD 구매까지 한 번에 조회 — 카드별 개별 쿼리(N+1) 제거
   const dueCards = await prisma.predictionCard.findMany({
     where: {
       judgment: null,
+      ...(assetClass ? { assetClass } : {}),
       deadline: { lte: now },
       report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
     },

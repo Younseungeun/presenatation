@@ -41,11 +41,14 @@ export async function runReachedJudgmentBatch(
   prisma: PrismaClient,
   registry: ProviderRegistry,
   now = new Date(),
+  /** 자산군 스코프 — 시장별로 마감 직후 그 시장만 (없으면 전부) */
+  assetClass?: AssetClass,
 ): Promise<ReachedJudgmentSummary> {
   const cards = await prisma.predictionCard.findMany({
     where: {
       judgment: null,
       withdrawnAt: null,
+      ...(assetClass ? { assetClass } : {}),
       // 시한 전인 카드만 — 시한이 지났으면 정규 판정 배치의 몫이다
       deadline: { gt: now },
       report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },

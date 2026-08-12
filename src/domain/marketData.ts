@@ -50,6 +50,12 @@ export interface MarketDataProvider {
    */
   getCurrentPrice?(ticker: string): Promise<number>;
   /**
+   * 여러 종목의 현재가를 **한 번에** (지원 소스만 — 업비트).
+   * 감시 갱신처럼 종목 여러 개를 한 회차에 봐야 하는 자리에서 호출 수를 1로 줄인다.
+   * KIS는 종목 단위 조회뿐이라 구현하지 않는다(초당 1회 제한이 어차피 직렬화한다).
+   */
+  getCurrentPrices?(tickers: string[]): Promise<Map<string, number>>;
+  /**
    * 공급자가 시세를 제공하는 전체 종목 목록 (지원 소스만).
    * 종목 마스터(Instrument) 동기화 배치가 사용 — 카드 작성은 이 유니버스 안에서만 가능하다.
    */

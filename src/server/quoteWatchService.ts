@@ -81,17 +81,21 @@ export async function recordQuote(
     prisma.instrumentQuote.findUnique({ where: { assetClass_ticker: { assetClass, ticker } } }),
   ]);
   const minQ = minQOf(cards, price);
-  const { watching } = decideWatch({
+  const { watching, exitStreak } = decideWatch({
     minQ,
     wasWatching: existing?.watching ?? false,
+    exitStreak: existing?.exitStreak ?? 0,
+    // 일봉 종가로 들어온 관측('batch')은 장 마감 값이라 한 번으로 해제를 확정한다 —
+    // 다음 장까지 값이 변하지 않으므로 연속 관측을 기다릴 이유가 없다
+    atClose: source === 'batch',
     snapshotAt: now,
     now,
   });
 
   await prisma.instrumentQuote.upsert({
     where: { assetClass_ticker: { assetClass, ticker } },
-    create: { assetClass, ticker, price, at: now, watching, minQ, source },
-    update: { price, at: now, watching, minQ, source },
+    create: { assetClass, ticker, price, at: now, watching, minQ, exitStreak, source },
+    update: { price, at: now, watching, minQ, exitStreak, source },
   });
   return { minQ, watching };
 }
@@ -114,8 +118,12 @@ export async function refreshWatchedQuotes(
   registry: ProviderRegistry,
   now = new Date(),
   limit = 60,
+  /** 자산군 스코프 — 열려 있는 시장만 돈다 (닫힌 시장은 값이 안 변한다) */
+  assetClass?: AssetClass,
 ): Promise<QuoteRefreshSummary> {
-  const watched = await prisma.instrumentQuote.findMany({ where: { watching: true } });
+  const watched = await prisma.instrumentQuote.findMany({
+    where: { watching: true, ...(assetClass ? { assetClass } : {}) },
+  });
   const summary: QuoteRefreshSummary = {
     watched: watched.length,
     refreshed: 0,
@@ -127,12 +135,28 @@ export async function refreshWatchedQuotes(
     (a, b) => watchPriority(a.minQ ?? 99) - watchPriority(b.minQ ?? 99),
   );
 
-  for (const row of ordered.slice(0, limit)) {
-    const assetClass = row.assetClass as AssetClass;
+  const targets = ordered.slice(0, limit);
+
+  // **코인은 한 번에 받는다** (사용자 확정) — 업비트는 markets=A,B,C로 여러 마켓을 한
+  // 응답에 준다. 무료이고 제한도 느슨해 종목 수와 무관하게 호출 1회다.
+  const cryptoTickers = targets.filter((t) => t.assetClass === 'CRYPTO').map((t) => t.ticker);
+  const batched = new Map<string, number>();
+  if (cryptoTickers.length > 0) {
+    const provider = registry.CRYPTO;
+    if (provider?.getCurrentPrices) {
+      try {
+        for (const [t, p] of await provider.getCurrentPrices(cryptoTickers)) batched.set(t, p);
+      } catch {
+        /* 실패하면 아래에서 종목별로 다시 시도한다 */
+      }
+    }
+  }
+
+  for (const row of targets) {
     try {
-      const provider = resolveProvider(registry, assetClass);
-      if (!provider.getCurrentPrice) continue;
-      const price = await provider.getCurrentPrice(row.ticker);
+      const provider = resolveProvider(registry, row.assetClass as AssetClass);
+      const price = batched.get(row.ticker) ?? (await provider.getCurrentPrice?.(row.ticker));
+      if (price === undefined) continue;
       const { watching } = await recordQuote(prisma, row.assetClass, row.ticker, price, 'refresh', now);
       summary.refreshed++;
       if (!watching) summary.released++;

@@ -3,6 +3,7 @@ import {
   decideWatch,
   SNAPSHOT_STALE_MS,
   watchPriority,
+  WATCH_EXIT_STREAK,
   WATCH_ENTER_Q,
   WATCH_EXIT_Q,
 } from '../quoteWatch';
@@ -33,13 +34,47 @@ describe('감시 편입·해제', () => {
     expect(WATCH_EXIT_Q).toBeGreaterThan(WATCH_ENTER_Q);
   });
 
-  it('해제선을 넘으면 감시에서 뺀다', () => {
-    expect(decideWatch({ minQ: 1.5, wasWatching: true, snapshotAt: fresh, now: NOW }).watching).toBe(false);
+  it('해제선을 넘어도 **한 번으로는 안 풀린다** — 튐 한 번에 감시가 꺼지면 안 된다', () => {
+    const first = decideWatch({ minQ: 1.5, wasWatching: true, exitStreak: 0, snapshotAt: fresh, now: NOW });
+    expect(first.watching).toBe(true);
+    expect(first.exitStreak).toBe(1);
   });
 
-  it('판매 중 카드가 없으면 감시하지 않는다', () => {
-    const d = decideWatch({ minQ: null, wasWatching: true, snapshotAt: fresh, now: NOW });
+  it('연속 3회면 해제한다', () => {
+    let streak = 0;
+    let watching = true;
+    for (let i = 0; i < WATCH_EXIT_STREAK; i++) {
+      const d = decideWatch({ minQ: 1.5, wasWatching: watching, exitStreak: streak, snapshotAt: fresh, now: NOW });
+      streak = d.exitStreak;
+      watching = d.watching;
+    }
+    expect(watching).toBe(false);
+  });
+
+  it('중간에 다시 문턱 권역으로 오면 연속 기록이 리셋된다', () => {
+    const a = decideWatch({ minQ: 1.5, wasWatching: true, exitStreak: 1, snapshotAt: fresh, now: NOW });
+    expect(a.exitStreak).toBe(2);
+    const b = decideWatch({ minQ: 1.1, wasWatching: true, exitStreak: a.exitStreak, snapshotAt: fresh, now: NOW });
+    expect(b.exitStreak).toBe(0);
+    expect(b.watching).toBe(true);
+  });
+
+  it('**장 마감 종가**에서 해제선 위면 한 번으로 해제 — 다음 장까지 값이 안 변한다', () => {
+    const d = decideWatch({
+      minQ: 1.5,
+      wasWatching: true,
+      exitStreak: 0,
+      atClose: true,
+      snapshotAt: fresh,
+      now: NOW,
+    });
     expect(d.watching).toBe(false);
+  });
+
+  it('판매 중 카드가 없으면 **즉시** 해제한다 — 시세와 무관한 사실이다', () => {
+    const d = decideWatch({ minQ: null, wasWatching: true, exitStreak: 2, snapshotAt: fresh, now: NOW });
+    expect(d.watching).toBe(false);
+    expect(d.exitStreak).toBe(0);
     expect(d.hideFromMarket).toBe(false);
   });
 });

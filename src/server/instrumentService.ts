@@ -189,17 +189,31 @@ export async function applyInstrumentListings(
   listings: InstrumentListing[],
   now = new Date(),
 ): Promise<SyncResult> {
+  // 위험 등급 병합에 쓸 현재 값 — 목록 전체를 한 번에 읽는다 (종목마다 조회하면 N+1)
+  const existing = new Map(
+    (
+      await prisma.instrument.findMany({
+        where: { assetClass, ticker: { in: listings.map((l) => l.ticker) } },
+        select: { ticker: true, riskLevel: true },
+      })
+    ).map((r) => [r.ticker, r.riskLevel as RiskLevel]),
+  );
+  const RANK: RiskLevel[] = ['NONE', 'CAUTION', 'WARNING', 'DANGER'];
+
   for (const l of listings) {
     const shortable = isShortAllowed(assetClass, l.ticker);
-    // 공급자가 경보를 주는 자산군(코인)만 위험 등급을 갱신한다.
-    // 주지 않는 자산군은 운영자가 등록한 값(setInstrumentRisk)을 동기화가 덮어쓰면 안 된다.
-    const risk = l.risk
-      ? {
-          riskLevel: toRiskLevel(l.risk),
-          riskNote: l.risk.note ?? null,
-          riskSyncedAt: now,
-        }
-      : {};
+    // 공급자가 경보를 주는 자산군만 위험 등급을 갱신한다
+    // (코인=업비트 market_event, 국내=KIS 마스터의 관리종목 플래그).
+    //
+    // **등급을 낮추지는 않는다.** 이 자리는 운영자 수동 등록(setInstrumentRisk)과
+    // 공유되는데, 마스터가 모르는 사유(거래소 경보 등)로 사람이 올려 둔 값을
+    // 매일 도는 동기화가 지워 버리면 경고가 조용히 사라진다.
+    const next = l.risk ? toRiskLevel(l.risk) : null;
+    const current = existing.get(l.ticker) ?? 'NONE';
+    const risk =
+      next && RANK.indexOf(next) >= RANK.indexOf(current)
+        ? { riskLevel: next, riskNote: l.risk!.note ?? null, riskSyncedAt: now }
+        : {};
     await prisma.instrument.upsert({
       where: { assetClass_ticker: { assetClass, ticker: l.ticker } },
       create: {

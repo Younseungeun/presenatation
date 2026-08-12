@@ -71,12 +71,21 @@ export async function runSalesCloseBatch(
    * 없으면 시간 규칙만 (시세 없이도 돌 수 있어야 하는 자리라 선택 인자다).
    */
   registry?: ProviderRegistry,
+  /** 자산군 스코프 — 시장별 마감 직후 그 시장만 (없으면 전부) */
+  assetClass?: AssetClass,
 ): Promise<SalesCloseResult> {
   const candidates = await prisma.report.findMany({
     where: {
       status: 'PUBLISHED',
       salesClosedAt: null,
-      predictionCard: { is: { deadline: { gt: now }, withdrawnAt: null, judgment: null } },
+      predictionCard: {
+        is: {
+          deadline: { gt: now },
+          withdrawnAt: null,
+          judgment: null,
+          ...(assetClass ? { assetClass } : {}),
+        },
+      },
     },
     select: {
       id: true,

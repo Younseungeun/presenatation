@@ -173,6 +173,8 @@ model InstrumentQuote {
   watching   Boolean  @default(false)
   /** 이 종목 판매 중 카드들 중 가장 문턱에 가까운 q (없으면 null) */
   minQ       Float?
+  /** 해제선 위에서 연속 관측된 횟수 — 한 번의 튐으로 감시가 풀리지 않게 (domain/quoteWatch.ts) */
+  exitStreak Int      @default(0)
   /** 감시로 들어온 경로 — batch(일봉) | gate(결제 전 호출) | refresh(장중 갱신) */
   source     String   @default("batch")
   updatedAt  DateTime @updatedAt

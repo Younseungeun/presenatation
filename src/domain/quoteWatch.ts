@@ -44,15 +44,33 @@ export const WATCH_EXIT_Q = 1.4;
  */
 export const SNAPSHOT_STALE_MS = 10 * 60_000;
 
+/**
+ * 해제에 필요한 연속 관측 수 — 한 번의 튐으로 풀리지 않게 한다.
+ * 2분 주기면 약 6분이다. 해제를 다소 서둘러도 안전한 이유는 **비용이 비대칭**이기
+ * 때문이다: 잘못 유지하면 계속 호출하지만, 잘못 풀어도 결제 관문이 막고 그 호출이
+ * 다시 편입시킨다.
+ */
+export const WATCH_EXIT_STREAK = 3;
+
 export interface WatchDecision {
   /** 장중 갱신 대상인가 */
   watching: boolean;
+  /** 해제선 위에서 연속 관측된 횟수 — 다음 판단에 이어 쓴다 */
+  exitStreak: number;
   /** 목록에서 감출 것인가 — 스냅샷이 신선하고 실제로 중단 구간일 때만 */
   hideFromMarket: boolean;
 }
 
 /**
  * 종목의 최소 q(그 종목 카드들 중 가장 문턱에 가까운 값)로 감시·노출을 정한다.
+ *
+ * 해제는 세 갈래다 (2026-08-12 사용자 확정):
+ *   ① 판매 중 카드가 0장 → **즉시** 해제. 감시할 이유 자체가 사라졌다
+ *      (판정·마감·시한 경과). 이건 시세와 무관한 사실이라 연속 관측을 기다리지 않는다
+ *   ② 장중 관측에서 q > 해제선이 **연속 3회** → 해제. 한 번의 튐으로 풀지 않는다
+ *   ③ **장 마감 종가**에서 q > 해제선 → 그 자리에서 해제. 다음 장까지 값이 변하지
+ *      않으므로 연속 관측을 기다리는 것이 의미 없다
+ *
  * 스냅샷 시각을 함께 받는 이유는 **낡은 값으로 숨기지 않기 위해서**다.
  */
 export function decideWatch(input: {
@@ -60,16 +78,33 @@ export function decideWatch(input: {
   minQ: number | null;
   /** 지금 감시 중인가 (이력 현상 판단에 쓴다) */
   wasWatching: boolean;
+  /** 지금까지 해제선 위에서 연속 관측된 횟수 */
+  exitStreak?: number;
+  /** 이 관측이 장 마감 종가인가 — 그렇다면 한 번으로 해제를 확정한다 */
+  atClose?: boolean;
   /** 스냅샷 시각 */
   snapshotAt: Date | null;
   now: Date;
 }): WatchDecision {
-  const { minQ, wasWatching, snapshotAt, now } = input;
-  if (minQ === null) return { watching: false, hideFromMarket: false };
-
-  const watching = wasWatching ? minQ < WATCH_EXIT_Q : minQ < WATCH_ENTER_Q;
+  const { minQ, wasWatching, exitStreak = 0, atClose = false, snapshotAt, now } = input;
   const fresh = snapshotAt !== null && now.getTime() - snapshotAt.getTime() < SNAPSHOT_STALE_MS;
-  return { watching, hideFromMarket: fresh && minQ < SUSPEND_ALPHA };
+
+  // ① 판매 중 카드가 없다 — 감시할 대상이 없어졌다
+  if (minQ === null) return { watching: false, exitStreak: 0, hideFromMarket: false };
+
+  const hideFromMarket = fresh && minQ < SUSPEND_ALPHA;
+  if (!wasWatching) {
+    return { watching: minQ < WATCH_ENTER_Q, exitStreak: 0, hideFromMarket };
+  }
+
+  if (minQ <= WATCH_EXIT_Q) {
+    // 아직 문턱 권역 — 연속 기록을 리셋하고 계속 본다
+    return { watching: true, exitStreak: 0, hideFromMarket };
+  }
+  // ③ 종가 기준이면 한 번으로 확정 / ② 장중이면 연속 3회
+  const streak = exitStreak + 1;
+  const release = atClose || streak >= WATCH_EXIT_STREAK;
+  return { watching: !release, exitStreak: release ? 0 : streak, hideFromMarket };
 }
 
 /** 갱신 우선순위 — 문턱에 가까울수록 먼저. 예산이 모자라도 중요한 종목부터 신선해진다 */

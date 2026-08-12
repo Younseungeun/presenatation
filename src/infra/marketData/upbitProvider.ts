@@ -149,6 +149,25 @@ export class UpbitMarketDataProvider implements MarketDataProvider {
   }
 
   /** 실시간 현재가 — 코인 게시 시점 기준가 확정용 (단타 예측의 조작 방지 핵심) */
+  /**
+   * 여러 마켓을 **한 응답으로** 받는다 — `markets=A,B,C`.
+   * 감시 갱신에서 코인은 종목이 몇 개든 호출 한 번으로 끝난다(무료·제한 느슨).
+   * KIS 주식은 종목당 1.1초 직렬인 것과 대비되는 구조적 차이라 따로 쓴다.
+   */
+  async getCurrentPrices(tickers: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (tickers.length === 0) return out;
+    const res = await this.fetchImpl(`${TICKER_URL}?markets=${encodeURIComponent(tickers.join(','))}`);
+    if (!res.ok) throw new Error(`업비트 현재가 API HTTP ${res.status}`);
+    const body = (await res.json()) as Array<{ market: string; trade_price: number }>;
+    for (const row of body) {
+      if (Number.isFinite(row.trade_price) && row.trade_price > 0) {
+        out.set(row.market, row.trade_price);
+      }
+    }
+    return out;
+  }
+
   async getCurrentPrice(ticker: string): Promise<number> {
     const res = await this.fetchImpl(`${TICKER_URL}?markets=${encodeURIComponent(ticker)}`);
     if (!res.ok) {
