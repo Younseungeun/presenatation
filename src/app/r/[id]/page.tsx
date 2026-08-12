@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { cardProfitabilityLevel } from "@/domain/profitability";
+import { cardStabilityLevel } from "@/domain/stability";
 import { prisma } from "@/server/db";
 import { getFollowStats } from "@/server/followService";
 import { getPublicProfile } from "@/server/leaderboardQueries";
@@ -162,6 +163,7 @@ export default async function PublicProfile({
                 assetClass: c?.assetClass ?? null,
                 direction: c?.direction ?? null,
                 profitability: c ? cardProfitabilityLevel(c) : null,
+                stability: cardStabilityLevel(c?.sigmaDaily),
                 confidence: c?.confidence ?? null,
               }}
             />

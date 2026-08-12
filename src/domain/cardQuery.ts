@@ -22,6 +22,8 @@ export interface CardQuery {
   /** 별점(0~5) 하한 — 카드에 뜨는 표기와 같은 축 */
   minProfitability: number | null;
   minConfidence: number | null;
+  /** 안정성(종목 변동성 5구간, 시스템 산정 — domain/stability.ts) 하한 */
+  minStability: number | null;
   /** 선결제 0% — 틀리면 전액 환불 */
   refundOnly: boolean;
   maxPriceKrw: number | null;
@@ -41,6 +43,7 @@ const EMPTY: CardQuery = {
   direction: null,
   minProfitability: null,
   minConfidence: null,
+  minStability: null,
   refundOnly: false,
   maxPriceKrw: null,
   withinDays: null,
@@ -79,9 +82,10 @@ const TIER_WORDS: Record<string, Tier> = {
   인투빌펠로우: 'CHALLENGER',
 };
 
-/** 별점 조건 — "신뢰도4이상" / "수익성3점이상". 안정성은 점수 v4에서 제거된 축이라
-    조건이 될 수 없다 — 남겨두면 "점수와 무관한 값으로 거른 목록"이 된다 */
-const RATING_RE = /^(수익성|신뢰도)([0-5](?:\.[0-9])?)(점)?(이상)?$/;
+/** 별점 조건 — "신뢰도4이상" / "수익성3점이상" / "안정성4이상".
+    안정성은 v4에서 자기 신고가 폐지된 뒤 **종목 변동성 기반 시스템 산정**으로 돌아온 축이다
+    (domain/stability.ts) — 리서처가 조작할 수 없는 값이라 조건으로 걸어도 안전하다 */
+const RATING_RE = /^(수익성|신뢰도|안정성)([0-5](?:\.[0-9])?)(점)?(이상)?$/;
 /** 예산 — "1만원이하" / "5000원이하" */
 const BUDGET_RE = /^([0-9]+)(만)?원?(이하|미만)$/;
 /** 시한 — "7일내" / "일주일내" / "한달내" / "30일이내" */
@@ -108,6 +112,7 @@ function applyTag(q: CardQuery, raw: string): boolean {
   if (rating) {
     const value = Number(rating[2]);
     if (rating[1] === '수익성') q.minProfitability = value;
+    else if (rating[1] === '안정성') q.minStability = value;
     else q.minConfidence = value;
     return true;
   }
@@ -187,6 +192,7 @@ export function hasCriteria(q: CardQuery): boolean {
     q.direction !== null ||
     q.minProfitability !== null ||
     q.minConfidence !== null ||
+    q.minStability !== null ||
     q.refundOnly ||
     q.maxPriceKrw !== null ||
     q.withinDays !== null ||
@@ -252,6 +258,15 @@ export const TAG_GROUPS: readonly TagGroup[] = [
     tags: [
       { tag: '#수익성 3이상', hint: '적극 이상' },
       { tag: '#수익성 4이상', hint: '공격 이상' },
+    ],
+  },
+  {
+    title: '종목 안정성',
+    axis: 'stability',
+    multi: false,
+    tags: [
+      { tag: '#안정성 3이상', hint: '변동성 보통 이하 — 종목 변동성으로 시스템이 매긴다' },
+      { tag: '#안정성 4이상', hint: '조용한 종목만' },
     ],
   },
   {

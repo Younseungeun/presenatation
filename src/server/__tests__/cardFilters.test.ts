@@ -28,6 +28,7 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
     assetClass: 'CRYPTO',
     direction: 'UP',
     profitability: 3,
+    stability: null,
     confidence: 6,
     deadline: new Date(NOW.getTime() + 5 * DAY),
     salesCount: 0,
@@ -36,18 +37,31 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
   };
 }
 
-describe('별점 평균 — 카드에 뜨는 별 둘(수익성·신뢰도)의 평균', () => {
-  it('신뢰도는 1~10이라 반으로 접는다 (안정성은 v4에서 제거된 축)', () => {
-    // 수익성 3 / 신뢰도 8→4 → 평균 3.5
-    expect(ratingAverage(card({ profitability: 3, confidence: 8 }))).toBeCloseTo(3.5, 2);
+describe('별점 평균 — 수익성·신뢰도를 점수 기여 가중(0.21 : 0.79)으로 합친다', () => {
+  it('신뢰도 별은 카드 표시와 같은 함의 승률 스케일(5c/(c+1))로 들어간다', () => {
+    // 수익성 3 / 신뢰도 8 → 별 40/9≈4.444 → 0.21·3 + 0.79·4.444 ≈ 4.141
+    expect(ratingAverage(card({ profitability: 3, confidence: 8 }))).toBeCloseTo(4.141, 2);
   });
 
-  it('만점은 5', () => {
-    expect(ratingAverage(card({ profitability: 5, confidence: 10 }))).toBe(5);
+  it('신뢰도가 무겁다 — 같은 한 칸 차이라도 신뢰도 쪽이 평균을 더 움직인다', () => {
+    const base = ratingAverage(card({ profitability: 3, confidence: 3 }));
+    const profUp = ratingAverage(card({ profitability: 4, confidence: 3 }));
+    const confUp = ratingAverage(card({ profitability: 3, confidence: 6 })); // 별 3.75→4.29
+    expect(confUp - base).toBeGreaterThan(profUp - base);
   });
 
-  it('일부만 있으면 있는 값끼리 평균 낸다', () => {
+  it('별 5개는 도달 불가 — 신뢰도 별의 상한(승률 100%)이 5 미만이라 평균도 그렇다', () => {
+    const top = ratingAverage(card({ profitability: 5, confidence: 10 }));
+    expect(top).toBeGreaterThan(4.5);
+    expect(top).toBeLessThan(5);
+  });
+
+  it('일부만 있으면 있는 별만으로 (분모도 그 무게만)', () => {
     expect(ratingAverage(card({ profitability: 4, confidence: null }))).toBe(4);
+  });
+
+  it('안정성은 평균에 들어가지 않는다 — 점수 기여 0이면 무게도 0', () => {
+    expect(ratingAverage(card({ stability: 5 }))).toBe(ratingAverage(card({ stability: null })));
   });
 
   it('값이 하나도 없으면 −1 — 0으로 두면 "별 0개" 카드와 섞인다', () => {
@@ -64,9 +78,9 @@ describe('별점 정렬', () => {
   it('구간은 4점 이상 / 3점대 / 그 미만 / 미상으로 갈린다', () => {
     const groups = groupCards(
       [
-        card({ profitability: 5, confidence: 9 }), // 4.75
-        card({ profitability: 3, confidence: 7 }), // 3.25
-        card({ profitability: 1, confidence: 2 }), // 1.0
+        card({ profitability: 5, confidence: 9 }), // 0.21·5 + 0.79·4.5 ≈ 4.60
+        card({ profitability: 3, confidence: 3 }), // 0.21·3 + 0.79·3.75 ≈ 3.59
+        card({ profitability: 1, confidence: 1 }), // 0.21·1 + 0.79·2.5 ≈ 2.19
         card({ profitability: null, confidence: null }),
       ],
       'RATING_DESC',

@@ -45,11 +45,11 @@ describe('사람이 띄어 쓴 조건도 알아듣는다', () => {
     expect(q.minConfidence).toBe(4);
   });
 
-  it('안정성은 점수 v4에서 제거된 축 — 조건이 아니라 미해석 태그로 알린다', () => {
-    // 조용히 무시하면 "안정성으로 걸러진 목록"으로 오해한다 (unknown 노출 원칙)
+  it('안정성도 조건 축이다 — 종목 변동성 기반 시스템 산정으로 돌아왔다 (stability.ts)', () => {
     const q = parseCardQuery('#안정성 3이상');
+    expect(q.minStability).toBe(3);
     expect(q.minConfidence).toBeNull();
-    expect(q.unknown).toEqual(['안정성 3이상']);
+    expect(q.unknown).toEqual([]);
   });
 
   it('"이상" 없이 숫자만 써도 하한으로 읽는다', () => {

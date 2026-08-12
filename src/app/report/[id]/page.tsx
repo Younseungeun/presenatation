@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass, type Direction } from "@/domain/constants";
 import { RISK_LEVEL_LABEL, RISK_LEVEL_NOTE, type RiskLevel } from "@/domain/instrumentRisk";
 import { cardProfitabilityLevel } from "@/domain/profitability";
+import { cardStabilityLevel } from "@/domain/stability";
 import {
   isSalesWindowOpen,
   remainingFraction,
@@ -84,6 +85,8 @@ export default async function ReportDetail({
   const isOwner = viewerId !== null && report.researcher.user.id === viewerId;
   const masked = !!card && !purchased && !judgment && !isOwner;
   const profitabilityLevel = card ? cardProfitabilityLevel(card) : null;
+  // 안정성 — 게시 시점에 잰 종목 실현 변동성의 5구간 (시스템 산정, 점수 무관)
+  const stabilityStars = cardStabilityLevel(card?.sigmaDaily);
   const now = new Date();
 
   // 카드별 함의 승률 — 별점 각주가 이 카드의 난이도(p₀)로 정확한 문턱을 말하게 한다.
@@ -188,8 +191,6 @@ export default async function ReportDetail({
           <StarRating stars={confidenceStars(card.confidence)} label="신뢰도" />
         </span>
       </div>
-      {/* 안정성 행은 점수 v4에서 제거 — 도달 판정에서 측정 대상이 사라져 점수에
-          기여하지 않는 값이 됐고, 점수 무관한 자기 신고를 별로 그리면 공짜 마케팅이 된다 */}
       <div className={styles.cardRow}>
         <span className={styles.cardKey}>수익성</span>
         <span className={styles.cardVal}>
@@ -197,6 +198,19 @@ export default async function ReportDetail({
             "—"
           ) : (
             <StarRating stars={profitabilityLevel} label="수익성" />
+          )}
+        </span>
+      </div>
+      {/* 안정성 — 자기 신고 다이얼(v3)이 아니라 **종목 변동성으로 시스템이 매긴 값**.
+          점수와 무관한 표시 지표라 각주로 출처를 밝힌다 (밝히지 않으면 리서처의
+          신고로 오해된다 — 자기 신고 별점을 걷어낸 이유가 그 오해였다) */}
+      <div className={styles.cardRow}>
+        <span className={styles.cardKey}>안정성</span>
+        <span className={styles.cardVal}>
+          {stabilityStars === null ? (
+            "—"
+          ) : (
+            <StarRating stars={stabilityStars} label="안정성" />
           )}
         </span>
       </div>
@@ -215,6 +229,8 @@ export default async function ReportDetail({
         ) : (
           <>신뢰도 별점은 리서처 신고가 함의하는 최소 승률입니다.</>
         )}{" "}
+        안정성 별점은 리서처 입력이 아니라 종목의 최근 변동성으로 시스템이
+        매기며, 점수·정산과 무관합니다.{" "}
         <Link href="/score" className={styles.cardFootnoteLink}>
           산정 방식 직접 계산해 보기 →
         </Link>

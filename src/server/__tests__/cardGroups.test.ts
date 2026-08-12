@@ -22,6 +22,7 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
     assetClass: 'CRYPTO',
     direction: 'UP',
     profitability: 3,
+    stability: null,
     confidence: 3,
     deadline: new Date(NOW.getTime() + 5 * DAY),
     salesCount: 0,

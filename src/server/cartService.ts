@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { isSalesWindowOpen } from '@/domain/salesWindow';
 import { cardProfitabilityLevel, type ProfitabilityLevel } from '@/domain/profitability';
+import { cardStabilityLevel, type StabilityLevel } from '@/domain/stability';
 import { isFreeReport } from './freeReportService';
 import { researcherSignals } from './marketQueries';
 import { purchaseReport, type PaymentInput } from './purchaseService';
@@ -38,6 +39,7 @@ export interface CartEntry {
   assetClass: string | null;
   direction: string | null;
   profitability: ProfitabilityLevel | null;
+  stability: StabilityLevel | null;
   confidence: number | null;
   deadline: Date | null;
   publishedAt: Date | null;
@@ -150,6 +152,7 @@ export async function getCart(
       assetClass: card?.assetClass ?? null,
       direction: card?.direction ?? null,
       profitability: card ? cardProfitabilityLevel(card) : null,
+      stability: cardStabilityLevel(card?.sigmaDaily),
       confidence: card?.confidence ?? null,
       deadline: card?.deadline ?? null,
       publishedAt: r.publishedAt,

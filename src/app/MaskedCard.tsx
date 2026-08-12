@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import type { ProfitabilityLevel } from "@/domain/profitability";
+import type { StabilityLevel } from "@/domain/stability";
 import { DefaultAvatar } from "./Avatar";
 import { VerifiedBadge } from "./brand/VerifiedBadge";
 import {
@@ -45,6 +46,8 @@ export interface MaskedCardData {
   assetClass: string | null;
   direction: string | null;
   profitability: ProfitabilityLevel | null;
+  /** 종목 변동성 5구간 — 시스템 산정 (domain/stability.ts), σ 미상이면 null */
+  stability: StabilityLevel | null;
   confidence: number | null;
 }
 
@@ -139,11 +142,13 @@ function TrackRecord({ c }: { c: MaskedCardFull }) {
   );
 }
 
-/** 확신 2종 — 신뢰도는 함의 승률 스케일(StarRating 주석), 수익성은 5구간 정수.
-    안정성은 점수 v4에서 제거됐다(도달 판정에서 측정 대상이 사라짐 — scoring.ts).
-    점수에 기여하지 않는 자기 신고 값을 별로 그리면 공짜 마케팅이 된다 */
+/** 별 3종 — 서로 다른 축: 수익성(맞으면 얼마나, 5구간 정수) · 안정성(가는 길이 얼마나
+    출렁이나 — **종목 변동성으로 시스템이 매긴다**, 자기 신고 아님) · 신뢰도(얼마나 맞을
+    것 같나, 함의 승률 스케일). 자기 신고 안정성 다이얼은 v4에서 폐지됐고(공짜 마케팅 칸),
+    지금 안정성은 리서처가 조작할 수 없는 실측값이라 그 문제가 없다 (domain/stability.ts) */
 const RATINGS = [
   { key: "수익성", of: (c: MaskedCardData) => c.profitability },
+  { key: "안정성", of: (c: MaskedCardData) => c.stability },
   {
     key: "신뢰도",
     of: (c: MaskedCardData) => (c.confidence === null ? null : confidenceStars(c.confidence)),
