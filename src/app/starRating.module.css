@@ -8,6 +8,16 @@
   letter-spacing: 1px;
   white-space: nowrap;
   vertical-align: -1px;
+  /* **이 상자는 절대 늘어나면 안 된다.**
+     채운 별은 `.fill`의 폭%로 잘리는데, 그 %의 기준이 이 상자다. 상자가 칸 너비만큼
+     늘어나면(그리드·플렉스 자식은 기본이 stretch라 inline-block도 블록화되며 늘어난다)
+     기준이 트랙(★★★★★ 글자)보다 넓어져, 예컨대 별 3.75개(75%)가 트랙 전체를 덮어
+     **5개로 보인다**. 카드에서는 별이 더 많고 상세에서는 제 개수인 현상이 이것이었다.
+     max-content로 상자를 글자 폭에 못 박으면 기준과 트랙이 항상 같아진다 (2026-08-12) */
+  width: max-content;
+  flex: none;
+  justify-self: start;
+  align-self: center;
 }
 .track {
   color: var(--surface-2);
