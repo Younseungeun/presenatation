@@ -259,3 +259,52 @@ describe('점수 집계 → 규율 연동', () => {
     expect(seasonOf(new Date('2026-01-01T00:00:00Z'))).toBe('2026-Q1');
   });
 });
+
+// ── 상장폐지 판정 (2026-08-12) ───────────────────────────────────
+// 폐지된 종목은 다음 마스터 동기화에서 목록에서 빠져 active=false가 된다.
+// 그것만으로는 부족하다 — 우리가 유니버스에서 뺀 종목(ETF 필터)도 같은 상태가 되는데
+// 시세는 멀쩡히 나온다. **마스터에서 빠졌고 시세도 없을 때**만 폐지로 본다.
+
+describe('상장폐지 — 마스터에서 사라지고 시세도 없으면 판정 불가·전액 환불', () => {
+  it('둘 다 참이면 UNDECIDABLE(DELISTED)로 판정하고 구매자에게 전액 환불한다', async () => {
+    const ticker = 'KRW-DEAD';
+    await seedTestInstruments(prisma, [{ assetClass: 'CRYPTO', ticker }]);
+    const { reportId } = await publishAndBuy(ticker, 100);
+    // 폐지: 마스터에서 비활성 + 시세 없음
+    await prisma.instrument.updateMany({
+      where: { assetClass: 'CRYPTO', ticker },
+      data: { active: false },
+    });
+    const empty: ProviderRegistry = { CRYPTO: new FixtureMarketDataProvider() };
+
+    // 이 배치는 다른 테스트가 남긴 카드도 함께 훑으므로, 요약이 아니라 이 카드를 본다
+    await judgeAndSettleDueCards(prisma, empty, BATCH_NOW);
+
+    const card = await prisma.predictionCard.findFirstOrThrow({
+      where: { reportId },
+      include: { judgment: true },
+    });
+    expect(card.judgment?.outcome).toBe('UNDECIDABLE');
+    expect(card.judgment?.undecidableReason).toBe('DELISTED');
+    expect(card.judgment?.score).toBe(0); // 판정 불가는 표본 제외
+
+    const purchases = await prisma.purchase.findMany({ where: { reportId } });
+    expect(purchases.every((p) => p.escrowStatus === 'REFUNDED')).toBe(true);
+  });
+
+  it('마스터에 살아 있으면 시세가 없어도 이월한다 — 휴장·일시 장애일 수 있다', async () => {
+    const ticker = 'KRW-QUIET';
+    await seedTestInstruments(prisma, [{ assetClass: 'CRYPTO', ticker }]);
+    const { reportId } = await publishAndBuy(ticker, 100);
+    const empty: ProviderRegistry = { CRYPTO: new FixtureMarketDataProvider() };
+
+    const summary = await judgeAndSettleDueCards(prisma, empty, BATCH_NOW);
+    expect(summary.deferred).toBeGreaterThan(0);
+
+    const card = await prisma.predictionCard.findFirstOrThrow({
+      where: { reportId },
+      include: { judgment: true },
+    });
+    expect(card.judgment).toBeNull();
+  });
+});

@@ -25,6 +25,23 @@ export interface BatchSummary {
 /** 이월이 이 일수를 넘으면 운영자 보류 큐 대상 */
 export const STALE_DEFER_DAYS = 7;
 
+/**
+ * 종목 마스터에서 사라졌나 — 상장폐지의 신호.
+ * 마스터는 매일 동기화되고(스케줄러 06:00), 폐지된 종목은 그 목록에서 빠지면서
+ * active=false가 된다. 마스터에 아예 없는 경우(레코드 없음)도 같은 뜻이다.
+ */
+async function isDelisted(
+  prisma: PrismaClient,
+  assetClass: string,
+  ticker: string,
+): Promise<boolean> {
+  const row = await prisma.instrument.findUnique({
+    where: { assetClass_ticker: { assetClass, ticker } },
+    select: { active: true },
+  });
+  return row === null || row.active === false;
+}
+
 export async function judgeAndSettleDueCards(
   prisma: PrismaClient,
   registry: ProviderRegistry,
@@ -108,6 +125,42 @@ export async function judgeAndSettleDueCards(
       summary.judged++;
     } catch (e) {
       if (e instanceof JudgmentDeferredError) {
+        // **상장폐지 판별** — 시세가 안 오는 것만으로는 폐지인지 일시적 결측인지 모른다.
+        // 그런데 종목 마스터에서 사라진 종목은 다음 동기화에서 active=false가 되므로,
+        // 두 사실이 겹치면(마스터에서 빠짐 + 시세 없음) 폐지로 본다.
+        //
+        // 둘 다 요구하는 이유: 우리가 유니버스에서 뺀 종목(ETF 필터 등)도 active=false가
+        // 되는데 시세는 멀쩡히 나온다. 그때 폐지로 처리하면 멀쩡한 카드가 환불된다.
+        // 반대로 시세만 없는 경우는 휴장·일시 장애일 수 있어 이월이 맞다.
+        if (await isDelisted(prisma, card.assetClass, card.ticker)) {
+          const result = {
+            outcome: 'UNDECIDABLE' as const,
+            undecidableReason: 'DELISTED' as const,
+          };
+          await prisma.$transaction(
+            buildJudgmentWrites(
+              prisma,
+              card,
+              {
+                result,
+                realizedReturnPct: null,
+                score: 0, // 판정 불가는 표본에서 빠진다 (§2.2)
+                dataSource: 'instrument-master',
+                audit: {
+                  delisted: true,
+                  reason: '종목 마스터에서 사라졌고 시세도 조회되지 않습니다',
+                  deferMessage: e.message,
+                  judgedAt: now.toISOString(),
+                },
+                resolvedBasePrice: null,
+              },
+              now,
+            ),
+          );
+          summary.judged++;
+          console.log(`상장폐지 판정 불가 ${card.ticker} (${card.id}) — 전액 환불`);
+          continue;
+        }
         summary.deferred++;
         const staleDays = (now.getTime() - card.deadline.getTime()) / 86_400_000;
         if (staleDays >= STALE_DEFER_DAYS) {
