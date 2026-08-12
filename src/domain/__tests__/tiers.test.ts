@@ -10,16 +10,16 @@ describe('evaluateTier — 등급은 전적으로 점수로 산정 (경쟁적 �
     expect(evaluateTier(-500)).toBe('BRONZE');
   });
 
-  it('임계값 도달 시 승급 (v4 재캘리브레이션: 시니어 3,500 / 마스터 14,500 / 펠로우 23,000)', () => {
-    expect(evaluateTier(3_499)).toBe('BRONZE');
-    expect(evaluateTier(3_500)).toBe('SILVER');
-    expect(evaluateTier(14_500)).toBe('GOLD');
-    expect(evaluateTier(23_000)).toBe('PLATINUM');
+  it('임계값 도달 시 승급 (v4 재캘리브레이션: 시니어 5,300 / 마스터 13,900 / 펠로우 25,000)', () => {
+    expect(evaluateTier(5_299)).toBe('BRONZE');
+    expect(evaluateTier(5_300)).toBe('SILVER');
+    expect(evaluateTier(13_900)).toBe('GOLD');
+    expect(evaluateTier(25_000)).toBe('PLATINUM');
   });
 
   it('시즌 재산정에서 점수가 낮아지면 강등 (같은 함수로 재평가)', () => {
-    // 펠로우이던 리서처가 점수를 잃어 총점 5,000으로 하락 → 시니어
-    expect(evaluateTier(5_000)).toBe('SILVER');
+    // 펠로우이던 리서처가 점수를 잃어 총점 6,000으로 하락 → 시니어
+    expect(evaluateTier(6_000)).toBe('SILVER');
   });
 
   it('임계값은 주입 가능 (시뮬레이션으로 확정 예정)', () => {

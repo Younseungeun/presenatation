@@ -5,6 +5,7 @@ import {
   MIN_RETURN_SAMPLES,
   realizedDailySigma,
   stabilityLevel,
+  STABILITY_SIGMA_BOUNDS,
 } from '../stability';
 
 // 안정성 = 종목 실현 변동성의 5구간 — 자기 신고가 아니라 시스템 산정.
@@ -52,26 +53,27 @@ describe('realizedDailySigma — 일봉 종가열 → 하루 변동성', () => {
   });
 });
 
-describe('stabilityLevel — σ → 별 5구간 (실측 5분위 경계 0.85%/2.1%/3.7%/5.6%)', () => {
-  it('조용할수록 별이 많다', () => {
-    expect(stabilityLevel(0.003)).toBe(5); // 채권형·금리 ETF
-    expect(stabilityLevel(0.014)).toBe(4); // 대형 금융주
-    expect(stabilityLevel(0.025)).toBe(3); // 성장주
-    expect(stabilityLevel(0.045)).toBe(2);
-    expect(stabilityLevel(0.09)).toBe(1); // 유니버스 상위 20%의 거친 종목
+describe('stabilityLevel — σ → 별 5구간 (실측 5분위, STABILITY_SIGMA_BOUNDS)', () => {
+  it('조용할수록 별이 많다 — 실측 앵커가 앉는 자리 (2026-08-13, 120거래일)', () => {
+    expect(stabilityLevel(0.0131)).toBe(5); // 코카콜라
+    expect(stabilityLevel(0.0248)).toBe(4); // 엔비디아
+    expect(stabilityLevel(0.0428)).toBe(3); // NAVER
+    expect(stabilityLevel(0.0591)).toBe(2); // 삼성전자
+    expect(stabilityLevel(0.0703)).toBe(1); // SK하이닉스
   });
 
   it('경계값은 아래 구간으로 (>= 경계 → 별 하나 감소)', () => {
-    expect(stabilityLevel(0.0085)).toBe(4);
-    expect(stabilityLevel(0.021)).toBe(3);
-    expect(stabilityLevel(0.037)).toBe(2);
-    expect(stabilityLevel(0.056)).toBe(1);
+    // 경계는 상수에서 읽는다 — 재캘리브레이션 때마다 숫자를 고쳐 적지 않게
+    STABILITY_SIGMA_BOUNDS.forEach((bound, i) => {
+      expect(stabilityLevel(bound)).toBe(4 - i);
+    });
   });
 
   it('보통 대형주가 최하 구간에 떨어지지 않는다 — ★1은 유난히 거친 20%의 자리다', () => {
-    // 실측 앵커 (2026-08-12): 인텔 5.31% · NAVER 5.22%
-    expect(stabilityLevel(0.0531)).toBeGreaterThan(1);
-    expect(stabilityLevel(0.0522)).toBeGreaterThan(1);
+    // 이 성질이 눈금을 다시 잰 이유였다 (옛 눈금에서 인텔·NAVER가 ★1이었다)
+    for (const sigma of [0.054, 0.0428, 0.0591]) {
+      expect(stabilityLevel(sigma)).toBeGreaterThan(1);
+    }
   });
 });
 
@@ -82,6 +84,6 @@ describe('cardStabilityLevel — 저장값 → 별', () => {
   });
 
   it('σ가 있으면 stabilityLevel 그대로', () => {
-    expect(cardStabilityLevel(0.015)).toBe(4);
+    expect(cardStabilityLevel(0.03)).toBe(stabilityLevel(0.03));
   });
 });
