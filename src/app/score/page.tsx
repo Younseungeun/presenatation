@@ -40,9 +40,11 @@ export default function ScorePage() {
               <div className={s.ruleTitle}>공짜 확률은 먼저 공제된다</div>
               <p className={s.ruleText}>
                 어떤 목표든 아무 정보 없이 찍어도 우연히 닿을 확률(p₀)이 있습니다 — 쉬운
-                목표일수록 큽니다. 적중 보상은 (1 − p₀)에 비례해서, 우연의 몫을 빼고
-                실력의 몫만 지급합니다. 그래서 &quot;쉬운 목표로 적중률만 쌓는&quot;
-                전략은 점수가 거의 늘지 않습니다.
+                목표일수록, 그리고 <strong>잘 출렁이는 종목일수록</strong> 큽니다(그 종목의
+                최근 60거래일 실현 변동성을 게시 시점에 재서 카드에 고정합니다). 적중
+                보상은 (1 − p₀)에 비례해서, 우연의 몫을 빼고 실력의 몫만 지급합니다.
+                그래서 &quot;쉬운 목표로 적중률만 쌓는&quot; 전략도, &quot;거친 종목만
+                골라 얻어걸리길 노리는&quot; 전략도 점수가 거의 늘지 않습니다.
               </p>
             </div>
           </li>
@@ -75,8 +77,9 @@ export default function ScorePage() {
             <div className={s.ruleBody}>
               <div className={s.ruleTitle}>찍어서 많이 내는 전략은 못 번다</div>
               <p className={s.ruleText}>
-                무정보 예측의 기대 점수는 어떤 크기·기간·자산군을 골라도 0 이하입니다
-                (수식으로 보장됩니다). 누적 점수가 내려가면 쓸 수 있는 최소 신뢰도가
+                무정보 예측의 기대 점수는 어떤 크기·기간·자산군·<strong>종목</strong>을
+                골라도 0 이하입니다 (수식으로 보장됩니다 — 종목이 거칠면 p₀가 그만큼 커져
+                보상이 줄기 때문에 변동성만 노리는 선택으로는 이 부등호를 뒤집을 수 없습니다). 누적 점수가 내려가면 쓸 수 있는 최소 신뢰도가
                 강제로 올라가 하강이 가속되고,{" "}
                 {Math.abs(ladderTop.scoreBelow).toLocaleString()}점 아래로 내려가면 해당
                 자산군의 신규 게시가 시즌 종료까지 정지됩니다.
@@ -127,7 +130,7 @@ export default function ScorePage() {
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>무정보 확률 p₀</span>
             <span className={styles.cardVal}>
-              방향·크기·기간·자산군 변동성의 함수 (게시 사양에서 결정)
+              방향·크기·기간·그 종목의 실현 변동성의 함수 (게시 시점에 고정)
             </span>
           </div>
           <div className={styles.cardRow}>
