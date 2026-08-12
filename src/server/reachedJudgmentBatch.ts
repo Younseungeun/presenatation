@@ -5,6 +5,7 @@ import type { ProviderRegistry } from '@/domain/marketData';
 import { scoreJudgedCard } from '@/domain/scoring';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
 import { toJudgeableCard } from './cardMapper';
+import { rebaseIfAdjusted } from './corporateActionService';
 import { buildJudgmentWrites } from './judgmentWriter';
 
 // 도달 판정 배치 — 일봉 종가가 목표에 닿은 카드를 그 자리에서 판정·정산한다.
@@ -72,6 +73,21 @@ export async function runReachedJudgmentBatch(
   };
 
   for (const card of cards) {
+    // **채점보다 먼저** 권리 사건을 반영한다 — 기준가가 옛 눈금에 남아 있으면
+    // 2:1 분할이 −50% 폭락으로 읽혀 실패 판정과 역방향 마감이 함께 잘못 일어난다
+    try {
+      const rebased = await rebaseIfAdjusted(prisma, quotes, card, now);
+      if (rebased?.applied) {
+        card.basePrice = rebased.basePrice;
+        card.targetValue = rebased.targetValue;
+        console.log(`권리 사건 반영 ${card.ticker} (${card.id}): ${rebased.note}`);
+      } else if (rebased) {
+        console.error(`권리 사건 감지·미반영 ${card.ticker} (${card.id}): ${rebased.note}`);
+      }
+    } catch (e) {
+      console.error(`권리 사건 점검 실패 ${card.ticker} (${card.id}):`, e);
+    }
+
     const judgeable = toJudgeableCard(card, card.report.publishedAt!);
 
     try {

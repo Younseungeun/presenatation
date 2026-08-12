@@ -4,6 +4,7 @@ import { JudgmentDeferredError, runJudgmentFromRegistry } from '@/domain/judgmen
 import type { ProviderRegistry } from '@/domain/marketData';
 import { scoreJudgedCard } from '@/domain/scoring';
 import { toJudgeableCard } from './cardMapper';
+import { rebaseIfAdjusted } from './corporateActionService';
 import { buildJudgmentWrites } from './judgmentWriter';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
 
@@ -53,6 +54,21 @@ export async function judgeAndSettleDueCards(
   const summary: BatchSummary = { judged: 0, deferred: 0, failed: 0, staleDeferred: [] };
 
   for (const card of dueCards) {
+    // 정산이 걸린 자리라 권리 사건 반영이 더 중요하다 — 옛 눈금으로 채점하면
+    // 점수·환불이 한꺼번에 틀린다 (도달 판정 배치와 같은 함수를 쓴다)
+    try {
+      const rebased = await rebaseIfAdjusted(prisma, quotes, card, now);
+      if (rebased?.applied) {
+        card.basePrice = rebased.basePrice;
+        card.targetValue = rebased.targetValue;
+        console.log(`권리 사건 반영 ${card.ticker} (${card.id}): ${rebased.note}`);
+      } else if (rebased) {
+        console.error(`권리 사건 감지·미반영 ${card.ticker} (${card.id}): ${rebased.note}`);
+      }
+    } catch (e) {
+      console.error(`권리 사건 점검 실패 ${card.ticker} (${card.id}):`, e);
+    }
+
     const judgeable = toJudgeableCard(card, card.report.publishedAt!);
 
     try {

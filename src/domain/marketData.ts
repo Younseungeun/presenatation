@@ -36,6 +36,12 @@ export interface MarketDataProvider {
   readonly sourceId: string;
   /** [from, to] 구간(YYYY-MM-DD, 자산군 시간대)의 일별 시세. 거래일만 반환한다. */
   getDailyQuotes(ticker: string, from: string, to: string): Promise<DailyQuote[]>;
+  /**
+   * **원주가** 일별 시세 (지원 소스만) — 권리 사건 교차검증용.
+   * 수정주가는 분할 시 과거까지 다시 쓰이지만 원주가는 그대로라, 같은 날짜의 두 값을
+   * 나누면 조정 배수가 직접 나온다 (domain/corporateAction.ts).
+   */
+  getUnadjustedDailyQuotes?(ticker: string, from: string, to: string): Promise<DailyQuote[]>;
   /** 기준일 시점의 종목 상태 */
   getSecurityStatus(ticker: string, asOf: string): Promise<SecurityStatus>;
   /**

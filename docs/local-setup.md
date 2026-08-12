@@ -81,6 +81,7 @@ npx eslint src scripts  # 린트
 | `npm run batch:salesclose` | 판매 마감 기록 (시간 규칙 + 역방향 목표폭 이탈 — 시세 조회 필요) |
 | `npm run seed:dev` / `seed:demo` | 개발·데모 데이터 시드 |
 | `npm run seed:login` | **로그인 가능한 데모 계정** 생성 (휴대폰 `010-1234-5678`, 필명 데모유저) |
+| `npm run anchor:backfill` | 액면분할 감지 앵커 채우기 — **시드 뒤 한 번 돌린다** |
 | `npm run sigma:backfill` | 카드의 종목 실현 변동성(σ) 채우기 — **시드 뒤 한 번 돌린다** |
 
 시드 스크립트는 카드에 σ를 넣지 않는다(시세 호출이 필요해서다). 그대로 두면 안정성

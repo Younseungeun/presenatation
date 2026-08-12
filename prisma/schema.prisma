@@ -142,11 +142,41 @@ model PredictionCard {
   // 게시 시점에 잰 종목의 실현 변동성 (최근 60거래일 로그수익률 표준편차, domain/stability.ts).
   // 안정성 별점의 원천 — 시세 조회 실패·표본 부족이면 null (별점 "—"). 점수에는 쓰지 않는다
   sigmaDaily    Float?
+  // 액면분할 감지용 앵커 (domain/corporateAction.ts) — 기준가를 확정할 때 함께 적어 두는
+  // "그 거래일의 종가"와 그 날짜. 과거 종가는 권리 사건이 있을 때만 바뀌므로, 같은 날짜를
+  // 다시 조회해 값이 달라졌으면 그 배수가 곧 조정 배수다. 시계열이 아니라 실수 하나다
+  baseCloseAnchor     Float?
+  baseCloseAnchorDate String?
   // 수익성은 저장하지 않는다 — 예측 크기에서 자동 산출 (domain/profitability.ts)
   withdrawnAt   DateTime? // 철회 시각 (철회해도 기록 유지)
   createdAt     DateTime  @default(now())
 
   judgment Judgment?
+  corporateActions CorporateActionLog[]
+}
+
+// 권리 사건으로 카드의 가격 기준을 옮긴 기록.
+// 이미 팔린 상품의 조건(기준가·목표가)을 바꾸는 일이라 반드시 남긴다 — 구매자가
+// "내가 산 목표가와 다르다"고 물었을 때 재현할 수 있어야 한다.
+model CorporateActionLog {
+  id               String         @id @default(cuid())
+  predictionCardId String
+  predictionCard   PredictionCard @relation(fields: [predictionCardId], references: [id])
+  anchorDate       String // 배수를 잰 거래일 (YYYY-MM-DD)
+  anchorBefore     Float // 게시 때 적어 둔 그 날의 종가
+  anchorAfter      Float // 지금 다시 조회한 같은 날의 종가
+  factor           Float // anchorAfter / anchorBefore
+  basePriceBefore  Float
+  basePriceAfter   Float
+  targetBefore     Float?
+  targetAfter      Float?
+  applied          Boolean  @default(true) // false = 범위를 벗어나 사람 확인 대기
+  // 교차검증: KIS 예탁원 권리일정에서 확인된 사건 (조회 실패·미확인이면 null)
+  ksdEvent         String?
+  ksdRatio         Float?
+  detectedAt       DateTime @default(now())
+
+  @@index([predictionCardId])
 }
 
 // 종목 마스터: 시세 공급자가 실제로 지원하는 종목 유니버스.

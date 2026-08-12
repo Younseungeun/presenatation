@@ -188,10 +188,32 @@ export class KisMarketDataProvider implements MarketDataProvider {
   // ── 일별 시세 ────────────────────────────────────────────────
 
   async getDailyQuotes(ticker: string, from: string, to: string): Promise<DailyQuote[]> {
+    return this.dailyQuotes(ticker, from, to, true);
+  }
+
+  /**
+   * **원주가** 일봉 — 권리 사건 교차검증용 (domain/corporateAction.ts).
+   *
+   * 수정주가는 분할이 나면 과거까지 소급해 다시 쓰이지만 원주가는 그대로 남는다.
+   * 그래서 같은 날짜의 두 값을 비교하면 조정 배수가 **직접** 나온다:
+   *   배수 = 수정주가 종가 ÷ 원주가 종가
+   * 앵커(게시 때 적어 둔 종가)가 잡아낸 배수와 이 값이 일치해야 진짜 권리 사건이다.
+   * 한쪽만 움직였다면 데이터 정정이거나 사고이므로 자동 반영하지 않는다.
+   */
+  async getUnadjustedDailyQuotes(ticker: string, from: string, to: string): Promise<DailyQuote[]> {
+    return this.dailyQuotes(ticker, from, to, false);
+  }
+
+  private async dailyQuotes(
+    ticker: string,
+    from: string,
+    to: string,
+    adjusted: boolean,
+  ): Promise<DailyQuote[]> {
     const rows =
       this.market === 'KR'
-        ? await this.krDaily(ticker, from, to)
-        : await this.usDaily(ticker, from, to);
+        ? await this.krDaily(ticker, from, to, adjusted)
+        : await this.usDaily(ticker, from, to, adjusted);
     // 공급자가 최신순으로 주는 경우가 있어 항상 오름차순으로 맞춘다 —
     // 판정·마감 로직이 "구간의 마지막"을 종가로 보기 때문에 순서가 곧 정확성이다
     return rows
@@ -200,14 +222,20 @@ export class KisMarketDataProvider implements MarketDataProvider {
   }
 
   /** 국내주식 기간별시세 (일봉) — [국내주식-010] */
-  private async krDaily(ticker: string, from: string, to: string): Promise<DailyQuote[]> {
+  private async krDaily(
+    ticker: string,
+    from: string,
+    to: string,
+    adjusted = true,
+  ): Promise<DailyQuote[]> {
     const params = new URLSearchParams({
       FID_COND_MRKT_DIV_CODE: 'J',
       FID_INPUT_ISCD: ticker,
       FID_INPUT_DATE_1: from.replaceAll('-', ''),
       FID_INPUT_DATE_2: to.replaceAll('-', ''),
       FID_PERIOD_DIV_CODE: 'D',
-      FID_ORG_ADJ_PRC: '0', // 수정주가 반영 — 액면분할 전후 시세가 이어지게
+      // 0 = 수정주가(액면분할 전후가 이어진다) / 1 = 원주가(사건 전 값이 그대로 남는다)
+      FID_ORG_ADJ_PRC: adjusted ? '0' : '1',
     });
     const body = await this.call<PriceOutput[]>(
       `/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice?${params}`,
@@ -225,7 +253,12 @@ export class KisMarketDataProvider implements MarketDataProvider {
   }
 
   /** 해외주식 기간별시세 — [해외주식-010] */
-  private async usDaily(ticker: string, from: string, to: string): Promise<DailyQuote[]> {
+  private async usDaily(
+    ticker: string,
+    from: string,
+    to: string,
+    adjusted = true,
+  ): Promise<DailyQuote[]> {
     let lastError: Error | null = null;
     for (const excd of this.exchangeOrder(ticker)) {
       const params = new URLSearchParams({
@@ -234,7 +267,7 @@ export class KisMarketDataProvider implements MarketDataProvider {
         SYMB: ticker,
         GUBN: '0', // 0=일
         BYMD: to.replaceAll('-', ''),
-        MODP: '1', // 수정주가 반영
+        MODP: adjusted ? '1' : '0', // 1 = 수정주가 / 0 = 원주가
       });
       try {
         const body = await this.call<PriceOutput[]>(

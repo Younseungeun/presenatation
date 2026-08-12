@@ -28,6 +28,7 @@
     "batch:compliance": "tsx scripts/complianceOps.ts",
     "calibrate:semantic": "tsx scripts/calibrateSemantic.ts",
     "batch:salesclose": "tsx scripts/runSalesCloseBatch.ts",
+    "anchor:backfill": "tsx scripts/backfillAnchor.ts",
     "sigma:backfill": "tsx scripts/backfillSigma.ts",
     "batch:reached": "tsx scripts/runReachedJudgmentBatch.ts"
   },

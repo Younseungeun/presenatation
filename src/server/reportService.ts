@@ -21,6 +21,7 @@ import { toCardDraft } from './cardMapper';
 import { operatorVerdictWrites, screenAndRecord } from './complianceService';
 import { buildNewCardNotificationWrites } from './followService';
 import { validateListedInstrument } from './instrumentService';
+import { captureBaseAnchor } from './corporateActionService';
 import { getInstrumentSigma } from './instrumentSigma';
 import { researcherSeasonScores } from './scoreService';
 
@@ -274,6 +275,10 @@ async function finalizePublish(
     now,
   );
 
+  // 액면분할 감지 앵커 — 기준가와 같은 순간에 적어 둔다. 이 종가가 나중에 달라지면
+  // 그 배수가 곧 조정 배수다 (domain/corporateAction.ts). 실패해도 게시는 진행한다
+  const anchor = await captureBaseAnchor(registry, cardDraft.assetClass, cardDraft.ticker, now);
+
   // 마이너스 규율(§2.2) 입력: 해당 자산군의 현재 시즌 누적 점수
   const seasonScores = await researcherSeasonScores(prisma, report.researcherId, now);
 
@@ -335,6 +340,8 @@ async function finalizePublish(
         basePrice: snapshot.basePrice,
         baseMode: snapshot.baseMode,
         sigmaDaily,
+        baseCloseAnchor: anchor?.close ?? null,
+        baseCloseAnchorDate: anchor?.date ?? null,
         // 도달 판정(reachedJudgmentBatch)은 카드별 플래그 없이 전 카드에 적용된다 —
         // 판정 규칙이 하나뿐이라(기한 내 종가 도달 = 적중) 켜고 끌 대상이 없다
       },
