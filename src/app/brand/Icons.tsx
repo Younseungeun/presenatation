@@ -172,6 +172,42 @@ export function DocIcon() {
 }
 
 /**
+ * 누적 환불 — 영수증 + 되돌아 나가는 화살표. 거래가 되돌려졌다는 뜻.
+ * 찢긴 밑변이 세트에 없는 실루엣이라 지갑·가방과 디테일로 구분할 필요가 없다.
+ * 화살표는 짧은 직선 — 곡선으로 영수증에 붙였던 안은 24px에서 굽이가 먼저 사라졌고
+ * 덩어리도 133로 커졌다(이 안은 94). 톱니는 20px에서 평평해진다.
+ */
+export function RefundIcon() {
+  return (
+    <svg {...BOX}>
+      <g transform="translate(-1.12 0.38)">
+        <path
+          d="M8.6 20.8 V9.8 A2 2 0 0 1 10.6 7.8 H19.4 A2 2 0 0 1 21.4 9.8 V20.8
+             L19.24 18.8 L17.08 20.8 L14.92 18.8 L12.76 20.8 L10.6 18.8 Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <g fill="currentColor">
+          <rect x="11.6" y="11.4" width="6.8" height="1.7" rx="0.85" />
+          <rect x="11.6" y="14.8" width="6.8" height="1.7" rx="0.85" />
+        </g>
+        <path
+          d="M7.4 4.2 H15"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+        />
+        <path d="M7.6 1.4 L4 4.2 L7.6 7 Z" fill="currentColor" />
+      </g>
+    </svg>
+  );
+}
+
+/**
  * 에스크로 보관 — 윤곽 케이스·손잡이 + 잠금선 + 그 위에 얹힌 작은 걸쇠.
  * 채운 띠(16.6×2.8)였을 때 세트에서 가장 무거워(27%) 쨍했다. 선 + 걸쇠가 같은 말을
  * 훨씬 적은 덩어리로 한다. 손잡이는 장식이 아니다 — 빼면 24px에서 카드지갑과 헷갈린다.

@@ -13,6 +13,7 @@ export {
   EscrowIcon,
   HitRateIcon,
   PenIcon,
+  RefundIcon,
   SettingsIcon,
 } from "../brand/Icons";
 
@@ -27,16 +28,6 @@ const S = {
   strokeLinejoin: "round" as const,
   "aria-hidden": true,
 };
-
-export function RefundIcon() {
-  return (
-    <svg {...S}>
-      <path d="M20 12a8 8 0 1 1-2.6-5.9" />
-      <path d="M20 4v4h-4" />
-      <path d="M9.5 10h5M9.5 14h5M11 8l2 8M13 8l-2 8" />
-    </svg>
-  );
-}
 
 export function PayoutIcon() {
   return (
