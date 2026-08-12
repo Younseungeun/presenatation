@@ -20,6 +20,7 @@
     "seed:crypto": "tsx scripts/seedCryptoScenario.ts",
     "batch:judge": "tsx scripts/runJudgmentBatch.ts",
     "op:grant": "tsx scripts/grantOperator.ts",
+    "risk:sync": "tsx scripts/syncKrRisk.ts",
     "risk:set": "tsx scripts/setInstrumentRisk.ts",
     "batch:season": "tsx scripts/runSeasonRecalc.ts",
     "batch:snapshot": "tsx scripts/runMarketSnapshot.ts",

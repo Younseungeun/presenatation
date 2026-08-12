@@ -75,6 +75,7 @@ npx eslint src scripts  # 린트
 |---|---|
 | `npm run batch:judge` | 시한 도래 카드 판정 → 점수 → 3분기 정산 (멱등) |
 | `npm run batch:season` | 분기 시즌 재산정 (등급 승급·강등) |
+| `npm run risk:sync` | 국내 종목 시장경보·관리종목 갱신 (검증 중 카드의 종목만) |
 | `npm run sync:instruments` | 종목 마스터 동기화 (`-- --fixture`로 오프라인 시드) |
 | `npm run op:grant -- <email>` | 운영자 권한 부여 (`--revoke`로 회수) |
 | `npm run batch:salesclose` | 판매 마감 기록 (시간 규칙 + 역방향 목표폭 이탈 — 시세 조회 필요) |

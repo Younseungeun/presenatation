@@ -7,6 +7,7 @@ import type {
   MarketDataProvider,
   SecurityStatus,
 } from '@/domain/marketData';
+import type { ProviderRiskSignal } from '@/domain/instrumentRisk';
 import { fetchKrInstruments, fetchUsInstruments } from './kisInstrumentMaster';
 
 // 한국투자증권 KIS Open API — 국내주식 + 미국주식을 **한 공급자**가 담당한다.
@@ -61,6 +62,23 @@ interface KisEnvelope<T> {
 }
 
 type PriceOutput = Record<string, string>;
+
+/**
+ * 국내 현재가(FHKST01010100) 응답 중 **종목상태 필드** — 실측으로 확인한 이름들이다
+ * (scripts/probeKisStatus.ts). 시세와 같은 응답에 실려 오므로 추가 호출이 없다.
+ */
+interface KrStatusOutput extends PriceOutput {
+  /** 거래정지 Y/N */
+  temp_stop_yn: string;
+  /** 정리매매 Y/N — 상장폐지 확정 후 마지막 거래 기간 */
+  sltr_yn: string;
+  /** 관리종목 Y/N */
+  mang_issu_cls_code: string;
+  /** 시장경보 00 없음 / 01 투자주의 / 02 투자경고 / 03 투자위험 */
+  mrkt_warn_cls_code: string;
+  /** 투자유의 Y/N */
+  invt_caful_yn: string;
+}
 
 export class KisMarketDataProvider implements MarketDataProvider {
   readonly sourceId: string;
@@ -284,15 +302,75 @@ export class KisMarketDataProvider implements MarketDataProvider {
   }
 
   /**
-   * 종목 상태 — **KIS는 거래정지·상장폐지를 직접 주지 않는다.**
+   * 종목 상태 — 국내는 **현재가 응답이 그대로 답을 들고 있다** (2026-08-12 실측).
    *
-   * 지어내지 않고 "정상"을 돌려주되, 이것이 확인된 사실이 아님을 여기 적어 둔다.
-   * 상폐·정지 종목은 시세 조회가 비어 오므로 판정 파이프라인이 데이터 결측으로
-   * 이월시키고, 이월이 길어지면 운영자 보류 큐로 올라간다 — 그 경로가 실질적인 방어다.
-   * (국내 시장경보(투자주의·경고·위험)는 KRX 별도 소스이고, 운영자 수동 등록으로 관리한다)
+   * 예전 주석은 "KIS는 거래정지·상장폐지를 주지 않는다"였는데 사실이 아니었다.
+   * 이미 장중 보호용으로 부르는 `inquire-price`(FHKST01010100) 응답에 상태 필드가
+   * 함께 온다 — 별도 엔드포인트도, 추가 호출 한도도 필요 없다:
+   *   temp_stop_yn        거래정지
+   *   sltr_yn             정리매매 (상장폐지 확정 후 마지막 거래 기간)
+   *   mang_issu_cls_code  관리종목
+   *   mrkt_warn_cls_code  시장경보 00 없음 / 01 주의 / 02 경고 / 03 위험
+   *   invt_caful_yn       투자유의
+   * (상품기본조회 계열 TR은 같은 토큰으로 "유효하지 않은 token"을 돌려준다 — 권한이
+   *  다른 것으로 보이나, 필요한 값이 여기 다 있으므로 파고들지 않았다.)
+   *
+   * delisted는 **정리매매를 상장폐지 진행으로 본다** — 실제로 폐지되면 종목이
+   * 마스터에서 사라져 시세 자체가 비므로, 판정이 판단해야 하는 시점은 그 직전이다.
+   *
+   * 미국은 이 필드가 없어 예전 동작(정상 반환)을 유지한다. 상폐·정지 종목은 시세가
+   * 비어 오고, 판정 파이프라인이 데이터 결측으로 이월시킨 뒤 운영자 큐로 올린다.
    */
-  async getSecurityStatus(): Promise<SecurityStatus> {
-    return { delisted: false, halted: false };
+  async getSecurityStatus(ticker: string): Promise<SecurityStatus> {
+    if (this.market !== 'KR') return { delisted: false, halted: false };
+
+    const params = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: ticker });
+    const body = await this.call<KrStatusOutput>(
+      `/uapi/domestic-stock/v1/quotations/inquire-price?${params}`,
+      'FHKST01010100',
+    );
+    const out = body.output;
+    // 응답이 비면 "정상"이라고 단정하지 않는다 — 판정 파이프라인이 결측으로 다루게 둔다
+    if (!out) throw new Error(`KIS 종목상태 없음: ${ticker}`);
+    return {
+      delisted: out.sltr_yn === 'Y',
+      halted: out.temp_stop_yn === 'Y',
+    };
+  }
+
+  /**
+   * 시장경보·관리종목 — 종목 마스터의 위험 등급(Instrument.riskLevel) 갱신용.
+   * getSecurityStatus와 같은 응답에서 나오지만 쓰는 곳이 달라 따로 낸다
+   * (상태는 판정이, 위험은 게시 가능 여부가 쓴다).
+   */
+  async getRiskSignal(ticker: string): Promise<ProviderRiskSignal> {
+    if (this.market !== 'KR') return {};
+
+    const params = new URLSearchParams({ FID_COND_MRKT_DIV_CODE: 'J', FID_INPUT_ISCD: ticker });
+    const body = await this.call<KrStatusOutput>(
+      `/uapi/domestic-stock/v1/quotations/inquire-price?${params}`,
+      'FHKST01010100',
+    );
+    const out = body.output;
+    if (!out) return {};
+
+    const warn = out.mrkt_warn_cls_code ?? '00';
+    const managed = out.mang_issu_cls_code === 'Y';
+    const notes = [
+      warn === '01' ? '투자주의' : warn === '02' ? '투자경고' : warn === '03' ? '투자위험' : null,
+      managed ? '관리종목' : null,
+      out.invt_caful_yn === 'Y' ? '투자유의' : null,
+      out.sltr_yn === 'Y' ? '정리매매' : null,
+    ].filter(Boolean);
+
+    return {
+      // 정리매매는 상장폐지가 확정된 상태다
+      delisting: out.sltr_yn === 'Y' || warn === '03',
+      // 관리종목은 상폐 심사 대상이라 경고와 같은 무게로 다룬다
+      warning: warn === '02' || managed,
+      caution: warn === '01' || out.invt_caful_yn === 'Y',
+      note: notes.length > 0 ? notes.join(' · ') : undefined,
+    };
   }
 
   /**

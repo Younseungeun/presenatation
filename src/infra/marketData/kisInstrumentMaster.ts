@@ -20,8 +20,48 @@ const KR_FILES = ['kospi_code.mst.zip', 'kosdaq_code.mst.zip'];
 /** 미국 3대 거래소 */
 const US_FILES = ['nasmst.cod.zip', 'nysmst.cod.zip', 'amsmst.cod.zip'];
 
-/** 국내 마스터의 꼬리 고정폭 구간 — 앞쪽 가변 길이(한글명)를 잘라내는 기준 */
-const KR_TAIL_LEN = 228;
+/**
+ * 국내 마스터의 꼬리 고정폭 구간 — 앞쪽 가변 길이(한글명)를 잘라내는 기준.
+ * **파일마다 다르다** (실측: 코스피 228 / 코스닥 222)라서 상수로 박지 않고 탐지한다.
+ */
+const KR_TAIL_CANDIDATES = { min: 200, max: 260 } as const;
+
+/**
+ * 증권그룹구분코드 — 꼬리의 [1:3]에 온다 (실측: scripts/probeKrMaster.ts).
+ * 코스피 1,784건 기준 ST 891 · EF 866 · RT 22 · IF 2 · MF 1 · DR 1 · FS 1.
+ *
+ * **예측 카드의 대상은 기업의 주권이다.** 지수를 그대로 따라가는 ETF와 펀드류는
+ * "이 회사가 어떻게 될 것인가"라는 리포트의 대상이 아니고, 특히 레버리지·인버스
+ * ETF는 설계상 기초자산의 2~3배로 움직여 안정성 눈금(domain/stability.ts)까지 흔든다.
+ * 리츠(RT)와 외국기업 주권·예탁증권(FS·DR)은 개별 기업 분석의 대상이라 남긴다.
+ *
+ * ETN은 이 두 파일에 아예 없다(EN 0건, 5xx/58x 코드 미수록) — 별도 마스터라
+ * 지금 유니버스에는 처음부터 들어오지 않는다.
+ */
+const TRADABLE_GROUPS = new Set(['ST', 'RT', 'DR', 'FS']);
+/** 그룹코드 탐지가 맞았는지 확인하는 기준값 — 이 중 하나가 나와야 꼬리 길이가 맞은 것이다 */
+const KNOWN_GROUPS = new Set([...TRADABLE_GROUPS, 'EF', 'EN', 'IF', 'MF', 'SC', 'BC', 'FE']);
+
+/**
+ * 꼬리 길이 탐지 — 그룹코드가 [1:3]에 오는 길이를 찾는다.
+ * 규격이 바뀌면 상수는 조용히 어긋나지만(엉뚱한 자리를 그룹코드로 읽는다),
+ * 탐지는 "아무 길이에서도 안 맞는다"로 드러난다.
+ */
+function detectTailLen(lines: string[]): number | null {
+  const sample = lines.filter((l) => /^\d{6}$/.test(l.slice(0, 9).trim())).slice(0, 400);
+  if (sample.length === 0) return null;
+  let best: { len: number; hits: number } = { len: 0, hits: 0 };
+  for (let len = KR_TAIL_CANDIDATES.min; len <= KR_TAIL_CANDIDATES.max; len++) {
+    let hits = 0;
+    for (const l of sample) {
+      if (l.length <= len) continue;
+      if (KNOWN_GROUPS.has(l.slice(l.length - len).slice(1, 3))) hits++;
+    }
+    if (hits > best.hits) best = { len, hits };
+  }
+  // 표본의 9할이 맞아야 인정한다 — 우연히 몇 줄 맞는 길이를 고르지 않게
+  return best.hits >= sample.length * 0.9 ? best.len : null;
+}
 
 async function download(file: string): Promise<string[]> {
   const res = await fetch(`${BASE}/${file}`);
@@ -36,19 +76,30 @@ async function download(file: string): Promise<string[]> {
 }
 
 /**
- * 국내 상장 종목.
+ * 국내 상장 종목 — **기업의 주권만** 남긴다.
  *
- * **6자리 숫자 코드만 남긴다** — 마스터에는 펀드(F로 시작)·ELW 등이 함께 들어 있는데
- * 예측 카드의 대상이 아니다. ETF·ETN은 6자리라 이 필터를 통과하는데, 정확히 거르려면
- * 꼬리 구간의 증권그룹구분코드를 읽어야 한다(헤더 규격 확인 필요) — 남은 과제.
+ * 두 겹으로 거른다:
+ *  ① 6자리 숫자 코드 — 마스터에는 펀드(F로 시작)·ELW 등이 섞여 있다
+ *  ② 증권그룹구분코드 — ETF(EF 866건)·인프라펀드가 ①을 통과하므로 여기서 뺀다
+ * 꼬리 길이를 못 찾으면(규격 변경) **그 파일을 통째로 건너뛴다** — 엉뚱한 자리를
+ * 그룹코드로 읽어 멀쩡한 종목을 지우거나 ETF를 들이는 것보다, 목록이 줄어 눈에
+ * 띄는 편이 낫다.
  */
 export async function fetchKrInstruments(): Promise<InstrumentListing[]> {
   const out = new Map<string, InstrumentListing>();
   for (const file of KR_FILES) {
-    for (const line of await download(file)) {
+    const lines = await download(file);
+    const tailLen = detectTailLen(lines);
+    if (tailLen === null) {
+      console.error(`[kis-master] ${file}: 증권그룹구분코드 위치를 찾지 못해 건너뜁니다`);
+      continue;
+    }
+    for (const line of lines) {
       const ticker = line.slice(0, 9).trim();
       if (!/^\d{6}$/.test(ticker)) continue;
-      const name = line.slice(21, Math.max(21, line.length - KR_TAIL_LEN)).trim();
+      const tail = line.slice(line.length - tailLen);
+      if (!TRADABLE_GROUPS.has(tail.slice(1, 3))) continue;
+      const name = line.slice(21, Math.max(21, line.length - tailLen)).trim();
       if (name) out.set(ticker, { ticker, name, currency: 'KRW' });
     }
   }
