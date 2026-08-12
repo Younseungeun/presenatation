@@ -29,20 +29,27 @@ describe('자유 텍스트 = 리서처 이름', () => {
 });
 
 describe('사람이 띄어 쓴 조건도 알아듣는다', () => {
-  it('"#안정성 3이상"처럼 태그 안에 공백이 있어도 한 조건이다', () => {
-    // 공백으로 자르면 "#안정성"과 "3이상"으로 두 토막 난다 — 그래서 '#'로 자른다
-    const q = parseCardQuery('#국내주식 #상승 #안정성 3이상 #신뢰도 4이상');
+  it('"#신뢰도 4이상"처럼 태그 안에 공백이 있어도 한 조건이다', () => {
+    // 공백으로 자르면 "#신뢰도"와 "4이상"으로 두 토막 난다 — 그래서 '#'로 자른다
+    const q = parseCardQuery('#국내주식 #상승 #수익성 3이상 #신뢰도 4이상');
     expect(q.assetClasses).toEqual(['KR_EQUITY']);
     expect(q.direction).toBe('UP');
-    expect(q.minStability).toBe(3);
+    expect(q.minProfitability).toBe(3);
     expect(q.minConfidence).toBe(4);
     expect(q.unknown).toEqual([]);
   });
 
   it('붙여 써도 같다', () => {
-    const q = parseCardQuery('#안정성3이상#신뢰도4이상');
-    expect(q.minStability).toBe(3);
+    const q = parseCardQuery('#수익성3이상#신뢰도4이상');
+    expect(q.minProfitability).toBe(3);
     expect(q.minConfidence).toBe(4);
+  });
+
+  it('안정성은 점수 v4에서 제거된 축 — 조건이 아니라 미해석 태그로 알린다', () => {
+    // 조용히 무시하면 "안정성으로 걸러진 목록"으로 오해한다 (unknown 노출 원칙)
+    const q = parseCardQuery('#안정성 3이상');
+    expect(q.minConfidence).toBeNull();
+    expect(q.unknown).toEqual(['안정성 3이상']);
   });
 
   it('"이상" 없이 숫자만 써도 하한으로 읽는다', () => {

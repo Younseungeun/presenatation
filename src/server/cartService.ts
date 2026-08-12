@@ -39,7 +39,6 @@ export interface CartEntry {
   direction: string | null;
   profitability: ProfitabilityLevel | null;
   confidence: number | null;
-  stability: number | null;
   deadline: Date | null;
   publishedAt: Date | null;
   addedAt: Date;
@@ -152,7 +151,6 @@ export async function getCart(
       direction: card?.direction ?? null,
       profitability: card ? cardProfitabilityLevel(card) : null,
       confidence: card?.confidence ?? null,
-      stability: card?.selfStability ?? null,
       deadline: card?.deadline ?? null,
       publishedAt: r.publishedAt,
       addedAt: i.addedAt,

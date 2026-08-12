@@ -29,7 +29,6 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
     direction: 'UP',
     profitability: 3,
     confidence: 6,
-    stability: 6,
     deadline: new Date(NOW.getTime() + 5 * DAY),
     salesCount: 0,
     publishedAt: new Date(NOW.getTime() - 2 * DAY),
@@ -37,27 +36,22 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
   };
 }
 
-describe('별점 평균 — 카드에 뜨는 별 셋의 평균', () => {
-  it('신뢰도·안정성은 1~10이라 반으로 접는다 (화면 표기와 같은 환산)', () => {
-    // 수익성 3 / 안정성 6→3 / 신뢰도 8→4 → 평균 3.33
-    expect(ratingAverage(card({ profitability: 3, stability: 6, confidence: 8 }))).toBeCloseTo(
-      10 / 3,
-      2,
-    );
+describe('별점 평균 — 카드에 뜨는 별 둘(수익성·신뢰도)의 평균', () => {
+  it('신뢰도는 1~10이라 반으로 접는다 (안정성은 v4에서 제거된 축)', () => {
+    // 수익성 3 / 신뢰도 8→4 → 평균 3.5
+    expect(ratingAverage(card({ profitability: 3, confidence: 8 }))).toBeCloseTo(3.5, 2);
   });
 
   it('만점은 5', () => {
-    expect(ratingAverage(card({ profitability: 5, stability: 10, confidence: 10 }))).toBe(5);
+    expect(ratingAverage(card({ profitability: 5, confidence: 10 }))).toBe(5);
   });
 
   it('일부만 있으면 있는 값끼리 평균 낸다', () => {
-    expect(ratingAverage(card({ profitability: 4, stability: null, confidence: null }))).toBe(4);
+    expect(ratingAverage(card({ profitability: 4, confidence: null }))).toBe(4);
   });
 
   it('값이 하나도 없으면 −1 — 0으로 두면 "별 0개" 카드와 섞인다', () => {
-    expect(
-      ratingAverage(card({ profitability: null, stability: null, confidence: null })),
-    ).toBe(-1);
+    expect(ratingAverage(card({ profitability: null, confidence: null }))).toBe(-1);
   });
 });
 
@@ -70,10 +64,10 @@ describe('별점 정렬', () => {
   it('구간은 4점 이상 / 3점대 / 그 미만 / 미상으로 갈린다', () => {
     const groups = groupCards(
       [
-        card({ profitability: 5, stability: 9, confidence: 9 }), // 4.75
-        card({ profitability: 3, stability: 7, confidence: 7 }), // 3.33
-        card({ profitability: 1, stability: 2, confidence: 2 }), // 1.0
-        card({ profitability: null, stability: null, confidence: null }),
+        card({ profitability: 5, confidence: 9 }), // 4.75
+        card({ profitability: 3, confidence: 7 }), // 3.25
+        card({ profitability: 1, confidence: 2 }), // 1.0
+        card({ profitability: null, confidence: null }),
       ],
       'RATING_DESC',
       NOW,

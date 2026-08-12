@@ -14,7 +14,7 @@ import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getResearcherCallout } from "@/server/marketQueries";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/server/purchaseService";
-import { magnitudePctToTargetPrice } from "@/domain/scoring";
+import { magnitudePctToTargetPrice, noSkillTouchProbability } from "@/domain/scoring";
 import { fetchCachedPrice } from "@/server/priceCache";
 import { isFreeReport } from "@/server/freeReportService";
 import { getSessionUserId } from "@/server/session";
@@ -24,7 +24,7 @@ import { Disclaimer } from "../../Disclaimer";
 import { fmtDateTime } from "../../format";
 import { maskedHeadline } from "../../MaskedCard";
 import { ResearcherCallout } from "../../ResearcherCallout";
-import { confidenceStars, stabilityStars, StarRating } from "../../StarRating";
+import { confidenceStars, StarRating } from "../../StarRating";
 import { StatusChip, type StatusKind } from "../../StatusChip";
 import { JudgmentReceipt } from "./JudgmentReceipt";
 import { PurchaseButton } from "./PurchaseButton";
@@ -78,13 +78,40 @@ export default async function ReportDetail({
   const dir = card?.direction === "UP" ? "▲ 상승 (buy)" : "▼ 하락 (sell)";
 
   // 구매 전 마스킹 — 종목·목표 수익률이 곧 상품이라, 사기 전에는
-  // 자산군·방향·수익성(자동 산출 5구간)·시한·신뢰도·안정성까지만 보여준다.
+  // 자산군·방향·수익성(자동 산출 5구간)·시한·신뢰도까지만 보여준다.
   // 판정이 끝난 카드는 상품 가치가 소진된 공개 기록이므로 전부 공개하고,
   // 리서처 본인에게도 가리지 않는다.
   const isOwner = viewerId !== null && report.researcher.user.id === viewerId;
   const masked = !!card && !purchased && !judgment && !isOwner;
   const profitabilityLevel = card ? cardProfitabilityLevel(card) : null;
   const now = new Date();
+
+  // 카드별 함의 승률 — 별점 각주가 이 카드의 난이도(p₀)로 정확한 문턱을 말하게 한다.
+  // 게시 전(기간 미확정)이나 기준가 없는 소급 카드는 계산하지 않는다
+  let cardImpliedWinRate: { p0: number; minWinRate: number } | null = null;
+  if (card && report.publishedAt) {
+    const magnitudePct =
+      card.targetType === "RETURN_PCT"
+        ? card.targetValue
+        : card.basePrice && card.basePrice > 0
+          ? (Math.abs(card.targetValue - card.basePrice) / card.basePrice) * 100
+          : null;
+    if (magnitudePct !== null && magnitudePct > 0) {
+      const horizonDays =
+        (card.deadline.getTime() - report.publishedAt.getTime()) / 86_400_000;
+      if (horizonDays > 0) {
+        const p0 = noSkillTouchProbability(
+          card.direction as Direction,
+          magnitudePct,
+          card.assetClass as AssetClass,
+          horizonDays,
+        );
+        const odds0 = p0 / (1 - p0);
+        const minOdds = card.confidence * odds0;
+        cardImpliedWinRate = { p0, minWinRate: minOdds / (1 + minOdds) };
+      }
+    }
+  }
 
   // 지금 실제로 살 수 있나 — **결제 관문(assertPurchasable)과 같은 기준으로 판단한다.**
   // 저장된 salesClosedAt만 보면 화면이 서버보다 헐거워진다: 판매 기간이 끝났는데
@@ -161,12 +188,8 @@ export default async function ReportDetail({
           <StarRating stars={confidenceStars(card.confidence)} label="신뢰도" />
         </span>
       </div>
-      <div className={styles.cardRow}>
-        <span className={styles.cardKey}>안정성</span>
-        <span className={styles.cardVal}>
-          <StarRating stars={stabilityStars(card.selfStability)} label="안정성" />
-        </span>
-      </div>
+      {/* 안정성 행은 점수 v4에서 제거 — 도달 판정에서 측정 대상이 사라져 점수에
+          기여하지 않는 값이 됐고, 점수 무관한 자기 신고를 별로 그리면 공짜 마케팅이 된다 */}
       <div className={styles.cardRow}>
         <span className={styles.cardKey}>수익성</span>
         <span className={styles.cardVal}>
@@ -177,11 +200,21 @@ export default async function ReportDetail({
           )}
         </span>
       </div>
-      {/* 별점 읽는 법 — 구매자의 알 권리. 별은 다이얼 원값(1~10)이 아니라 그 신고가
-          함의하는 최소 승률 × 5다. 이 규칙을 모르면 별 4개를 "만점의 8할"로 읽는다 */}
+      {/* 별점 읽는 법 — 구매자의 알 권리 (점수 v4 기준).
+          함의 승률의 문턱은 카드 난이도(무정보 도달 확률 p₀)에 따라 움직이므로,
+          고정 문구("별 4개=80%") 대신 **이 카드의 p₀로 계산한 값**을 적는다.
+          정직 조건: odds(p) ≥ c·odds(p₀) → 최소 p = c·odds₀/(1+c·odds₀) */}
       <p className={styles.cardFootnote}>
-        신뢰도·안정성 별점은 리서처 신고값이 함의하는 최소 승률입니다 (별 4개 = 80%,
-        별 5개 = 승률 100%라 존재하지 않음).{" "}
+        {cardImpliedWinRate !== null ? (
+          <>
+            이 카드 기준: 아무 정보 없이 찍어도 {Math.round(cardImpliedWinRate.p0 * 100)}%
+            확률로 닿는 사양이라, 신뢰도 {card.confidence}이 손해가 아니려면 리서처
+            스스로 적중 확률을 {Math.round(cardImpliedWinRate.minWinRate * 100)}% 이상으로
+            믿어야 합니다.
+          </>
+        ) : (
+          <>신뢰도 별점은 리서처 신고가 함의하는 최소 승률입니다.</>
+        )}{" "}
         <Link href="/score" className={styles.cardFootnoteLink}>
           산정 방식 직접 계산해 보기 →
         </Link>

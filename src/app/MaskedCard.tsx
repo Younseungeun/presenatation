@@ -13,7 +13,7 @@ import {
 } from "./directionTrace";
 import { salesWindowEnd } from "@/domain/salesWindow";
 import { dday, directionLabel } from "./format";
-import { confidenceStars, stabilityStars, StarRating } from "./StarRating";
+import { confidenceStars, StarRating } from "./StarRating";
 import { TierChip } from "./TierChip";
 import styles from "./maskedCard.module.css";
 
@@ -46,7 +46,6 @@ export interface MaskedCardData {
   direction: string | null;
   profitability: ProfitabilityLevel | null;
   confidence: number | null;
-  stability: number | null;
 }
 
 export interface MaskedCardFull extends MaskedCardData {
@@ -140,13 +139,11 @@ function TrackRecord({ c }: { c: MaskedCardFull }) {
   );
 }
 
-/** 자기 평가 3종 — 신뢰도·안정성은 함의 승률 스케일(StarRating 주석), 수익성은 5구간 정수 */
+/** 확신 2종 — 신뢰도는 함의 승률 스케일(StarRating 주석), 수익성은 5구간 정수.
+    안정성은 점수 v4에서 제거됐다(도달 판정에서 측정 대상이 사라짐 — scoring.ts).
+    점수에 기여하지 않는 자기 신고 값을 별로 그리면 공짜 마케팅이 된다 */
 const RATINGS = [
   { key: "수익성", of: (c: MaskedCardData) => c.profitability },
-  {
-    key: "안정성",
-    of: (c: MaskedCardData) => (c.stability === null ? null : stabilityStars(c.stability)),
-  },
   {
     key: "신뢰도",
     of: (c: MaskedCardData) => (c.confidence === null ? null : confidenceStars(c.confidence)),

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { confidenceStars, stabilityStars } from "../StarRating";
+import { confidenceStars } from "../StarRating";
 import { convictionStars } from "../starSummary";
 
 // 함의 승률 별점 — 다이얼값이 정직하려면 걸어야 하는 최소 확률 × 5 (StarRating 주석).
@@ -11,16 +11,8 @@ describe("함의 승률 매핑", () => {
     expect(confidenceStars(10)).toBeCloseTo(50 / 11, 10);
   });
 
-  it("안정성: (s−1)/s × 5 — s=1은 배팅 불참이라 별 0", () => {
-    expect(stabilityStars(1)).toBe(0);
-    expect(stabilityStars(2)).toBeCloseTo(2.5, 10);
-    expect(stabilityStars(5)).toBeCloseTo(4, 10);
-    expect(stabilityStars(10)).toBeCloseTo(4.5, 10);
-  });
-
   it("별 5개(승률 100%)는 도달 불가 — 정직한 천장", () => {
     expect(confidenceStars(10)).toBeLessThan(5);
-    expect(stabilityStars(10)).toBeLessThan(5);
   });
 
   it("위로 갈수록 촘촘해진다 — 한 단계의 별 증가폭이 단조 감소", () => {

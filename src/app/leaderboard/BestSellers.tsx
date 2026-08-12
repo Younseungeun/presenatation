@@ -21,7 +21,7 @@ import styles from "./leaderboard.module.css";
 //
 // 머리줄 = 자산군 + 방향 미니 그래프 + 확신 종합 별점.
 //   · "▲ 상승" 문구 대신 미니 그래프 — 방향은 모양이, 수익성은 면 채움 진하기가 맡는다
-//   · 별점은 신뢰도·안정성을 v3 점수 기여 비율로 합친 것 (starSummary — 정산 상수에서 유도)
+//   · 별점은 확신 종합(starSummary) — 점수 v4에서 자기 신고 다이얼이 신뢰도뿐이라 신뢰도 별점과 같다
 //   · 글자에 방향색을 입히지 않는다 — "국내주식"이 빨간 글씨면 자산군이 나쁘다는 뜻으로 읽힌다
 
 export function BestSellers({
@@ -54,11 +54,11 @@ export function BestSellers({
                   <DirectionGlyph direction={c.direction} profitability={c.profitability} />
                 </span>
                 {(() => {
-                  const stars = convictionStars(c.assetClass, c.confidence, c.stability);
+                  const stars = convictionStars(c.assetClass, c.confidence);
                   return (
                     stars !== null && (
                       <span className={styles.rankStars}>
-                        <StarRating stars={stars} label="신뢰도·안정성 종합" />
+                        <StarRating stars={stars} label="확신 종합" />
                       </span>
                     )
                   );

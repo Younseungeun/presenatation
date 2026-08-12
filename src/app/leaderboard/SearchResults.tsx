@@ -23,7 +23,6 @@ function criteriaLabels(q: CardQuery): string[] {
   for (const a of q.assetClasses) out.push(ASSET_CLASS_LABEL[a as AssetClass] ?? a);
   if (q.direction) out.push(q.direction === "UP" ? "상승 예측" : "하락 예측");
   if (q.minProfitability != null) out.push(`수익성 ★${q.minProfitability} 이상`);
-  if (q.minStability != null) out.push(`안정성 ★${q.minStability} 이상`);
   if (q.minConfidence != null) out.push(`신뢰도 ★${q.minConfidence} 이상`);
   if (q.refundOnly) out.push("틀리면 전액 환불");
   if (q.maxPriceKrw != null) out.push(`${q.maxPriceKrw.toLocaleString()}원 이하`);

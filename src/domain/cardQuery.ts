@@ -4,14 +4,14 @@ import { ASSET_CLASSES, TIERS, type AssetClass, type Direction, type Tier } from
 //
 // 한 줄에 두 가지를 섞어 쓴다:
 //   · 자유 텍스트 → 리서처 이름 ("크립토애널리스트")
-//   · 해시태그   → 조건 ("#국내주식 #상승 #안정성 3이상")
+//   · 해시태그   → 조건 ("#국내주식 #상승 #신뢰도 3이상")
 //
 // 왜 해시태그인가: 구매 전 마스킹 때문에 **종목명으로는 검색할 수 없다**. 종목 칩으로
 // 좁히면 "이 칩을 누르니 나온 카드 = 그 종목 예측"이 되어 마스킹이 통째로 뚫린다.
 // 그래서 검색은 종목이 아니라 **예측의 성질**(자산군·방향·확신·조건)을 축으로 삼는다.
 // 해시태그는 그 축들을 한 줄에 겹쳐 쓰기에 가장 짧은 문법이다.
 //
-// 파싱은 '#'로 자른다. 공백으로 자르면 "#안정성 3이상"처럼 사람이 자연스럽게 띄어 쓴
+// 파싱은 '#'로 자른다. 공백으로 자르면 "#신뢰도 3이상"처럼 사람이 자연스럽게 띄어 쓴
 // 조건이 두 토막 난다. 태그 몸통 안의 공백은 지운 뒤 해석한다.
 
 export interface CardQuery {
@@ -21,7 +21,6 @@ export interface CardQuery {
   direction: Direction | null;
   /** 별점(0~5) 하한 — 카드에 뜨는 표기와 같은 축 */
   minProfitability: number | null;
-  minStability: number | null;
   minConfidence: number | null;
   /** 선결제 0% — 틀리면 전액 환불 */
   refundOnly: boolean;
@@ -41,7 +40,6 @@ const EMPTY: CardQuery = {
   assetClasses: [],
   direction: null,
   minProfitability: null,
-  minStability: null,
   minConfidence: null,
   refundOnly: false,
   maxPriceKrw: null,
@@ -81,8 +79,9 @@ const TIER_WORDS: Record<string, Tier> = {
   인투빌펠로우: 'CHALLENGER',
 };
 
-/** 별점 조건 — "안정성3이상" / "신뢰도4" / "수익성3점이상" */
-const RATING_RE = /^(수익성|안정성|신뢰도)([0-5](?:\.[0-9])?)(점)?(이상)?$/;
+/** 별점 조건 — "신뢰도4이상" / "수익성3점이상". 안정성은 점수 v4에서 제거된 축이라
+    조건이 될 수 없다 — 남겨두면 "점수와 무관한 값으로 거른 목록"이 된다 */
+const RATING_RE = /^(수익성|신뢰도)([0-5](?:\.[0-9])?)(점)?(이상)?$/;
 /** 예산 — "1만원이하" / "5000원이하" */
 const BUDGET_RE = /^([0-9]+)(만)?원?(이하|미만)$/;
 /** 시한 — "7일내" / "일주일내" / "한달내" / "30일이내" */
@@ -109,7 +108,6 @@ function applyTag(q: CardQuery, raw: string): boolean {
   if (rating) {
     const value = Number(rating[2]);
     if (rating[1] === '수익성') q.minProfitability = value;
-    else if (rating[1] === '안정성') q.minStability = value;
     else q.minConfidence = value;
     return true;
   }
@@ -188,7 +186,6 @@ export function hasCriteria(q: CardQuery): boolean {
     q.assetClasses.length > 0 ||
     q.direction !== null ||
     q.minProfitability !== null ||
-    q.minStability !== null ||
     q.minConfidence !== null ||
     q.refundOnly ||
     q.maxPriceKrw !== null ||
@@ -246,15 +243,6 @@ export const TAG_GROUPS: readonly TagGroup[] = [
     tags: [
       { tag: '#신뢰도 3이상', hint: '점수 증폭을 중간 이상 건 카드' },
       { tag: '#신뢰도 4이상', hint: '크게 건 카드 — 틀리면 그만큼 크게 깎인다' },
-    ],
-  },
-  {
-    title: '정밀도',
-    axis: 'stability',
-    multi: false,
-    tags: [
-      { tag: '#안정성 3이상', hint: '목표 근처 착지에 배팅한 카드' },
-      { tag: '#안정성 4이상', hint: '정밀도를 크게 건 카드' },
     ],
   },
   {

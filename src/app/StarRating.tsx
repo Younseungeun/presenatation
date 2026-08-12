@@ -12,9 +12,6 @@ import styles from "./starRating.module.css";
 //
 //   신뢰도 c → 5·c/(c+1)    : 1→★2.50  3→★3.75  5→★4.17  10→★4.55
 //   안정성 s → 5·(s−1)/s    : 1→★0(불참)  2→★2.50  5→★4.00  10→★4.50
-//     (안정성만 한 칸 밀리는 이유: s=1은 배팅 불참이라 아무 확률도 걸지 않는다.
-//      유리 조건도 E[착지질]/E[이탈깊이] ≥ s−1로 −1이 이미 수식에 있다)
-//
 // 별 5개는 승률 100%라 도달할 수 없다 — 위로 갈수록 촘촘해지는 것까지가 표시의
 // 일부다(4.4→4.5가 3.3→3.7만큼 어렵다). 점수 계산·정산에는 아무 영향이 없다.
 // 수익성은 5구간 그대로 별 1~5개 정수 — 구간 번호가 곧 별 개수라 변환이 없다.
@@ -25,11 +22,6 @@ import styles from "./starRating.module.css";
 /** 신뢰도 1~10 → 별 (함의 개선 승률 c/(c+1) × 5) */
 export function confidenceStars(confidence: number): number {
   return (5 * confidence) / (confidence + 1);
-}
-
-/** 안정성 1~10 → 별 (함의 정밀 착지율 (s−1)/s × 5, s=1 불참은 0) */
-export function stabilityStars(stability: number): number {
-  return (5 * (stability - 1)) / stability;
 }
 
 export function StarRating({

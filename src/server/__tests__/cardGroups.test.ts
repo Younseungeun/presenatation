@@ -23,7 +23,6 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
     direction: 'UP',
     profitability: 3,
     confidence: 3,
-    stability: 3,
     deadline: new Date(NOW.getTime() + 5 * DAY),
     salesCount: 0,
     publishedAt: new Date(NOW.getTime() - 2 * DAY),

@@ -37,7 +37,6 @@ export interface MarketCard {
   /** 자동 산출 수익성 5구간 (목표 수익률 원값의 마스킹 대체물) */
   profitability: ProfitabilityLevel | null;
   confidence: number | null;
-  stability: number | null;
   deadline: Date | null;
   salesCount: number;
   publishedAt: Date | null;
@@ -159,7 +158,6 @@ function toMarketCard(r: ReportWithCard): MarketCard {
     direction: card?.direction ?? null,
     profitability: card ? cardProfitabilityLevel(card) : null,
     confidence: card?.confidence ?? null,
-    stability: card?.selfStability ?? null,
     deadline: card?.deadline ?? null,
     salesCount: r._count.purchases,
     publishedAt: r.publishedAt,
@@ -272,14 +270,14 @@ export const MARKET_SORT_LABEL: Record<MarketSort, string> = {
 };
 
 /**
- * 별점 평균 (0~5) — 카드에 뜨는 별 셋의 평균.
- * 수익성은 5구간 그대로, 신뢰도·안정성은 1~10이라 반으로 접는다(화면 표기와 같은 환산).
+ * 별점 평균 (0~5) — 카드에 뜨는 별 둘(수익성·신뢰도)의 평균.
+ * 안정성은 점수 v4에서 제거된 축이라 여기서도 빠진다.
+ * 수익성은 5구간 그대로, 신뢰도는 1~10이라 반으로 접는다.
  * 값이 하나도 없으면 -1로 맨 뒤에 둔다 — 0으로 두면 "별 0개"인 카드와 섞인다.
  */
 export function ratingAverage(c: MarketCard): number {
   const stars = [
     c.profitability,
-    c.stability === null ? null : c.stability / 2,
     c.confidence === null ? null : c.confidence / 2,
   ].filter((v): v is number => v !== null);
   if (stars.length === 0) return -1;
@@ -795,9 +793,6 @@ export async function searchCards(
           ...(q.assetClasses.length > 0 ? { assetClass: { in: q.assetClasses } } : {}),
           ...(q.direction ? { direction: q.direction } : {}),
           // 화면의 별점은 1~10을 반으로 접은 값이라, 별 N개 이상 = 원값 2N 이상
-          ...(q.minStability != null
-            ? { selfStability: { gte: Math.ceil(q.minStability * 2) } }
-            : {}),
           ...(q.minConfidence != null
             ? { confidence: { gte: Math.ceil(q.minConfidence * 2) } }
             : {}),

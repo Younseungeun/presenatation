@@ -12,7 +12,8 @@ import {
 import { salesWindowEnd } from "@/domain/salesWindow";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import { ScoreCalculatorEntry } from "../../../score/ScoreCalculatorEntry";
-import { confidenceStars, stabilityStars, StarRating } from "../../../StarRating";
+import { noSkillTouchProbability } from "@/domain/scoring";
+import { confidenceStars, StarRating } from "../../../StarRating";
 import styles from "../../researcher.module.css";
 import { ComplianceHints } from "./ComplianceHints";
 
@@ -67,7 +68,6 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
   const [deadline, setDeadline] = useState("");
   const [windowLabel, setWindowLabel] = useState<string | null>(null);
   const [confidence, setConfidence] = useState("5");
-  const [selfStability, setSelfStability] = useState("1");
   const [summary, setSummary] = useState("");
   const [content, setContent] = useState("");
 
@@ -175,7 +175,8 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
         targetValue: num("targetValue"),
         deadline: new Date(String(f.get("deadline"))).toISOString(),
         confidence: num("confidence"),
-        selfStability: num("selfStability"),
+        // 안정성은 점수 v4에서 제거 — 스키마 호환용 최솟값(불참)만 보낸다
+        selfStability: 1,
       },
     };
 
@@ -416,7 +417,31 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
               </option>
             ))}
           </select>
-          <span className={styles.hint}>높을수록 적중 시 배점↑·실패 시 벌점↑</span>
+          <span className={styles.hint}>
+            맞으면 ×c, 틀리면 ×c(c+1)/2 — 신뢰도 c는 &quot;내 승산이 무정보의 c배&quot;라는
+            신고입니다 (점수 v4)
+          </span>
+          {/* 정직 신뢰도 가이드 — 지금 적은 사양(방향·크기·기간)의 무정보 도달 확률을
+              그 자리에서 보여준다. 이 확률의 c배 승산이 없으면 c는 손해 보는 신고다 */}
+          {(() => {
+            const m = targetType === "RETURN_PCT" ? toNumber(targetValue) : null;
+            const h = toHorizonDays(deadline);
+            if (m === null || m <= 0 || h === null || h <= 0) return null;
+            const p0 = noSkillTouchProbability(
+              direction === "DOWN" ? "DOWN" : "UP",
+              m,
+              assetClass,
+              h,
+            );
+            return (
+              <span className={styles.hint}>
+                이 사양은 아무 정보 없이 찍어도 {Math.round(p0 * 100)}% 확률로 닿습니다 —
+                적중 보상은 이 공짜 몫을 뺀 나머지({Math.round((1 - p0) * 100)}%)에
+                비례합니다. 신뢰도 {toNumber(confidence)}이 남는 신고가 되려면 자기 승산이
+                무정보의 {toNumber(confidence)}배여야 합니다
+              </span>
+            );
+          })()}
           {/* 별점 미리보기 — "3을 골랐는데 왜 별 3.75개?"라는 물음이 생기기 전에,
               고르는 바로 그 자리에서 표시 규칙(함의 승률 × 5)을 보여준다 */}
           {(() => {
@@ -430,48 +455,17 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             );
           })()}
         </div>
-        <div className={styles.field}>
-          <label className={styles.label}>안정성 (자기평가 1~10)</label>
-          <select
-            className={styles.select}
-            name="selfStability"
-            value={selfStability}
-            onChange={(e) => setSelfStability(e.target.value)}
-          >
-            {RATING.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-          <span className={styles.hint}>
-            정밀도 배팅 — 실현이 예측 수익률에 가까울수록 가점, 멀수록 감점 (초과는 관대). 1은 불참
-          </span>
-          {(() => {
-            const s = toNumber(selfStability)!;
-            return (
-              <span className={styles.hint}>
-                구매자 화면 표시:{" "}
-                {s <= 1 ? (
-                  <>별 0개 — 불참은 아무 확률도 걸지 않은 상태라 빈 별로 나갑니다</>
-                ) : (
-                  <>
-                    <StarRating stars={stabilityStars(s)} label="안정성" />{" "}
-                    {stabilityStars(s).toFixed(2)}개 — 함의 정밀 착지율{" "}
-                    {Math.round((100 * (s - 1)) / s)}%
-                  </>
-                )}
-              </span>
-            );
-          })()}
-        </div>
+        {/* 안정성 다이얼은 점수 v4에서 제거됐다 (2026-08-12) — 도달 판정에서 측정
+            대상(착지 정밀도)이 사라져 점수에 기여하지 않는 값이 됐다. 점수 무관한
+            자기 신고를 받으면 공짜 마케팅 칸이 된다. "경로 안정성"(드로다운) 배팅으로
+            재설계되면 그때 다른 뜻으로 돌아온다 */}
         {/* 수익성은 예측 수익률에서 자동 산출된다 — 입력 항목이 아니다 */}
       </div>
 
       {/* 설명이 필요한 지점과 설명이 있는 지점을 같게 — 두 값을 고르는 바로 그 자리 */}
       <ScoreCalculatorEntry
         title="이 설정이면 몇 점을 따고 잃나요?"
-        sub="신뢰도·안정성을 바꿔 가며 실제 채점 결과를 미리 확인해 보세요"
+        sub="크기·기간·신뢰도를 바꿔 가며 실제 채점 결과를 미리 확인해 보세요"
       />
 
       <h3>판매 조건</h3>

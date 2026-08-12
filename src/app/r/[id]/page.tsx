@@ -163,7 +163,6 @@ export default async function PublicProfile({
                 direction: c?.direction ?? null,
                 profitability: c ? cardProfitabilityLevel(c) : null,
                 confidence: c?.confidence ?? null,
-                stability: c?.selfStability ?? null,
               }}
             />
           );
