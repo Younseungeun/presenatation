@@ -145,7 +145,7 @@ describe('manualJudgeCard — 수동 판정', () => {
     ).rejects.toThrow(/판정할 수 없습니다/);
   });
 
-  it('시세 입력 판정: 자동 경로와 동일한 점수·정산 (HIT → 700점, 수수료 20% 정산)', async () => {
+  it('시세 입력 판정: 자동 경로와 동일한 점수·정산 (HIT → +261.3점, 수수료 20% 정산)', async () => {
     const result = await manualJudgeCard(
       prisma,
       {
@@ -157,7 +157,7 @@ describe('manualJudgeCard — 수동 판정', () => {
       STALE_NOW,
     );
     expect(result.outcome).toBe('HIT');
-    expect(result.score).toBeCloseTo(700, 1); // v3: 방향 +500 + 안정성 +200 (판정가=목표가)
+    expect(result.score).toBeCloseTo(261.3, 1); // v4: 10×10×5×(1−p₀≈0.5226)
 
     const judgment = await prisma.judgment.findUniqueOrThrow({
       where: { predictionCardId: cardIdByTicker['KRW-AAA'] },

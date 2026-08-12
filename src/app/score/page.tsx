@@ -1,8 +1,4 @@
-import {
-  DISCIPLINE_LADDER,
-  MIN_MAGNITUDE_PCT,
-  STABILITY_TOLERANCE,
-} from "@/domain/scoring";
+import { DISCIPLINE_LADDER, MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import { AppHeader } from "../AppHeader";
 import { Disclaimer } from "../Disclaimer";
 import { ScoreCalculator } from "./ScoreCalculator";
@@ -11,7 +7,7 @@ import s from "./score.module.css";
 
 export const metadata = { title: "점수 계산기 — INTOVILL" };
 
-// 점수 계산기 화면.
+// 점수 계산기 화면 (모델 v4 — 공정배당 이항).
 //
 // 왜 별도 화면인가: 점수 모델은 등급의 유일한 기준이라 이 서비스에서 가장 민감한
 // 규칙이다. "우리는 공정하다"는 문장 백 개보다 직접 만져보는 계산기 하나가 낫다.
@@ -28,9 +24,10 @@ export default function ScorePage() {
       <AppHeader title="점수 계산기" backHref="/ranking" />
       <main className={styles.page}>
         <p className={styles.sub}>
-          예측이 시한에 도달하면 시장 데이터로 자동 채점됩니다. 값을 움직여 보면 어떤
-          경우에 얼마를 따고 잃는지 그대로 보입니다. 아래 계산은 실제 정산이 쓰는 것과
-          같은 함수로 돌아갑니다.
+          예측 카드는 &quot;기한 안에 목표가에 닿는다&quot;(일봉 종가 기준)는 주장이고,
+          닿으면 적중·못 닿으면 실패로 자동 채점됩니다. 값을 움직여 보면 어떤 경우에
+          얼마를 따고 잃는지 그대로 보입니다. 아래 계산은 실제 정산이 쓰는 것과 같은
+          함수로 돌아갑니다.
         </p>
 
         <ScoreCalculator />
@@ -40,57 +37,60 @@ export default function ScorePage() {
           <li className={s.rule}>
             <span className={s.ruleNum}>1</span>
             <div className={s.ruleBody}>
-              <div className={s.ruleTitle}>잃는 양의 상한은 자기가 부른 크기다</div>
+              <div className={s.ruleTitle}>공짜 확률은 먼저 공제된다</div>
               <p className={s.ruleText}>
-                방향이 반대로 가면 아무리 크게 빗나가도 잃는 거리는 정확히 예측 크기까지만
-                입니다. 크게 부르면 크게 딸 수 있고 크게 잃습니다 — 주장의 크기가 곧 판돈
-                입니다.
+                어떤 목표든 아무 정보 없이 찍어도 우연히 닿을 확률(p₀)이 있습니다 — 쉬운
+                목표일수록 큽니다. 적중 보상은 (1 − p₀)에 비례해서, 우연의 몫을 빼고
+                실력의 몫만 지급합니다. 그래서 &quot;쉬운 목표로 적중률만 쌓는&quot;
+                전략은 점수가 거의 늘지 않습니다.
               </p>
             </div>
           </li>
           <li className={s.rule}>
             <span className={s.ruleNum}>2</span>
             <div className={s.ruleBody}>
-              <div className={s.ruleTitle}>작게 불러 안전하게 먹는 길이 없다</div>
+              <div className={s.ruleTitle}>잃는 양은 게시하는 순간 확정된다</div>
               <p className={s.ruleText}>
-                본전선은 예측의 절반 지점이고, 더 크게 맞혀도 점수는 예측 크기에서 멈춥니다.
-                더 큰 점수를 얻는 유일한 방법은 처음부터 더 크게 부르는 것이라, 자기 믿음을
-                그대로 신고하는 것이 수학적으로 가장 유리합니다.
+                실패 벌점은 p₀에 비례하는 고정값이라, 카드를 게시하는 순간 하방이
+                정해집니다. 얼마나 크게 빗나갔는지는 점수에 들어가지 않습니다 — 주장이
+                &quot;닿는다/못 닿는다&quot;이기 때문입니다. 실현 등락은 기록으로 남아
+                프로필에 그대로 표시됩니다.
               </p>
             </div>
           </li>
           <li className={s.rule}>
             <span className={s.ruleNum}>3</span>
             <div className={s.ruleBody}>
-              <div className={s.ruleTitle}>신뢰도는 공짜 증폭기가 아니다</div>
+              <div className={s.ruleTitle}>신뢰도는 &quot;무정보 대비 몇 배 확신하나&quot;다</div>
               <p className={s.ruleText}>
-                맞으면 신뢰도 배만큼 늘지만 틀리면 그보다 가파르게 깎입니다. 그래서 확신이
-                없을 때 신뢰도를 높이는 것은 언제나 손해이고, 자기 확신을 정직하게 적는 것이
-                기대 점수를 최대로 만듭니다.
+                맞으면 신뢰도 배(×c)만큼 늘지만 틀리면 그보다 가파르게(×c(c+1)/2)
+                깎입니다. 수학적으로 신뢰도 c가 남는 장사가 되려면 자기 승산이 무정보
+                승산의 c배는 되어야 합니다 — 자기 확신을 정직하게 적는 것이 기대 점수를
+                최대로 만듭니다.
               </p>
             </div>
           </li>
           <li className={s.rule}>
             <span className={s.ruleNum}>4</span>
             <div className={s.ruleBody}>
-              <div className={s.ruleTitle}>안정성은 참가 여부부터 본인이 정한다</div>
+              <div className={s.ruleTitle}>찍어서 많이 내는 전략은 못 번다</div>
               <p className={s.ruleText}>
-                안정성 1은 진짜 불참이라 점수가 발동하지 않습니다. 2부터는 정밀도에 거는
-                배팅이 되고, 예측에서{" "}
-                {Math.round(STABILITY_TOLERANCE * 100)}% 넘게 빗나가면 벌점 구간에 들어갑니다.
-                어느 지점에도 절벽이 없어 판정 시각을 노린 조작이 이득을 만들지 못합니다.
+                무정보 예측의 기대 점수는 어떤 크기·기간·자산군을 골라도 0 이하입니다
+                (수식으로 보장됩니다). 누적 점수가 내려가면 쓸 수 있는 최소 신뢰도가
+                강제로 올라가 하강이 가속되고,{" "}
+                {Math.abs(ladderTop.scoreBelow).toLocaleString()}점 아래로 내려가면 해당
+                자산군의 신규 게시가 시즌 종료까지 정지됩니다.
               </p>
             </div>
           </li>
           <li className={s.rule}>
             <span className={s.ruleNum}>5</span>
             <div className={s.ruleBody}>
-              <div className={s.ruleTitle}>찍어서 많이 내는 전략은 음수로 수렴한다</div>
+              <div className={s.ruleTitle}>판정 시각을 노린 조작이 통하지 않는다</div>
               <p className={s.ruleText}>
-                아무 정보 없이 낸 예측의 기대 점수는 증폭 이전에 이미 음수입니다. 누적 점수가
-                내려가면 쓸 수 있는 최소 신뢰도가 강제로 올라가 하강이 더 빨라지고,{" "}
-                {Math.abs(ladderTop.scoreBelow).toLocaleString()}점 아래로 내려가면 해당
-                자산군의 신규 게시가 시즌 종료까지 정지됩니다.
+                도달은 일봉 종가로만 인정됩니다 — 장중에 순간적으로 스친 가격은 판정에
+                들어가지 않아, 시세를 잠깐 튀겨 적중을 만드는 조작이 성립하지 않습니다.
+                적중 시 점수는 도달한 날 판정하든 기한까지 기다리든 같습니다.
               </p>
             </div>
           </li>
@@ -99,13 +99,11 @@ export default function ScorePage() {
             <div className={s.ruleBody}>
               <div className={s.ruleTitle}>화면의 별점은 승률로 읽는다</div>
               <p className={s.ruleText}>
-                신뢰도·안정성 별점은 다이얼값(1~10)을 반으로 접은 것이 아니라, 그 신고가
-                손해가 아니려면 리서처가 스스로 믿어야 하는 최소 승률 × 별 5개입니다.
-                신뢰도 3이 별 3.75개인 이유는 그 신고가 승률 75%를 함의하기 때문입니다
-                (신뢰도 c → c/(c+1), 안정성 s → (s−1)/s, 안정성 1은 불참이라 별 0개).
-                그래서 별 5개는 승률 100%라 존재하지 않고, 위로 갈수록 별 반 개가
-                기하급수적으로 어려워집니다. 이 규칙은 표시일 뿐 점수 계산에는 영향이
-                없습니다.
+                신뢰도 별점은 다이얼값(1~10)을 반으로 접은 것이 아니라, 그 신고가 손해가
+                아니려면 리서처가 스스로 믿어야 하는 최소 승률 × 별 5개입니다 (기준
+                상황에서 신뢰도 c → c/(c+1); 실제 문턱은 카드의 난이도 p₀에 따라
+                움직입니다). 별 5개는 승률 100%라 존재하지 않습니다. 이 규칙은 표시일 뿐
+                점수 계산에는 영향이 없습니다.
               </p>
             </div>
           </li>
@@ -121,18 +119,20 @@ export default function ScorePage() {
             </span>
           </div>
           <div className={styles.cardRow}>
-            <span className={styles.cardKey}>신뢰도 증폭</span>
-            <span className={styles.cardVal}>맞으면 ×c · 틀리면 ×c(c+1)/2</span>
+            <span className={styles.cardKey}>적중 / 실패</span>
+            <span className={styles.cardVal}>
+              +10×크기×c×(1−p₀) / −10×크기×c(c+1)/2×p₀
+            </span>
           </div>
           <div className={styles.cardRow}>
-            <span className={styles.cardKey}>안정성 허용 오차</span>
+            <span className={styles.cardKey}>무정보 확률 p₀</span>
             <span className={styles.cardVal}>
-              {STABILITY_TOLERANCE} (초과 방향은 1.5배 관대)
+              방향·크기·기간·자산군 변동성의 함수 (게시 사양에서 결정)
             </span>
           </div>
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>표본 제외</span>
-            <span className={styles.cardVal}>실현 0% · 판정 불가 · 철회</span>
+            <span className={styles.cardVal}>판정 불가 · 철회</span>
           </div>
         </div>
 

@@ -130,8 +130,8 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
     expect(judgment.outcome).toBe('HIT');
     // 실현은 목표(+10%)로 고정된다 — 시장이 +12%까지 갔어도 초과분은 넣지 않는다
     expect(judgment.realizedReturnPct).toBeCloseTo(10);
-    // v3: 방향 +500 (거리 10 ×스케일10 ×c5) + 안정성 +200 (오차 0 → 만점)
-    expect(judgment.score).toBeCloseTo(700, 1);
+    // v4: 10 × 크기10 × c5 × (1−p₀≈0.5226) — 공짜 확률을 공제한 지급
+    expect(judgment.score).toBeCloseTo(261.3, 1);
     expect(judgment.dataSource).toBe('fixture');
     expect(JSON.parse(judgment.marketSnapshotJson!).quotes).toHaveLength(2);
 
@@ -157,8 +157,8 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
       where: { predictionCard: { ticker: 'KRW-BBB' } },
     });
     expect(judgment.outcome).toBe('MISS');
-    // v3: 방향 −1500 (거리 −10 ×10 ×벌점15) + 안정성 −500 (ε=1.5=2T 최대 벌점)
-    expect(judgment.score).toBeCloseTo(-2000);
+    // v4: −10 × 크기10 × c(c+1)/2=15 × p₀≈0.4774 — 게시 시점에 확정되는 하방
+    expect(judgment.score).toBeCloseTo(-715.97, 1);
 
     const purchases = await prisma.purchase.findMany({
       where: { report: { predictionCard: { ticker: 'KRW-BBB' } } },
@@ -180,7 +180,7 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
     expect(researcherNotis.some((n) => n.title.includes('적중'))).toBe(true);
     expect(researcherNotis.some((n) => n.title.includes('실패'))).toBe(true);
     const hit = researcherNotis.find((n) => n.title.includes('적중'))!;
-    expect(hit.body).toContain('+700점');
+    expect(hit.body).toContain('+261점');
     expect(hit.body).toContain('16,000원'); // 구매 2건 × 8,000원 정산
 
     const buyerNotis = await prisma.notification.findMany({ where: { userId: buyerAId } });
@@ -248,9 +248,9 @@ describe('판정 배치 — 정산·크레딧·점수', () => {
 });
 
 describe('점수 집계 → 규율 연동', () => {
-  it('시즌·자산군별 점수 합산 (HIT +700, MISS -2000, 불가 0 → CRYPTO -1300)', async () => {
+  it('시즌·자산군별 점수 합산 (HIT +261.3, MISS -716.0, 불가 0 → CRYPTO -454.6)', async () => {
     const scores = await researcherSeasonScores(prisma, researcherId, BATCH_NOW);
-    expect(scores.CRYPTO).toBeCloseTo(700 - 2000, 1);
+    expect(scores.CRYPTO).toBeCloseTo(-454.63, 1);
     expect(scores.KR_EQUITY).toBe(0);
   });
 

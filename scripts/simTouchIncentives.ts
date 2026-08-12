@@ -8,10 +8,9 @@
 // 적으면 언젠가 갈라진다. 판정 규칙도 실제와 동일: 어느 날 종가가 목표 이상이면 적중
 // (판정가=목표가), 아니면 실패(판정가=기한 종가).
 //
-// 비교 대상:
-//   현행     — 방향·크기 점수 + 안정성 점수 (지금 코드 그대로)
-//   대안 A   — 안정성의 점수 기여 제거 (방향·크기만)
-// 각 실력 수준(무정보/준수/우수)에서 EV 최대인 (목표 크기 M, 신뢰도 c, 안정성 s)을 찾는다.
+// 역사적 기록: v3에서 위 두 결함을 실측해 v4 재설계의 근거가 된 스크립트다.
+// 지금은 scoreJudgedCard가 v4(공정배당 이항)라 "현행" = v4 검증으로 읽는다 —
+// 안정성 몫 0%·스팸 EV ≈ 0·최적 M이 실력 따라 커지는 것이 v4가 고친 결과다.
 
 import { scoreJudgedCard } from '../src/domain/scoring';
 import { MIN_MAGNITUDE_PCT } from '../src/domain/scoring';
@@ -85,7 +84,7 @@ for (const mkt of MARKETS) {
           const sc = scoreJudgedCard({
             direction: 'UP', targetType: 'RETURN_PCT', targetValue: M,
             confidence: c, stability: s, assetClass: mkt.assetClass,
-            basePrice: 100, settledPrice: r.settled, outcome: r.hit ? 'HIT' : 'MISS',
+            basePrice: 100, settledPrice: r.settled, horizonDays: mkt.H, outcome: r.hit ? 'HIT' : 'MISS',
           });
           evCur += sc.score; evDir += sc.directionScore;
         }

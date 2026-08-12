@@ -1,145 +1,170 @@
-// 등급 임계값 재캘리브레이션 (점수 v3) — npx tsx scripts/simTierThresholds.ts
+// 등급 임계값 캘리브레이션 — 점수 v4(공정배당 이항) 기준. npx tsx scripts/simTierThresholds.ts
 //
-// 목표 피라미드 (2026-08-05 확정): 무표기 100% / 시니어 상위 50% / 마스터 상위 25% /
-// 펠로우 상위 10% / 인투빌 펠로우 ~1% (상대평가·심사 — 개별 임계값 없음, MVP 제외 유지)
+// 목표 피라미드 "절반 사다리" (2026-08-05 확정 유지): 시즌 종료 시
+//   시니어 상위 ~50% / 마스터 ~25% / 펠로우 ~10% (인투빌 펠로우는 심사·상대평가)
 //
-// 근거:
-//  · 시니어 50% — "준수한 리서처 절반이 첫 시즌 도달" 공급 유지 원칙 그대로.
-//    콜드스타트에서 승급 경험이 이탈 방지의 핵심이고, 시니어 특권은 수수료 인하뿐이라
-//    수익성 비용이 가장 작다
-//  · 마스터 25% — 선결제(10%) 해금 경계. 구매자 무위험 진입(100% 성과 연동) 커버리지를
-//    전체 리서처의 75%로 유지하면서, 등급 칩(틴트)의 희소성을 지킨다.
-//    50→25→10→1의 "절반 사다리"라 단계 감각이 학습하기 쉽다
-//  · 펠로우 10% — 구독(2단계 매출) 공급자를 열 명 중 한 명으로: 초기 30~50명 기준
-//    3~5명이 구독을 열 수 있어 2단계 매출 개시가 늦어지지 않는다. 솔리드 칩 희소성 유지
-//  · 인투빌 펠로우 ~1% — 점수 임계값이 아니라 심사·정원제(브랜드 규정: 연 5~10명).
-//    콜드스타트 인원(30~50명)에서 %컷은 0~1명이라 통계적으로 무의미 → 상대평가 유지
+// 방법:
+//  · 기준 트랙 = 국내주식 (σ̄ 2%/일, 하한 5%, 시즌 20장, 기간 30일 카드)
+//  · 모집단 (콜드스타트 큐레이션 가정, v3 캘리브레이션과 동일 구성):
+//      정밀 5% / 우수 25% / 준수 50% / 하위 15% / 스팸 5%
+//    실력 = 일 드리프트 k·σ. v3의 실현수익 분포 대신 GBM 우위로 표현한다
+//  · 행동 가정: 학습 평형 — 각자 자기 실력에서 EV 최대인 (목표 크기 M, 신뢰도 c)를 쓴다
+//    (v3 캘리브레이션의 "정직 신고" 가정의 v4 대응물 — v4는 정직 신고가 곧 EV 최대다)
+//  · 카드 결과는 실력 반영 도달 확률 p(M; k)의 베르누이, 점수는 **정산이 쓰는
+//    scoreJudgedCard 그대로**
 //
-// 모집단 가정 (콜드스타트 — 직접 영입으로 큐레이션된 공급, §5 1단계):
-//  정밀형 5% / 우수 방향형 25% / 준수형 50% / 하위형 15% / 스팸 5%
-// 시즌 카드 수: 기본 20장 (활성 5슬롯 × 분기 회전 ~4회), 민감도 12·30장.
+// 이 스크립트는 동시에 p₀ 닫힌꼴의 몬테카를로 검증을 포함한다 (모델 신뢰의 전제).
 
-import {
-  computeDirectionScore,
-  computeStabilityScore,
-  MIN_MAGNITUDE_PCT,
-} from '../src/domain/scoring';
+import { scoreJudgedCard, DAILY_SIGMA, noSkillTouchProbability } from '../src/domain/scoring';
 
-const FLOOR = MIN_MAGNITUDE_PCT.CRYPTO;
-const RESEARCHERS = 20_000;
+const SIGMA = DAILY_SIGMA.KR_EQUITY;
+const FLOOR = 5;
+const H = 30;
+const CARDS_PER_SEASON = 20;
+const N_RESEARCHERS = 20_000;
 
-interface Persona {
+interface Cohort {
   name: string;
-  mu: number;
-  sigma: number;
+  k: number; // 일 드리프트 = k·σ
   weight: number;
-  c?: number;
-  s?: number;
-  claim?: number;
 }
-const personas: Persona[] = [
-  { name: '정밀형', mu: 15, sigma: 6, weight: 0.05 },
-  { name: '우수 방향형', mu: 12, sigma: 12, weight: 0.25 },
-  { name: '준수형', mu: 8, sigma: 14, weight: 0.5 },
-  { name: '하위형', mu: 3, sigma: 14, weight: 0.15 },
-  { name: '스팸', mu: 0, sigma: 12, weight: 0.05 },
+const COHORTS: Cohort[] = [
+  { name: '정밀형', k: 0.5, weight: 0.05 },
+  { name: '우수형', k: 0.35, weight: 0.25 },
+  { name: '준수형', k: 0.2, weight: 0.5 },
+  { name: '하위형', k: 0.08, weight: 0.15 },
+  { name: '스팸', k: 0, weight: 0.05 },
 ];
 
-function randn(): number {
-  let u = 0;
-  let v = 0;
-  while (u === 0) u = Math.random();
-  while (v === 0) v = Math.random();
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+const M_GRID = [5, 7.5, 10, 15, 20, 25, 30, 40];
+const C_GRID = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+let seed = 424242;
+function rand(): number {
+  seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+  return (seed >>> 0) / 0xffffffff;
+}
+function gauss(): number {
+  const u = Math.max(rand(), 1e-12);
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rand());
 }
 
-function cardScore(p: Persona, x: number): number {
-  if (x === 0) return 0;
-  return (
-    computeDirectionScore('UP', p.claim!, p.c!, x).score +
-    computeStabilityScore('UP', p.claim!, p.s!, x, FLOOR).score
-  );
+/** 표준정규 CDF — scoring.ts와 동일 근사 (여기서는 검증·실력 확률용) */
+function ncdf(z: number): number {
+  const x = Math.abs(z) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const erf = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+  return z >= 0 ? 0.5 * (1 + erf) : 0.5 * (1 - erf);
 }
 
-// 유형별 정직 최적 c·s (몬테카를로 argmax)
-for (const p of personas) {
-  p.claim = Math.max(p.mu, FLOOR);
-  const draws = Array.from({ length: 40_000 }, () => p.mu + p.sigma * randn());
-  let best = { c: 1, s: 1, ev: -Infinity };
-  for (let c = 1; c <= 10; c++) {
-    for (let s = 1; s <= 10; s++) {
-      let sum = 0;
-      for (const x of draws) {
-        if (x === 0) continue;
-        sum +=
-          computeDirectionScore('UP', p.claim, c, x).score +
-          computeStabilityScore('UP', p.claim, s, x, FLOOR).score;
-      }
-      const ev = sum / draws.length;
-      if (ev > best.ev) best = { c, s, ev };
+/** 실력 k 반영 도달 확률 (일봉 관측, BGK 보정 — scoring의 p₀와 같은 유도, 드리프트만 추가) */
+function touchProb(mPct: number, k: number): number {
+  const a = Math.log(1 + mPct / 100) + 0.5826 * SIGMA;
+  const nu = k * SIGMA - 0.5 * SIGMA * SIGMA;
+  const s = SIGMA * Math.sqrt(H);
+  const p = 1 - ncdf((a - nu * H) / s) + Math.exp((2 * nu * a) / (SIGMA * SIGMA)) * (1 - ncdf((a + nu * H) / s));
+  return Math.min(0.999, Math.max(0.0005, p));
+}
+
+/** 몬테카를로 대조 — 닫힌꼴 오차 검증 */
+function mcTouch(mPct: number, k: number, n = 30_000): number {
+  const target = 1 + mPct / 100;
+  let hits = 0;
+  for (let i = 0; i < n; i++) {
+    let sVal = 1;
+    for (let t = 0; t < H; t++) {
+      sVal *= Math.exp(k * SIGMA - 0.5 * SIGMA * SIGMA + SIGMA * gauss());
+      if (sVal >= target) { hits++; break; }
     }
   }
-  p.c = best.c;
-  p.s = best.s;
-  console.log(`유형 ${p.name}: claim ${p.claim} c*=${p.c} s*=${p.s} (카드당 EV ${best.ev.toFixed(1)})`);
+  return hits / n;
 }
 
-function quantile(sorted: number[], q: number): number {
-  return sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * q))];
+function cardScore(M: number, c: number, hit: boolean): number {
+  return scoreJudgedCard({
+    direction: 'UP', targetType: 'RETURN_PCT', targetValue: M,
+    confidence: c, stability: 1, assetClass: 'KR_EQUITY',
+    basePrice: 100, settledPrice: hit ? 100 * (1 + M / 100) : 100,
+    horizonDays: H, outcome: hit ? 'HIT' : 'MISS',
+  }).score;
 }
 
-for (const cards of [12, 20, 30]) {
-  const seasons: number[] = [];
-  const byPersona = new Map<string, number[]>();
-  for (let i = 0; i < RESEARCHERS; i++) {
-    let r = Math.random();
-    let p = personas[personas.length - 1];
-    for (const q of personas) {
-      if (r < q.weight) {
-        p = q;
-        break;
-      }
-      r -= q.weight;
-    }
-    let total = 0;
-    for (let k = 0; k < cards; k++) total += cardScore(p, p.mu + p.sigma * randn());
-    seasons.push(total);
-    if (!byPersona.has(p.name)) byPersona.set(p.name, []);
-    byPersona.get(p.name)!.push(total);
-  }
-  seasons.sort((a, b) => a - b);
-  const top = (pct: number) => Math.round(quantile(seasons, 1 - pct));
-  console.log(
-    `\n■ 시즌 ${cards}장: 상위 50% 경계 ${top(0.5).toLocaleString()} | 상위 25% ${top(0.25).toLocaleString()} | 상위 10% ${top(0.1).toLocaleString()} | 상위 1% ${top(0.01).toLocaleString()}`,
-  );
+// ── ① p₀ 닫힌꼴 vs 몬테카를로 ─────────────────────────────────────
+console.log('■ p₀ 닫힌꼴 검증 (국내주식 σ2%/30일, MC 30,000경로)');
+console.log('   M      닫힌꼴   MC      |오차|');
+for (const m of [5, 10, 15, 25]) {
+  const cf = noSkillTouchProbability('UP', m, 'KR_EQUITY', H);
+  const mc = mcTouch(m, 0);
+  console.log(`   ${String(m).padEnd(4)} ${(cf * 100).toFixed(1).padStart(6)}% ${(mc * 100).toFixed(1).padStart(6)}%  ${(Math.abs(cf - mc) * 100).toFixed(2)}%p`);
 }
-
-// 제안 임계값 검증 (20장 기준 라운딩 후): 실제 도달률과 준수형 시니어 도달률
-const PROPOSED = { SILVER: 300, GOLD: 900, PLATINUM: 2_400 };
+console.log('   (실력 드리프트 포함 대조: k=0.25σ, M=10)');
 {
-  const cards = 20;
-  const seasons: { name: string; total: number }[] = [];
-  for (let i = 0; i < RESEARCHERS; i++) {
-    let r = Math.random();
-    let p = personas[personas.length - 1];
-    for (const q of personas) {
-      if (r < q.weight) {
-        p = q;
-        break;
-      }
-      r -= q.weight;
+  const cf = touchProb(10, 0.25);
+  const mc = mcTouch(10, 0.25);
+  console.log(`   →    ${(cf * 100).toFixed(1).padStart(6)}% ${(mc * 100).toFixed(1).padStart(6)}%  ${(Math.abs(cf - mc) * 100).toFixed(2)}%p`);
+}
+
+// ── ② 각 실력의 EV 최적 전략 ──────────────────────────────────────
+interface Strategy { M: number; c: number; p: number; ev: number }
+function bestStrategy(k: number): Strategy {
+  let best: Strategy = { M: FLOOR, c: 1, p: touchProb(FLOOR, k), ev: -Infinity };
+  for (const M of M_GRID) {
+    const p = touchProb(M, k);
+    for (const c of C_GRID) {
+      const ev = p * cardScore(M, c, true) + (1 - p) * cardScore(M, c, false);
+      if (ev > best.ev) best = { M, c, p, ev };
     }
-    let total = 0;
-    for (let k = 0; k < cards; k++) total += cardScore(p, p.mu + p.sigma * randn());
-    seasons.push({ name: p.name, total });
   }
-  const share = (t: number) => seasons.filter((s) => s.total >= t).length / seasons.length;
-  const decent = seasons.filter((s) => s.name === '준수형');
-  const decentSilver = decent.filter((s) => s.total >= PROPOSED.SILVER).length / decent.length;
+  return best;
+}
+
+console.log('\n■ 실력별 EV 최적 전략 (학습 평형 가정)');
+const strategies = new Map<string, Strategy>();
+for (const co of COHORTS) {
+  const s = bestStrategy(co.k);
+  strategies.set(co.name, s);
+  console.log(`   ${co.name.padEnd(4)} k=${co.k}σ → M=${s.M}% c=${s.c} (적중률 ${(s.p * 100).toFixed(0)}%) EV ${s.ev.toFixed(0)}점/장`);
+}
+
+// ── ③ 시즌 점수 분포 → 임계값 ────────────────────────────────────
+function seasonTotals(cards: number): { name: string; total: number }[] {
+  const rows: { name: string; total: number }[] = [];
+  for (const co of COHORTS) {
+    const s = strategies.get(co.name)!;
+    const n = Math.round(N_RESEARCHERS * co.weight);
+    for (let i = 0; i < n; i++) {
+      let total = 0;
+      for (let cIdx = 0; cIdx < cards; cIdx++) {
+        total += cardScore(s.M, s.c, rand() < s.p);
+      }
+      rows.push({ name: co.name, total });
+    }
+  }
+  return rows.sort((a, b) => b.total - a.total);
+}
+
+const rows = seasonTotals(CARDS_PER_SEASON);
+const pct = (q: number) => rows[Math.floor(rows.length * q)].total;
+console.log(`\n■ 시즌 ${CARDS_PER_SEASON}장 점수 분포 (${rows.length.toLocaleString()}명)`);
+console.log(`   상위 50% 경계 ${pct(0.5).toFixed(0)} / 25% ${pct(0.25).toFixed(0)} / 10% ${pct(0.1).toFixed(0)}`);
+
+// 라운딩 제안
+function roundNice(x: number): number {
+  const mag = x >= 2000 ? 500 : x >= 500 ? 100 : 50;
+  return Math.round(x / mag) * mag;
+}
+const proposal = { SILVER: roundNice(pct(0.5)), GOLD: roundNice(pct(0.25)), PLATINUM: roundNice(pct(0.1)) };
+console.log(`   제안 임계값: 시니어 ${proposal.SILVER} / 마스터 ${proposal.GOLD} / 펠로우 ${proposal.PLATINUM}`);
+
+// 검증: 제안값 적용 시 실제 도달률·준수형 시니어 도달률
+for (const cards of [12, 20, 30]) {
+  const rs = seasonTotals(cards);
+  const reach = (t: number) => rs.filter((r) => r.total >= t).length / rs.length;
+  const decent = rs.filter((r) => r.name === '준수형');
+  const decentSilver = decent.filter((r) => r.total >= proposal.SILVER).length / decent.length;
+  const spam = rs.filter((r) => r.name === '스팸');
+  const spamAvg = spam.reduce((a, r) => a + r.total, 0) / spam.length;
   console.log(
-    `\n■ 제안 임계값 검증 (20장): 시니어 ${PROPOSED.SILVER} → 도달 ${(share(PROPOSED.SILVER) * 100).toFixed(1)}% | ` +
-      `마스터 ${PROPOSED.GOLD} → ${(share(PROPOSED.GOLD) * 100).toFixed(1)}% | ` +
-      `펠로우 ${PROPOSED.PLATINUM} → ${(share(PROPOSED.PLATINUM) * 100).toFixed(1)}%`,
+    `   시즌 ${String(cards).padStart(2)}장: 시니어 ${(reach(proposal.SILVER) * 100).toFixed(1)}% / 마스터 ${(reach(proposal.GOLD) * 100).toFixed(1)}% / 펠로우 ${(reach(proposal.PLATINUM) * 100).toFixed(1)}%  · 준수형 시니어 도달 ${(decentSilver * 100).toFixed(0)}% · 스팸 평균 ${spamAvg.toFixed(0)}점`,
   );
-  console.log(`   준수형의 첫 시즌 시니어 도달률: ${(decentSilver * 100).toFixed(1)}% (목표 ≈ 50%)`);
 }

@@ -1,52 +1,84 @@
 import { type AssetClass, type Direction, type Outcome, type TargetType } from './constants';
 
-// 점수 산정 v3 — 거리 기반 연속 모델 (2026-08-05 확정. 등급의 유일한 기준)
+// 점수 산정 v4 — 공정배당 이항 모델 (2026-08-12 확정. 등급의 유일한 기준)
 //
-// 설계 원칙 (기획 조건):
-//  · 신뢰도 c = 점수 증폭 변수 (비대칭 — 정직한 확률 신고가 최적이 되게)
-//  · 수익성 = 표시용, 점수 무관
-//  · 점수는 음수가 존재 — 스팸·무실력 리서처를 걸러낸다
-//  · 안정성 = 실현이 예측에서 얼마나 떨어졌는지(거리)로 점수에 관여
-//  · 사기적·버그적 방법이 통하지 않을 것
+// ── 왜 v3(거리 기반 연속 모델)을 버렸나 ─────────────────────────────
+// 판정 규칙이 "기한 내 일봉 종가 도달 = 적중"으로 통합되면서(judgment.ts) v3의
+// 전제 두 개가 무너졌다 (실측: scripts/simTouchIncentives.ts):
+//  ① 적중 시 판정가 = 목표가 → 실현 오차 ε ≡ 0 → 안정성이 항상 만점.
+//     측정하던 것("착지 정밀도")이 사라졌는데 지급(최대 450점, 크기 무관)은 남아
+//     — 준수 실력자 EV의 51%가 이 공짜 주머니에서 나오고, 최적 전략이
+//     "하한 목표 + 안정성 만점 배팅"으로 미끄러졌다 (신뢰도와 완전 중첩)
+//  ② 무정보 스팸의 EV가 +12~17점/장으로 양수 전환 — v3의 핵심 불변식
+//     ("삼각부등식으로 스팸 구조적 음수")은 시한 종가 실현을 전제로 했는데,
+//     도달 판정에서는 하한 목표의 무정보 도달 확률이 56~57%라 전제가 깨진다
 //
-// 총점 = 방향·크기 점수 + 안정성 점수. 두 성분 모두 "거리"가 뼈대다.
+// ── v4의 뼈대: 무정보 확률에 대한 공정배당 배팅 ─────────────────────
+// 카드는 "기한 안에 종가로 목표에 닿는다"는 **이항 사건**에 대한 주장이다.
+// 무정보 리서처(드리프트 0 기하 브라운 운동)의 도달 확률 p₀를 닫힌꼴로 계산하고,
+// 그 확률의 공정 배당으로 걸게 한다:
 //
-// ── 성분 ① 방향·크기: 시장 기준선 대비 개선 거리 ──────────────────────
-//   D = |R| − |R − R̂|  (%p, R̂ = 방향 부호 반영 예측 수익률)
-//   "아무 예측도 안 한 사람(R̂=0)보다 얼마나 더 잘 맞혔나".
-//   · 완벽 예측 → +|R̂|, 방향 반대 → 정확히 −|R̂| (자기 주장 크기만큼만 걸고 딴다)
-//   · 본전은 실현 = 예측의 절반 지점, 초과해도 +|R̂|가 상한 (더 크게 올 걸 알면
-//     더 크게 신고하는 것이 유일한 증점 경로 — 크기 과소 신고가 스스로 손해)
-//   · 선형 손실이라 예측 크기의 최적 신고값 = 자기 믿음의 중앙값 (median-truthful).
-//     구모델(적중 비율 + 100컷)의 "컷 위 무차별 → 과소 신고 스위트스팟"이 사라진다
-//   · 무정보 예측은 E[D] < 0 (삼각부등식) — 증폭 이전에 이미 스팸이 음수
+//   적중: +B · c · (1 − p₀)          실패: −B · c(c+1)/2 · p₀
+//   B = DIRECTION_SCALE × 예측 크기 M (%p)   — v3 스케일 계승
 //
-// ── 성분 ② 안정성: 연속 램프 정밀도 배팅 ─────────────────────────────
-//   정규화 편차 δ = sign(R̂)·(R − R̂) / max(|R̂|, 자산군 바닥) — 비율 오차이되
-//   초소형 예측에서는 절대 %p 바닥(주식 5 / 코인 10 = 크기 하한 재사용)으로 정규화.
-//   초과(δ>0)는 1.5로 나눠 관대하게: ε = δ≥0 ? δ/1.5 : |δ|
-//   · 착지 품질 q = max(0, 1 − ε/T): 명중 1 → T에서 0 (절벽 없음)
-//   · 이탈 깊이 m = min(1, max(0, ε/T − 1)): T 지나며 차오르다 2T에서 최대
-//   · 점수 = P₀·[(s−1)·q·(보정 없음) − (s−1)s/2·m], s=1은 양쪽 0인 진짜 불참
-//   유효 배팅 s−1에 비대칭 벌점이 걸려 있어 최적 s가 자기 정밀도를 정직하게 드러낸다
+// 수학적 성질 (유도는 아래 각 함수 주석, 수치 검증은 simTouchIncentives.ts):
+//  · 무정보 EV = −B·p₀(1−p₀)·c(c−1)/2 ≤ 0, c=1에서만 0
+//    → 스팸이 어떤 (M, 기간, 자산군)을 골라도 구조적으로 못 번다.
+//      c=1 은신처(EV=0)는 v3와 동일한 잔여 구멍 — 활성 카드 상한이 방어
+//  · 정직한 신뢰도: c → c+1이 이득일 조건이 odds(p) ≥ (c+1)·odds(p₀)
+//    (odds(x) = x/(1−x)) → 최적 c* = "무정보 대비 승산 배수".
+//    신뢰도의 뜻이 v3의 모호한 증폭에서 **"내 승산이 몇 배인가"**로 명확해졌다
+//  · 정직한 크기: EV = B(M)·c·(p−p₀) 꼴이라 하한 목표는 p₀가 커서(하한 30일
+//    무정보 도달 ~56%) 공짜 몫을 빼고 나면 지급이 작다. 실력자의 최적 M은
+//    내부점이고 실력과 함께 커진다 (시뮬 검증)
+//  · 실패 벌점이 **게시 시점에 확정**된다 (p₀는 카드 사양의 함수) — 리서처가
+//    자기 하방을 정확히 알고 게시한다. "얼마나 크게 틀렸나"는 점수에 안 들어간다
+//    (주장이 이항이므로) — 실현 등락은 기록·표시만 된다
 //
-// 실현 0%·판정 불가·철회: 총점 0 (표본 제외).
-// 수치 검증: scripts/simScoreModel.ts (크기 정직성·c/s 정직성·악용 시나리오·스케일).
+// 안정성(s)은 **점수에서 제거**됐다. 도달 판정에서 측정 대상이 없다.
+// (후속 후보: "경로 안정성" — 목표 가는 길의 최대 역행폭 배팅. 별도 설계 필요)
+//
+// 실현 판정 불가·철회: 0점 (표본 제외).
 
 export const CONFIDENCE_RANGE = { min: 1, max: 10 } as const;
 
-/** 방향·크기 점수 스케일 — 거리 1%p당 점수 (예측 +10% 완벽 적중 = 100×c로 구스케일 유지) */
+/** 방향·크기 점수 스케일 — 크기 1%p당 기본 지분 (v3 스케일 계승) */
 export const DIRECTION_SCALE = 10;
 
 /**
  * 자산군별 예측 크기(%) 하한 — 초안, 운영 데이터로 조정 예정.
- * 게시 검증(publishReport)과 안정성 정규화 바닥으로 함께 쓴다.
+ * 게시 검증(publishReport)에서 쓴다.
  */
 export const MIN_MAGNITUDE_PCT: Record<AssetClass, number> = {
   KR_EQUITY: 5,
   US_EQUITY: 5,
   CRYPTO: 10,
 };
+
+/**
+ * 자산군별 일 변동성 σ̄ (거래일 기준) — p₀ 계산의 입력. 초안.
+ *
+ * ⚠ 자산군 공통 상수라 **종목별 변동성 차익**이 남는다: 실제 σ가 σ̄보다 큰 종목
+ * (고변동 코인 등)은 실제 무정보 도달 확률이 모델 p₀보다 높아 스팸 EV가 양수로
+ * 샐 수 있다. 후속: 게시 시점에 그 종목의 최근 60거래일 실현 변동성을 재서
+ * 카드에 고정(clamp [0.5σ̄, 2σ̄]) — 우리 일봉 데이터(KIS)로 계산 가능하다.
+ */
+export const DAILY_SIGMA: Record<AssetClass, number> = {
+  KR_EQUITY: 0.02,
+  US_EQUITY: 0.02,
+  CRYPTO: 0.04,
+};
+
+/**
+ * 일봉(이산) 관측 보정 — Broadie–Glasserman–Kou 장벽 이동 계수.
+ * 연속 반사원리 공식은 장중 터치까지 세지만 우리 판정은 종가만 보므로,
+ * 장벽을 β·σ만큼 밀어 이산 관측의 도달 확률로 근사한다 (MC 대비 오차 ~1%p 검증).
+ */
+const BARRIER_SHIFT_BETA = 0.5826;
+
+/** p₀ 안전 클램프 — 극단 크기에서 지급·벌점이 0으로 붕괴하지 않게 */
+const P0_MIN = 0.01;
+const P0_MAX = 0.95;
 
 /**
  * 30일 기준 예측 크기(%) 상한 — 초안.
@@ -65,32 +97,116 @@ export const MONTHLY_MAGNITUDE_CAP_PCT: Record<AssetClass, number> = {
  * 기간을 반영한 크기 상한.
  * 변동성은 시간의 제곱근에 비례하므로(랜덤워크) 30일 기준 상한을 √(일수/30)로 스케일한다.
  * 고정 상한을 쓰면 단기 카드에는 너무 헐겁고 장기 카드에는 너무 빡빡해진다.
- *
- * 예(국내주식): 1일 9% / 7일 24% / 30일 50% / 90일 87% / 365일 174%
- *   (코인): 1일 22% / 7일 58% / 30일 120% / 90일 208% / 365일 419%
- * 넘으면 게시 보류(WARN)이지 거절이 아니다 — 정당한 고위험 콜은 운영자가 승인한다.
  */
 export function maxMagnitudePct(assetClass: AssetClass, horizonDays: number): number {
   const days = Math.max(1, horizonDays);
   return MONTHLY_MAGNITUDE_CAP_PCT[assetClass] * Math.sqrt(days / 30);
 }
 
-/** 방향 개선(D>0) 시 증폭 배율 */
+/** 적중 시 증폭 배율 */
 export function winAmplifier(confidence: number): number {
   return confidence;
 }
 
-/** 방향 악화(D<0) 시 증폭 배율 — 신뢰도에 초선형 (proper scoring) */
+/** 실패 시 증폭 배율 — 신뢰도에 초선형 (proper scoring: 정직한 승산 신고가 최적) */
 export function lossAmplifier(confidence: number): number {
   return (confidence * (confidence + 1)) / 2;
 }
 
+// ── 표준정규 CDF (Abramowitz–Stegun 7.1.26, |오차| < 1.5e−7) ──────────
+function normalCdf(z: number): number {
+  const x = Math.abs(z) / Math.SQRT2;
+  const t = 1 / (1 + 0.3275911 * x);
+  const erf =
+    1 -
+    (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t +
+      0.254829592) *
+      t *
+      Math.exp(-x * x);
+  return z >= 0 ? 0.5 * (1 + erf) : 0.5 * (1 - erf);
+}
+
+/**
+ * 무정보 도달 확률 p₀ — 마팅게일 GBM(로그 드리프트 −σ²/2)이 기한 H일 안에
+ * 일봉 종가로 목표에 닿을 확률의 닫힌꼴 근사.
+ *
+ * 유도: 로그 공간에서 X_t = ν·t + σ·W_t, 장벽 거리 a = |ln(1 ± M/100)|.
+ * 드리프트 있는 브라운 운동의 최초 도달 확률 (반사원리):
+ *   P(τ_a ≤ T) = Φc((a − ν_eff·T)/(σ√T)) + e^{2·ν_eff·a/σ²} · Φc((a + ν_eff·T)/(σ√T))
+ * 방향은 ν_eff에만 들어간다: 상승 장벽은 ν_eff = −σ²/2 (마팅게일 드리프트가 불리),
+ * 하락 장벽은 ν_eff = +σ²/2 (유리) — 그래서 같은 M이라도 하락 카드의 p₀가 약간 크다.
+ * 종가만 관측하므로 장벽을 β·σ 이동(BGK 보정)해 이산 관측으로 근사한다.
+ *
+ * 정확도: 몬테카를로(일봉 GBM) 대비 오차 1%p 안팎 — simTouchIncentives.ts가 검증.
+ */
+export function noSkillTouchProbability(
+  direction: Direction,
+  magnitudePct: number,
+  assetClass: AssetClass,
+  horizonDays: number,
+  /** 종목별 실현 변동성으로 덮을 때 (후속 — 지금은 자산군 σ̄) */
+  sigmaDaily = DAILY_SIGMA[assetClass],
+): number {
+  if (magnitudePct <= 0) throw new Error(`예측 크기는 양수여야 합니다: ${magnitudePct}`);
+  const T = Math.max(1, horizonDays);
+  const ratio = magnitudePct / 100;
+  // 하락 카드의 로그 장벽 거리: |ln(1 − M/100)|. M ≥ 100%는 하락으로 불가능(게시 검증)
+  const a =
+    direction === 'UP' ? Math.log(1 + ratio) : Math.abs(Math.log(Math.max(1e-9, 1 - ratio)));
+  const aEff = a + BARRIER_SHIFT_BETA * sigmaDaily; // 이산 관측 보정
+  const nu = direction === 'UP' ? -0.5 * sigmaDaily * sigmaDaily : 0.5 * sigmaDaily * sigmaDaily;
+  const sqrtT = Math.sqrt(T);
+  const denom = sigmaDaily * sqrtT;
+  const p =
+    1 -
+    normalCdf((aEff - nu * T) / denom) +
+    Math.exp((2 * nu * aEff) / (sigmaDaily * sigmaDaily)) *
+      (1 - normalCdf((aEff + nu * T) / denom));
+  return Math.min(P0_MAX, Math.max(P0_MIN, p));
+}
+
+/**
+ * 정직한 신뢰도 — 자기 승산이 무정보의 몇 배인지.
+ * c → c+1 이득 조건 odds(p) ≥ (c+1)·odds(p₀)에서 바로 나온다:
+ *   c* = clamp(⌊odds(p)/odds(p₀)⌋, 1, 10)
+ * 화면(점수 계산기)이 "이 확신이면 신뢰도 몇이 정직한가"를 보여줄 때 쓴다.
+ */
+export function honestConfidence(pTrue: number, p0: number): number {
+  const odds = (x: number) => x / Math.max(1e-9, 1 - x);
+  const multiple = odds(pTrue) / Math.max(1e-9, odds(p0));
+  return Math.min(CONFIDENCE_RANGE.max, Math.max(CONFIDENCE_RANGE.min, Math.floor(multiple)));
+}
+
+export interface ReachScore {
+  /** 무정보 도달 확률 — 게시 사양(방향·크기·기간·자산군)만의 함수 */
+  p0: number;
+  /** 적중 시 +B·c·(1−p₀) / 실패 시 −B·c(c+1)/2·p₀ */
+  score: number;
+}
+
+/** v4 본체 — 공정배당 이항 점수 */
+export function computeReachScore(
+  direction: Direction,
+  magnitudePct: number,
+  confidence: number,
+  assetClass: AssetClass,
+  horizonDays: number,
+  hit: boolean,
+): ReachScore {
+  assertConfidence(confidence);
+  const p0 = noSkillTouchProbability(direction, magnitudePct, assetClass, horizonDays);
+  const stake = DIRECTION_SCALE * magnitudePct;
+  const score = hit
+    ? stake * winAmplifier(confidence) * (1 - p0)
+    : -stake * lossAmplifier(confidence) * p0;
+  return { p0, score };
+}
+
 // ── 마이너스 점수 규율 (자산군별 적용) ─────────────────────────────
 // 누적 점수가 깊은 마이너스로 갈수록 작성 가능한 최소 신뢰도가 올라간다.
-// v3에서는 무정보 예측의 방향 성분 기대값이 증폭 이전에 이미 음수라
-// 스팸의 래더 하강이 구조적으로 보장된다. 최하단은 강제 탈퇴 대신
-// 해당 자산군 신규 게시 정지(시즌 종료까지) — 진행 중 에스크로·판정은 정상 처리.
-// 점수가 회복되면 하한은 자동으로 완화된다 (현재 점수의 함수).
+// v4에서 무정보 EV는 c=1에서 0, c≥2부터 −B·p₀(1−p₀)·c(c−1)/2로 가속 음수 —
+// 래더가 c≥2를 강제하는 순간 스팸의 하강이 구조적으로 보장된다.
+// 최하단은 강제 탈퇴 대신 해당 자산군 신규 게시 정지(시즌 종료까지).
 
 export interface Discipline {
   /** 작성 가능한 최소 신뢰도 (1이면 제약 없음) */
@@ -99,13 +215,6 @@ export interface Discipline {
   publishSuspended: boolean;
 }
 
-/**
- * 규율 래더 — scoreBelow 이하일 때 적용.
- * 1단(−1,000)의 최소 신뢰도는 3→2로 완화 (2026-08-05, 점수 v3 반영):
- * v3에서 중간 실력자의 정직한 최적 c가 1~2로 내려와, 3을 강제하면 일시 부진한
- * 실력자가 자기 최적보다 높은 배팅을 강요받아 하강이 가속되는 부작용이 있었다.
- * 스팸(카드당 EV −31.6)은 c=2 강제만으로도 벌점 배율이 1→3배가 되어 여전히 가속 하강.
- */
 export const DISCIPLINE_LADDER: ReadonlyArray<{ scoreBelow: number } & Discipline> = [
   { scoreBelow: -10_000, minConfidence: 10, publishSuspended: true },
   { scoreBelow: -6_000, minConfidence: 7, publishSuspended: false },
@@ -127,82 +236,6 @@ function assertConfidence(confidence: number, label = '신뢰도'): void {
   if (confidence < CONFIDENCE_RANGE.min || confidence > CONFIDENCE_RANGE.max) {
     throw new Error(`${label}는 ${CONFIDENCE_RANGE.min}~${CONFIDENCE_RANGE.max}입니다: ${confidence}`);
   }
-}
-
-export interface DirectionScore {
-  /** 시장 기준선 대비 개선 거리 D (%p). 완벽 +|R̂| ~ 방향 반대 −|R̂| */
-  distance: number;
-  /** DIRECTION_SCALE × D × (D>0 ? c : c(c+1)/2) */
-  score: number;
-}
-
-/** 성분 ① 방향·크기 점수 */
-export function computeDirectionScore(
-  direction: Direction,
-  predictedMagnitudePct: number,
-  confidence: number,
-  realizedReturnPct: number,
-): DirectionScore {
-  if (predictedMagnitudePct <= 0) {
-    throw new Error(`예측 크기는 양수여야 합니다: ${predictedMagnitudePct}`);
-  }
-  assertConfidence(confidence);
-  const signedTarget =
-    direction === 'UP' ? predictedMagnitudePct : -predictedMagnitudePct;
-  const distance =
-    Math.abs(realizedReturnPct) - Math.abs(realizedReturnPct - signedTarget);
-  const score =
-    distance > 0
-      ? DIRECTION_SCALE * distance * winAmplifier(confidence)
-      : distance < 0
-        ? DIRECTION_SCALE * distance * lossAmplifier(confidence)
-        : 0;
-  return { distance, score };
-}
-
-// ── 안정성 상수 ────────────────────────────────────────────────────
-/** 정밀도 기본 점수 P₀ */
-export const STABILITY_BASE_SCORE = 50;
-/** 램프가 0이 되는 정규화 오차 T (2T에서 벌점 최대) */
-export const STABILITY_TOLERANCE = 0.75;
-/** 초과(예측 방향으로 더 간) 오차를 나누는 관대 계수 */
-export const STABILITY_OVERSHOOT_RELIEF = 1.5;
-
-export interface StabilityScore {
-  /** 관대 계수 반영 정규화 오차 ε (0 = 정확히 명중) */
-  normalizedError: number;
-  /** P₀·[(s−1)·q − (s−1)s/2·m], s=1은 불참 0 */
-  score: number;
-}
-
-/** 성분 ② 안정성 점수 — 연속 램프 정밀도 배팅 */
-export function computeStabilityScore(
-  direction: Direction,
-  predictedMagnitudePct: number,
-  stability: number,
-  realizedReturnPct: number,
-  /** 정규화 바닥(%p) — 자산군 크기 하한(MIN_MAGNITUDE_PCT)을 넘긴다 */
-  normalizationFloorPct: number,
-): StabilityScore {
-  if (predictedMagnitudePct <= 0) {
-    throw new Error(`예측 크기는 양수여야 합니다: ${predictedMagnitudePct}`);
-  }
-  assertConfidence(stability, '안정성');
-  const signedTarget =
-    direction === 'UP' ? predictedMagnitudePct : -predictedMagnitudePct;
-  const denom = Math.max(predictedMagnitudePct, normalizationFloorPct);
-  // δ > 0 = 예측 방향으로 초과, δ < 0 = 미달·역방향
-  const delta =
-    (Math.sign(signedTarget) * (realizedReturnPct - signedTarget)) / denom;
-  const normalizedError = delta >= 0 ? delta / STABILITY_OVERSHOOT_RELIEF : -delta;
-  if (stability <= 1) return { normalizedError, score: 0 }; // 불참
-  const stake = stability - 1;
-  const landQuality = Math.max(0, 1 - normalizedError / STABILITY_TOLERANCE);
-  const missDepth = Math.min(1, Math.max(0, normalizedError / STABILITY_TOLERANCE - 1));
-  const score =
-    STABILITY_BASE_SCORE *
-    (stake * landQuality - ((stake * stability) / 2) * missDepth);
-  return { normalizedError, score };
 }
 
 /** 목표가형 카드의 예측 크기(%) 환산: 기준가 대비 목표가 거리 */
@@ -234,58 +267,51 @@ export interface JudgedCardScoreInput {
   /** 예측 크기: RETURN_PCT는 등락률(%), TARGET_PRICE는 목표가 */
   targetValue: number;
   confidence: number;
-  /** 자기 평가 안정성 1~10 — 정밀도 배팅 (1 = 불참) */
+  /** @deprecated v4에서 점수 기여 없음 — 경로 안정성 배팅 재설계 전까지 무시된다 */
   stability: number;
-  /** 자산군 — 안정성 정규화 바닥 결정 */
+  /** 자산군 — 무정보 변동성 σ̄ 결정 */
   assetClass: AssetClass;
   /** 기준가 (소급 확정 후 값). 없으면 점수 0 */
   basePrice: number | null;
-  /** 판정 종가. 없으면 점수 0 */
+  /** 판정 종가 — 실현 등락 기록·표시용 (v4 점수는 적중 여부만 쓴다) */
   settledPrice: number | null | undefined;
+  /** 게시→검증 시한 일수 — p₀의 입력. 게시일이 없으면 호출자가 계산 불가 → 0점 처리 */
+  horizonDays: number | null;
   outcome: Outcome;
 }
 
 /**
  * 판정 결과 → 실현 등락률·점수 (§2.2). 판정 불가·데이터 결측은 0점(표본 제외).
- * 총점 = 방향·크기 점수 + 안정성 점수. 실현 0%는 무승부 — 모두 0점(표본 제외).
  * 배치·수동 판정이 카드별로 호출한다.
  */
 export function scoreJudgedCard(input: JudgedCardScoreInput): {
   realizedReturnPct: number | null;
   score: number;
-  /** 방향·크기 성분 (감사·화면 표시용) */
+  /** 방향·크기 성분 = v4 총점 (감사·화면 표시용) */
   directionScore: number;
-  /** 안정성 성분 (감사·화면 표시용) */
+  /** @deprecated v4에서 항상 0 — 경로 안정성 배팅 재설계 전까지 */
   stabilityScore: number;
 } {
-  if (input.outcome === 'UNDECIDABLE' || input.settledPrice == null || !input.basePrice) {
+  if (
+    input.outcome === 'UNDECIDABLE' ||
+    input.settledPrice == null ||
+    !input.basePrice ||
+    input.horizonDays == null
+  ) {
     return { realizedReturnPct: null, score: 0, directionScore: 0, stabilityScore: 0 };
   }
   const realizedReturnPct = ((input.settledPrice - input.basePrice) / input.basePrice) * 100;
-  if (realizedReturnPct === 0) {
-    return { realizedReturnPct, score: 0, directionScore: 0, stabilityScore: 0 };
-  }
   const predictedMagnitudePct =
     input.targetType === 'RETURN_PCT'
       ? input.targetValue
       : targetPriceToMagnitudePct(input.targetValue, input.basePrice);
-  const { score: directionScore } = computeDirectionScore(
+  const { score } = computeReachScore(
     input.direction,
     predictedMagnitudePct,
     input.confidence,
-    realizedReturnPct,
+    input.assetClass,
+    input.horizonDays,
+    input.outcome === 'HIT',
   );
-  const { score: stabilityScore } = computeStabilityScore(
-    input.direction,
-    predictedMagnitudePct,
-    input.stability,
-    realizedReturnPct,
-    MIN_MAGNITUDE_PCT[input.assetClass],
-  );
-  return {
-    realizedReturnPct,
-    score: directionScore + stabilityScore,
-    directionScore,
-    stabilityScore,
-  };
+  return { realizedReturnPct, score, directionScore: score, stabilityScore: 0 };
 }

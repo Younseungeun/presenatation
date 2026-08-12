@@ -199,6 +199,9 @@ export async function manualJudgeCard(
     assetClass: card.assetClass as AssetClass,
     basePrice: resolvedBasePrice ?? card.basePrice,
     settledPrice: result.settledPrice,
+    horizonDays: card.report.publishedAt
+      ? (card.deadline.getTime() - card.report.publishedAt.getTime()) / 86_400_000
+      : null,
     outcome: result.outcome,
   });
 

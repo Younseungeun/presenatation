@@ -83,9 +83,9 @@ describe('시즌 경계 계산', () => {
 
 describe('recalcSeasonTiers — 직전 시즌 점수로 전면 재평가', () => {
   it('승급·강등·유지를 한 번에 처리하고 TierHistory에 기록', async () => {
-    const promoteId = await seedResearcher('p@t.io', 'BRONZE', 700); // 시니어(300+) 승급
-    const demoteId = await seedResearcher('d@t.io', 'GOLD', 200); // 점수 미달 → 무표기 강등
-    const keepId = await seedResearcher('k@t.io', 'BRONZE', 100); // 유지
+    const promoteId = await seedResearcher('p@t.io', 'BRONZE', 7_000); // 시니어(3,500+) 승급
+    const demoteId = await seedResearcher('d@t.io', 'GOLD', 2_000); // 점수 미달 → 무표기 강등
+    const keepId = await seedResearcher('k@t.io', 'BRONZE', 1_000); // 유지
     const idleId = await seedResearcher('i@t.io', 'PLATINUM', null); // 활동 없음 → 강등
 
     const summary = await recalcSeasonTiers(prisma, RECALC_AT);

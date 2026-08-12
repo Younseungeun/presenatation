@@ -100,6 +100,10 @@ export async function runReachedJudgmentBatch(
         assetClass: card.assetClass as AssetClass,
         basePrice,
         settledPrice: result.settledPrice,
+        // **원래 시한** 기준 기간 — p₀는 게시된 사양의 함수라 도달 시점과 무관해야
+        // 도달 판정과 기한 판정의 점수가 같다 (오늘로 자르면 일찍 닿을수록 점수가 달라진다)
+        horizonDays:
+          (card.deadline.getTime() - card.report.publishedAt!.getTime()) / 86_400_000,
         outcome: result.outcome,
       });
 

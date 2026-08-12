@@ -10,16 +10,16 @@ describe('evaluateTier — 등급은 전적으로 점수로 산정 (경쟁적 �
     expect(evaluateTier(-500)).toBe('BRONZE');
   });
 
-  it('임계값 도달 시 승급 (v3 재캘리브레이션: 시니어 300 / 마스터 900 / 펠로우 2,400)', () => {
-    expect(evaluateTier(299)).toBe('BRONZE');
-    expect(evaluateTier(300)).toBe('SILVER');
-    expect(evaluateTier(900)).toBe('GOLD');
-    expect(evaluateTier(2_400)).toBe('PLATINUM');
+  it('임계값 도달 시 승급 (v4 재캘리브레이션: 시니어 3,500 / 마스터 14,500 / 펠로우 23,000)', () => {
+    expect(evaluateTier(3_499)).toBe('BRONZE');
+    expect(evaluateTier(3_500)).toBe('SILVER');
+    expect(evaluateTier(14_500)).toBe('GOLD');
+    expect(evaluateTier(23_000)).toBe('PLATINUM');
   });
 
   it('시즌 재산정에서 점수가 낮아지면 강등 (같은 함수로 재평가)', () => {
-    // 펠로우이던 리서처가 마이너스 점수를 쌓아 총점 500으로 하락 → 시니어
-    expect(evaluateTier(500)).toBe('SILVER');
+    // 펠로우이던 리서처가 점수를 잃어 총점 5,000으로 하락 → 시니어
+    expect(evaluateTier(5_000)).toBe('SILVER');
   });
 
   it('임계값은 주입 가능 (시뮬레이션으로 확정 예정)', () => {
@@ -29,13 +29,13 @@ describe('evaluateTier — 등급은 전적으로 점수로 산정 (경쟁적 �
 
 describe('evaluateTierAcrossAssetClasses — 자산군별 분리 집계 (확정 규칙)', () => {
   it('등급은 자산군별 점수 중 최고값으로 결정 (합산하지 않음)', () => {
-    // 합산이면 2,500(펠로우 2,400+)이지만, 분리 원칙상 최고값 2,000(마스터)으로 판정
+    // 합산이면 25,000(펠로우 23,000+)이지만, 분리 원칙상 최고값 20,000(마스터)으로 판정
     expect(
-      evaluateTierAcrossAssetClasses({ KR_EQUITY: 2_000, CRYPTO: 500 }),
+      evaluateTierAcrossAssetClasses({ KR_EQUITY: 20_000, CRYPTO: 5_000 }),
     ).toBe('GOLD');
     // 코인 점수가 마이너스여도 주식 점수를 깎지 않는다
     expect(
-      evaluateTierAcrossAssetClasses({ KR_EQUITY: 600, CRYPTO: -2_000 }),
+      evaluateTierAcrossAssetClasses({ KR_EQUITY: 6_000, CRYPTO: -20_000 }),
     ).toBe('SILVER');
   });
 

@@ -72,6 +72,9 @@ export async function judgeAndSettleDueCards(
         assetClass: card.assetClass as AssetClass,
         basePrice,
         settledPrice: result.settledPrice,
+        // p₀(무정보 도달 확률)의 입력 — 게시된 사양(게시→시한)의 기간
+        horizonDays:
+          (card.deadline.getTime() - card.report.publishedAt!.getTime()) / 86_400_000,
         outcome: result.outcome,
       });
 
