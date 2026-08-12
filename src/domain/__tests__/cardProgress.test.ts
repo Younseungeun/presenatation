@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { computeCardProgress, fillPercent, timeGaugeStep } from '../cardProgress';
+import {
+  adverseFillPercent,
+  computeCardProgress,
+  fillPercent,
+  timeGaugeStep,
+} from '../cardProgress';
 
 // 진행 계산 — 화면이 "잘 되고 있나"에 답하는 근거다.
 // 방향 분기를 두지 않는 것이 설계의 핵심이라, 상승·하락이 같은 식으로 맞는지 못 박는다.
@@ -144,5 +149,32 @@ describe('timeGaugeStep', () => {
   it('범위를 벗어난 값도 1~4에 갇힌다', () => {
     expect(timeGaugeStep(-3)).toBe(1);
     expect(timeGaugeStep(9)).toBe(4);
+  });
+});
+
+// ── 역방향 막대 (2026-08-12) ─────────────────────────────────────────
+// 역방향이면 막대를 아예 안 그리던 시절에는 "아직 아무 일 없음"과 "크게 어긋나는 중"이
+// 똑같이 빈 막대였다. 이제 같은 궤도를 붉은색으로 채우고, 100%가 곧 판매 마감선이다.
+
+describe('adverseFillPercent — 반대로 간 거리', () => {
+  it('정방향·미상은 0 (그쪽은 fillPercent가 맡는다)', () => {
+    expect(adverseFillPercent(null)).toBe(0);
+    expect(adverseFillPercent(0)).toBe(0);
+    expect(adverseFillPercent(0.4)).toBe(0);
+  });
+
+  it('달성률이 음수면 그 크기만큼 채운다', () => {
+    expect(adverseFillPercent(-0.3)).toBeCloseTo(30, 10);
+    expect(adverseFillPercent(-1)).toBe(100);
+  });
+
+  it('마감선을 넘어도 100%에서 멈춘다 — 막대는 궤도를 넘지 않는다', () => {
+    expect(adverseFillPercent(-2.5)).toBe(100);
+  });
+
+  it('두 막대는 동시에 차지 않는다 — 한 궤도에 한 가지 뜻만 담긴다', () => {
+    for (const a of [-1.5, -0.5, 0, 0.5, 1.5]) {
+      expect(Math.min(fillPercent(a), adverseFillPercent(a))).toBe(0);
+    }
   });
 });

@@ -6,6 +6,7 @@ import {
   PROFITABILITY_LABEL,
   type ProfitabilityLevel,
 } from '@/domain/profitability';
+import { compositeStars } from '@/domain/ratingStars';
 import { isSalesWindowOpen, salesWindowEnd } from '@/domain/salesWindow';
 import { cardStabilityLevel, type StabilityLevel } from '@/domain/stability';
 
@@ -274,40 +275,13 @@ export const MARKET_SORT_LABEL: Record<MarketSort, string> = {
 };
 
 /**
- * 별점 평균의 가중치 — 점수 산정 기여만큼 준다 ("별점 높은 순"이 곧
- * "점수를 크게 움직이는 확신 순"이 되도록).
- *
- * 유도 (점수 v4: 적중 +B·M·c·(1−p₀) / 실패 −B·M·c(c+1)/2·p₀, scoring.ts):
- * "별 한 칸이 점수 크기를 몇 배 움직이나"(칸당 로그 기울기)를 두 축에서 잰다.
- *   · 수익성: 점수 ∝ M. 별 1→5의 대표 M(구간 기하 중점)이 1.22×F → 6.32×F이니
- *     칸당 ln(6.32/1.22)/4 = 0.41
- *   · 신뢰도: 별은 함의 승률 스케일 5c/(c+1)이라 c 1→10이 별 2.5→4.55 (2.05칸).
- *     증폭은 승·패가 달라(c vs c(c+1)/2) 두 쪽 평균으로: (ln10 + ln55)/2 / 2.05 = 1.54
- * 무게 = 기울기 비율 → 신뢰도 0.79 / 수익성 0.21. 신뢰도가 무거운 게 맞다 —
- * 같은 별 한 칸이라도 신뢰도 쪽이 점수(특히 실패 벌점)를 훨씬 크게 움직인다.
- *
- * 안정성은 여기 없다: 점수 기여 0이므로 무게도 0 (종목 변동성 표시 전용 — stability.ts).
- */
-export const RATING_WEIGHT = { profitability: 0.21, confidence: 0.79 } as const;
-
-/**
- * 별점 평균 (0~5) — 수익성·신뢰도 별을 점수 기여 가중으로 합친다.
- * 별 스케일은 카드 표시와 같다 (수익성 = 5구간 정수, 신뢰도 = 함의 승률 5c/(c+1)).
+ * 별점 평균 (0~5) — 수익성·신뢰도를 점수 기여 가중으로 합친 값.
+ * **순위표에 뜨는 확신 종합 별점과 같은 함수를 쓴다** (domain/ratingStars.ts) —
+ * 정렬과 표시가 갈라지면 "별점 높은 순"인데 별이 적은 카드가 위에 오게 된다.
  * 값이 하나도 없으면 -1로 맨 뒤에 둔다 — 0으로 두면 "별 0개"인 카드와 섞인다.
- * 한쪽만 있으면 그 별만으로 (가중 평균의 분모도 그 무게만).
  */
 export function ratingAverage(c: MarketCard): number {
-  const parts: Array<{ stars: number; weight: number }> = [];
-  if (c.profitability !== null) {
-    parts.push({ stars: c.profitability, weight: RATING_WEIGHT.profitability });
-  }
-  if (c.confidence !== null) {
-    // 카드의 신뢰도 별과 같은 스케일 (StarRating.confidenceStars)
-    parts.push({ stars: (5 * c.confidence) / (c.confidence + 1), weight: RATING_WEIGHT.confidence });
-  }
-  if (parts.length === 0) return -1;
-  const weightSum = parts.reduce((a, p) => a + p.weight, 0);
-  return parts.reduce((a, p) => a + p.stars * p.weight, 0) / weightSum;
+  return compositeStars({ profitability: c.profitability, confidence: c.confidence }) ?? -1;
 }
 
 /**

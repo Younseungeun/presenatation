@@ -108,6 +108,8 @@ export default async function ReportDetail({
           magnitudePct,
           card.assetClass as AssetClass,
           horizonDays,
+          // 채점과 같은 σ를 쓴다 — 각주가 말하는 문턱이 실제 배당과 어긋나면 안 된다
+          card.sigmaDaily,
         );
         const odds0 = p0 / (1 - p0);
         const minOdds = card.confidence * odds0;
@@ -185,12 +187,9 @@ export default async function ReportDetail({
           {new Date(card.deadline).toLocaleString("ko-KR")}
         </span>
       </div>
-      <div className={styles.cardRow}>
-        <span className={styles.cardKey}>신뢰도</span>
-        <span className={styles.cardVal}>
-          <StarRating stars={confidenceStars(card.confidence)} label="신뢰도" />
-        </span>
-      </div>
+      {/* 별 세 줄의 **순서는 카드(MaskedCard.RATINGS)와 같아야 한다** — 목록에서 보던
+          카드를 눌러 들어온 화면이라, 같은 값이 다른 자리에 있으면 값이 바뀐 것으로
+          읽힌다. 실제로 그렇게 보여서 순서를 맞췄다 (2026-08-12) */}
       <div className={styles.cardRow}>
         <span className={styles.cardKey}>수익성</span>
         <span className={styles.cardVal}>
@@ -212,6 +211,12 @@ export default async function ReportDetail({
           ) : (
             <StarRating stars={stabilityStars} label="안정성" />
           )}
+        </span>
+      </div>
+      <div className={styles.cardRow}>
+        <span className={styles.cardKey}>신뢰도</span>
+        <span className={styles.cardVal}>
+          <StarRating stars={confidenceStars(card.confidence)} label="신뢰도" />
         </span>
       </div>
       {/* 별점 읽는 법 — 구매자의 알 권리 (점수 v4 기준).

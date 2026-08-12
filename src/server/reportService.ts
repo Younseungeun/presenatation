@@ -21,7 +21,7 @@ import { toCardDraft } from './cardMapper';
 import { operatorVerdictWrites, screenAndRecord } from './complianceService';
 import { buildNewCardNotificationWrites } from './followService';
 import { validateListedInstrument } from './instrumentService';
-import { fetchRealizedSigma } from './realizedVolatility';
+import { getInstrumentSigma } from './instrumentSigma';
 import { researcherSeasonScores } from './scoreService';
 
 // 리포트 생명주기: DRAFT → PUBLISHED → (철회 시) CLOSED
@@ -261,9 +261,18 @@ async function finalizePublish(
   const basePrice =
     plan.baseMode === 'FIXED_AT_PUBLISH' ? await fetchBasePrice(registry, cardDraft, now) : null;
 
-  // 안정성 별점의 원천 — 종목의 최근 실현 변동성을 게시 시점에 재서 고정한다.
-  // 실패해도 게시는 진행된다(null → 별점 "—"): 별점은 부가 정보, 기준가는 판정의 전제
-  const sigmaDaily = await fetchRealizedSigma(registry, cardDraft.assetClass, cardDraft.ticker, now);
+  // 종목 실현 변동성을 게시 시점에 재서 카드에 고정한다 — **두 곳이 이 값을 읽는다**:
+  // 안정성 별점(stability.ts)과 무정보 도달 확률 p₀(scoring.ts).
+  // 캐시(하루)를 쓰는 이유: 리서처가 작성 화면에서 본 σ와 게시된 카드의 σ가 같아야
+  // 그때 본 배당표가 그대로 유효하다. 실패해도 게시는 진행된다(null → 별점 "—",
+  // p₀는 자산군 σ̄ 폴백) — 별점은 부가 정보, 기준가는 판정의 전제라 취급이 다르다
+  const sigmaDaily = await getInstrumentSigma(
+    prisma,
+    registry,
+    cardDraft.assetClass,
+    cardDraft.ticker,
+    now,
+  );
 
   // 마이너스 규율(§2.2) 입력: 해당 자산군의 현재 시즌 누적 점수
   const seasonScores = await researcherSeasonScores(prisma, report.researcherId, now);

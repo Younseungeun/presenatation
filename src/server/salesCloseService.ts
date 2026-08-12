@@ -1,9 +1,19 @@
 import type { PrismaClient } from '@prisma/client';
+import type { AssetClass, Direction } from '@/domain/constants';
 import {
+  resolveProvider,
+  toMarketDateString,
+  type ProviderRegistry,
+} from '@/domain/marketData';
+import {
+  adverseMoveFraction,
+  closesOnAdverseMove,
   isSalesWindowOpen,
   salesWindowEnd,
   type SalesCloseReason,
 } from '@/domain/salesWindow';
+import { targetPriceToMagnitudePct } from '@/domain/scoring';
+import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
 
 // 판매 마감 배치 — 하루 1회 이상 (npm run batch:salesclose).
 //
@@ -27,7 +37,23 @@ const CLOSE_NOTICE: Record<SalesCloseReason, string> = {
     '판매 기간(검증 기간의 1/3, 최대 30일)이 끝나 판매가 마감되었습니다. 카드는 그대로 검증되어 판정됩니다.',
   RESEARCHER:
     '요청하신 대로 판매를 마감했습니다. 다시 열 수 없습니다. 카드는 그대로 검증되어 판정되고, 기존 구매자의 환불 조건도 변하지 않습니다.',
+  ADVERSE_MOVE:
+    '일봉 종가가 기준가에서 목표 폭만큼 반대로 움직여 판매가 마감되었습니다. 카드는 그대로 검증되어 시한에 판정되며, 시세가 돌아와도 판매는 다시 열리지 않습니다.',
 };
+
+/** 역방향 마감 판정에 쓸 최신 종가를 구한다 — 없으면 null (그 카드는 이번 회차 건너뜀) */
+async function latestClose(
+  quotes: ProviderRegistry,
+  assetClass: AssetClass,
+  ticker: string,
+  now: Date,
+): Promise<number | null> {
+  const to = toMarketDateString(now, assetClass);
+  // 연휴·거래정지로 최근 며칠이 비어 있을 수 있어 넉넉히 열흘을 본다
+  const from = toMarketDateString(new Date(now.getTime() - 10 * 86_400_000), assetClass);
+  const rows = await resolveProvider(quotes, assetClass).getDailyQuotes(ticker, from, to);
+  return rows.length > 0 ? rows[rows.length - 1].close : null;
+}
 
 export interface SalesCloseResult {
   checked: number;
@@ -37,6 +63,11 @@ export interface SalesCloseResult {
 export async function runSalesCloseBatch(
   prisma: PrismaClient,
   now = new Date(),
+  /**
+   * 시세 공급자 — 주면 역방향 마감(ADVERSE_MOVE)까지 집행한다.
+   * 없으면 시간 규칙만 (시세 없이도 돌 수 있어야 하는 자리라 선택 인자다).
+   */
+  registry?: ProviderRegistry,
 ): Promise<SalesCloseResult> {
   const candidates = await prisma.report.findMany({
     where: {
@@ -48,16 +79,59 @@ export async function runSalesCloseBatch(
       id: true,
       publishedAt: true,
       researcher: { select: { userId: true } },
-      predictionCard: { select: { deadline: true } },
+      predictionCard: {
+        select: {
+          deadline: true,
+          assetClass: true,
+          ticker: true,
+          direction: true,
+          targetType: true,
+          targetValue: true,
+          basePrice: true,
+        },
+      },
     },
   });
 
   const result: SalesCloseResult = { checked: candidates.length, closed: [] };
+  // 종목 단위 캐시 — 같은 종목 카드가 몇 장이든 시세 호출은 한 번
+  const quotes = registry ? memoizeRegistry(registry) : null;
 
   for (const r of candidates) {
-    if (r.publishedAt && now >= salesWindowEnd(r.publishedAt, r.predictionCard!.deadline)) {
+    const card = r.predictionCard!;
+    if (r.publishedAt && now >= salesWindowEnd(r.publishedAt, card.deadline)) {
       await closeSales(prisma, r.id, r.researcher.userId, 'WINDOW_END', now);
       result.closed.push({ reportId: r.id, reason: 'WINDOW_END' });
+      continue;
+    }
+
+    // ── 역방향 마감 — **일봉 종가로만 판정한다.**
+    // 이 마감은 불가역이라 장중 시세로 판정하면 순간 꼬리(wick) 한 번으로 남의 판매를
+    // 영구히 죽일 수 있다. 적중 판정이 종가만 보는 것과 같은 이유다.
+    if (!quotes || card.basePrice == null || card.basePrice <= 0) continue;
+    const magnitudePct =
+      card.targetType === 'RETURN_PCT'
+        ? card.targetValue
+        : targetPriceToMagnitudePct(card.targetValue, card.basePrice);
+    if (magnitudePct <= 0) continue;
+
+    try {
+      const close = await latestClose(quotes, card.assetClass as AssetClass, card.ticker, now);
+      if (close === null || close <= 0) continue;
+      const adverse = adverseMoveFraction(
+        card.direction as Direction,
+        card.basePrice,
+        close,
+        magnitudePct,
+      );
+      if (closesOnAdverseMove(adverse)) {
+        await closeSales(prisma, r.id, r.researcher.userId, 'ADVERSE_MOVE', now);
+        result.closed.push({ reportId: r.id, reason: 'ADVERSE_MOVE' });
+      }
+    } catch {
+      // 시세 장애로 마감을 **지어내지 않는다** — 다음 회차에 다시 본다.
+      // (불가역 처분이라 불확실할 때 실행하지 않는 쪽이 안전하다)
+      continue;
     }
   }
 

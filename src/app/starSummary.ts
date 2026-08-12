@@ -1,23 +1,23 @@
-import { confidenceStars } from "./StarRating";
+import { compositeStars } from "@/domain/ratingStars";
+import type { ProfitabilityLevel } from "@/domain/profitability";
 
 // 확신 종합 별점 — 얇은 순위표(BestSellers)용 별 5개 하나.
 //
-// 점수 모델 v4(공정배당 이항, scoring.ts)에서 점수에 기여하는 자기 신고 다이얼은
-// **신뢰도 하나뿐이다** — 안정성은 도달 판정에서 측정 대상(착지 정밀도)이 사라져
-// 점수 기여가 제거됐다("경로 안정성" 배팅으로 재설계 전까지).
-// 그래서 종합 별점 = 신뢰도 별점이다. 별도 가중 평균을 만들면 점수에 기여하지 않는
-// 값이 "확신"으로 표시되는 거짓말이 된다.
+// 카드처럼 별 세 줄을 늘어놓을 자리가 없는 행에서, 확신을 숫자 하나로 접는다.
+// 접는 방식은 **점수 기여 가중**이다 (domain/ratingStars.ts):
+//   수익성(맞으면 얼마나 버나) 0.21 + 신뢰도(얼마나 맞을 것 같나) 0.79.
+// 안정성은 들어가지 않는다 — 점수 기여가 0이라 무게도 0이고, 애초에 이 별은
+// 리서처가 건 확신을 요약하는 자리다 (안정성은 종목의 성질이지 리서처의 주장이 아니다).
 //
-// **수식을 옮겨 적지 않고 표시 스케일을 StarRating과 공유한다** (점수 계산기와 같은
-// 원칙: 같은 값이 화면마다 다른 별 개수로 보이면 어느 쪽이 맞는지 사용자가 판단해야 한다).
+// **수식을 옮겨 적지 않는다** — 목록 정렬(marketQueries.ratingAverage)과 같은 함수를
+// 부른다. 같은 카드가 순위표에서는 별 4.2개, 정렬에서는 4.5개로 취급되면 어느 쪽이
+// 맞는지 사용자가 판단해야 한다.
 
 export function convictionStars(
   assetClass: string | null,
   confidence: number | null,
-  /** @deprecated v4에서 점수 기여 없음 — 호출부 정리 전까지 인자만 유지 */
-  _stability?: number | null,
+  profitability: ProfitabilityLevel | null = null,
 ): number | null {
-  void _stability;
-  if (!assetClass || confidence === null) return null;
-  return confidenceStars(confidence);
+  if (!assetClass) return null;
+  return compositeStars({ profitability, confidence });
 }

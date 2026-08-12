@@ -13,6 +13,7 @@ import { salesWindowEnd } from "@/domain/salesWindow";
 import { MIN_MAGNITUDE_PCT } from "@/domain/scoring";
 import { ScoreCalculatorEntry } from "../../../score/ScoreCalculatorEntry";
 import { noSkillTouchProbability } from "@/domain/scoring";
+import { cardStabilityLevel } from "@/domain/stability";
 import { confidenceStars, StarRating } from "../../../StarRating";
 import styles from "../../researcher.module.css";
 import { ComplianceHints } from "./ComplianceHints";
@@ -78,6 +79,26 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 고른 종목의 실현 변동성 — p₀(정직 신뢰도의 기준)와 안정성 별점이 함께 쓰는 값.
+  // 종목을 고르는 순간 부른다: 어떤 종목을 고르느냐가 배당을 바꾼다는 사실을
+  // 고른 자리에서 바로 보여줘야 "거친 종목으로 hit만 노리는" 선택이 왜 손해인지 읽힌다
+  const [sigmaDaily, setSigmaDaily] = useState<number | null>(null);
+  const [sigmaLoading, setSigmaLoading] = useState(false);
+
+  async function loadSigma(ac: AssetClass, ticker: string) {
+    setSigmaLoading(true);
+    try {
+      const res = await fetch(
+        `/api/instruments/sigma?${new URLSearchParams({ assetClass: ac, ticker })}`,
+      );
+      setSigmaDaily(res.ok ? ((await res.json()).sigmaDaily ?? null) : null);
+    } catch {
+      setSigmaDaily(null);
+    } finally {
+      setSigmaLoading(false);
+    }
+  }
+
   const shortOnly = direction === "DOWN";
 
   function runSearch(rawQuery: string, ac: AssetClass, shortOnlyFlag: boolean) {
@@ -115,11 +136,13 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
     setSelected(hit);
     setQuery(`${hit.name} (${hit.ticker})`);
     setHits([]);
+    void loadSigma(assetClass, hit.ticker);
   }
   function clearSelection() {
     setSelected(null);
     setQuery("");
     setHits([]);
+    setSigmaDaily(null);
   }
   function setAssetClass(next: AssetClass) {
     setAssetClassState(next);
@@ -132,6 +155,9 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
     if (nextShortOnly && selected && !selected.shortable) clearSelection();
     else if (!selected && query.trim()) runSearch(query, assetClass, nextShortOnly);
   }
+
+  // 고른 종목이 받게 될 안정성 별 — 게시 후 카드에 그대로 붙는다
+  const stabilityPreview = cardStabilityLevel(sigmaDaily);
 
   // 선택한 종목이 게시 보류를 유발하는지 (도메인 규칙 그대로 — 서버 판정과 어긋나지 않게)
   const selectedRiskReasons = selected
@@ -432,6 +458,9 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
               m,
               assetClass,
               h,
+              // **고른 종목의 실제 변동성**으로 잰다 — 자산군 평균으로 재면 거친 종목이
+              // 실제보다 어려운 사양으로 계산돼, 변동성만으로 hit을 노리는 길이 열린다
+              sigmaDaily,
             );
             return (
               <span className={styles.hint}>
@@ -439,6 +468,17 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
                 적중 보상은 이 공짜 몫을 뺀 나머지({Math.round((1 - p0) * 100)}%)에
                 비례합니다. 신뢰도 {toNumber(confidence)}이 남는 신고가 되려면 자기 승산이
                 무정보의 {toNumber(confidence)}배여야 합니다
+                {sigmaDaily !== null ? (
+                  <>
+                    {" "}
+                    (이 종목의 최근 변동성 하루 {(sigmaDaily * 100).toFixed(1)}% 기준 —
+                    출렁이는 종목일수록 그냥 닿을 확률이 커서 적중 보상이 줄어듭니다)
+                  </>
+                ) : sigmaLoading ? (
+                  <> (종목 변동성 측정 중…)</>
+                ) : (
+                  <> (종목 변동성을 아직 못 재 자산군 평균으로 계산했습니다)</>
+                )}
               </span>
             );
           })()}
@@ -455,10 +495,27 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             );
           })()}
         </div>
-        {/* 안정성 다이얼은 점수 v4에서 제거됐다 (2026-08-12) — 도달 판정에서 측정
-            대상(착지 정밀도)이 사라져 점수에 기여하지 않는 값이 됐다. 점수 무관한
-            자기 신고를 받으면 공짜 마케팅 칸이 된다. "경로 안정성"(드로다운) 배팅으로
-            재설계되면 그때 다른 뜻으로 돌아온다 */}
+        {/* 안정성은 자기 신고 다이얼이 아니라 **종목 변동성으로 시스템이 매긴다** —
+            리서처는 고르는 것이지 신고하는 것이 아니다. 그래서 입력칸 대신
+            "고른 종목이 받게 될 별"을 미리 보여준다 */}
+        {selected && (
+          <div className={styles.field}>
+            <label className={styles.label}>안정성 (자동 산정)</label>
+            {stabilityPreview === null ? (
+              <span className={styles.hint}>
+                {sigmaLoading
+                  ? "종목 변동성 측정 중…"
+                  : "이 종목은 최근 변동성을 재지 못해 별점이 표시되지 않습니다 (상장 초기 등)"}
+              </span>
+            ) : (
+              <span className={styles.hint}>
+                <StarRating stars={stabilityPreview} label="안정성" /> — 최근 60거래일
+                실현 변동성(하루 {(sigmaDaily! * 100).toFixed(1)}%) 기준입니다. 점수에는
+                반영되지 않고, 같은 값이 위 도달 확률 계산에 쓰입니다
+              </span>
+            )}
+          </div>
+        )}
         {/* 수익성은 예측 수익률에서 자동 산출된다 — 입력 항목이 아니다 */}
       </div>
 

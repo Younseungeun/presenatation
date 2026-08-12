@@ -98,6 +98,7 @@ export async function runReachedJudgmentBatch(
         confidence: card.confidence,
         stability: card.selfStability,
         assetClass: card.assetClass as AssetClass,
+        sigmaDaily: card.sigmaDaily,
         basePrice,
         settledPrice: result.settledPrice,
         // **원래 시한** 기준 기간 — p₀는 게시된 사양의 함수라 도달 시점과 무관해야

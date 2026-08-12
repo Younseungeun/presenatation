@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { computeCardProgress, fillPercent } from "@/domain/cardProgress";
+import { adverseFillPercent, computeCardProgress, fillPercent } from "@/domain/cardProgress";
 import { ASSET_CLASS_LABEL, type AssetClass, type Direction } from "@/domain/constants";
 import type { OwnedCardView } from "@/server/ownedCardViews";
 import { VerifiedBadge } from "./brand/VerifiedBadge";
@@ -70,6 +70,14 @@ export function OwnedCard({
   // 채워진 막대가 화면마다 다른 것을 뜻하면 막대를 읽을 때마다 무엇의 진행인지
   // 되물어야 한다 (시간은 우측 상단 눈금이 항상 센다)
   const fill = hasPrice ? fillPercent(p.achievement) : 0;
+  // 역방향도 같은 궤도를 채운다 — 붉은색으로. 안 그리면 "아직 아무 일 없음"과
+  // "크게 어긋나는 중"이 똑같이 빈 막대라, 나쁜 소식만 안 보이는 화면이 된다
+  const adverseFill = hasPrice ? adverseFillPercent(p.achievement) : 0;
+  const adverse = adverseFill > 0;
+  // **막대 색은 방향이 아니라 결과를 말한다** — 초록 = 목표 쪽, 빨강 = 반대 쪽.
+  // 카드의 ▲▼·목표가는 예측 방향(tone)을 그대로 쓰지만, 막대가 답하는 질문은
+  // "내 예측 잘 되고 있나?"라 하락 예측이 잘 가는 중이면 초록이어야 맞다
+  const barTone = adverse ? "var(--neg)" : "var(--pos)";
 
   return (
     <Link
@@ -119,16 +127,18 @@ export function OwnedCard({
           구별되지 않지만 색까지 함께 움직이면 곁눈질로도 잡힌다.
           15% → 45% → 100%로 세 단(중간 단이 없으면 대부분 구간이 흐릿한 채 지난다) */}
       <span className={styles.bar}>
-        {/* 채울 것이 없으면 그리지 않는다 — min-width가 만든 3px 조각은 "조금 왔다"로 읽힌다 */}
-        {fill > 0 && (
+        {/* 채울 것이 없으면 그리지 않는다 — min-width가 만든 3px 조각은 "조금 왔다"로 읽힌다.
+            정방향·역방향은 같은 궤도를 쓰되 색이 다르다. 역방향 막대가 끝까지 차는
+            지점이 곧 판매 영구 마감선이다(반대로 목표 폭만큼) */}
+        {(adverse ? adverseFill : fill) > 0 && (
         <span
           className={styles.barFill}
           style={{
-            width: `${fill}%`,
+            width: `${adverse ? adverseFill : fill}%`,
             background: `linear-gradient(90deg,
-              color-mix(in srgb, ${tone} 15%, transparent) 0%,
-              color-mix(in srgb, ${tone} 45%, transparent) 42%,
-              ${tone} 100%)`,
+              color-mix(in srgb, ${barTone} 15%, transparent) 0%,
+              color-mix(in srgb, ${barTone} 45%, transparent) 42%,
+              ${barTone} 100%)`,
           }}
         />
         )}
@@ -145,14 +155,14 @@ export function OwnedCard({
                 이제 둘 다 달성률이다.
                 역방향은 "−n%"가 아니라 상태로 말한다: 출발선 뒤에서 숫자를 적으면
                 커질수록 가까워 보이는 오독이 생긴다 */}
-            <span
-              className={styles.readoutMain}
-              style={{ color: p.achievement! < 0 ? "var(--text-weak)" : tone }}
-            >
+            {/* 역방향도 **숫자로** 말한다 — "아직 반대 방향"만으로는 살짝 빠진 것과
+                거의 마감선에 닿은 것이 같은 문장이 된다. 기준은 막대와 같은 눈금
+                (반대쪽 100% = 목표 폭만큼 어긋남 = 판매 마감선) */}
+            <span className={styles.readoutMain} style={{ color: barTone }}>
               {p.reachedTarget
                 ? "목표 도달"
-                : p.achievement! < 0
-                  ? "아직 반대 방향"
+                : adverse
+                  ? `목표 반대쪽으로 ${Math.round(adverseFill)}%`
                   : `목표까지 ${Math.round(p.achievement! * 100)}% 달성`}
             </span>
             {/* 시간 경과는 여기서 뺐다 — 우측 상단 눈금이 세므로 두 번 적을 이유가 없다 */}

@@ -197,6 +197,7 @@ export async function manualJudgeCard(
     confidence: card.confidence,
     stability: card.selfStability,
     assetClass: card.assetClass as AssetClass,
+    sigmaDaily: card.sigmaDaily,
     basePrice: resolvedBasePrice ?? card.basePrice,
     settledPrice: result.settledPrice,
     horizonDays: card.report.publishedAt

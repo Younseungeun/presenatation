@@ -70,6 +70,8 @@ export async function judgeAndSettleDueCards(
         confidence: card.confidence,
         stability: card.selfStability,
         assetClass: card.assetClass as AssetClass,
+        // 게시 시점에 잰 종목 변동성 — p₀의 입력 (없으면 자산군 σ̄로 폴백)
+        sigmaDaily: card.sigmaDaily,
         basePrice,
         settledPrice: result.settledPrice,
         // p₀(무정보 도달 확률)의 입력 — 게시된 사양(게시→시한)의 기간

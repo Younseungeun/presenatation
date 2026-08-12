@@ -21,7 +21,8 @@ import styles from "./leaderboard.module.css";
 //
 // 머리줄 = 자산군 + 방향 미니 그래프 + 확신 종합 별점.
 //   · "▲ 상승" 문구 대신 미니 그래프 — 방향은 모양이, 수익성은 면 채움 진하기가 맡는다
-//   · 별점은 확신 종합(starSummary) — 점수 v4에서 자기 신고 다이얼이 신뢰도뿐이라 신뢰도 별점과 같다
+//   · 별점은 확신 종합(starSummary) — 수익성·신뢰도를 점수 기여 가중(0.21:0.79)으로 접은 값.
+//     수익성 몫은 구간 번호가 아니라 **그 구간이 적중 시 버는 크기**로 환산해 넣는다
 //   · 글자에 방향색을 입히지 않는다 — "국내주식"이 빨간 글씨면 자산군이 나쁘다는 뜻으로 읽힌다
 
 export function BestSellers({
@@ -54,10 +55,16 @@ export function BestSellers({
                   <DirectionGlyph direction={c.direction} profitability={c.profitability} />
                 </span>
                 {(() => {
-                  const stars = convictionStars(c.assetClass, c.confidence);
+                  const stars = convictionStars(c.assetClass, c.confidence, c.profitability);
                   return (
                     stars !== null && (
-                      <span className={styles.rankStars}>
+                      // 이 별은 카드의 별 세 줄 중 하나가 아니라 **둘을 접은 값**이라,
+                      // 카드에서 보던 신뢰도 별과 개수가 다르다. 그 사실을 물음으로
+                      // 남기지 않도록 title로 붙여 둔다
+                      <span
+                        className={styles.rankStars}
+                        title="확신 종합 — 수익성·신뢰도를 점수 기여만큼 가중해 하나로 접은 별점"
+                      >
                         <StarRating stars={stars} label="확신 종합" />
                       </span>
                     )

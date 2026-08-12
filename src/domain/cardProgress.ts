@@ -71,10 +71,26 @@ export function computeCardProgress(input: CardProgressInput): CardProgress {
   };
 }
 
-/** 막대 채움 폭(%) — 역방향(음수)은 채우지 않는다. 출발선 뒤라는 사실은 라벨이 말한다 */
+/** 정방향 막대 채움 폭(%) — 목표 쪽으로 간 거리. 역방향(음수)은 여기서 0이다 */
 export function fillPercent(achievement: number | null): number {
   if (achievement === null) return 0;
   return Math.min(100, Math.max(0, achievement * 100));
+}
+
+/**
+ * 역방향 막대 채움 폭(%) — 예측과 **반대로** 간 거리.
+ *
+ * 예전에는 역방향이면 막대를 아예 그리지 않았는데, 그러면 "아직 아무 일도 없다"와
+ * "크게 어긋나는 중"이 똑같이 빈 막대로 보였다. 나쁜 소식일수록 보이지 않는 화면이
+ * 되는 셈이라, 같은 궤도를 반대 색(붉은색)으로 채운다.
+ *
+ * 눈금이 100%가 되는 지점 = 기준가에서 목표 폭만큼 반대로 간 지점이고,
+ * 그 지점이 곧 **판매 영구 마감선**이다 (domain/salesWindow.adverseMoveFraction).
+ * 화면의 막대 끝과 규칙의 문턱이 같은 곳에 있어야 막대를 설명 없이 읽을 수 있다.
+ */
+export function adverseFillPercent(achievement: number | null): number {
+  if (achievement === null || achievement >= 0) return 0;
+  return Math.min(100, -achievement * 100);
 }
 
 /** 시간 눈금 칸 수 — 25%마다 한 칸 */

@@ -169,6 +169,12 @@ model Instrument {
   // 시가총액 (종목 통화 기준). 과소 시총은 시세 조종·유동성 위험 → 게시 보류 대상.
   // null이면 판단하지 않는다 (공급자가 시총을 주지 않는 자산군)
   marketCap     Float?
+  // 최근 실현 변동성 (일 로그수익률 표준편차) — 안정성 별점과 p₀가 함께 쓰는 값.
+  // 작성 화면이 종목을 고르는 순간 필요해서 여기 캐시한다(하루 TTL). 게시 시점에는
+  // 카드가 자기 값을 따로 고정한다(PredictionCard.sigmaDaily) — 게시 후 갱신되면
+  // 채점 기준이 흔들리기 때문
+  sigmaDaily    Float?
+  sigmaSyncedAt DateTime?
   source        String // 유니버스 출처 (upbit | fsc-data.go.kr | twelvedata | seed)
   syncedAt      DateTime  @default(now())
 

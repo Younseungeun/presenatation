@@ -1,6 +1,12 @@
 import type { PrismaClient } from '@prisma/client';
 import type { Direction } from '@/domain/constants';
-import { isSalesWindowOpen, remainingFraction, suspendsPurchase } from '@/domain/salesWindow';
+import {
+  adverseMoveFraction,
+  closesOnAdverseMove,
+  isSalesWindowOpen,
+  remainingFraction,
+  suspendsPurchase,
+} from '@/domain/salesWindow';
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isFreeReport } from './freeReportService';
 import { fetchCachedPrice } from './priceCache';
@@ -121,6 +127,22 @@ async function assertNotSuspendedIntraday(card: IntradayCard | null): Promise<vo
   if (suspendsPurchase(q)) {
     throw new Error(
       '목표까지 남은 폭이 광고한 폭의 절반 밑이라 판매가 일시 중단되었습니다. 시세가 돌아오면 다시 구매할 수 있습니다.',
+    );
+  }
+
+  // 역방향 보호 — 기준가에서 목표 폭만큼 반대로 간 상태에서는 팔지 않는다.
+  // **여기서는 막기만 하고 마감을 기록하지 않는다**: 영구 마감은 일봉 종가로만
+  // 판정한다(salesCloseService). 장중 꼬리 한 번으로 남의 판매를 영구히 죽이는
+  // 조작을 막으면서도, 그 순간의 구매자는 보호한다
+  const adverse = adverseMoveFraction(
+    card.direction as Direction,
+    card.basePrice,
+    price,
+    magnitudePct,
+  );
+  if (closesOnAdverseMove(adverse)) {
+    throw new Error(
+      '예측과 반대로 목표 폭만큼 움직여 판매가 중단되었습니다. 오늘 종가로도 같은 상태면 판매가 마감됩니다.',
     );
   }
 }

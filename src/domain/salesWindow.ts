@@ -4,7 +4,9 @@ import type { Direction } from './constants';
 //
 // ── 2026-08-10 재설계 (시뮬레이션: scripts/simSalesBand.ts) ──────────────
 //
-// 판매가 끝나는 길은 셋뿐이고, 가격 때문에 **영구히** 닫히는 일은 없다:
+// (2026-08-12 추가: ④ ADVERSE_MOVE — 목표 폭만큼 반대로 가면 영구 마감. 아래 참조)
+//
+// 판매가 끝나는 길:
 //  ① 목표 도달 — 일봉 종가가 목표를 넘으면 **판정**이 일어나고(판정 규칙과 같은 사건),
 //     판정된 카드는 팔 수 없으므로 판매도 그 순간 끝난다. 별도 마감 규칙이 아니다.
 //  ② WINDOW_END — 시간 규칙. 판매 기간 = min(검증기간 × 1/3, 30일).
@@ -44,7 +46,13 @@ export const NOTICE_SHORTFALL_Q = 0.8;
 /** 초과 고지선 — 반대로 광고 폭 이상 벌어졌으면 "예측이 빗나가는 중"을 경고한다 */
 export const NOTICE_EXCESS_Q = 2.0;
 
-export type SalesCloseReason = 'WINDOW_END' | 'RESEARCHER';
+/**
+ * 역방향 마감선 — 기준가에서 **광고한 목표 폭만큼 반대로** 가면 판매를 끝낸다.
+ * (+30% 카드가 −30%가 된 순간. 1.0 = 목표 폭의 100%를 반대로 이동)
+ */
+export const ADVERSE_CLOSE_FRACTION = 1.0;
+
+export type SalesCloseReason = 'WINDOW_END' | 'RESEARCHER' | 'ADVERSE_MOVE';
 
 export type SalesNoticeState = 'SHORTFALL' | 'NONE' | 'EXCESS';
 
@@ -83,6 +91,41 @@ export function remainingFraction(
 /** 결제 순간의 판매 중단 여부 — 가역. 시세가 구간으로 돌아오면 다시 팔린다 */
 export function suspendsPurchase(q: number): boolean {
   return q < SUSPEND_ALPHA;
+}
+
+/**
+ * 역방향 이동 폭 — 기준가에서 **예측과 반대로** 간 거리를 광고한 목표 폭으로 나눈 값.
+ * 0이면 출발선, 1이면 목표 폭만큼 반대로 갔다는 뜻(= 판매 마감선), 음수면 정방향 진행 중.
+ *
+ * 구매 후 카드의 달성률과 정확히 부호만 반대다 (domain/cardProgress.achievement) —
+ * 그래서 상황 막대의 붉은 쪽이 100%가 되는 순간이 곧 판매가 닫히는 순간이고,
+ * 화면과 규칙이 같은 눈금을 쓴다.
+ */
+export function adverseMoveFraction(
+  direction: Direction,
+  basePrice: number,
+  currentPrice: number,
+  magnitudePct: number,
+): number {
+  if (basePrice <= 0) throw new Error(`기준가가 유효하지 않습니다: ${basePrice}`);
+  if (magnitudePct <= 0) throw new Error(`광고 수익률이 유효하지 않습니다: ${magnitudePct}`);
+  const sign = direction === 'UP' ? -1 : 1;
+  const movedPct = (sign * (currentPrice - basePrice) * 100) / basePrice;
+  return movedPct / magnitudePct;
+}
+
+/**
+ * 역방향 판매 마감 — **불가역**. 시세가 돌아와도 다시 팔지 않는다.
+ *
+ * 왜 이것만 가격 규칙 중 유일하게 영구인가 (2026-08-12 사용자 확정):
+ * 판매 중단(q < 0.5)은 "값어치가 줄어든 구매"를 막는 일시적 보호라 되돌아오면 풀어야
+ * 맞다. 그런데 목표 폭만큼 반대로 간 카드는 **주장 자체가 이미 크게 틀린 상태**다.
+ * 이 상태의 카드를 계속 팔 수 있게 두면, 변동성이 큰 종목을 골라 카드를 뿌린 뒤
+ * 되돌림을 기다리는 전략(변동성만으로 hit 사냥)의 판매 기간이 그대로 유지된다.
+ * 마감이 영구여야 그 전략의 기대 판매량이 실제로 줄어든다.
+ */
+export function closesOnAdverseMove(adverseFraction: number): boolean {
+  return adverseFraction >= ADVERSE_CLOSE_FRACTION;
 }
 
 /** 구매 전 고지 상태 — 문구는 비율만 쓴다 (실수치는 목표 역산 통로) */
@@ -129,5 +172,9 @@ export function isSalesWindowOpen(
  * 고지는 규칙까지만 말하고, 결제 관문의 집행이 그 말을 참으로 만든다.
  */
 export function salesGuaranteeText(): string {
-  return '판매 중 보장: 결제는 리포트가 광고한 목표 폭의 절반 이상이 남아 있을 때만 승인됩니다. 목표에 도달(일봉 종가 기준)하면 판정과 함께 판매가 종료됩니다.';
+  return (
+    '판매 중 보장: 결제는 리포트가 광고한 목표 폭의 절반 이상이 남아 있을 때만 승인됩니다. ' +
+    '목표에 도달(일봉 종가 기준)하면 판정과 함께 판매가 종료되고, 반대로 목표 폭만큼 ' +
+    '어긋나면 그 시점에 판매가 영구 마감됩니다.'
+  );
 }

@@ -143,8 +143,10 @@ export function ScoreCalculator() {
             <span className={styles.partKey}>아무 정보 없이 찍어도 닿는 확률</span>
             <span className={styles.partVal}>{(r.p0 * 100).toFixed(1)}%</span>
             <span className={styles.partNote}>
-              무정보 리서처가 이 사양(방향·크기·기간·자산군)으로 우연히 적중할 확률 — 이
-              공짜 몫을 빼고 지급합니다
+              무정보 리서처가 이 사양(방향·크기·기간)으로 우연히 적중할 확률 — 이 공짜
+              몫을 빼고 지급합니다. 여기서는 자산군 평균 변동성으로 계산하지만, 실제
+              카드는 **그 종목의 최근 실현 변동성**으로 계산합니다 — 잘 출렁이는 종목일수록
+              이 확률이 커져 적중 보상이 줄어듭니다
             </span>
           </div>
           <div className={styles.part}>

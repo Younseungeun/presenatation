@@ -19,10 +19,9 @@ import styles from "./starRating.module.css";
 // 색은 무채색(잉크)이다 — 민트는 플랫폼 검증 전용이라(브랜드 §4-3) 리서처
 // 자기 신고 값에 쓰면 "플랫폼이 보증한 수치"로 오해된다.
 
-/** 신뢰도 1~10 → 별 (함의 개선 승률 c/(c+1) × 5) */
-export function confidenceStars(confidence: number): number {
-  return (5 * confidence) / (confidence + 1);
-}
+// 스케일 자체는 domain/ratingStars.ts가 단일 기준으로 들고 있다 (표시·정렬·융합
+// 별점이 전부 같은 수식을 쓰게). 여기서는 화면이 쓰기 편하게 다시 내보내기만 한다.
+export { confidenceStars } from "@/domain/ratingStars";
 
 export function StarRating({
   stars,

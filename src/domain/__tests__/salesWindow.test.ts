@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ADVERSE_CLOSE_FRACTION,
+  adverseMoveFraction,
+  closesOnAdverseMove,
   isSalesWindowOpen,
   NOTICE_EXCESS_Q,
   NOTICE_SHORTFALL_Q,
@@ -105,5 +108,44 @@ describe('isSalesWindowOpen', () => {
   it('게시일이나 시한이 없으면 판단하지 않는다 — 막는 쪽으로 지어내지 않는다', () => {
     expect(isSalesWindowOpen(null, deadline, new Date('2030-01-01'))).toBe(true);
     expect(isSalesWindowOpen(published, null, new Date('2030-01-01'))).toBe(true);
+  });
+});
+
+// ── 역방향 마감 (2026-08-12) ─────────────────────────────────────────
+// 목표 폭만큼 반대로 가면 판매가 **영구히** 닫힌다. 가격 규칙 중 유일한 불가역 처분이라
+// 문턱과 방향 부호를 테스트로 못 박는다.
+
+describe('adverseMoveFraction — 예측과 반대로 간 거리 ÷ 광고 폭', () => {
+  it('상승 카드: 기준가 아래로 내려간 만큼이 양수', () => {
+    // 기준 100, 광고 +30% → 70원이면 −30%, 즉 광고 폭의 100%를 반대로 갔다
+    expect(adverseMoveFraction('UP', 100, 70, 30)).toBeCloseTo(1, 10);
+    expect(adverseMoveFraction('UP', 100, 85, 30)).toBeCloseTo(0.5, 10);
+  });
+
+  it('하락 카드: 기준가 위로 올라간 만큼이 양수 (부호가 저절로 뒤집힌다)', () => {
+    expect(adverseMoveFraction('DOWN', 100, 130, 30)).toBeCloseTo(1, 10);
+    expect(adverseMoveFraction('DOWN', 100, 70, 30)).toBeCloseTo(-1, 10);
+  });
+
+  it('정방향으로 가는 중이면 음수 — 마감 판정에 걸리지 않는다', () => {
+    expect(closesOnAdverseMove(adverseMoveFraction('UP', 100, 120, 30))).toBe(false);
+  });
+});
+
+describe('closesOnAdverseMove — 목표 폭 100% 반대가 문턱', () => {
+  it('문턱에 닿으면 마감, 그 앞은 아니다', () => {
+    expect(closesOnAdverseMove(ADVERSE_CLOSE_FRACTION)).toBe(true);
+    expect(closesOnAdverseMove(ADVERSE_CLOSE_FRACTION - 1e-9)).toBe(false);
+    expect(closesOnAdverseMove(1.5)).toBe(true);
+  });
+
+  it('초과 고지(q > 2.0)는 마감 직전 구간에서 먼저 뜬다 — 경고 없이 닫히지 않는다', () => {
+    // 기준 100, 광고 +10%(목표 110). 마감선은 90원
+    const atClose = 90;
+    const beforeClose = 91; // 아직 마감선(90) 앞 — 역방향 90%
+    expect(closesOnAdverseMove(adverseMoveFraction('UP', 100, atClose, 10))).toBe(true);
+    expect(closesOnAdverseMove(adverseMoveFraction('UP', 100, beforeClose, 10))).toBe(false);
+    // 마감 전에 이미 초과 고지 상태여야 한다
+    expect(salesNoticeState(remainingFraction('UP', beforeClose, 110, 10))).toBe('EXCESS');
   });
 });

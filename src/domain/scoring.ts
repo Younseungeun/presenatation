@@ -56,18 +56,28 @@ export const MIN_MAGNITUDE_PCT: Record<AssetClass, number> = {
 };
 
 /**
- * 자산군별 일 변동성 σ̄ (거래일 기준) — p₀ 계산의 입력. 초안.
+ * 자산군별 일 변동성 σ̄ (거래일 기준) — **종목 σ를 모를 때만 쓰는 폴백**.
  *
- * ⚠ 자산군 공통 상수라 **종목별 변동성 차익**이 남는다: 실제 σ가 σ̄보다 큰 종목
- * (고변동 코인 등)은 실제 무정보 도달 확률이 모델 p₀보다 높아 스팸 EV가 양수로
- * 샐 수 있다. 후속: 게시 시점에 그 종목의 최근 60거래일 실현 변동성을 재서
- * 카드에 고정(clamp [0.5σ̄, 2σ̄]) — 우리 일봉 데이터(KIS)로 계산 가능하다.
+ * 원래는 이 상수가 p₀의 유일한 입력이었는데, 그러면 **종목별 변동성 차익**이 남는다:
+ * 실제 σ가 σ̄보다 큰 종목은 진짜 도달 확률이 모델 p₀보다 높아, 거친 종목만 골라
+ * 쓰는 것만으로 기대 점수가 양수가 된다(실력 없이 변동성만으로 hit 사냥).
+ * 그래서 게시 시점에 그 종목의 실현 변동성을 재서 카드에 고정하고(sigmaDaily),
+ * p₀는 그 값으로 계산한다 — 같은 값이 안정성 별점의 원천이기도 하다
+ * (domain/stability.ts: 한 번 재서 두 곳이 읽는다).
  */
 export const DAILY_SIGMA: Record<AssetClass, number> = {
   KR_EQUITY: 0.02,
   US_EQUITY: 0.02,
   CRYPTO: 0.04,
 };
+
+/**
+ * 종목 σ의 허용 범위 — 데이터 사고(0에 가까운 σ, 정지 종목의 평평한 종가열)가
+ * p₀를 0이나 1로 붕괴시키지 않게 한다. **눌러 담는 클램프가 아니다**:
+ * 실제로 거친 종목은 거친 대로 반영돼야 변동성 차익이 닫힌다.
+ */
+const SIGMA_MIN = 0.002;
+const SIGMA_MAX = 0.25;
 
 /**
  * 일봉(이산) 관측 보정 — Broadie–Glasserman–Kou 장벽 이동 계수.
@@ -144,10 +154,17 @@ export function noSkillTouchProbability(
   magnitudePct: number,
   assetClass: AssetClass,
   horizonDays: number,
-  /** 종목별 실현 변동성으로 덮을 때 (후속 — 지금은 자산군 σ̄) */
-  sigmaDaily = DAILY_SIGMA[assetClass],
+  /**
+   * 그 종목의 실현 변동성 (게시 시점 측정값, PredictionCard.sigmaDaily).
+   * null·미지정이면 자산군 σ̄로 물러선다 — 지어내지 않되 계산은 계속된다.
+   */
+  sigmaInput?: number | null,
 ): number {
   if (magnitudePct <= 0) throw new Error(`예측 크기는 양수여야 합니다: ${magnitudePct}`);
+  const sigmaDaily =
+    sigmaInput == null
+      ? DAILY_SIGMA[assetClass]
+      : Math.min(SIGMA_MAX, Math.max(SIGMA_MIN, sigmaInput));
   const T = Math.max(1, horizonDays);
   const ratio = magnitudePct / 100;
   // 하락 카드의 로그 장벽 거리: |ln(1 − M/100)|. M ≥ 100%는 하락으로 불가능(게시 검증)
@@ -192,9 +209,11 @@ export function computeReachScore(
   assetClass: AssetClass,
   horizonDays: number,
   hit: boolean,
+  /** 그 종목의 실현 변동성 — 없으면 자산군 σ̄ (변동성 차익이 남는 폴백) */
+  sigmaDaily?: number | null,
 ): ReachScore {
   assertConfidence(confidence);
-  const p0 = noSkillTouchProbability(direction, magnitudePct, assetClass, horizonDays);
+  const p0 = noSkillTouchProbability(direction, magnitudePct, assetClass, horizonDays, sigmaDaily);
   const stake = DIRECTION_SCALE * magnitudePct;
   const score = hit
     ? stake * winAmplifier(confidence) * (1 - p0)
@@ -269,8 +288,14 @@ export interface JudgedCardScoreInput {
   confidence: number;
   /** @deprecated v4에서 점수 기여 없음 — 경로 안정성 배팅 재설계 전까지 무시된다 */
   stability: number;
-  /** 자산군 — 무정보 변동성 σ̄ 결정 */
+  /** 자산군 — 종목 σ가 없을 때의 폴백 변동성 결정 */
   assetClass: AssetClass;
+  /**
+   * 게시 시점에 잰 종목 실현 변동성 — p₀의 입력.
+   * 게시 순간 카드에 고정되므로, 도달 판정이든 기한 판정이든 같은 σ로 채점된다
+   * (리서처가 게시할 때 본 배당표가 판정까지 그대로 유지된다).
+   */
+  sigmaDaily: number | null;
   /** 기준가 (소급 확정 후 값). 없으면 점수 0 */
   basePrice: number | null;
   /** 판정 종가 — 실현 등락 기록·표시용 (v4 점수는 적중 여부만 쓴다) */
@@ -312,6 +337,7 @@ export function scoreJudgedCard(input: JudgedCardScoreInput): {
     input.assetClass,
     input.horizonDays,
     input.outcome === 'HIT',
+    input.sigmaDaily,
   );
   return { realizedReturnPct, score, directionScore: score, stabilityScore: 0 };
 }

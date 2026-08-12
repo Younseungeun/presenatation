@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { compositeStars, profitabilityPayoutStars } from '@/domain/ratingStars';
 import {
   groupCards,
   hasActiveFilter,
@@ -38,9 +39,17 @@ function card(over: Partial<MarketCard> = {}): MarketCard {
 }
 
 describe('별점 평균 — 수익성·신뢰도를 점수 기여 가중(0.21 : 0.79)으로 합친다', () => {
+  it('순위표에 뜨는 확신 종합 별점과 같은 값이다 — 정렬과 표시가 갈라지면 안 된다', () => {
+    const c = card({ profitability: 3, confidence: 8 });
+    expect(ratingAverage(c)).toBe(
+      compositeStars({ profitability: c.profitability, confidence: c.confidence }),
+    );
+  });
+
   it('신뢰도 별은 카드 표시와 같은 함의 승률 스케일(5c/(c+1))로 들어간다', () => {
-    // 수익성 3 / 신뢰도 8 → 별 40/9≈4.444 → 0.21·3 + 0.79·4.444 ≈ 4.141
-    expect(ratingAverage(card({ profitability: 3, confidence: 8 }))).toBeCloseTo(4.141, 2);
+    // 수익성 구간3 → 버는 크기 별 2.689 / 신뢰도 8 → 별 40/9≈4.444
+    // → 0.21·2.689 + 0.79·4.444 ≈ 4.076
+    expect(ratingAverage(card({ profitability: 3, confidence: 8 }))).toBeCloseTo(4.076, 2);
   });
 
   it('신뢰도가 무겁다 — 같은 한 칸 차이라도 신뢰도 쪽이 평균을 더 움직인다', () => {
@@ -57,7 +66,10 @@ describe('별점 평균 — 수익성·신뢰도를 점수 기여 가중(0.21 : 
   });
 
   it('일부만 있으면 있는 별만으로 (분모도 그 무게만)', () => {
-    expect(ratingAverage(card({ profitability: 4, confidence: null }))).toBe(4);
+    expect(ratingAverage(card({ profitability: 4, confidence: null }))).toBeCloseTo(
+      profitabilityPayoutStars(4),
+      10,
+    );
   });
 
   it('안정성은 평균에 들어가지 않는다 — 점수 기여 0이면 무게도 0', () => {

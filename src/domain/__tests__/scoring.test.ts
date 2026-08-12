@@ -140,6 +140,8 @@ describe('scoreJudgedCard', () => {
     confidence: 5,
     stability: 5,
     assetClass: 'CRYPTO' as const,
+    // 종목 σ 미상 — 자산군 σ̄로 폴백되는 경로를 기본으로 둔다
+    sigmaDaily: null,
     basePrice: 100,
     horizonDays: 30,
   };
