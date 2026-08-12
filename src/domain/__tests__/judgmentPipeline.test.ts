@@ -102,7 +102,8 @@ describe('runJudgment', () => {
     const { result, resolvedBasePrice } = await runJudgment(card, provider, judgeTime);
     expect(resolvedBasePrice).toBe(100_000);
     expect(result.outcome).toBe('HIT');
-    expect(result.settledPrice).toBe(102_500);
+    // 판정가 = 목표가 (기준 100,000 × +2%). 초과분(종가 102,500)은 점수에 넣지 않는다
+    expect(result.settledPrice).toBe(102_000);
   });
 
   it('기준가 소급 확정: 직전 종가 데이터가 아직 없으면 이월', async () => {

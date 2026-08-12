@@ -51,11 +51,12 @@ export function ManualJudgeForm({
           ? { type: "UNDECIDABLE", undecidableReason }
           : {
               type: "PRICE",
-              ...(targetType === "RETURN_PCT"
-                ? { priceAtDeadline: Number(price) }
-                : direction === "UP"
-                  ? { highSincePublish: Number(price) }
-                  : { lowSincePublish: Number(price) }),
+              // 판정 규칙 통합(2026-08-10): 유형과 무관하게 "기간 중 종가 극값"으로
+              // 도달을 판정한다. 운영자가 값 하나를 입력하면 극값이자 시한 종가로 쓴다
+              // (더 아는 것이 없을 때의 보수 기본값 — manualJudgmentService와 같은 규칙)
+              ...(direction === "UP"
+                ? { maxCloseSincePublish: Number(price), priceAtDeadline: Number(price) }
+                : { minCloseSincePublish: Number(price), priceAtDeadline: Number(price) }),
               ...(needsBasePrice && basePrice ? { basePrice: Number(basePrice) } : {}),
             };
       const res = await fetch("/api/admin/judgments", {

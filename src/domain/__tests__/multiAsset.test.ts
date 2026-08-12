@@ -66,7 +66,8 @@ describe('runJudgmentFromRegistry — 코인 카드 종단 판정', () => {
       NOW,
     );
     expect(result.outcome).toBe('HIT');
-    expect(result.settledPrice).toBe(84_000_000);
+    // 판정가 = 목표가 (기준 1억 × −15% = 8,500만). 더 내려간 종가(8,400만)는 초과분이다
+    expect(result.settledPrice).toBe(85_000_000);
     expect(audit.dataSource).toBe('fixture');
   });
 

@@ -14,8 +14,8 @@ const bodySchema = z.object({
     z.object({
       type: z.literal('PRICE'),
       priceAtDeadline: z.number().positive().optional(),
-      highSincePublish: z.number().positive().optional(),
-      lowSincePublish: z.number().positive().optional(),
+      maxCloseSincePublish: z.number().positive().optional(),
+      minCloseSincePublish: z.number().positive().optional(),
       basePrice: z.number().positive().optional(),
     }),
     z.object({

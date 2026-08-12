@@ -106,7 +106,9 @@ export function resolveProvider(
 
 /**
  * 일별 시세 + 종목 상태 → 판정 엔진 입력 스냅샷 (순수 함수).
- * - 고저가: 게시~시한 거래일 전체 기준
+ * - 종가 극값: 게시~시한 거래일의 **일봉 종가**만. 장중 고가·저가(q.high/q.low)는
+ *   싣지 않는다 — 순간 꼬리 하나가 적중을 만들면 시세를 튀겨 판정을 조작할 수 있다.
+ *   장중 시세의 몫은 결제 관문의 판매 중단(가역)이지 판정이 아니다
  * - 시한 종가: 시한 당일, 휴장이면 직전 거래일 종가 (약관 명시 규칙)
  * - 시세가 한 건도 없으면 필드를 비워 판정 엔진이 AMBIGUOUS 처리하게 한다
  */
@@ -121,13 +123,15 @@ export function buildMarketSnapshot(
   const inRange = [...quotes].sort((a, b) => a.date.localeCompare(b.date));
   if (inRange.length === 0) return { status: 'TRADED' }; // 필드 결측 → judge()가 AMBIGUOUS 처리
 
+  // 시한 이후 날짜의 시세가 섞여 와도 판정 대상은 시한까지다
   const upToDeadline = inRange.filter((q) => q.date <= deadlineDate);
+  if (upToDeadline.length === 0) return { status: 'TRADED' };
   const lastQuote = upToDeadline[upToDeadline.length - 1];
 
   return {
     status: 'TRADED',
-    highSincePublish: Math.max(...inRange.map((q) => q.high)),
-    lowSincePublish: Math.min(...inRange.map((q) => q.low)),
-    priceAtDeadline: lastQuote?.close,
+    maxCloseSincePublish: Math.max(...upToDeadline.map((q) => q.close)),
+    minCloseSincePublish: Math.min(...upToDeadline.map((q) => q.close)),
+    priceAtDeadline: lastQuote.close,
   };
 }

@@ -88,12 +88,12 @@ export async function getManualJudgmentQueue(
 export type ManualDecision =
   | {
       type: 'PRICE';
-      /** 시한 종가 — RETURN_PCT 판정에 필수 */
+      /** 시한 종가 — 실패 시 실현값이자, 극값을 모를 때의 기본값 */
       priceAtDeadline?: number;
-      /** 게시~시한 최고가 — TARGET_PRICE 상승 판정에 필수 */
-      highSincePublish?: number;
-      /** 게시~시한 최저가 — TARGET_PRICE 하락 판정에 필수 */
-      lowSincePublish?: number;
+      /** 게시~시한 **일봉 종가 최고값** — 상승 카드의 도달 판정. 비우면 시한 종가로 본다 */
+      maxCloseSincePublish?: number;
+      /** 게시~시한 **일봉 종가 최저값** — 하락 카드의 도달 판정. 비우면 시한 종가로 본다 */
+      minCloseSincePublish?: number;
       /** 기준가 미확정(소급 카드) 시 운영자가 확정하는 기준가 */
       basePrice?: number;
     }
@@ -161,11 +161,15 @@ export async function manualJudgeCard(
       resolvedBasePrice = input.decision.basePrice; // 소급 카드: 운영자 확정 기준가를 카드에 기록
     }
 
+    // 판정 규칙이 "기한 내 목표가 도달"로 통합되면서 **구간 극값이 항상 필요해졌다.**
+    // 운영자가 종가만 아는 경우(대부분의 데이터 결측 상황)에는 극값을 종가로 본다 —
+    // "장중에 더 유리한 순간이 있었는지 모른다"는 상태에서 유리한 쪽을 지어내지 않는
+    // 보수적 기본값이다. 실제 고가·저가를 아는 운영자는 직접 입력해 이를 덮는다.
     const snapshot: MarketSnapshot = {
       status: 'TRADED',
       priceAtDeadline: input.decision.priceAtDeadline,
-      highSincePublish: input.decision.highSincePublish,
-      lowSincePublish: input.decision.lowSincePublish,
+      maxCloseSincePublish: input.decision.maxCloseSincePublish ?? input.decision.priceAtDeadline,
+      minCloseSincePublish: input.decision.minCloseSincePublish ?? input.decision.priceAtDeadline,
     };
     result = judge(
       {

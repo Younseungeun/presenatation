@@ -20,19 +20,30 @@ describe('buildMarketSnapshot', () => {
     });
   });
 
-  it('기간 고가·저가는 전체 거래일 기준으로 집계', () => {
+  it('종가 극값은 **일봉 종가**로만 집계 — 장중 고가·저가는 판정에 쓰지 않는다', () => {
+    // 07-02는 장중 130까지 튀었지만 종가는 106이다.
+    // 장중 꼬리가 도달을 만들면 시세를 튀겨 판정을 조작할 수 있으므로 종가만 센다
     const snap = buildMarketSnapshot(
       [
-        quote('2026-07-01', { high: 120, low: 95 }),
-        quote('2026-07-02', { high: 130, low: 85 }),
+        quote('2026-07-01', { high: 120, low: 95, close: 104 }),
+        quote('2026-07-02', { high: 130, low: 85, close: 106 }),
         quote('2026-07-03', { high: 115, low: 100, close: 108 }),
       ],
       NORMAL,
       '2026-07-03',
     );
-    expect(snap.highSincePublish).toBe(130);
-    expect(snap.lowSincePublish).toBe(85);
+    expect(snap.maxCloseSincePublish).toBe(108);
+    expect(snap.minCloseSincePublish).toBe(104);
     expect(snap.priceAtDeadline).toBe(108);
+  });
+
+  it('시한 이후 날짜의 시세는 종가 극값에서도 빠진다', () => {
+    const snap = buildMarketSnapshot(
+      [quote('2026-07-01', { close: 104 }), quote('2026-07-05', { close: 200 })],
+      NORMAL,
+      '2026-07-03',
+    );
+    expect(snap.maxCloseSincePublish).toBe(104);
   });
 
   it('시한이 휴장일이면 직전 거래일 종가 사용', () => {
@@ -48,7 +59,7 @@ describe('buildMarketSnapshot', () => {
     const snap = buildMarketSnapshot([], NORMAL, '2026-07-10');
     expect(snap.status).toBe('TRADED');
     expect(snap.priceAtDeadline).toBeUndefined();
-    expect(snap.highSincePublish).toBeUndefined();
+    expect(snap.maxCloseSincePublish).toBeUndefined();
   });
 });
 
