@@ -237,8 +237,48 @@ export class KisMarketDataProvider implements MarketDataProvider {
       .sort((a, b) => a.date.localeCompare(b.date));
   }
 
+  /**
+   * 한 번에 100건까지만 오는 일봉을 **거슬러 올라가며 이어 붙인다** (실측: 국내·미국 모두
+   * 요청 구간과 무관하게 100건에서 잘린다. 업비트는 자르지 않아 이 경로를 타지 않는다).
+   *
+   * 변동성 표본이 120거래일로 늘면서 한 번으로는 모자라게 됐다. 페이지마다 끝 날짜를
+   * 직전 페이지의 가장 이른 날 하루 전으로 밀어 다시 부른다. 안전 상한을 두는 이유는
+   * 공급자가 같은 구간을 계속 돌려줄 때 무한히 도는 것을 막기 위해서다.
+   */
+  private async pagedDaily(
+    from: string,
+    to: string,
+    page: (from: string, to: string) => Promise<DailyQuote[]>,
+    maxPages = 3,
+  ): Promise<DailyQuote[]> {
+    const merged = new Map<string, DailyQuote>();
+    let end = to;
+    for (let i = 0; i < maxPages; i++) {
+      const rows = await page(from, end);
+      if (rows.length === 0) break;
+      const before = merged.size;
+      for (const r of rows) merged.set(r.date, r);
+      // 새로 얻은 것이 없으면 같은 구간이 반복된 것이다 — 더 부를 이유가 없다
+      if (merged.size === before) break;
+      const earliest = rows.reduce((a, b) => (a.date < b.date ? a : b)).date;
+      if (earliest <= from) break;
+      end = isoShiftDays(earliest, -1);
+      if (end < from) break;
+    }
+    return [...merged.values()].sort((a, b) => a.date.localeCompare(b.date));
+  }
+
   /** 국내주식 기간별시세 (일봉) — [국내주식-010] */
-  private async krDaily(
+  private krDaily(
+    ticker: string,
+    from: string,
+    to: string,
+    adjusted = true,
+  ): Promise<DailyQuote[]> {
+    return this.pagedDaily(from, to, (f, t) => this.krDailyPage(ticker, f, t, adjusted));
+  }
+
+  private async krDailyPage(
     ticker: string,
     from: string,
     to: string,
@@ -269,7 +309,16 @@ export class KisMarketDataProvider implements MarketDataProvider {
   }
 
   /** 해외주식 기간별시세 — [해외주식-010] */
-  private async usDaily(
+  private usDaily(
+    ticker: string,
+    from: string,
+    to: string,
+    adjusted = true,
+  ): Promise<DailyQuote[]> {
+    return this.pagedDaily(from, to, (f, t) => this.usDailyPage(ticker, f, t, adjusted));
+  }
+
+  private async usDailyPage(
     ticker: string,
     from: string,
     to: string,
@@ -440,4 +489,11 @@ export class KisMarketDataProvider implements MarketDataProvider {
 /** KIS는 YYYYMMDD로 준다 */
 function isoDate(yyyymmdd: string): string {
   return `${yyyymmdd.slice(0, 4)}-${yyyymmdd.slice(4, 6)}-${yyyymmdd.slice(6, 8)}`;
+}
+
+/** 'YYYY-MM-DD'를 며칠 옮긴다 (일봉 페이지를 거슬러 올라갈 때 쓴다) */
+function isoShiftDays(date: string, days: number): string {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }

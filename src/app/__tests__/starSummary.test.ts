@@ -6,14 +6,13 @@ import { convictionStars } from "../starSummary";
 
 // 함의 승률 별점 — 다이얼값이 정직하려면 걸어야 하는 최소 확률 × 5 (ratingStars 주석).
 describe("함의 승률 매핑", () => {
-  it("쓸 수 있는 구간이 별 눈금을 다 쓴다 — 하한 신고가 ★1, 최대가 ★4.55", () => {
-    // 예전에는 `승률 × 5`를 그대로 써서 c=1이 ★2.5였는데, 신뢰도 하한이 2로 오르면서
-    // 그 자리가 죽었다. 그대로 뒀다면 실제 구간이 ★3.33~4.55에 몰려
-    // "최소 신뢰도 카드가 5점 만점에 3.3점"으로 보였을 것이다
-    expect(confidenceStars(CONFIDENCE_RANGE.min)).toBeCloseTo(1, 10);
+  it("신뢰도: 함의 승률 × 5 — 별이 곧 승률이다", () => {
+    // 신뢰도 하한이 2로 오른 뒤에도 이 식을 바꾸지 않는다. 쓸 수 있는 구간이
+    // ★3.33~4.55로 좁아지지만, c=2를 ★1로 다시 펴면 **승률 66.7%짜리 신고가
+    // 별 한 개**로 보인다 — 압축보다 그쪽이 더 나쁜 거짓말이다
+    expect(confidenceStars(CONFIDENCE_RANGE.min)).toBeCloseTo(10 / 3, 10);
+    expect(confidenceStars(3)).toBeCloseTo(3.75, 10);
     expect(confidenceStars(CONFIDENCE_RANGE.max)).toBeCloseTo(50 / 11, 10);
-    // 순서는 여전히 함의 승률 순이다
-    expect(confidenceStars(5)).toBeGreaterThan(confidenceStars(3));
   });
 
   it("별 5개(승률 100%)는 도달 불가 — 정직한 천장", () => {

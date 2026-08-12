@@ -45,8 +45,19 @@ export type StabilityLevel = 1 | 2 | 3 | 4 | 5;
  */
 export const MIN_RETURN_SAMPLES = 20;
 
-/** σ 계산에 쓰는 최대 표본 — 최근 60거래일(약 3개월). 더 길면 "최근"이 아니게 된다 */
-export const MAX_RETURN_SAMPLES = 60;
+/**
+ * σ 계산에 쓰는 최대 표본 — 최근 **120거래일**(약 6개월).
+ *
+ * 60일에서 늘렸다 (2026-08-13). 60일은 한 분기의 국면을 통째로 물고 들어와
+ * 하한과 별점이 시장 상황을 따라 크게 출렁였다 — 실측으로 삼성전자가 급락·급등이
+ * 겹친 분기에 σ 6.72%(연 107%)로 잡혀 30일 카드 하한이 44%까지 올라갔다.
+ * 표본을 두 배로 늘리면 그런 분기 하나의 무게가 절반이 되고, 추정 표준오차도
+ * σ/√(2n) 기준 9.1% → 6.5%로 줄어든다.
+ *
+ * 더 늘리지 않는 이유: 변동성은 국면을 타므로 1년치를 쓰면 "최근"이 아니게 된다.
+ * (KIS 일봉은 한 번에 100건이라 120일은 2회 호출이다 — kisProvider.pagedDaily)
+ */
+export const MAX_RETURN_SAMPLES = 120;
 
 /**
  * 종가가 실제로 움직인 날의 최소 비율. 이보다 낮으면 σ를 내지 않는다.
@@ -61,8 +72,21 @@ export const MIN_MOVING_RATIO = 0.6;
  * 일봉 종가열 → 실현 변동성 (하루 로그수익률의 표본 표준편차).
  * 종가는 과거 → 최근 순서로 준다. 표본이 모자라면 null — 어림값을 지어내지 않는다.
  */
-export function realizedDailySigma(closes: readonly number[]): number | null {
-  const usable = closes.filter((c) => Number.isFinite(c) && c > 0);
+export function realizedDailySigma(
+  closes: readonly number[],
+  /**
+   * 같은 날의 거래량 (있으면). **거래가 없던 날은 표본에서 뺀다** — 그날 종가는
+   * 체결이 아니라 직전 값이 남은 것이라, 거기서 잰 "0% 변동"은 조용한 것이 아니라
+   * 측정이 없는 것이다. 종가 움직임 비율(MIN_MOVING_RATIO)보다 직접적인 기준이라
+   * 거래량이 있으면 이쪽을 먼저 쓴다.
+   */
+  volumes?: readonly number[],
+): number | null {
+  const pairs = closes.map((c, i) => ({ c, v: volumes?.[i] }));
+  const usable = pairs
+    .filter((p) => Number.isFinite(p.c) && p.c > 0)
+    .filter((p) => p.v === undefined || p.v > 0)
+    .map((p) => p.c);
   const recent = usable.slice(-(MAX_RETURN_SAMPLES + 1));
   const returns: number[] = [];
   for (let i = 1; i < recent.length; i++) {

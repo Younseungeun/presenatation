@@ -2,8 +2,13 @@ import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 import type { AssetClass } from '../src/domain/constants';
 import { isLeveragedProduct } from '../src/domain/leveragedProduct';
+import { isNonEquityProduct } from '../src/domain/nonEquityProduct';
 import { resolveProvider, toMarketDateString, type DailyQuote } from '../src/domain/marketData';
-import { realizedDailySigma, STABILITY_SIGMA_BOUNDS } from '../src/domain/stability';
+import {
+  MAX_RETURN_SAMPLES,
+  realizedDailySigma,
+  STABILITY_SIGMA_BOUNDS,
+} from '../src/domain/stability';
 import { fetchUsListings } from '../src/infra/marketData/nasdaqTrader';
 import { createDefaultRegistry } from '../src/infra/marketData/registry';
 
@@ -119,6 +124,7 @@ async function main() {
 
   const measured: Measured[] = [];
   let skippedLeverage = 0;
+  let skippedNonEquity = 0;
   let failed = 0;
 
   for (const assetClass of ['KR_EQUITY', 'US_EQUITY', 'CRYPTO'] as AssetClass[]) {
@@ -129,6 +135,11 @@ async function main() {
     const pool = all.filter((i) => {
       if (isLeveragedProduct(i.name, i.ticker)) {
         skippedLeverage++;
+        return false;
+      }
+      // 채권·우선주·SPAC — 구조적으로 안 움직여 ★5 구간을 통째로 차지한다
+      if (isNonEquityProduct(i.name, i.ticker)) {
+        skippedNonEquity++;
         return false;
       }
       return true;
@@ -150,13 +161,19 @@ async function main() {
 
     const provider = resolveProvider(registry, assetClass);
     const to = toMarketDateString(now, assetClass);
-    const from = toMarketDateString(new Date(now.getTime() - 102 * 86_400_000), assetClass);
+    // 120거래일 표본을 채우려면 달력으로 그 1.7배가 필요하다 (거래일/달력일 ≈ 0.6).
+    // KIS는 한 번에 100건이라 공급자가 알아서 두 번 나눠 부른다 (pagedDaily)
+    const lookbackDays = Math.ceil((MAX_RETURN_SAMPLES + 1) / 0.6);
+    const from = toMarketDateString(new Date(now.getTime() - lookbackDays * 86_400_000), assetClass);
 
     let done = 0;
     for (const t of targets) {
       try {
         const quotes = await provider.getDailyQuotes(t.ticker, from, to);
-        const sigma = realizedDailySigma(quotes.map((q) => q.close));
+        const sigma = realizedDailySigma(
+          quotes.map((q) => q.close),
+          quotes.map((q) => q.volume),
+        );
         if (sigma === null) {
           failed++;
         } else {
@@ -272,7 +289,7 @@ async function main() {
   const byS = [...stratified].sort((a, b) => a.sigma - b.sigma);
   console.log(`\n  가장 조용: ${byS.slice(0, 5).map((m) => `${m.name}(${(m.sigma * 100).toFixed(1)}%)`).join(' ')}`);
   console.log(`  가장 거침: ${byS.slice(-5).map((m) => `${m.name}(${(m.sigma * 100).toFixed(1)}%)`).join(' ')}`);
-  console.log(`\n  조회 실패·표본 부족 ${failed} / 레버리지 제외 ${skippedLeverage}`);
+  console.log(`\n  조회 실패·표본 부족 ${failed} / 레버리지 제외 ${skippedLeverage} / 비주식(채권·우선주·SPAC) 제외 ${skippedNonEquity}`);
 
   await prisma.$disconnect();
 }

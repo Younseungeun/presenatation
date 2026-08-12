@@ -11,30 +11,19 @@ import { CONFIDENCE_RANGE, lossAmplifier, winAmplifier } from './scoring';
 //   · 안정성  = 가는 길이 얼마나 출렁이나 (종목 실현 변동성, stability.ts)
 //   · 신뢰도  = 얼마나 맞을 것 같나 (리서처가 건 승산 → 함의 승률)
 
-/** 신뢰도 c의 함의 승률 — c가 c−1보다 유리할 조건 p ≥ c/(c+1)에서 나온다 */
-const impliedWinRate = (c: number) => c / (c + 1);
-
-/** 신뢰도 별의 위쪽 끝 — 예전 스케일(승률×5)의 최대치를 그대로 물려받는다 */
-const CONFIDENCE_STAR_TOP = 5 * impliedWinRate(CONFIDENCE_RANGE.max);
-
 /**
- * 신뢰도 c → 별 (1 ~ 4.55).
+ * 신뢰도 c → 별. **함의 승률 × 5** — 다이얼은 선형이 아니라 승산 사다리라,
+ * c가 c−1보다 유리할 조건 p ≥ c/(c+1)의 그 확률을 그대로 별로 옮긴다.
+ * c=2 → ★3.33 (승률 66.7%), c=10 → ★4.55 (90.9%). ★5는 승률 100%라 도달 불가.
  *
- * 다이얼은 선형이 아니라 **승산 사다리**라, 별도 승률 축에서 매긴다.
- * 예전에는 `승률 × 5`를 그대로 썼는데(c=1 → ★2.5), **신뢰도 하한이 2로 오르면서
- * 아무도 쓸 수 없는 c=1이 별점의 바닥을 차지**하게 됐다. 그대로 두면 실제로 쓰이는
- * 구간이 ★3.33~4.55의 좁은 위쪽에 몰려, 최소 신뢰도 카드가 "5점 만점에 3.3점"으로
- * 보인다 — 스케일이 다시 거짓말을 하는 자리다.
- *
- * 그래서 **쓸 수 있는 구간을 별 눈금에 편다**: c=2가 ★1, c=최대가 예전과 같은 ★4.55.
- * ★5는 여전히 도달 불가다(승률 100%가 필요하다) — 정직한 천장은 유지된다.
- * 정확한 함의 승률은 별이 아니라 각주가 싣는다(작성 화면·상세·/score 3곳).
+ * **신뢰도 하한이 2로 오른 뒤에도 이 식을 그대로 둔다** (2026-08-13 판단).
+ * 한때 "쓸 수 있는 구간이 ★3.33~4.55로 좁으니 눈금을 다시 펴자"고 바꿨다가 되돌렸다 —
+ * c=2를 ★1로 그리면 **함의 승률 66.7%짜리 신고가 별 한 개로 보인다.** 압축된 것보다
+ * 그쪽이 더 나쁜 거짓말이다. 별의 뜻이 "승률"인 것이 이 스케일의 전부이고,
+ * 정확한 수치는 각주가 따로 싣는다(작성 화면·리포트 상세·/score).
  */
 export function confidenceStars(confidence: number): number {
-  const lo = impliedWinRate(CONFIDENCE_RANGE.min);
-  const hi = impliedWinRate(CONFIDENCE_RANGE.max);
-  const t = (impliedWinRate(confidence) - lo) / (hi - lo);
-  return 1 + (CONFIDENCE_STAR_TOP - 1) * t;
+  return (5 * confidence) / (confidence + 1);
 }
 
 /**

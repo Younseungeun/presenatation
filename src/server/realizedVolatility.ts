@@ -15,7 +15,7 @@ import { MAX_RETURN_SAMPLES, realizedDailySigma } from '@/domain/stability';
 // 실패는 null로 삼킨다 — 별점은 부가 정보라 시세 조회 장애가 게시를 막으면 안 된다.
 // (기준가 조회 fetchBasePrice는 반대로 실패가 게시를 막는다 — 판정의 전제라서다.)
 
-/** 60거래일 표본 확보용 달력 구간 — 주말·휴장 감안 넉넉히 (거래일/달력일 ≈ 0.68) */
+/** 표본 확보용 달력 구간 — 주말·휴장 감안 넉넉히 (거래일/달력일 ≈ 0.68) */
 const CALENDAR_LOOKBACK_DAYS = Math.ceil((MAX_RETURN_SAMPLES + 1) / 0.6);
 
 /**
@@ -36,7 +36,10 @@ export async function fetchRealizedSigma(
       assetClass,
     );
     const quotes = await provider.getDailyQuotes(ticker, from, to);
-    return realizedDailySigma(quotes.map((q) => q.close));
+    return realizedDailySigma(
+      quotes.map((q) => q.close),
+      quotes.map((q) => q.volume),
+    );
   } catch {
     return null;
   }

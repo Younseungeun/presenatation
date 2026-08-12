@@ -102,8 +102,8 @@ describe('별점 정렬', () => {
     const groups = groupCards(
       [
         card({ profitability: 5, confidence: 9 }), // ★4점 이상
-        card({ profitability: 4, confidence: 5 }), // ★3점대
-        card({ profitability: 1, confidence: 2 }), // ★1 — 두 축 모두 하한
+        card({ profitability: 1, confidence: 5 }), // ★3점대
+        card({ profitability: 1, confidence: 2 }), // ★3점 미만 — 두 축 모두 하한
         card({ profitability: null, confidence: null }),
       ],
       'RATING_DESC',
