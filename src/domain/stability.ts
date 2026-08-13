@@ -135,6 +135,16 @@ export function realizedDailySigma(
  * 쓰는 이유는 정확도가 아니라 **반응 속도**다: 종가는 제자리인데 장중 폭이 벌어지는
  * 국면("폭풍 전 고요")을 종가 σ보다 먼저 잡는다. 실적 발표를 앞두고 압축된 종목이
  * 정확히 그 모양이고, 거기가 σ 과소평가 악용이 사는 자리다.
+ *
+ * **가장 넓은 하루를 뺀다** (2026-08-13, 외부 검토 지적 → 실측 확인).
+ * ln(H/L)²은 제곱이라 장중에 잠깐 찌르고 내려온 꼬리 **한 번**에 창 전체가 흔들린다:
+ * 평상시 폭 2%인 종목에 ±10% 꼬리가 하루 생기면 σ_P가 1.20% → 3.80%(**3.16배**)가 된다.
+ * 유동성이 얇은 종목에서는 의도적으로 만들 수도 있고(남의 카드를 하한으로 막는 방해),
+ * 그렇지 않더라도 플래시 크래시·오입력 한 건이 같은 일을 한다.
+ *
+ * 최댓값 하나를 버리면 그 꼬리가 **완전히 사라지고**(3.16배 → 1.00배), 우리가 잡으려는
+ * 진짜 신호는 남는다 — 폭 8%인 날이 2일이면 1.63배, 3일 2.08배, 5일 2.77배(실측).
+ * 압축 후 분출은 하루로 끝나지 않기 때문이다.
  */
 export function parkinsonSigma(
   highs: readonly number[],
@@ -151,7 +161,9 @@ export function parkinsonSigma(
     terms.push(Math.log(h / l) ** 2);
   }
   if (terms.length < PARKINSON_SAMPLES / 2) return null;
-  return Math.sqrt(terms.reduce((a, b) => a + b, 0) / terms.length / (4 * Math.LN2));
+  // 가장 넓은 하루를 버린다 (표본이 2개 이하로 줄면 버리지 않는다)
+  const used = terms.length > 2 ? terms.sort((a, b) => a - b).slice(0, -1) : terms;
+  return Math.sqrt(used.reduce((a, b) => a + b, 0) / used.length / (4 * Math.LN2));
 }
 
 /** Parkinson 창 — 짧게 잡는 것이 목적이다(반응 속도) */

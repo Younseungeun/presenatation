@@ -247,15 +247,48 @@ export function magnitudeLevel(assetClass: AssetClass, magnitudePct: number): 1 
 }
 
 /**
- * 수익성이 점수에 실리는 무게 — 구간 1에서 1.00, 구간 5에서 2.00.
+ * 수익성 구간의 **대표 배수** — 그 구간 카드가 적중했을 때 실제로 버는 크기가
+ * 기준 단위 F의 몇 배인가. 구간의 기하 중점을 쓴다(경계가 등비에 가까워 산술
+ * 중점은 위쪽을 과소평가한다). 마지막 구간은 열려 있어(≥5F) 바로 아래 구간과
+ * 같은 로그 폭을 위로 이어 붙인다.
+ *
+ * 점수 가중(magnitudeWeight)과 별점 환산(ratingStars.profitabilityPayoutStars)이
+ * 같은 눈금을 써야 해서 여기 한곳에 둔다.
+ */
+export const PROFITABILITY_PAYOUT_MULTIPLE: Record<1 | 2 | 3 | 4 | 5, number> = (() => {
+  const edges = [1, ...PROFITABILITY_BOUNDS];
+  const last = PROFITABILITY_BOUNDS[PROFITABILITY_BOUNDS.length - 1];
+  const openTop = last * (last / PROFITABILITY_BOUNDS[PROFITABILITY_BOUNDS.length - 2]);
+  const uppers = [...PROFITABILITY_BOUNDS, openTop];
+  const mids = edges.map((lo, i) => Math.sqrt(lo * uppers[i]));
+  return { 1: mids[0], 2: mids[1], 3: mids[2], 4: mids[3], 5: mids[4] };
+})();
+
+/**
+ * 수익성이 점수에 실리는 무게 — 1.00 ~ 2.00, **크기에 연속**이다.
  *
  * **완만한 이유**: 목표가 클수록 어렵다는 사실은 이미 p₀에 들어 있다(큰 목표 = 작은 p₀
  * = 적중 시 큰 로그비). 여기서 크기를 다시 곱하면 v4의 "크게 걸면 점수도 크다"가
  * 되살아나 아래 꼬리가 깊어진다. 시뮬에서 가중을 1~2로 두든 1~5로 두든 분리력은
  * 같았으므로(AUC 0.954 vs 0.950), 부작용이 작은 쪽을 고른다.
+ *
+ * **연속인 이유 (2026-08-13, 외부 검토 지적 → 실측 확인)**: 예전에는 수익성 5구간
+ * 번호로 계단을 만들었다(1 + 0.25·(구간−1)). 그러면 구간 경계에서 목표를 0.02%p
+ * 올리는 것만으로 기대 점수가 뛴다 — 실측으로 경계마다 **+25.3% / +20.2% / +16.7%
+ * / +14.2%**. 분석과 무관한 순수 차익이고 막을 장치가 없었다.
+ *
+ * 구간화는 원래 **표시·마스킹**을 위한 것이지 채점을 위한 것이 아니었다. 수익성
+ * 별점(5구간 정수)은 그대로 두고 채점 가중만 연속으로 편다 — 구간 폭이 최소
+ * 주식 2.5%p라 라벨에서 원값을 역산할 수 없다는 성질은 별점 쪽에 그대로 남는다.
+ *
+ * 눈금은 구간 대표 배수의 로그 보간이라 구간 체계와 어긋나지 않는다.
  */
 export function magnitudeWeight(assetClass: AssetClass, magnitudePct: number): number {
-  return 1 + 0.25 * (magnitudeLevel(assetClass, magnitudePct) - 1);
+  const multiple = magnitudePct / PROFITABILITY_BASE_PCT[assetClass];
+  const lo = Math.log(PROFITABILITY_PAYOUT_MULTIPLE[1]);
+  const hi = Math.log(PROFITABILITY_PAYOUT_MULTIPLE[5]);
+  const t = (Math.log(Math.max(1e-9, multiple)) - lo) / (hi - lo);
+  return 1 + Math.min(1, Math.max(0, t));
 }
 
 // ── 표준정규 CDF (Abramowitz–Stegun 7.1.26, |오차| < 1.5e−7) ──────────

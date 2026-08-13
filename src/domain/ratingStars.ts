@@ -1,5 +1,9 @@
 import { type ProfitabilityLevel } from './profitability';
-import { CONFIDENCE_RANGE, confidenceOddsMultiple, PROFITABILITY_BOUNDS } from './scoring';
+import {
+  CONFIDENCE_RANGE,
+  confidenceOddsMultiple,
+  PROFITABILITY_PAYOUT_MULTIPLE,
+} from './scoring';
 
 // 별점의 단일 기준 — 표시·정렬·융합 별점이 모두 여기서 나온다.
 //
@@ -31,22 +35,10 @@ export function confidenceStars(confidence: number): number {
 }
 
 /**
- * 수익성 구간의 **대표 배수** — 그 구간 카드가 적중했을 때 실제로 버는 크기
- * (자산군 크기 하한 F의 몇 배인가). 구간의 기하 중점을 쓴다:
- * 경계가 등비에 가까워 산술 중점은 위쪽 구간을 과소평가한다.
- *
- * 마지막 구간은 열려 있어(≥5F) 중점이 없다 — 바로 아래 구간과 같은 로그 폭
- * ([3,5) → ln 5/3)을 위로 이어 붙여 [5, 8.3F)로 보고 그 중점을 쓴다.
- * 이 상수가 아래 가중치 유도의 입력이기도 해서, 한곳에서만 정의한다.
+ * 수익성 구간의 **대표 배수** — 점수 가중(scoring.magnitudeWeight)과 같은 눈금을
+ * 써야 해서 domain/scoring.ts가 원본을 들고 있다. 여기서는 다시 내보내기만 한다.
  */
-export const PROFITABILITY_PAYOUT_MULTIPLE: Record<ProfitabilityLevel, number> = (() => {
-  const edges = [1, ...PROFITABILITY_BOUNDS];
-  const last = PROFITABILITY_BOUNDS[PROFITABILITY_BOUNDS.length - 1];
-  const openTop = last * (last / PROFITABILITY_BOUNDS[PROFITABILITY_BOUNDS.length - 2]);
-  const uppers = [...PROFITABILITY_BOUNDS, openTop];
-  const mids = edges.map((lo, i) => Math.sqrt(lo * uppers[i]));
-  return { 1: mids[0], 2: mids[1], 3: mids[2], 4: mids[3], 5: mids[4] };
-})();
+export { PROFITABILITY_PAYOUT_MULTIPLE };
 
 /**
  * 수익성 구간 → **버는 크기 기준** 별 (1~5).

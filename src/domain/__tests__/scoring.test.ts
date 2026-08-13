@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  PROFITABILITY_PAYOUT_MULTIPLE,
+  PROFITABILITY_BOUNDS,
+  PROFITABILITY_BASE_PCT,
   computeReachScore,
   confidenceOddsMultiple,
   magnitudeWeight,
@@ -305,5 +308,44 @@ describe('예측 크기 하한 — 종목 변동성 연동', () => {
   it('σ를 모르면 상한은 종전 고정값 그대로 — 검수 규칙의 동작이 바뀌지 않는다', () => {
     expect(maxMagnitudePct('KR_EQUITY', 30)).toBe(50);
     expect(maxMagnitudePct('CRYPTO', 30)).toBe(120);
+  });
+});
+
+describe('수익성 가중 w — 크기에 연속 (2026-08-13)', () => {
+  it('구간 경계에서 뛰지 않는다 — 여기가 차익이 살던 자리였다', () => {
+    // 경계는 F의 1.5 / 2 / 3 / 5배. 예전에는 이 지점에서 w가 0.25씩 계단으로 뛰어
+    // 목표를 0.02%p 올리는 것만으로 기대 점수가 14~25% 올랐다
+    const F = PROFITABILITY_BASE_PCT.KR_EQUITY;
+    for (const b of PROFITABILITY_BOUNDS) {
+      const below = magnitudeWeight('KR_EQUITY', F * b - 0.01);
+      const above = magnitudeWeight('KR_EQUITY', F * b + 0.01);
+      expect(Math.abs(above - below)).toBeLessThan(0.005);
+    }
+  });
+
+  it('범위는 [1, 2] — 아주 작은 목표와 아주 큰 목표에서 클램프된다', () => {
+    expect(magnitudeWeight('KR_EQUITY', 0.5)).toBe(1);
+    expect(magnitudeWeight('KR_EQUITY', 1_000)).toBe(2);
+    expect(magnitudeWeight('CRYPTO', 1_000)).toBe(2);
+  });
+
+  it('크기에 단조 증가한다', () => {
+    let prev = 0;
+    for (let m = 1; m <= 60; m += 0.5) {
+      const w = magnitudeWeight('KR_EQUITY', m);
+      expect(w).toBeGreaterThanOrEqual(prev - 1e-12);
+      prev = w;
+    }
+  });
+
+  it('자산군 기준 단위 F로 정규화된다 — 같은 배수면 같은 무게', () => {
+    expect(magnitudeWeight('KR_EQUITY', 15)).toBeCloseTo(magnitudeWeight('CRYPTO', 30), 12);
+  });
+
+  it('별점 환산과 같은 눈금을 쓴다 — 구간 대표 배수의 로그 보간', () => {
+    // 구간 5의 대표 배수에서 w가 정확히 2에 닿는다
+    const F = PROFITABILITY_BASE_PCT.KR_EQUITY;
+    expect(magnitudeWeight('KR_EQUITY', F * PROFITABILITY_PAYOUT_MULTIPLE[5])).toBeCloseTo(2, 10);
+    expect(magnitudeWeight('KR_EQUITY', F * PROFITABILITY_PAYOUT_MULTIPLE[1])).toBeCloseTo(1, 10);
   });
 });

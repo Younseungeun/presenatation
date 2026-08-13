@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { evaluateTier, evaluateTierAcrossAssetClasses } from '../tiers';
+import {
+  DEFAULT_TIER_THRESHOLDS,
+  evaluateTier,
+  evaluateTierAcrossAssetClasses,
+} from '../tiers';
 
 describe('evaluateTier — 등급은 전적으로 점수로 산정 (경쟁적 요소)', () => {
   it('시작 등급: 점수 없으면 브론즈', () => {
@@ -10,11 +14,16 @@ describe('evaluateTier — 등급은 전적으로 점수로 산정 (경쟁적 �
     expect(evaluateTier(-500)).toBe('BRONZE');
   });
 
-  it('임계값 도달 시 승급 (v4 재캘리브레이션: 시니어 1,330 / 마스터 2,770 / 펠로우 5,250)', () => {
-    expect(evaluateTier(1_329)).toBe('BRONZE');
-    expect(evaluateTier(1_330)).toBe('SILVER');
-    expect(evaluateTier(2_770)).toBe('GOLD');
-    expect(evaluateTier(5_250)).toBe('PLATINUM');
+  it('임계값 도달 시 승급 — 수치는 상수에서 읽는다 (재캘리브레이션마다 고쳐 적지 않게)', () => {
+    const { SILVER, GOLD, PLATINUM } = DEFAULT_TIER_THRESHOLDS;
+    expect(evaluateTier(SILVER - 1)).toBe('BRONZE');
+    expect(evaluateTier(SILVER)).toBe('SILVER');
+    expect(evaluateTier(GOLD)).toBe('GOLD');
+    expect(evaluateTier(PLATINUM)).toBe('PLATINUM');
+  });
+
+  it('현재 임계값 (v5 + 연속 가중 w 재캘리브레이션, 2026-08-13)', () => {
+    expect(DEFAULT_TIER_THRESHOLDS).toEqual({ SILVER: 1_200, GOLD: 2_650, PLATINUM: 5_070 });
   });
 
   it('시즌 재산정에서 점수가 낮아지면 강등 (같은 함수로 재평가)', () => {
