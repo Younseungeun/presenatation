@@ -27,6 +27,15 @@ module.exports = {
       min_uptime: 60_000,
       // 누수로 램을 먹으면 알아서 재기동 (판정은 멱등이라 안전하다)
       max_memory_restart: '500M',
+      // **종료에 시간을 준다.** 기본값 1.6초는 진행 중인 판정 한 회차(20장 × 1.1초 ≈ 22초)를
+      // 못 기다려 SIGKILL로 자르는데, 그러면 종료 훅의 clearHeartbeat이 돌지 못해
+      // **멈춘 스케줄러를 헬스 엔드포인트가 15분간 "살아 있다"고 답한다.**
+      // 남은 큐는 프로세스가 알아서 버리므로(runScheduler의 stopping) 이 시간을 다 쓰지 않는다
+      kill_timeout: 30_000,
+      // **윈도우에는 SIGTERM이 없다** — pm2가 프로세스를 그냥 끊어 종료 훅이 한 번도
+      // 돌지 못했다(실측). 이 옵션을 켜면 신호 대신 IPC로 'shutdown' 메시지를 보내고,
+      // runScheduler가 그것을 듣는다. 리눅스에서는 신호가 그대로 동작하므로 양쪽 다 산다
+      shutdown_with_message: true,
       time: true, // 로그 각 줄에 타임스탬프
       merge_logs: true,
       out_file: './logs/scheduler-out.log',

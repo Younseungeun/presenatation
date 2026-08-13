@@ -22,6 +22,8 @@ export interface BatchSummary {
   staleDeferred: string[];
   /** 상한에 걸려 시스템이 판정 불가로 닫은 카드 — 전액 환불이 나갔으므로 사람이 알아야 한다 */
   hardCapped: string[];
+  /** 반복된 판정 불가로 신규 게시를 막은 종목 — 유니버스에서 내린 것이라 사람이 알아야 한다 */
+  blockedInstruments: string[];
   /**
    * 이번 회차에서 마지막으로 손댄 카드의 위치 — **다음 회차의 커서다.**
    *
@@ -62,10 +64,16 @@ export const JUDGE_BATCH_SIZE = 20;
  * 특정 종목에서 계속 실패하면(티커 변경·상폐 직전·데이터 공백) 그 카드가 매 회차
  * KIS 호출을 갉아먹는다 — 100건이면 회차마다 110초를 **아무 성과 없이** 쓴다.
  *
- * 눈금이 시간이 아니라 **날 단위까지 가는** 이유: 판정 배치는 시장 마감 직후 하루
- * 한 번 돈다. 백오프가 24시간 안에서만 놀면 다음 날 어차피 전부 다시 돌아와, 줄이려던
- * 비용이 그대로다. 앞쪽을 짧게 둔 것은 **일시 장애의 자동 복구**를 살리기 위해서다 —
- * KIS 새벽 점검처럼 몇 시간이면 낫는 것은 2~3회차 안에 스스로 판정된다.
+ * **마지막 눈금이 하루인 이유는 상한(Hard Cap)이 생겼기 때문이다.** 예전 마지막 눈금은
+ * 사흘이었다 — 영영 실패하는 카드의 호출을 줄이려는 값이었고, 무기한 기다리는 설계에서는
+ * 그게 맞았다. 지금은 14일에 시스템이 닫으므로 계산이 뒤집힌다:
+ *  · 아끼는 것 — 상한까지 시도 7회가 14회로. 카드 한 장당 **KIS 호출 7번**이 는다(무시할 값)
+ *  · 잃는 것 — 5일째 시세가 돌아와도 다음 시도가 8일째면 **사흘을 에스크로에 묶은 채** 헛산다.
+ *    최악의 경우 상한 직전에 되살아난 데이터를 못 보고 판정 불가로 닫는다
+ * 상한이 없던 때는 "언젠가는 잡힌다"가 참이라 간격이 길어도 손해가 없었지만, 끝을
+ * 정해 둔 지금은 **간격이 곧 놓칠 확률**이다.
+ *
+ * 마지막 눈금은 클램프로 반복된다(nextAttemptAfterDefer) — 4회차 이후는 계속 하루 간격.
  */
 export const DEFER_BACKOFF_MS = [
   // **첫 실패는 미루지 않는다.** 한 번의 결측은 대개 일시적이고(그날 봉이 아직 안 올라옴),
@@ -74,8 +82,7 @@ export const DEFER_BACKOFF_MS = [
   0, // 1회 → 다음 회차에 바로 다시
   60 * 60_000, // 2회 → 1시간
   6 * 3_600_000, // 3회 → 6시간
-  24 * 3_600_000, // 4회 → 하루
-  3 * 86_400_000, // 5회 → 사흘
+  24 * 3_600_000, // 4회 이후 → 하루 (상한까지 매일 한 번씩 두드린다)
 ] as const;
 
 /**
@@ -88,8 +95,9 @@ export const DEFER_BACKOFF_MS = [
  * 일어난다.
  *
  * 그래서 **정차는 시간으로 판단한다**(STALE_DEFER_DAYS). deferCount는 "얼마나 자주
- * 다시 볼까"만 정한다. 마지막 눈금이 3일이라 영영 실패하는 카드도 3일에 한 번만
- * 부르므로, 조회에서 빼지 않아도 비용이 무시할 수준이고 **데이터가 돌아오면 스스로 낫는다**.
+ * 다시 볼까"만 정한다. 마지막 눈금이 하루라 영영 실패하는 카드도 하루 한 번만 부르므로
+ * (상한까지 최대 14회), 조회에서 빼지 않아도 비용이 무시할 수준이고 **데이터가 돌아오면
+ * 스스로 낫는다**.
  */
 export const MAX_DEFER_ATTEMPTS = DEFER_BACKOFF_MS.length;
 
@@ -105,6 +113,61 @@ export const MAX_DEFER_ATTEMPTS = DEFER_BACKOFF_MS.length;
  * 둘을 같은 날로 두면 운영자에게 기회가 없다.
  */
 export const JUDGMENT_HARD_CAP_DAYS = 14;
+
+/**
+ * 같은 종목이 이만큼 상한에 걸리면 **그 종목의 신규 게시를 막는다**.
+ *
+ * 상한은 구매자를 구하지만 원인을 고치지는 않는다 — 시세를 못 구하는 종목은 다음 카드도
+ * 똑같이 판정 불가로 끝난다. 그때마다 리서처는 점수 0을 받고 구매자는 14일을 기다린다.
+ * **판정할 수 없는 종목을 계속 파는 것 자체가 지킬 수 없는 약속**이라 진열대에서 내린다.
+ *
+ * 리서처가 직접 시세를 제출해 구제받는 창구는 열지 않는다 — 판정의 값어치는 전적으로
+ * "플랫폼이 중립적인 원천으로 잰다"에서 오고, 당사자가 낸 숫자를 받는 순간 그게 사라진다.
+ * 구제는 개별 판정을 뒤집는 것이 아니라 **유니버스를 고치는 것**이 맞다.
+ *
+ * 문턱이 1이 아니라 2인 이유: 소스 전체가 하루 죽으면 수십 종목이 한 번씩 걸린다.
+ * **같은 종목**이 두 번 걸려야 종목의 문제다 — 한 번은 사건이고 두 번은 성질이다.
+ *
+ * 처분은 DANGER 등급이다. 검색에서 빠지고 신규 카드가 막히되 **진행 중인 카드와 돈은
+ * 건드리지 않는다**. 매일 도는 마스터 동기화가 등급을 내리지 않으므로(올리기만 한다)
+ * 조용히 되살아나지 않고, 원인이 풀리면 운영자가 `npm run risk:set`으로 되돌린다.
+ */
+export const HARD_CAP_BLOCK_THRESHOLD = 2;
+
+/**
+ * 반복해서 판정 불가가 난 종목의 신규 게시를 막는다. 막았으면 사유 문자열, 아니면 null.
+ * (이 카드의 판정이 이미 기록된 뒤에 부른다 — count에 방금 것이 포함된다)
+ */
+async function blockUnjudgeableInstrument(
+  prisma: PrismaClient,
+  assetClass: string,
+  ticker: string,
+  now: Date,
+): Promise<string | null> {
+  const hardCaps = await prisma.judgment.count({
+    where: {
+      undecidableReason: 'DATA_UNAVAILABLE',
+      predictionCard: { assetClass, ticker },
+    },
+  });
+  if (hardCaps < HARD_CAP_BLOCK_THRESHOLD) return null;
+  const inst = await prisma.instrument.findUnique({
+    where: { assetClass_ticker: { assetClass, ticker } },
+    select: { riskLevel: true },
+  });
+  // 이미 막혀 있거나 마스터에 없으면 할 일이 없다 (마스터에서 사라진 종목은 상장폐지
+  // 경로가 따로 처리한다 — 거기서는 전액 환불까지 이미 났다)
+  if (!inst || inst.riskLevel === 'DANGER') return null;
+  await prisma.instrument.update({
+    where: { assetClass_ticker: { assetClass, ticker } },
+    data: {
+      riskLevel: 'DANGER',
+      riskNote: `시세를 구하지 못해 판정 불가로 닫힌 카드 ${hardCaps}건 — 신규 게시 중단`,
+      riskSyncedAt: now,
+    },
+  });
+  return `${ticker} (${assetClass}): 판정 불가 ${hardCaps}건 — 신규 게시 중단`;
+}
 
 /**
  * 다음 시도 시각. **정차(parking)는 이 값이 아니라 deferCount가 표현한다** —
@@ -197,6 +260,7 @@ export async function judgeAndSettleDueCards(
     failed: 0,
     staleDeferred: [],
     hardCapped: [],
+    blockedInstruments: [],
     cursor:
       dueCards.length > 0
         ? {
@@ -330,6 +394,18 @@ export async function judgeAndSettleDueCards(
           summary.judged++;
           summary.hardCapped.push(`${card.ticker} (${card.id}): ${Math.floor(overdueDays)}일 초과`);
           console.warn(`판정 상한 도달 ${card.ticker} (${card.id}) — 판정 불가·전액 환불`);
+          // **원인을 그대로 두면 다음 카드도 똑같이 끝난다.** 같은 종목이 반복해서
+          // 상한에 걸리면 그 종목의 신규 게시를 막는다 (진행 중인 카드·돈은 그대로)
+          const blocked = await blockUnjudgeableInstrument(
+            prisma,
+            card.assetClass,
+            card.ticker,
+            now,
+          );
+          if (blocked) {
+            summary.blockedInstruments.push(blocked);
+            console.warn(`신규 게시 중단 ${blocked}`);
+          }
           continue;
         }
 

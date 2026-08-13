@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic';
  * 찌르게 두는 것이 완성이다 — 503이면 알림이 온다.
  *
  * 인증을 걸지 않는다: 여기서 나가는 것은 "심박이 몇 초 전인가"뿐이라 노출 위험이
- * 없고, 인증을 걸면 정작 모니터가 못 찌른다.
+ * 없고, 인증을 걸면 정작 모니터가 못 찌른다. 읽기 한 번뿐이라 계속 찔러도 부담이 없다.
  */
 export async function GET() {
   const health = await readHeartbeat(prisma);
@@ -24,7 +24,14 @@ export async function GET() {
       ageSeconds: health.ageMs === null ? null : Math.floor(health.ageMs / 1000),
       staleAfterSeconds: HEARTBEAT_STALE_MS / 1000,
     },
-    // 멈춘 상태를 200으로 답하면 모니터가 아무것도 못 한다
-    { status: health.stale ? 503 : 200 },
+    {
+      // 멈춘 상태를 200으로 답하면 모니터가 아무것도 못 한다
+      status: health.stale ? 503 : 200,
+      // **캐시되면 이 엔드포인트는 거짓말하는 장치가 된다.** force-dynamic은 우리
+      // 프레임워크까지만 막는다 — 앞에 CDN·리버스 프록시가 서면 200 한 장을 붙들고
+      // 스케줄러가 죽은 뒤에도 계속 "ok"를 돌려준다. 감시자가 감시받는 대상보다
+      // 조용히 고장 나는 경로라 헤더로 못을 박는다
+      headers: { 'Cache-Control': 'no-store, max-age=0' },
+    },
   );
 }

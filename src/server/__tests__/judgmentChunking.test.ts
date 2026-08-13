@@ -4,10 +4,13 @@ import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import {
+  DEFER_BACKOFF_MS,
+  HARD_CAP_BLOCK_THRESHOLD,
   JUDGE_BATCH_SIZE,
   JUDGMENT_HARD_CAP_DAYS,
   MAX_DEFER_ATTEMPTS,
   judgeAndSettleDueCards,
+  nextAttemptAfterDefer,
 } from '../judgmentBatch';
 import { createDraftReport, publishReport } from '../reportService';
 
@@ -74,12 +77,19 @@ async function publishCard(ticker: string, researcherId: string) {
 
 const TOTAL = JUDGE_BATCH_SIZE + 5; // 한 회차로는 안 끝나는 양
 const TICKERS = Array.from({ length: TOTAL }, (_, i) => `KRW-CH${i}`);
+/** 같은 종목에서 판정 불가가 반복되는 것을 시험할 티커 (카드 2장을 여기에 건다) */
+const REPEAT_TICKER = 'KRW-DEAD';
 
 beforeAll(async () => {
   prisma = createTestDb('judge-chunk-');
   await seedTestInstruments(
     prisma,
-    TICKERS.map((ticker) => ({ assetClass: 'CRYPTO', ticker, name: ticker, shortable: true })),
+    [...TICKERS, REPEAT_TICKER].map((ticker) => ({
+      assetClass: 'CRYPTO',
+      ticker,
+      name: ticker,
+      shortable: true,
+    })),
   );
   // 상한이 넉넉한 등급 + 여럿에 분산 — 이 시험의 대상은 게시 상한이 아니라 배치 청킹이다
   for (const n of [1, 2, 3]) {
@@ -193,5 +203,55 @@ describe('판정 배치 청킹', () => {
     // 소스 장애의 대가를 리서처가 지면 안 된다 — 점수도 증거도 0
     expect(judgment.score).toBe(0);
     expect(judgment.info).toBe(0);
+  });
+
+  // **상한이 생긴 뒤로는 간격이 곧 놓칠 확률이다.** 예전 마지막 눈금(사흘)이면 5일째
+  // 되살아난 시세를 8일째에야 본다 — 그 사흘은 에스크로에 묶인 채 헛산 시간이고,
+  // 최악의 경우 상한 직전에 돌아온 데이터를 못 보고 판정 불가로 닫는다
+  it('마지막 재시도 간격은 하루를 넘지 않는다 — 상한 안에서 시세 복귀를 놓치지 않게', () => {
+    const last = DEFER_BACKOFF_MS[DEFER_BACKOFF_MS.length - 1];
+    expect(last).toBe(24 * 3_600_000);
+
+    // 눈금을 다 써도 하루 간격이 유지된다 (클램프) — 뒤로 갈수록 뜸해지지 않는다
+    const t0 = new Date('2026-08-02T00:00:00Z');
+    expect(nextAttemptAfterDefer(DEFER_BACKOFF_MS.length + 5, t0).getTime() - t0.getTime()).toBe(
+      last,
+    );
+
+    // 상한에 닿기 전에 충분히 여러 번 두드린다
+    expect((JUDGMENT_HARD_CAP_DAYS * 86_400_000) / last).toBeGreaterThanOrEqual(10);
+  });
+
+  // **상한은 구매자를 구하지만 원인을 고치지 않는다.** 시세를 못 구하는 종목은 다음
+  // 카드도 똑같이 끝나므로, 반복되면 그 종목의 신규 게시를 막는다.
+  // (리서처가 시세를 직접 제출해 구제받는 창구는 열지 않는다 — 판정의 값어치가
+  //  "플랫폼이 중립적인 원천으로 잰다"에서 오는데, 당사자 숫자를 받으면 그게 사라진다)
+  it(`같은 종목이 ${HARD_CAP_BLOCK_THRESHOLD}번 판정 불가면 그 종목의 신규 게시를 막는다`, async () => {
+    await publishCard(REPEAT_TICKER, researcherIds[0]);
+    await publishCard(REPEAT_TICKER, researcherIds[1]);
+
+    const wayLate = new Date(DEADLINE.getTime() + (JUDGMENT_HARD_CAP_DAYS + 1) * 86_400_000);
+    const s = await judgeAndSettleDueCards(prisma, noQuotes, wayLate);
+    expect(s.hardCapped.length).toBe(2);
+
+    // 두 번째에서 막힌다 — 한 번은 사건이고 두 번은 종목의 성질이다
+    expect(s.blockedInstruments).toHaveLength(1);
+    expect(s.blockedInstruments[0]).toContain(REPEAT_TICKER);
+
+    const inst = await prisma.instrument.findUniqueOrThrow({
+      where: { assetClass_ticker: { assetClass: 'CRYPTO', ticker: REPEAT_TICKER } },
+    });
+    expect(inst.riskLevel).toBe('DANGER'); // 검색 제외 + 신규 카드 차단
+    // 진행 중인 카드와 돈은 건드리지 않는다 — 유니버스만 줄인다
+    expect(inst.active).toBe(true);
+  });
+
+  // 소스 전체가 하루 죽으면 수십 종목이 **한 번씩** 걸린다. 그때 종목을 무더기로
+  // 내리면 장애 하나가 유니버스를 통째로 지운다 — 문턱이 1이 아닌 이유가 이것이다
+  it('한 번씩 걸린 종목들은 막지 않는다 — 소스 장애가 유니버스를 지우면 안 된다', async () => {
+    const blockedOnce = await prisma.instrument.count({
+      where: { assetClass: 'CRYPTO', ticker: { in: TICKERS }, riskLevel: 'DANGER' },
+    });
+    expect(blockedOnce).toBe(0);
   });
 });

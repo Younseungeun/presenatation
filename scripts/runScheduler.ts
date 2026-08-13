@@ -62,11 +62,26 @@ function onceADay(key: string, day: string): boolean {
 
 let lastQuoteAt = 0;
 
+/**
+ * 종료 신호를 받았나 — **받았으면 남은 큐를 버린다.**
+ *
+ * 예전에는 종료 시 큐를 끝까지 비웠다. 그런데 이 큐에는 판정 40회차(최대 800장 ×
+ * 1.1초 ≈ 15분)가 들어갈 수 있어서 **pm2의 kill_timeout 안에 절대 못 끝난다** —
+ * 결국 SIGKILL로 잘리고, 그 뒤에 걸어 둔 `clearHeartbeat`이 실행되지 않는다.
+ * 그러면 정상으로 멈춘 스케줄러를 헬스 엔드포인트가 **15분 동안 "살아 있다"고 답한다.**
+ *
+ * 남은 일을 버려도 되는 근거: 판정은 카드마다 단일 트랜잭션이라 중간에 멈춰도 반쪽짜리
+ * 레코드가 남지 않고, 멱등이라 다음 기동의 따라잡기가 그대로 이어받는다.
+ * **끝까지 하는 것보다 정직하게 멈추는 것이 낫다.**
+ */
+let stopping = false;
+
 /** 모든 일이 이 큐를 지난다 — 동시에 두 배치가 KIS를 두드리지 않게 */
 let queue: Promise<unknown> = Promise.resolve();
 function enqueue(label: string, fn: () => Promise<void>): void {
   queue = queue
     .then(async () => {
+      if (stopping) return; // 종료 중 — 진행 중인 것만 끝내고 나머지는 다음 기동에 넘긴다
       const t0 = Date.now();
       try {
         await fn();
@@ -74,6 +89,11 @@ function enqueue(label: string, fn: () => Promise<void>): void {
       } catch (e) {
         console.error(`[${new Date().toISOString()}] ${label} 실패:`, (e as Error).message);
       }
+      // **일이 끝날 때마다 서명한다.** 심박을 틱 맨 뒤에만 찍으면 그 사이의 침묵이
+      // "한 배치가 멈췄다"가 아니라 "아침 배치들이 줄줄이 도는 중"일 수도 있어,
+      // 문턱을 **가장 긴 배치 하나**가 아니라 **가장 긴 줄 전체**에 맞춰야 했다.
+      // 항목마다 찍으면 침묵의 뜻이 하나로 좁혀진다 — 이 항목이 안 끝나고 있다
+      await writeHeartbeat(prisma);
     })
     .catch(() => undefined);
 }
@@ -92,7 +112,7 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
   // 다음 조회에도 그대로 잡히기 때문이다. 그러면 뒤의 멀쩡한 카드가 영영 판정되지 않는다
   const due = await judgeAndSettleDueCards(prisma, registry, new Date(), assetClass);
   let chunks = 1;
-  while (due.hasMore && due.cursor && chunks < MAX_JUDGE_CHUNKS) {
+  while (due.hasMore && due.cursor && chunks < MAX_JUDGE_CHUNKS && !stopping) {
     const next = await judgeAndSettleDueCards(
       prisma,
       registry,
@@ -105,9 +125,15 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
     due.failed += next.failed;
     due.staleDeferred.push(...next.staleDeferred);
     due.hardCapped.push(...next.hardCapped);
+    due.blockedInstruments.push(...next.blockedInstruments);
     due.cursor = next.cursor ?? due.cursor;
     due.hasMore = next.hasMore;
     chunks += 1;
+    // **회차마다 심박을 찍는다.** 심박은 큐 맨 뒤에도 있지만, 밀린 판정을 소진하는
+    // 사이클은 15분(HEARTBEAT_STALE_MS)을 넘길 수 있다 — 그러면 **가장 열심히 일하는
+    // 순간에 헬스 엔드포인트가 죽었다고 답한다.** 좀비 감지는 그대로다: 한 회차가
+    // 20장(≈22초)이라 그 안에서 멈추면 심박도 함께 멈춘다
+    await writeHeartbeat(prisma);
   }
   if (due.hasMore) {
     console.warn(`  ${assetClass}: 판정 대기가 ${MAX_JUDGE_CHUNKS}회차 상한에 걸렸습니다 — 다음 창구로 이월`);
@@ -128,6 +154,18 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
       `시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나도록 시세를 구하지 못해 시스템이 닫았습니다.\n` +
         `시세 소스 문제인지 확인하고, 반복되면 소스를 바꿔야 합니다.\n` +
         due.hardCapped.slice(0, 10).join('\n'),
+      '/admin/judgments',
+    );
+  }
+
+  // **유니버스가 줄어든 사건이다.** 리서처는 다음 게시에서야 알게 되므로, 원인이
+  // 시세 소스 쪽이면 사람이 먼저 풀어야 한다 (`npm run risk:set`으로 되돌린다)
+  if (due.blockedInstruments.length > 0) {
+    await notifyOperators(
+      `[확인] 판정 불가 반복 종목 ${due.blockedInstruments.length}건 — 신규 게시 중단`,
+      `같은 종목에서 판정 불가가 반복돼 신규 카드 게시를 막았습니다.\n` +
+        `진행 중인 카드와 돈은 그대로입니다. 시세 소스 문제라면 고친 뒤 등급을 되돌리세요.\n` +
+        due.blockedInstruments.join('\n'),
       '/admin/judgments',
     );
   }
@@ -356,8 +394,10 @@ function tick(): void {
   }
 
   // ── 심박 (매 틱, 큐 맨 뒤) ──────────────────────────────
-  // **큐 뒤에 세우는 것이 핵심이다.** 앞선 일이 막혀 있으면 심박도 안 찍힌다 —
-  // "프로세스는 살아 있는데 아무 일도 안 하는" 좀비를 그렇게 잡는다.
+  // 이제 심박은 **큐 항목이 끝날 때마다** 찍힌다(enqueue). 이 줄이 남아 있는 이유는
+  // 다른 것이다 — **할 일이 하나도 없는 틱**에도 살아 있음을 말해야 하기 때문이다.
+  // 큐 맨 뒤라는 성질은 그대로다: 앞선 일이 막혀 있으면 이것도 찍히지 않는다.
+  // "프로세스는 살아 있는데 아무 일도 안 하는" 좀비를 그렇게 잡는다
   // (pm2는 죽은 것만 살린다. 좀비는 online으로 보인다)
   enqueue('심박', () => writeHeartbeat(prisma));
 }
@@ -372,6 +412,7 @@ function tick(): void {
 function catchUpOnBoot(): void {
   enqueue('기동 따라잡기', async () => {
     for (const assetClass of ['KR_EQUITY', 'US_EQUITY', 'CRYPTO'] as AssetClass[]) {
+      if (stopping) return; // 세 시장이 한 항목이라 여기서도 봐야 종료가 빨라진다
       await judgeMarket(assetClass);
     }
   });
@@ -406,13 +447,28 @@ async function main(): Promise<void> {
 void main();
 const timer = setInterval(tick, TICK_MS);
 
-for (const sig of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(sig, () => {
-    clearInterval(timer);
-    console.log('스케줄러 종료 — 진행 중인 배치를 기다립니다');
-    // 심박을 지운다 — 안 지우면 헬스 엔드포인트가 15분간 "살아 있다"고 답한다
-    void queue
-      .finally(() => clearHeartbeat(prisma))
-      .finally(() => prisma.$disconnect().then(() => process.exit(0)));
-  });
+function shutdown(how: string): void {
+  if (stopping) return;
+  clearInterval(timer);
+  // 남은 큐를 버린다 — 진행 중인 것 하나만 끝내고 나간다 (stopping 주석 참고).
+  // 이래야 pm2의 kill_timeout 안에 끝나고, 그래야 아래 clearHeartbeat이 실제로 돈다
+  stopping = true;
+  console.log(`스케줄러 종료(${how}) — 진행 중인 배치만 끝내고 나갑니다`);
+  // 심박을 지운다 — 안 지우면 헬스 엔드포인트가 15분간 "살아 있다"고 답한다
+  void queue
+    .finally(() => clearHeartbeat(prisma))
+    .finally(() => prisma.$disconnect().then(() => process.exit(0)));
 }
+
+for (const sig of ['SIGINT', 'SIGTERM'] as const) {
+  process.on(sig, () => shutdown(sig));
+}
+
+// **윈도우에는 신호가 없다.** POSIX 시그널이 없어 pm2가 TerminateProcess로 프로세스를
+// 끊으므로 위의 SIGTERM 핸들러는 **한 번도 실행되지 않는다** — 실측으로 확인했다
+// (정상 종료 로그가 안 찍히고 심박이 남아, 멈춘 스케줄러를 헬스 엔드포인트가 15분간
+// "살아 있다"고 답했다). pm2의 우회로는 신호 대신 IPC 메시지다
+// (ecosystem.config.cjs의 shutdown_with_message).
+process.on('message', (m) => {
+  if (m === 'shutdown') shutdown('IPC');
+});
