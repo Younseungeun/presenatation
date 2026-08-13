@@ -8,6 +8,7 @@ import {
   checkoutCart,
   countCart,
   getCart,
+  MAX_CART_ITEMS,
   removeFromCart,
 } from '../cartService';
 import { createTestDb, seedTestInstruments } from './helpers/testDb';
@@ -34,11 +35,22 @@ function registry(ticker: string): ProviderRegistry {
   };
 }
 
-async function publish(ticker: string, deadline: Date, priceKrw = 10_000) {
+async function publish(
+  ticker: string,
+  deadline: Date,
+  priceKrw = 10_000,
+  opts: { seedInstrument?: boolean; researcherId?: string } = {},
+) {
+  if (opts.seedInstrument) {
+    await seedTestInstruments(prisma, [
+      { assetClass: 'CRYPTO', ticker, name: ticker, shortable: true },
+    ]);
+  }
+  const seller = opts.researcherId ?? researcherId;
   const draft = await createDraftReport(
     prisma,
     {
-      researcherId,
+      researcherId: seller,
       title: `${ticker} 전망`,
       summary: 's',
       content: 'c',
@@ -58,7 +70,7 @@ async function publish(ticker: string, deadline: Date, priceKrw = 10_000) {
     },
     DRAFT_NOW,
   );
-  await publishReport(prisma, registry(ticker), draft.id, researcherId, PUBLISH_NOW);
+  await publishReport(prisma, registry(ticker), draft.id, seller, PUBLISH_NOW);
   return draft.id;
 }
 
@@ -152,5 +164,45 @@ describe('checkoutCart — 일괄 결제', () => {
 
   it('이미 구매한 리포트를 다시 담으면 담기 단계에서 막힌다', async () => {
     await expect(addToCart(prisma, buyerId, liveA)).rejects.toThrow('이미 구매한');
+  });
+
+  // 결제 한 번에 담긴 것 전부의 시세를 조회하고 그만큼을 한 트랜잭션에 묶으므로,
+  // 개수가 늘수록 조회 시간·잠금 구간과 **하나라도 걸릴 확률**이 같이 올라간다.
+  // 많이 담은 사람일수록 결제가 안 되는 역설을 상한으로 끊는다
+  it(`카드지갑은 ${MAX_CART_ITEMS}건까지만 담긴다 — 담을수록 결제가 어려워지지 않게`, async () => {
+    const other = await prisma.user.create({
+      data: { email: 'cap@cart.io', identityVerified: true },
+    });
+    // 동시 게시 상한(등급·자산군별 15건)에 걸리지 않게 최상위 등급 리서처 둘에 나눠 찍고
+    // 90일 안쪽 시한을 쓴다 — 이 시험의 대상은 게시 상한이 아니라 카드지갑 상한이다
+    const sellers: string[] = [];
+    for (const n of [1, 2]) {
+      const u = await prisma.user.create({
+        data: {
+          email: `cap-seller${n}@cart.io`,
+          identityVerified: true,
+          researcherProfile: { create: { tier: 'CHALLENGER' } },
+        },
+        include: { researcherProfile: true },
+      });
+      sellers.push(u.researcherProfile!.id);
+    }
+    const ids: string[] = [];
+    for (let i = 0; i < MAX_CART_ITEMS + 1; i++) {
+      ids.push(
+        await publish(`KRW-CAP${i}`, new Date('2026-09-15T00:00:00Z'), 10_000, {
+          seedInstrument: true,
+          researcherId: sellers[i % sellers.length],
+        }),
+      );
+    }
+    for (let i = 0; i < MAX_CART_ITEMS; i++) {
+      await addToCart(prisma, other.id, ids[i]);
+    }
+    // 이미 담긴 것을 다시 담는 건 개수를 늘리지 않으므로 상한에 걸리지 않는다
+    await expect(addToCart(prisma, other.id, ids[0])).resolves.toBeDefined();
+    await expect(addToCart(prisma, other.id, ids[MAX_CART_ITEMS])).rejects.toThrow(
+      new RegExp(`최대 ${MAX_CART_ITEMS}건`),
+    );
   });
 });

@@ -6,21 +6,31 @@ import styles from "../../researcher/researcher.module.css";
 
 // 지시서 실행 버튼: 환불은 방법(PG 취소/계좌이체)을 골라 실행, 지급은 바로 실행.
 // 실행은 되돌릴 수 없으므로 confirm 한 번을 거친다.
+//
+// **끝나지 않은 시도(stuckAttemptId)가 있으면 "새로 실행"을 아예 내보내지 않는다.**
+// PENDING은 "취소가 나갔는지 우리가 모른다"는 뜻이라, 새로 실행하면 새 멱등키로 한 번 더
+// 나가 두 번 빠질 수 있다. 그 시도를 같은 키로 이어받는 재시도만 남긴다.
 export function ExecuteButton({
   kind,
   settlementId,
+  stuckAttemptId,
 }: {
   kind: "REFUND" | "PAYOUT";
   settlementId: string;
+  stuckAttemptId?: string;
 }) {
   const router = useRouter();
   const [method, setMethod] = useState("PG_CANCEL");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const retrying = kind === "REFUND" && !!stuckAttemptId;
 
   async function execute() {
     const label = kind === "REFUND" ? "환불" : "지급";
-    if (!window.confirm(`${label}을 실행 완료로 기록할까요? 되돌릴 수 없습니다.`)) return;
+    const question = retrying
+      ? "끝나지 않은 환불 시도를 같은 키로 다시 보낼까요? 이미 나갔다면 중복되지 않습니다."
+      : `${label}을 실행 완료로 기록할까요? 되돌릴 수 없습니다.`;
+    if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
     try {
@@ -28,7 +38,11 @@ export function ExecuteButton({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
-          kind === "REFUND" ? { kind, settlementId, method } : { kind, settlementId },
+          retrying
+            ? { kind: "REFUND_RETRY", attemptId: stuckAttemptId }
+            : kind === "REFUND"
+              ? { kind, settlementId, method }
+              : { kind, settlementId },
         ),
       });
       const body = await res.json();
@@ -46,7 +60,7 @@ export function ExecuteButton({
 
   return (
     <div className={styles.formActions}>
-      {kind === "REFUND" && (
+      {kind === "REFUND" && !retrying && (
         <select
           className={styles.select}
           value={method}
@@ -58,8 +72,20 @@ export function ExecuteButton({
         </select>
       )}
       <button className={styles.primaryBtn} onClick={execute} disabled={busy}>
-        {busy ? "기록 중…" : kind === "REFUND" ? "환불 실행 완료" : "지급 실행 완료"}
+        {busy
+          ? "기록 중…"
+          : retrying
+            ? "미완료 환불 재시도"
+            : kind === "REFUND"
+              ? "환불 실행 완료"
+              : "지급 실행 완료"}
       </button>
+      {retrying && (
+        <p className={styles.sub}>
+          앞선 시도의 PG 응답을 받지 못했습니다. 같은 키로 다시 보내므로 이미 나갔다면
+          중복되지 않습니다.
+        </p>
+      )}
       {error && <p className={styles.error}>{error}</p>}
     </div>
   );

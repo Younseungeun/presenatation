@@ -85,8 +85,12 @@ export function pendingDepositReason(result: TossPaymentResult): string | null {
  * 같은 제약이 붙어 그 기본 동작이 성립하지 않는다. 승인은 즉시라도 받지 않는다.
  *
  * 실제로 무엇으로 결제됐는지를 구매 기록에 남기는 것이 목적이기도 하다. 전부 'CARD'로
- * 적으면 환불 경로를 수단별로 나눠야 할 때 근거가 없다 (계좌이체 취소는 환불 계좌
- * 정보를 요구할 수 있다 — 실키 전환 전 샌드박스에서 확인해야 한다).
+ * 적으면 나중에 수단별로 갈라야 할 때 근거가 없다.
+ *
+ * **실시간 계좌이체는 환불 계좌를 따로 받지 않아도 된다.** 가상계좌는 입금자가 누구인지
+ * 금융망을 거쳐 알 수 없어 `refundReceiveAccount`가 필요하지만, 계좌이체는 돈이 빠져나간
+ * 원천 계좌가 이미 연결돼 있어 금액만 넣어 취소하면 그 계좌로 돌아간다. 카드와 같은
+ * 로직으로 자동 환불된다 — 구매 흐름에 계좌 입력을 더할 필요가 없다.
  */
 export function tossMethodCode(result: TossPaymentResult): 'CARD' | 'TRANSFER' | 'EASY_PAY' | null {
   switch (result.method) {

@@ -42,7 +42,12 @@ export function CheckoutButton({
   const [agreed, setAgreed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [failed, setFailed] = useState<{ reportId: string; reason: string }[]>([]);
+  const [failed, setFailed] = useState<
+    { reportId: string; reason: string; blocking: boolean }[]
+  >([]);
+
+  /** 실제로 결제를 막은 건들 — 남의 사정으로 함께 접힌 건과 구분한다 */
+  const blocking = failed.filter((f) => f.blocking);
 
   async function checkout() {
     setBusy(true);
@@ -67,6 +72,27 @@ export function CheckoutButton({
     } finally {
       setBusy(false);
     }
+  }
+
+  /** 막은 건들을 카드지갑에서 빼고 나머지로 다시 결제한다 */
+  async function dropBlockedAndRetry() {
+    setBusy(true);
+    setError(null);
+    try {
+      for (const f of blocking) {
+        await fetch("/api/cart", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reportId: f.reportId }),
+        });
+      }
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+      return;
+    }
+    setBusy(false);
+    await checkout();
   }
 
   return (
@@ -97,11 +123,27 @@ export function CheckoutButton({
       {error && <p className={styles.err}>{error}</p>}
       {failed.length > 0 && (
         // 일괄 결제는 전부 사거나 아무것도 사지 않는다 — 한 건이 막으면 전체가 접힌다.
-        // "결제된 금액이 없습니다"를 먼저 말한다: 부분 성공을 의심하게 두면 안 된다
-        <p className={styles.err}>
-          결제가 진행되지 않았습니다 (결제된 금액 없음). 막은 사유:{" "}
-          {[...new Set(failed.map((f) => f.reason))].join(" / ")}
-        </p>
+        // "결제된 금액이 없습니다"를 먼저 말한다: 부분 성공을 의심하게 두면 안 된다.
+        //
+        // 그리고 **막힌 것만 빼고 다시 결제하는 길**을 그 자리에서 준다. 많이 담은
+        // 사람일수록 하나쯤 시세가 흔들려 전체가 막히는데, 어느 것을 빼야 하는지
+        // 직접 찾게 두면 담을수록 결제가 어려워지는 역설이 그대로 남는다
+        <div>
+          <p className={styles.err}>
+            결제가 진행되지 않았습니다 (결제된 금액 없음). 막은 사유:{" "}
+            {[...new Set(failed.filter((f) => f.blocking).map((f) => f.reason))].join(" / ")}
+          </p>
+          {blocking.length > 0 && blocking.length < failed.length && (
+            <button
+              type="button"
+              className={styles.secondaryBtn}
+              onClick={dropBlockedAndRetry}
+              disabled={busy}
+            >
+              {busy ? "다시 결제 중…" : `막힌 ${blocking.length}건 빼고 다시 결제하기`}
+            </button>
+          )}
+        </div>
       )}
     </div>
   );

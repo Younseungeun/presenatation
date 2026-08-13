@@ -60,6 +60,16 @@ export interface CartView {
   payableCount: number;
 }
 
+/**
+ * 담을 수 있는 최대 개수.
+ *
+ * 일괄 결제가 **전부 아니면 아무것도**로 바뀌면서 생긴 제약이다. 결제 한 번에 담긴 것
+ * 전부의 실시간 시세를 조회하고(네트워크) 그만큼의 행을 한 트랜잭션에 묶으므로,
+ * 개수가 늘수록 조회 시간과 잠금 구간이 같이 늘고 **하나라도 q 방어선에 걸릴 확률**도
+ * 올라간다. 많이 담은 사람일수록 결제가 안 되는 역설을 여기서 끊는다.
+ */
+export const MAX_CART_ITEMS = 20;
+
 export async function addToCart(prisma: PrismaClient, userId: string, reportId: string) {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
@@ -80,6 +90,15 @@ export async function addToCart(prisma: PrismaClient, userId: string, reportId: 
   });
   if (purchased) {
     throw new Error('이미 구매한 리포트입니다');
+  }
+  // 이미 담긴 것을 다시 담는 건 개수를 늘리지 않으므로 상한에 걸리지 않아야 한다
+  const alreadyIn = await prisma.cartItem.findUnique({
+    where: { userId_reportId: { userId, reportId } },
+  });
+  if (!alreadyIn && (await countCart(prisma, userId)) >= MAX_CART_ITEMS) {
+    throw new Error(
+      `카드지갑에는 최대 ${MAX_CART_ITEMS}건까지 담을 수 있습니다. 일괄 결제는 담긴 것을 한 번에 처리하므로, 먼저 결제하거나 몇 건을 빼주세요.`,
+    );
   }
 
   // 이미 담겨 있으면 그대로 둔다 (중복 담기는 오류가 아니다)
@@ -174,9 +193,20 @@ export async function getCart(
   };
 }
 
+export interface CheckoutFailure {
+  reportId: string;
+  reason: string;
+  /**
+   * 이 건이 **막은 쪽**인가. false면 남의 사정으로 함께 접힌 건이다.
+   * 화면이 "막은 것만 빼고 다시 결제"를 만들려면 이 구분이 필요하다 —
+   * 사유 문자열을 클라이언트에서 비교하게 두면 문구를 고칠 때마다 조용히 깨진다.
+   */
+  blocking: boolean;
+}
+
 export interface CheckoutResult {
   purchased: string[];
-  failed: { reportId: string; reason: string }[];
+  failed: CheckoutFailure[];
 }
 
 /** 다른 건 때문에 함께 취소됐을 때의 사유 — 돈이 나가지 않았음을 분명히 말한다 */
@@ -215,7 +245,7 @@ export async function checkoutCart(
   const checked: CheckedPurchase[] = [];
   for (const e of entries) {
     if (e.issue !== null) {
-      result.failed.push({ reportId: e.reportId, reason: issueMessage(e.issue) });
+      result.failed.push({ reportId: e.reportId, reason: issueMessage(e.issue), blocking: true });
       continue;
     }
     try {
@@ -224,6 +254,7 @@ export async function checkoutCart(
       result.failed.push({
         reportId: e.reportId,
         reason: err instanceof Error ? err.message : '구매 실패',
+        blocking: true,
       });
     }
   }
@@ -231,7 +262,7 @@ export async function checkoutCart(
   // ② 하나라도 막혔으면 전부 접는다
   if (result.failed.length > 0) {
     for (const c of checked) {
-      result.failed.push({ reportId: c.reportId, reason: BLOCKED_BY_SIBLING });
+      result.failed.push({ reportId: c.reportId, reason: BLOCKED_BY_SIBLING, blocking: false });
     }
     return result;
   }
@@ -251,7 +282,7 @@ export async function checkoutCart(
     // 어느 건이 막았는지 트랜잭션은 알려주지 않는다 — 전부 실패로 돌려주고 사유를 싣는다
     const reason = err instanceof Error ? err.message : '구매 실패';
     for (const c of checked) {
-      result.failed.push({ reportId: c.reportId, reason });
+      result.failed.push({ reportId: c.reportId, reason, blocking: true });
     }
   }
   return result;

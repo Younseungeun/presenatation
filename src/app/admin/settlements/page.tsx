@@ -77,7 +77,11 @@ export default async function AdminSettlementsPage() {
               <span>판정 {fmtDate(s.settledAt)}</span>
               <span>결제 {fmtDate(s.purchase.paidAt)}</span>
             </div>
-            <ExecuteButton kind="REFUND" settlementId={s.id} />
+            <ExecuteButton
+              kind="REFUND"
+              settlementId={s.id}
+              stuckAttemptId={s.refundAttempts[0]?.id}
+            />
           </div>
         ))
       )}

@@ -6,7 +6,7 @@ import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { judgeAndSettleDueCards } from '../judgmentBatch';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
-import { executeRefund, getPendingRefunds } from '../settlementOpsService';
+import { executeRefund, getPendingRefunds, retryRefundAttempt } from '../settlementOpsService';
 
 // **환불은 이제 코드가 돈을 움직인다.**
 //
@@ -27,6 +27,8 @@ const cancelCalls: {
   idempotencyKey?: string;
 }[] = [];
 let cancelShouldFail = false;
+/** PG가 거절한 것이 아니라 **응답 자체를 못 받은** 상황 (네트워크 단절) */
+let networkDown = false;
 
 vi.mock('../tossPayments', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../tossPayments')>();
@@ -34,6 +36,8 @@ vi.mock('../tossPayments', async (importOriginal) => {
     ...actual,
     cancelTossPayment: vi.fn(async (p: (typeof cancelCalls)[number]) => {
       cancelCalls.push(p);
+      // TossPaymentError가 아닌 일반 오류 = 응답을 못 받았다는 뜻
+      if (networkDown) throw new TypeError('fetch failed: 네트워크 연결이 끊겼습니다');
       if (cancelShouldFail) throw new actual.TossPaymentError('이미 취소된 결제입니다', 'ALREADY_CANCELED');
       return { paymentKey: p.paymentKey, status: 'CANCELED' };
     }),
@@ -139,6 +143,7 @@ afterAll(async () => {
 beforeEach(() => {
   cancelCalls.length = 0;
   cancelShouldFail = false;
+  networkDown = false;
 });
 
 describe('PG 취소 환불 자동 실행', () => {
@@ -274,5 +279,72 @@ describe('PG 취소 환불 자동 실행', () => {
     expect(cancelCalls[0].idempotencyKey).not.toBe(cancelCalls[1].idempotencyKey);
     const attempts = await prisma.refundAttempt.findMany({ where: { settlementId } });
     expect(attempts.map((a) => a.status).sort()).toEqual(['FAILED', 'SUCCEEDED']);
+  });
+});
+
+// **"PG가 거절했다"와 "응답을 못 받았다"는 다르다.**
+//
+// 토스가 HTTP로 거절하면 돈이 안 나갔다는 것을 우리가 **안다** — 그 시도는 끝났고
+// 다음은 새 키로 나가야 한다. 반대로 네트워크가 끊겨 응답 자체를 못 받으면 나갔는지
+// 알 수 없다. 그때 새 시도를 만들면 **새 멱등키로 한 번 더 나가** 두 번 빠진다.
+describe('응답을 못 받은 시도는 PENDING으로 남고, 같은 키로만 이어받는다', () => {
+  let settlementId: string;
+
+  beforeEach(async () => {
+    settlementId = await seedMissedPurchase(
+      (await prisma.researcherProfile.findFirstOrThrow()).id,
+      'KRW-BTC',
+      0,
+      'pk_net',
+    );
+    cancelCalls.length = 0;
+    networkDown = true;
+    await expect(
+      executeRefund(
+        prisma,
+        { settlementId, operatorUserId: OPERATOR, method: 'PG_CANCEL' },
+        EXEC_NOW,
+      ),
+    ).rejects.toThrow(/확인할 수 없습니다/);
+    networkDown = false;
+  });
+
+  it('네트워크 실패는 FAILED가 아니라 PENDING으로 남는다', async () => {
+    const attempt = await prisma.refundAttempt.findFirstOrThrow({ where: { settlementId } });
+    expect(attempt.status).toBe('PENDING');
+    expect(attempt.error).toContain('네트워크');
+  });
+
+  it('PENDING이 남아 있으면 새 실행을 막는다 — 새 키로 나가면 두 번 빠진다', async () => {
+    await expect(
+      executeRefund(
+        prisma,
+        { settlementId, operatorUserId: OPERATOR, method: 'PG_CANCEL' },
+        EXEC_NOW,
+      ),
+    ).rejects.toThrow(/끝나지 않은 환불 시도/);
+    expect(cancelCalls).toHaveLength(1); // 첫 시도 말고는 나가지 않았다
+  });
+
+  it('재시도는 **같은 키**로 나가고 성공하면 시도와 정산이 함께 닫힌다', async () => {
+    const attempt = await prisma.refundAttempt.findFirstOrThrow({ where: { settlementId } });
+    await retryRefundAttempt(prisma, { attemptId: attempt.id, operatorUserId: OPERATOR }, EXEC_NOW);
+
+    expect(cancelCalls).toHaveLength(2);
+    expect(cancelCalls[1].idempotencyKey).toBe(cancelCalls[0].idempotencyKey);
+
+    const after = await prisma.refundAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+    expect(after.status).toBe('SUCCEEDED');
+    const s = await prisma.settlement.findUniqueOrThrow({ where: { id: settlementId } });
+    expect(s.refundExecutedAt).toEqual(EXEC_NOW);
+    expect(s.refundMethod).toBe('PG_CANCEL');
+  });
+
+  it('이미 끝난 시도는 재시도할 수 없다', async () => {
+    const attempt = await prisma.refundAttempt.findFirstOrThrow({ where: { settlementId } });
+    await retryRefundAttempt(prisma, { attemptId: attempt.id, operatorUserId: OPERATOR }, EXEC_NOW);
+    await expect(
+      retryRefundAttempt(prisma, { attemptId: attempt.id, operatorUserId: OPERATOR }, EXEC_NOW),
+    ).rejects.toThrow(/이미 끝난 시도/);
   });
 });

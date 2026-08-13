@@ -7,6 +7,7 @@ import {
   getPendingPayouts,
   getPendingRefunds,
   REFUND_METHODS,
+  retryRefundAttempt,
 } from '@/server/settlementOpsService';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 
@@ -18,6 +19,8 @@ const bodySchema = z.discriminatedUnion('kind', [
     settlementId: z.string().min(1),
     method: z.enum(REFUND_METHODS),
   }),
+  // 끝나지 않은 시도를 **같은 멱등키로** 이어받는다 — 새 실행과 반드시 구분해야 한다
+  z.object({ kind: z.literal('REFUND_RETRY'), attemptId: z.string().min(1) }),
   z.object({ kind: z.literal('PAYOUT'), settlementId: z.string().min(1) }),
 ]);
 
@@ -44,6 +47,8 @@ export async function POST(req: NextRequest) {
         operatorUserId,
         method: body.method,
       });
+    } else if (body.kind === 'REFUND_RETRY') {
+      await retryRefundAttempt(prisma, { attemptId: body.attemptId, operatorUserId });
     } else {
       await executePayout(prisma, { settlementId: body.settlementId, operatorUserId });
     }
