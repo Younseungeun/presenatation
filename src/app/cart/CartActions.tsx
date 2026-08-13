@@ -71,7 +71,8 @@ export function CheckoutButton({
 
   return (
     <div className={styles.cartCheckout}>
-      {/* 결제 수단 선택 없음 — 카드만 받는다 (server/purchaseService.ACCEPTED_PAYMENT_METHODS) */}
+      {/* 결제 수단 선택 없음 — 즉시 승인되고 부분 취소가 되는 수단만 받는다
+          (server/purchaseService.ACCEPTED_PAYMENT_METHODS) */}
       <label className={styles.consent}>
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
         <span>
@@ -95,8 +96,11 @@ export function CheckoutButton({
       </button>
       {error && <p className={styles.err}>{error}</p>}
       {failed.length > 0 && (
+        // 일괄 결제는 전부 사거나 아무것도 사지 않는다 — 한 건이 막으면 전체가 접힌다.
+        // "결제된 금액이 없습니다"를 먼저 말한다: 부분 성공을 의심하게 두면 안 된다
         <p className={styles.err}>
-          {failed.length}건은 구매하지 못했습니다: {failed.map((f) => f.reason).join(" / ")}
+          결제가 진행되지 않았습니다 (결제된 금액 없음). 막은 사유:{" "}
+          {[...new Set(failed.map((f) => f.reason))].join(" / ")}
         </p>
       )}
     </div>

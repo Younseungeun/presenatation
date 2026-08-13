@@ -42,7 +42,8 @@
     "batch:salesclose": "tsx scripts/runSalesCloseBatch.ts",
     "anchor:backfill": "tsx scripts/backfillAnchor.ts",
     "sigma:backfill": "tsx scripts/backfillSigma.ts",
-    "batch:reached": "tsx scripts/runReachedJudgmentBatch.ts"
+    "batch:reached": "tsx scripts/runReachedJudgmentBatch.ts",
+    "verify:rowlock": "tsx scripts/verifyRowLock.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

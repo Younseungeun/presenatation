@@ -6,6 +6,7 @@ import {
   confirmTossPayment,
   describeTossPayment,
   pendingDepositReason,
+  tossMethodCode,
   TossPaymentError,
 } from './tossPayments';
 
@@ -118,8 +119,20 @@ export async function confirmPaymentIntent(
   const pending = pendingDepositReason(result);
   if (pending) {
     const rejection = new TossPaymentError(
-      `${pending}으로는 결제할 수 없습니다. 예측 카드는 장중 시세에 값이 묶여 있어, 입금이 나중에 이뤄지는 수단으로는 "결제가 승인되는 순간 광고 폭의 절반 이상"이라는 약속을 지킬 수 없습니다. 카드나 간편결제로 다시 시도해주세요.`,
+      `${pending}으로는 결제할 수 없습니다. 예측 카드는 장중 시세에 값이 묶여 있어, 입금이 나중에 이뤄지는 수단으로는 "결제가 승인되는 순간 광고 폭의 절반 이상"이라는 약속을 지킬 수 없습니다. 카드·계좌이체·간편결제로 다시 시도해주세요.`,
       'ASYNC_PAYMENT_NOT_SUPPORTED',
+    );
+    await voidAfterCapture(prisma, input, rejection, intent.amountKrw);
+    throw rejection;
+  }
+
+  // 부분 취소가 안 되는 수단(휴대폰·상품권)도 되돌린다 — 실패 시 성과 연동분만
+  // 돌려주는 것이 이 상품의 기본 환불이라, 그게 안 되는 수단은 팔 수 없다
+  const method = tossMethodCode(result);
+  if (method === null) {
+    const rejection = new TossPaymentError(
+      `${result.method ?? '이 결제 수단'}으로는 결제할 수 없습니다. 예측이 빗나가면 성과 연동분만 돌려드리는데(부분 환불), 이 수단은 부분 취소가 되지 않습니다. 카드·계좌이체·간편결제로 다시 시도해주세요.`,
+      'PARTIAL_CANCEL_NOT_SUPPORTED',
     );
     await voidAfterCapture(prisma, input, rejection, intent.amountKrw);
     throw rejection;
@@ -132,7 +145,7 @@ export async function confirmPaymentIntent(
       intent.reportId,
       intent.buyerId,
       now,
-      { method: 'CARD' },
+      { method },
       describeTossPayment(result),
       input.paymentKey,
     );

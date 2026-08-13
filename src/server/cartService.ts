@@ -4,7 +4,12 @@ import { cardProfitabilityLevel, type ProfitabilityLevel } from '@/domain/profit
 import { cardStabilityLevel, type StabilityLevel } from '@/domain/stability';
 import { isFreeReport } from './freeReportService';
 import { researcherSignals } from './marketQueries';
-import { purchaseReport, type PaymentInput } from './purchaseService';
+import {
+  assertPurchasableNow,
+  purchaseWriteOps,
+  type CheckedPurchase,
+  type PaymentInput,
+} from './purchaseService';
 
 // 장바구니 — 여러 리포트를 담아 한 번에 결제한다.
 //
@@ -174,9 +179,28 @@ export interface CheckoutResult {
   failed: { reportId: string; reason: string }[];
 }
 
+/** 다른 건 때문에 함께 취소됐을 때의 사유 — 돈이 나가지 않았음을 분명히 말한다 */
+export const BLOCKED_BY_SIBLING =
+  '함께 담긴 다른 카드가 결제되지 않아 이번 결제는 진행되지 않았습니다 (결제된 금액 없음)';
+
 /**
- * 장바구니 결제 — 담긴 것 중 결제 가능한 건을 순서대로 구매한다.
- * 성공한 건만 장바구니에서 빼고, 실패한 건은 사유와 함께 남긴다.
+ * 장바구니 결제 — **전부 사거나, 아무것도 사지 않는다.**
+ *
+ * 예전에는 건별로 성공/실패를 돌려주고 실패 건만 장바구니에 남겼다. 그 편이 "한 건
+ * 때문에 전체가 막히면 사용자가 원인을 알 수 없다"는 점에서 나아 보였는데, **실PG를
+ * 붙이는 순간 성립하지 않는다.** 결제창은 담긴 것의 합산 금액을 한 번에 승인한다.
+ * 3건 30,000원을 승인해 놓고 2번째에서 막히면 **돈은 다 냈는데 1건만 받는다.**
+ *
+ * 그래서 순서를 바꿨다:
+ *   ① 결제 가능한 건 **전부**를 먼저 검증한다 (시세 조회 포함 — 네트워크라 트랜잭션 밖)
+ *   ② 하나라도 막히면 **아무것도 만들지 않고** 무엇이 막았는지 돌려준다
+ *   ③ 전부 통과하면 구매 생성과 장바구니 비우기를 **한 트랜잭션**으로 실행한다
+ *
+ * 원인을 알 수 없다는 문제는 ②가 사유를 건별로 돌려주는 것으로 갚는다 — 결제 **전에**
+ * 알려주는 편이 결제 후에 부분 실패를 설명하는 것보다 낫다.
+ *
+ * **실PG를 붙일 때**: 승인 → 이 함수 → `purchased.length === 0`이면 승인 전체를
+ * 취소해야 한다 (paymentIntentService.voidAfterCapture와 같은 보상 트랜잭션).
  */
 export async function checkoutCart(
   prisma: PrismaClient,
@@ -187,20 +211,47 @@ export async function checkoutCart(
   const { entries } = await getCart(prisma, userId, now);
   const result: CheckoutResult = { purchased: [], failed: [] };
 
+  // ① 전부 검증 — 쓰기는 아직 하나도 없다
+  const checked: CheckedPurchase[] = [];
   for (const e of entries) {
     if (e.issue !== null) {
       result.failed.push({ reportId: e.reportId, reason: issueMessage(e.issue) });
       continue;
     }
     try {
-      await purchaseReport(prisma, e.reportId, userId, now, payment);
-      await prisma.cartItem.deleteMany({ where: { userId, reportId: e.reportId } });
-      result.purchased.push(e.reportId);
+      checked.push(await assertPurchasableNow(prisma, e.reportId, userId, now));
     } catch (err) {
       result.failed.push({
         reportId: e.reportId,
         reason: err instanceof Error ? err.message : '구매 실패',
       });
+    }
+  }
+
+  // ② 하나라도 막혔으면 전부 접는다
+  if (result.failed.length > 0) {
+    for (const c of checked) {
+      result.failed.push({ reportId: c.reportId, reason: BLOCKED_BY_SIBLING });
+    }
+    return result;
+  }
+  if (checked.length === 0) return result;
+
+  // ③ 전부 한 트랜잭션 — 하나라도 실패하면(P2025 등) 전체가 되돌아간다
+  const ops = checked.map((c) => purchaseWriteOps(prisma, c, userId, payment));
+  try {
+    await prisma.$transaction([
+      ...ops.flatMap((o) => [o.guard, o.create]),
+      prisma.cartItem.deleteMany({
+        where: { userId, reportId: { in: checked.map((c) => c.reportId) } },
+      }),
+    ]);
+    result.purchased.push(...checked.map((c) => c.reportId));
+  } catch (err) {
+    // 어느 건이 막았는지 트랜잭션은 알려주지 않는다 — 전부 실패로 돌려주고 사유를 싣는다
+    const reason = err instanceof Error ? err.message : '구매 실패';
+    for (const c of checked) {
+      result.failed.push({ reportId: c.reportId, reason });
     }
   }
   return result;

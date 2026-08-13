@@ -18,20 +18,28 @@ import { researcherConfidenceCap } from './scoreService';
 // 토스페이먼츠 테스트 연동(paymentIntentService)도 승인 후 이 함수를 그대로 호출한다.
 
 /**
- * 받는 결제 수단 — **즉시 승인되는 것만 받는다.**
+ * 받는 결제 수단 — **즉시 승인되고, 부분 취소가 되는 것만 받는다.** 조건이 둘이다.
  *
- * 무통장입금(가상계좌)은 뺐다. 이 마켓의 상품은 장중 시세에 값이 묶여 있는데,
- * 계좌를 받는 시각과 입금하는 시각이 다르면 그 사이의 시세 변동을 구매자가 뒤집어쓴다 —
- * "결제가 승인되는 순간 광고 폭의 절반 이상"이라는 고지가 거기서 깨진다.
- * 그리고 입금 전에 리포트를 열어주면 입금하지 않는 쪽이 이득이다.
- * (실PG 경로의 차단은 tossPayments.pendingDepositReason)
+ * ① **즉시 승인.** 무통장입금(가상계좌)은 계좌를 받는 시각과 입금하는 시각이 달라, 그
+ *    사이의 시세 변동을 구매자가 뒤집어쓴다 — "결제가 승인되는 순간 광고 폭의 절반
+ *    이상"이라는 고지가 거기서 깨진다. 입금 전에 리포트를 열어주면 입금하지 않는 쪽이
+ *    이득이기도 하다. 반대로 **실시간 계좌이체·간편결제는 승인 즉시 돈이 빠지므로**
+ *    카드와 같은 논리로 안전하다 — 카드가 없는 사람의 길을 막을 이유가 없다.
+ *
+ * ② **부분 취소.** 실패(MISS)는 선결제분을 빼고 성과 연동분만 돌려주므로 이 상품의
+ *    환불은 **부분 취소가 기본**이다. 휴대폰 소액결제·상품권은 당월·전액 등 취소에
+ *    제약이 붙어 그 기본 동작이 성립하지 않는다. 즉시 승인되더라도 받지 않는다.
+ *
+ * (실PG 응답의 차단은 tossPayments.pendingDepositReason / tossMethodCode)
  */
-export const ACCEPTED_PAYMENT_METHODS = ['CARD'] as const;
+export const ACCEPTED_PAYMENT_METHODS = ['CARD', 'TRANSFER', 'EASY_PAY'] as const;
 export type PaymentMethod = (typeof ACCEPTED_PAYMENT_METHODS)[number];
 
 /** 표시용 — VBANK는 이 규칙이 생기기 전 구매 기록에만 남아 있다 */
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CARD: '카드',
+  TRANSFER: '계좌이체',
+  EASY_PAY: '간편결제',
   VBANK: '무통장입금(가상계좌)',
 };
 
@@ -234,6 +242,82 @@ async function assertNotSuspendedIntraday(
   }
 }
 
+/** 검증을 통과한 1건 — 이 값만으로 쓰기 연산을 만들 수 있다 */
+export interface CheckedPurchase {
+  reportId: string;
+  priceKrw: number;
+}
+
+/**
+ * 구매 직전 검증 전부 — **쓰기는 하지 않는다.**
+ *
+ * 쓰기와 분리한 이유는 장바구니다. 여러 건을 한 번에 결제할 때 "한 건씩 검증하고
+ * 한 건씩 만드는" 방식은 **중간에 실패하면 앞의 것만 만들어진 상태**를 남긴다. 실PG를
+ * 붙이면 그게 곧 "합산 금액은 다 냈는데 일부만 받았다"가 된다. 그래서 검증을 전부
+ * 끝낸 뒤 쓰기만 한 트랜잭션에 묶을 수 있게 갈라 놓는다.
+ *
+ * 시세 조회(네트워크)가 여기 들어 있으므로 **이 함수는 트랜잭션 밖에서 돌아야 한다.**
+ */
+export async function assertPurchasableNow(
+  prisma: PrismaClient,
+  reportId: string,
+  buyerId: string,
+  now = new Date(),
+): Promise<CheckedPurchase> {
+  const report = await prisma.report.findUniqueOrThrow({
+    where: { id: reportId },
+    include: { researcher: true, predictionCard: true },
+  });
+  assertPurchasable(report, buyerId, now, await disciplineCapFor(prisma, report, now));
+  // 가격 보호 — 결제 순간 실시간 시세로 남은 몫(q)을 재고 광고의 절반 밑이면 막는다.
+  // 피해자는 구매하는 순간에 생기므로 검사도 그 순간에 한다
+  await assertNotSuspendedIntraday(prisma, report.predictionCard, now);
+
+  const buyer = await prisma.user.findUniqueOrThrow({ where: { id: buyerId } });
+  if (!buyer.identityVerified) {
+    throw new Error('본인 인증 후 구매할 수 있습니다');
+  }
+  return { reportId, priceKrw: report.priceKrw };
+}
+
+/**
+ * 검증이 끝난 뒤의 쓰기 연산 — **실행하지 않고 돌려준다.** 호출자가 한 트랜잭션에 묶는다.
+ *
+ * `guard`는 값을 바꾸려는 게 아니라 조건 검사가 목적이다(`data: {}`).
+ * assertPurchasableNow는 읽어 둔 값으로 판단하는데 그 사이 시세 조회가 끼어 수백 ms가
+ * 흐르고, 그동안 판매 마감 배치가 같은 리포트를 닫을 수 있다. 구매 생성을 리포트 조건에
+ * 묶으면 상태가 바뀐 경우 update가 대상을 못 찾아(P2025) 트랜잭션 전체가 되돌아간다.
+ * 다시 읽어서 확인하는 방식으로는 "읽고 나서 쓰기까지"의 틈이 그대로 남는다.
+ * (게시 상태 전이가 쓰는 것과 같은 패턴 — reportService.finalizePublish)
+ */
+export function purchaseWriteOps(
+  prisma: PrismaClient,
+  checked: CheckedPurchase,
+  buyerId: string,
+  payment: PaymentInput,
+  paymentInfoOverride?: string,
+  paymentKey?: string,
+) {
+  return {
+    guard: prisma.report.update({
+      where: { id: checked.reportId, status: 'PUBLISHED', salesClosedAt: null },
+      data: {},
+    }),
+    // @@unique([reportId, buyerId])가 중복 구매를 차단한다
+    create: prisma.purchase.create({
+      data: {
+        reportId: checked.reportId,
+        buyerId,
+        amountKrw: checked.priceKrw,
+        paymentMethod: payment.method,
+        paymentInfo: paymentInfoOverride ?? stubPaymentInfo(),
+        paymentKey,
+        escrowStatus: 'HELD',
+      },
+    }),
+  };
+}
+
 export async function purchaseReport(
   prisma: PrismaClient,
   reportId: string,
@@ -249,51 +333,8 @@ export async function purchaseReport(
    */
   paymentKey?: string,
 ) {
-  const report = await prisma.report.findUniqueOrThrow({
-    where: { id: reportId },
-    include: { researcher: true, predictionCard: true },
-  });
-  assertPurchasable(report, buyerId, now, await disciplineCapFor(prisma, report, now));
-  // 가격 보호 — 결제 순간 실시간 시세로 남은 몫(q)을 재고 광고의 절반 밑이면 막는다.
-  // 피해자는 구매하는 순간에 생기므로 검사도 그 순간에 한다
-  await assertNotSuspendedIntraday(prisma, report.predictionCard, now);
-
-  const buyer = await prisma.user.findUniqueOrThrow({ where: { id: buyerId } });
-  if (!buyer.identityVerified) {
-    throw new Error('본인 인증 후 구매할 수 있습니다');
-  }
-
-  // **확인과 쓰기를 한 덩어리로 묶는다.**
-  //
-  // 위의 assertPurchasable은 이 함수가 시작할 때 읽어 둔 값으로 판단한다. 그런데 그
-  // 사이에 시세 조회(assertNotSuspendedIntraday)가 끼어 수백 ms가 흐르고, 그동안
-  // 판매 마감 배치가 같은 리포트를 닫을 수 있다. 그러면 서버는 이미 낡아버린 값을 보고
-  // "판매 중"이라 판단해 구매를 만든다.
-  //
-  // 그래서 구매 생성을 **리포트 조건에 묶어** 한 트랜잭션으로 실행한다:
-  // 그 사이에 상태가 바뀌었으면 update가 대상을 못 찾아(P2025) 트랜잭션 전체가
-  // 되돌아가고 구매는 만들어지지 않는다. 다시 읽어서 확인하는 방식으로는
-  // "읽고 나서 쓰기까지"의 틈이 그대로 남는다.
-  //
-  // data: {} — 값을 바꾸려는 게 아니라 조건 검사가 목적이다.
-  // (게시 상태 전이가 쓰는 것과 같은 패턴 — reportService.finalizePublish)
-  const [, purchase] = await prisma.$transaction([
-    prisma.report.update({
-      where: { id: reportId, status: 'PUBLISHED', salesClosedAt: null },
-      data: {},
-    }),
-    // @@unique([reportId, buyerId])가 중복 구매를 차단한다
-    prisma.purchase.create({
-      data: {
-        reportId,
-        buyerId,
-        amountKrw: report.priceKrw,
-        paymentMethod: payment.method,
-        paymentInfo: paymentInfoOverride ?? stubPaymentInfo(),
-        paymentKey,
-        escrowStatus: 'HELD',
-      },
-    }),
-  ]);
+  const checked = await assertPurchasableNow(prisma, reportId, buyerId, now);
+  const ops = purchaseWriteOps(prisma, checked, buyerId, payment, paymentInfoOverride, paymentKey);
+  const [, purchase] = await prisma.$transaction([ops.guard, ops.create]);
   return purchase;
 }

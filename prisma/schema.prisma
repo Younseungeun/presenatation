@@ -301,6 +301,33 @@ model Settlement {
   // 리서처 지급 실행 추적 (researcherPayoutKrw > 0 건)
   payoutExecutedAt DateTime?
   payoutExecutedBy String? // 실행 운영자 userId
+
+  refundAttempts RefundAttempt[]
+}
+
+// 환불 시도 1회 — **성공한 것만이 아니라 시도한 것을 전부 남긴다.**
+//
+// 이 표가 있는 진짜 이유는 감사가 아니라 **멱등키의 기준점**이다. PG 취소는 재시도되는
+// 동작인데(응답을 못 받으면 실제로 취소됐는지 알 수 없다) 멱등키를 정산 id로 잡으면
+// "같은 정산의 두 번째 취소"가 영원히 불가능해진다 — 토스가 첫 번째 성공 응답을 그대로
+// 돌려주므로 **코드는 성공으로 알고 돈은 안 나간다.** 판정 정정으로 추가 환불이 필요한
+// 날 조용히 틀린다.
+//
+// 그래서 시도할 때마다 이 행을 PENDING으로 먼저 만들고, 그 id를 멱등키로 쓴다.
+// 같은 시도의 재시도는 한 번만 나가고, 새로운 시도는 새 키를 받는다.
+model RefundAttempt {
+  id           String     @id @default(cuid())
+  settlementId String
+  settlement   Settlement @relation(fields: [settlementId], references: [id])
+  amountKrw    Int // 이 시도가 돌려주려 한 금액 (부분 취소액)
+  method       String // PG_CANCEL | BANK_TRANSFER
+  status       String     @default("PENDING") // PENDING | SUCCEEDED | FAILED
+  error        String? // 실패 사유 (PG 응답 메시지)
+  operatorId   String // 실행을 누른 운영자 userId
+  createdAt    DateTime   @default(now())
+  finishedAt   DateTime?
+
+  @@index([settlementId])
 }
 
 // 컴플라이언스 검수: 게시 시도마다 남는 기록.

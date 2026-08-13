@@ -84,6 +84,30 @@ export async function executeRefund(
     throw new SettlementOpsError(`환불 방법이 유효하지 않습니다: ${input.method}`);
   }
 
+  // PG 결제 키가 없으면 자동 취소가 불가능하다 — 시도 행을 만들기 전에 막는다
+  const paymentKey = s.purchase.paymentKey;
+  if (input.method === 'PG_CANCEL' && !paymentKey) {
+    throw new SettlementOpsError(
+      'PG 결제 키가 없는 구매라 자동 취소할 수 없습니다 — 계좌이체로 환불해주세요 (모의 결제이거나 결제 키를 저장하기 전에 만들어진 건입니다)',
+    );
+  }
+
+  // **시도를 먼저 남기고, 그 id를 멱등키로 쓴다.**
+  //
+  // 멱등키를 정산 id로 잡으면 "같은 정산의 두 번째 취소"가 영원히 불가능해진다 —
+  // 토스가 첫 성공 응답을 그대로 돌려주므로 코드는 성공으로 알고 **돈은 안 나간다.**
+  // 판정 정정으로 추가 환불이 필요한 날 조용히 틀린다. 시도마다 키가 새로 생기면
+  // 그 위험이 사라지고, 같은 시도의 재시도는 여전히 한 번만 나간다.
+  const attempt = await prisma.refundAttempt.create({
+    data: {
+      settlementId: s.id,
+      amountKrw: s.buyerRefundKrw,
+      method: input.method,
+      operatorId: input.operatorUserId,
+      status: 'PENDING',
+    },
+  });
+
   // **돈을 먼저 보내고 기록은 그 다음이다.**
   //
   // 순서를 뒤집으면(기록 먼저 → 취소 호출) 취소가 실패했을 때 "환불 완료" 알림까지
@@ -91,25 +115,23 @@ export async function executeRefund(
   // 미실행 목록에서도 사라져 아무도 다시 보지 않는다 — 조용히 틀리는 방향이다.
   //
   // 이 순서의 위험은 반대다: 취소는 됐는데 기록이 실패하면 미실행으로 남아 운영자가
-  // 다시 누른다. 그래서 **멱등키를 정산 id로 건다** — 몇 번을 눌러도 그 정산의 환불은
-  // 한 번이다. "두 번 빠지는 것"보다 "한 번 더 눌러야 하는 것"이 낫다.
+  // 다시 누른다. 그때는 **이 시도 행이 PENDING으로 남아 있다** — 재시도 화면이 같은
+  // 시도를 이어받으면 같은 키로 나가 두 번 빠지지 않는다.
   if (input.method === 'PG_CANCEL') {
-    const paymentKey = s.purchase.paymentKey;
-    if (!paymentKey) {
-      throw new SettlementOpsError(
-        'PG 결제 키가 없는 구매라 자동 취소할 수 없습니다 — 계좌이체로 환불해주세요 (모의 결제이거나 결제 키를 저장하기 전에 만들어진 건입니다)',
-      );
-    }
     try {
       await cancelTossPayment({
-        paymentKey,
+        paymentKey: paymentKey!,
         cancelReason: refundReason(s.outcome, s.buyerRefundKrw),
         // 전액이어도 명시한다 — 지시서 금액과 실제로 나간 금액을 같은 값 하나로 묶는다
         cancelAmount: s.buyerRefundKrw,
-        idempotencyKey: `refund_${s.id}`,
+        idempotencyKey: `refund_attempt_${attempt.id}`,
       });
     } catch (e) {
       const detail = e instanceof TossPaymentError ? e.message : String(e);
+      await prisma.refundAttempt.update({
+        where: { id: attempt.id },
+        data: { status: 'FAILED', error: detail.slice(0, 500), finishedAt: now },
+      });
       throw new SettlementOpsError(
         `PG 취소에 실패해 환불을 기록하지 않았습니다 (${detail}). 다시 시도하거나, 취소 기한이 지난 건이면 계좌이체로 환불해주세요.`,
       );
@@ -117,6 +139,10 @@ export async function executeRefund(
   }
 
   await prisma.$transaction([
+    prisma.refundAttempt.update({
+      where: { id: attempt.id },
+      data: { status: 'SUCCEEDED', finishedAt: now },
+    }),
     prisma.settlement.update({
       // 동시 실행 대비: 미실행 조건을 다시 걸어 원자적으로 기록
       where: { id: s.id, refundExecutedAt: null },

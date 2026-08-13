@@ -298,4 +298,36 @@ describe('입금이 나중에 이뤄지는 결제 수단은 받지 않는다', (
     expect(() => assertAcceptedPaymentMethod('CARD')).not.toThrow();
     expect(() => assertAcceptedPaymentMethod(undefined)).not.toThrow(); // 화면이 더는 보내지 않는다
   });
+
+  // 즉시 승인되는 수단은 카드만이 아니다 — 계좌이체·간편결제는 승인 즉시 돈이 빠지므로
+  // q 드리프트가 없고, 카드가 없는 사람의 길을 막을 이유가 없다.
+  // 반대로 휴대폰·상품권은 즉시 승인돼도 **부분 취소**가 안 돼서 받지 않는다:
+  // 실패(MISS) 시 성과 연동분만 돌려주는 것이 이 상품의 기본 환불이다
+  it('실시간 계좌이체·간편결제는 받고, 부분 취소가 안 되는 수단은 되돌린다', async () => {
+    const { confirmPaymentIntent } = await import('../paymentIntentService');
+
+    await makeSellable();
+    await seedIntent('order-tr');
+    confirmOverride = { method: '계좌이체' };
+    const bought = await confirmPaymentIntent(
+      prisma,
+      { orderId: 'order-tr', paymentKey: 'pk_tr', clientAmount: 20_000, buyerId },
+      NOW,
+    );
+    expect(bought.paymentMethod).toBe('TRANSFER');
+    expect(cancelCalls).toHaveLength(0);
+
+    await prisma.purchase.deleteMany({});
+    await seedIntent('order-ph');
+    confirmOverride = { method: '휴대폰' };
+    await expect(
+      confirmPaymentIntent(
+        prisma,
+        { orderId: 'order-ph', paymentKey: 'pk_ph', clientAmount: 20_000, buyerId },
+        NOW,
+      ),
+    ).rejects.toThrow(/부분 취소가 되지 않습니다/);
+    expect(await prisma.purchase.count()).toBe(0);
+    expect(cancelCalls).toHaveLength(1); // 승인됐으니 되돌린다
+  });
 });

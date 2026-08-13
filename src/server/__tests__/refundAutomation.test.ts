@@ -152,8 +152,16 @@ describe('PG 취소 환불 자동 실행', () => {
     expect(cancelCalls).toHaveLength(1);
     expect(cancelCalls[0].paymentKey).toBe('pk_full');
     expect(cancelCalls[0].cancelAmount).toBe(10_000);
-    // 같은 정산을 몇 번 눌러도 돈은 한 번만 빠진다
-    expect(cancelCalls[0].idempotencyKey).toBe(`refund_${fullRefundId}`);
+
+    // **멱등키는 정산이 아니라 시도에 붙는다.** 정산 id로 잡으면 "같은 정산의 두 번째
+    // 취소"가 영원히 불가능해진다 — 토스가 첫 성공 응답을 그대로 돌려주므로 코드는
+    // 성공으로 알고 돈은 안 나간다. 판정 정정으로 추가 환불이 필요한 날 조용히 틀린다
+    const attempt = await prisma.refundAttempt.findFirstOrThrow({
+      where: { settlementId: fullRefundId },
+    });
+    expect(cancelCalls[0].idempotencyKey).toBe(`refund_attempt_${attempt.id}`);
+    expect(attempt.status).toBe('SUCCEEDED');
+    expect(attempt.amountKrw).toBe(10_000);
     // 구매자 카드 명세서에 남는 문구라 "왜 돌려받았는지"가 보여야 한다
     expect(cancelCalls[0].cancelReason).toContain('예측 실패');
 
@@ -229,5 +237,42 @@ describe('PG 취소 환불 자동 실행', () => {
     );
     // 큐에 남아 있어 다시 시도할 수 있다
     expect((await getPendingRefunds(prisma)).some((r) => r.id === failing)).toBe(true);
+
+    // 실패한 시도도 사유와 함께 남는다 — 성공만 남기면 "왜 두 번 눌렀나"를 못 읽는다
+    const attempt = await prisma.refundAttempt.findFirstOrThrow({
+      where: { settlementId: failing },
+    });
+    expect(attempt.status).toBe('FAILED');
+    expect(attempt.error).toContain('이미 취소된 결제입니다');
+  });
+
+  it('다시 시도하면 **새 키**로 나간다 — 정정 환불이 조용히 삼켜지지 않는다', async () => {
+    const settlementId = await seedMissedPurchase(
+      (await prisma.researcherProfile.findFirstOrThrow()).id,
+      'KRW-DRAFT',
+      0,
+      'pk_retry',
+    );
+
+    cancelShouldFail = true;
+    await expect(
+      executeRefund(
+        prisma,
+        { settlementId, operatorUserId: OPERATOR, method: 'PG_CANCEL' },
+        EXEC_NOW,
+      ),
+    ).rejects.toThrow();
+
+    cancelShouldFail = false;
+    await executeRefund(
+      prisma,
+      { settlementId, operatorUserId: OPERATOR, method: 'PG_CANCEL' },
+      EXEC_NOW,
+    );
+
+    expect(cancelCalls).toHaveLength(2);
+    expect(cancelCalls[0].idempotencyKey).not.toBe(cancelCalls[1].idempotencyKey);
+    const attempts = await prisma.refundAttempt.findMany({ where: { settlementId } });
+    expect(attempts.map((a) => a.status).sort()).toEqual(['FAILED', 'SUCCEEDED']);
   });
 });

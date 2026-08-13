@@ -2,7 +2,14 @@ import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
-import { addToCart, checkoutCart, countCart, getCart, removeFromCart } from '../cartService';
+import {
+  addToCart,
+  BLOCKED_BY_SIBLING,
+  checkoutCart,
+  countCart,
+  getCart,
+  removeFromCart,
+} from '../cartService';
 import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import { createDraftReport, publishReport } from '../reportService';
 
@@ -104,13 +111,32 @@ describe('getCart — 결제 가능 여부 분리', () => {
   });
 });
 
+// **일괄 결제는 전부 사거나 아무것도 사지 않는다.**
+//
+// 예전에는 건별로 성공/실패를 돌려주고 실패 건만 장바구니에 남겼다. 실PG를 붙이면
+// 그 방식이 성립하지 않는다 — 결제창은 담긴 것의 **합산 금액을 한 번에 승인**하므로,
+// 3건 30,000원을 승인해 놓고 2번째에서 막히면 돈은 다 냈는데 1건만 받는다.
 describe('checkoutCart — 일괄 결제', () => {
-  it('결제 가능한 건만 구매하고 장바구니에서 빼며, 불가 건은 사유와 함께 남긴다', async () => {
+  it('한 건이라도 막히면 아무것도 사지 않는다 — 나머지도 사유와 함께 돌아온다', async () => {
+    const result = await checkoutCart(prisma, buyerId, new Date('2026-08-02T00:00:00Z'));
+
+    expect(result.purchased).toEqual([]);
+    // 시한 지난 건 + 그것 때문에 함께 접힌 건들
+    expect(result.failed.map((f) => f.reportId).sort()).toEqual([liveA, liveB, expiring].sort());
+    expect(result.failed.find((f) => f.reportId === expiring)!.reason).toContain('검증 시한');
+    expect(result.failed.find((f) => f.reportId === liveA)!.reason).toBe(BLOCKED_BY_SIBLING);
+
+    // 구매도 없고 장바구니도 그대로다
+    expect(await prisma.purchase.count({ where: { buyerId } })).toBe(0);
+    expect(await countCart(prisma, buyerId)).toBe(3);
+  });
+
+  it('막는 건을 빼면 나머지가 한 트랜잭션으로 전부 구매된다', async () => {
+    await removeFromCart(prisma, buyerId, expiring);
     const result = await checkoutCart(prisma, buyerId, new Date('2026-08-02T00:00:00Z'));
 
     expect(result.purchased.sort()).toEqual([liveA, liveB].sort());
-    expect(result.failed).toHaveLength(1);
-    expect(result.failed[0].reportId).toBe(expiring);
+    expect(result.failed).toEqual([]);
 
     // 구매는 에스크로 보관 상태로 생성된다
     const purchases = await prisma.purchase.findMany({ where: { buyerId } });
@@ -121,18 +147,10 @@ describe('checkoutCart — 일괄 결제', () => {
     expect(purchases.every((p) => p.paymentMethod === 'CARD')).toBe(true);
     expect(purchases.every((p) => p.paymentInfo && p.paymentInfo.includes('모의'))).toBe(true);
 
-    // 성공 건만 빠지고 실패 건은 남는다
-    expect(await countCart(prisma, buyerId)).toBe(1);
+    expect(await countCart(prisma, buyerId)).toBe(0);
   });
 
   it('이미 구매한 리포트를 다시 담으면 담기 단계에서 막힌다', async () => {
     await expect(addToCart(prisma, buyerId, liveA)).rejects.toThrow('이미 구매한');
-  });
-});
-
-describe('removeFromCart', () => {
-  it('담긴 건을 뺀다', async () => {
-    await removeFromCart(prisma, buyerId, expiring);
-    expect(await countCart(prisma, buyerId)).toBe(0);
   });
 });

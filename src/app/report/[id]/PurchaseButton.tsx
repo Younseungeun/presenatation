@@ -90,7 +90,7 @@ export function PurchaseButton({
       {hasIdentity && (
         <>
           <p className={styles.refundNotice}>{REFUND_POLICY_SUMMARY}</p>
-          {/* 결제 수단 선택이 없다 — 카드(간편결제 포함)만 받는다.
+          {/* 결제 수단 선택이 없다 — 즉시 승인되고 부분 취소가 되는 수단만 받는다.
               무통장입금은 계좌를 받는 시각과 입금하는 시각이 달라, 그 사이 시세가 움직이면
               "결제가 승인되는 순간 광고 폭의 절반 이상"이라는 이 화면의 고지가 깨진다
               (server/purchaseService.ACCEPTED_PAYMENT_METHODS) */}

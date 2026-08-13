@@ -78,6 +78,31 @@ export function pendingDepositReason(result: TossPaymentResult): string | null {
 }
 
 /**
+ * 토스가 돌려준 결제 수단 이름을 우리 코드로 옮긴다 — **모르는 수단은 null.**
+ *
+ * 즉시 승인되는 수단이라고 다 받을 수 있는 건 아니다. 이 상품의 환불은 실패(MISS) 시
+ * 성과 연동분만 돌려주는 **부분 취소가 기본**인데, 휴대폰 소액결제·상품권은 당월·전액
+ * 같은 제약이 붙어 그 기본 동작이 성립하지 않는다. 승인은 즉시라도 받지 않는다.
+ *
+ * 실제로 무엇으로 결제됐는지를 구매 기록에 남기는 것이 목적이기도 하다. 전부 'CARD'로
+ * 적으면 환불 경로를 수단별로 나눠야 할 때 근거가 없다 (계좌이체 취소는 환불 계좌
+ * 정보를 요구할 수 있다 — 실키 전환 전 샌드박스에서 확인해야 한다).
+ */
+export function tossMethodCode(result: TossPaymentResult): 'CARD' | 'TRANSFER' | 'EASY_PAY' | null {
+  switch (result.method) {
+    case '카드':
+      return 'CARD';
+    case '계좌이체':
+      return 'TRANSFER';
+    case '간편결제':
+      return 'EASY_PAY';
+    default:
+      // 휴대폰·상품권·가상계좌 등. 카드 정보가 실려 오면 카드로 본다(간편결제의 카드 결제)
+      return result.card ? 'CARD' : null;
+  }
+}
+
+/**
  * 결제 승인 API 호출 — 인증만 끝난 결제(IN_PROGRESS)를 최종 승인해 완료(DONE) 상태로 만든다.
  * 여기서 실제로(테스트 환경에서는 가상으로) 금액이 차감된다.
  */
