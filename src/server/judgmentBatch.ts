@@ -20,6 +20,8 @@ export interface BatchSummary {
   failed: number;
   /** 시한이 STALE_DEFER_DAYS 이상 지났는데 아직 판정 못 한 카드 — 수동 확인 필요 */
   staleDeferred: string[];
+  /** 상한에 걸려 시스템이 판정 불가로 닫은 카드 — 전액 환불이 나갔으므로 사람이 알아야 한다 */
+  hardCapped: string[];
   /**
    * 이번 회차에서 마지막으로 손댄 카드의 위치 — **다음 회차의 커서다.**
    *
@@ -77,12 +79,32 @@ export const DEFER_BACKOFF_MS = [
 ] as const;
 
 /**
- * 이만큼 이월되면 자동 재시도를 멈추고 **사람에게 넘긴다.**
+ * 백오프 눈금의 개수. **자동 재시도를 끊는 문턱이 아니다.**
  *
- * 무한히 미루지 않는 이유: 백오프만 두면 카드가 조용히 뒤로 밀리기만 하고 아무도
- * 모른 채 돈이 묶인다. 여기 닿으면 운영자 판정 큐로 올라간다(manualJudgmentService).
+ * 처음에는 "이만큼 이월되면 조회에서 빼고 사람에게 넘긴다"로 썼는데 틀렸다 —
+ * `deferCount`는 **시도 횟수지 시간이 아니다.** 기동 따라잡기(catchUpOnBoot)는 거래일을
+ * 가리지 않고 도므로, pm2가 주말에 몇 번 재시작하면 **시간은 하나도 안 흘렀는데
+ * 재시도 예산만 소진**되어 멀쩡한 카드가 운영자 큐로 밀려난다. 배포 한 번에도 같은 일이
+ * 일어난다.
+ *
+ * 그래서 **정차는 시간으로 판단한다**(STALE_DEFER_DAYS). deferCount는 "얼마나 자주
+ * 다시 볼까"만 정한다. 마지막 눈금이 3일이라 영영 실패하는 카드도 3일에 한 번만
+ * 부르므로, 조회에서 빼지 않아도 비용이 무시할 수준이고 **데이터가 돌아오면 스스로 낫는다**.
  */
 export const MAX_DEFER_ATTEMPTS = DEFER_BACKOFF_MS.length;
+
+/**
+ * 시한이 이만큼 지나도록 판정하지 못하면 **판정 불가로 끝낸다** (전액 환불).
+ *
+ * 이유는 소비자 약속이다. 구매자는 "이 시점까지 이 가격에 닿는가"를 샀는데, 시세 소스
+ * 장애로 판정이 미뤄지는 것은 **전적으로 플랫폼 사정**이다. 그 사이 돈은 에스크로에
+ * 묶여 있고, 약관에는 지연 상한이 없었다 — 사실상 무기한이었다.
+ *
+ * STALE_DEFER_DAYS(7일)보다 늦게 잡은 이유: 그 사이가 **사람이 손쓸 창구**다.
+ * 7일에 운영자 큐로 올라가고, 그래도 아무도 손대지 못하면 14일에 시스템이 닫는다.
+ * 둘을 같은 날로 두면 운영자에게 기회가 없다.
+ */
+export const JUDGMENT_HARD_CAP_DAYS = 14;
 
 /**
  * 다음 시도 시각. **정차(parking)는 이 값이 아니라 deferCount가 표현한다** —
@@ -126,8 +148,9 @@ export async function judgeAndSettleDueCards(
     ...(assetClass ? { assetClass } : {}),
     deadline: { lte: now },
     report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
-    // 백오프 — 실패한 카드는 제 시각이 오기 전까지 뜨거운 큐에서 빠져 있는다
-    deferCount: { lt: MAX_DEFER_ATTEMPTS },
+    // 백오프 — 실패한 카드는 제 시각이 오기 전까지 뜨거운 큐에서 빠져 있는다.
+    // **횟수로 빼지는 않는다** (MAX_DEFER_ATTEMPTS 주석 참고) — 시도 횟수는 시간이
+    // 아니라서, 재시작이 잦으면 시간이 안 흘렀는데 예산만 소진된다
     AND: [
       { OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }] },
       // 키셋 커서 — 정렬 키 (deadline, id)보다 뒤에 있는 것만
@@ -173,6 +196,7 @@ export async function judgeAndSettleDueCards(
     deferred: 0,
     failed: 0,
     staleDeferred: [],
+    hardCapped: [],
     cursor:
       dueCards.length > 0
         ? {
@@ -272,6 +296,43 @@ export async function judgeAndSettleDueCards(
           console.log(`상장폐지 판정 불가 ${card.ticker} (${card.id}) — 전액 환불`);
           continue;
         }
+        // **시한이 한참 지나도록 못 구하면 시스템이 닫는다** (전액 환불).
+        // 시세 소스 장애는 플랫폼 사정인데 그 대가를 구매자가 무기한 기다림으로 치를
+        // 이유가 없다. 7일에 운영자 큐로 올라가고, 그래도 안 되면 여기서 끝낸다
+        const overdueDays = (now.getTime() - card.deadline.getTime()) / 86_400_000;
+        if (overdueDays >= JUDGMENT_HARD_CAP_DAYS) {
+          await prisma.$transaction(
+            buildJudgmentWrites(
+              prisma,
+              card,
+              {
+                result: {
+                  outcome: 'UNDECIDABLE' as const,
+                  undecidableReason: 'DATA_UNAVAILABLE' as const,
+                },
+                realizedReturnPct: null,
+                score: 0, // 판정 불가는 표본에서 빠진다 (§2.2)
+                info: 0, // 증거도 없다 — 규율 래더에 들어가면 안 된다
+                dataSource: 'hard-cap',
+                audit: {
+                  hardCap: true,
+                  overdueDays: Math.floor(overdueDays),
+                  deferCount: card.deferCount,
+                  reason: `시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나도록 시세를 구하지 못했습니다`,
+                  lastDeferMessage: e.message,
+                  judgedAt: now.toISOString(),
+                },
+                resolvedBasePrice: null,
+              },
+              now,
+            ),
+          );
+          summary.judged++;
+          summary.hardCapped.push(`${card.ticker} (${card.id}): ${Math.floor(overdueDays)}일 초과`);
+          console.warn(`판정 상한 도달 ${card.ticker} (${card.id}) — 판정 불가·전액 환불`);
+          continue;
+        }
+
         summary.deferred++;
         // **다음 시도를 뒤로 민다.** 이 한 줄이 없으면 실패하는 카드가 매 회차
         // 앞자리를 차지해 KIS 호출을 갉아먹고 뒤의 멀쩡한 카드까지 느려진다

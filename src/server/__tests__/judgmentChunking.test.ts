@@ -5,10 +5,10 @@ import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import {
   JUDGE_BATCH_SIZE,
+  JUDGMENT_HARD_CAP_DAYS,
   MAX_DEFER_ATTEMPTS,
   judgeAndSettleDueCards,
 } from '../judgmentBatch';
-import { getManualJudgmentQueue } from '../manualJudgmentService';
 import { createDraftReport, publishReport } from '../reportService';
 
 // **판정 배치는 한 회차 JUDGE_BATCH_SIZE장으로 끊는다.**
@@ -137,25 +137,61 @@ describe('판정 배치 청킹', () => {
   // **반복해서 실패하는 카드는 뒤로 미룬다.** 이월은 Judgment를 안 만들어 다음 조회에도
   // 그대로 잡히므로, 미루지 않으면 매 회차 KIS 호출을 갉아먹는다(100건이면 110초를
   // 아무 성과 없이 쓴다). 첫 실패는 미루지 않는다 — 벌해야 하는 것은 반복이다
-  it('이월이 쌓이면 백오프로 뜨거운 큐에서 빠지고, 다 쓰면 사람에게 넘어간다', async () => {
+  it('반복 이월은 다음 시도를 뒤로 밀어 뜨거운 큐에서 뺀다', async () => {
     const card = await prisma.predictionCard.findFirstOrThrow({
       where: { judgment: null },
       orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
     });
-    expect(card.deferCount).toBeGreaterThan(0); // 앞선 시험들이 이미 이월시켰다
+    expect(card.deferCount).toBeGreaterThan(1); // 앞선 시험들이 여러 번 이월시켰다
+    expect(card.nextAttemptAt).not.toBeNull();
+    // 2회차부터는 실제로 미래로 밀린다 (1회차는 0이라 즉시 재시도)
+    expect(card.nextAttemptAt!.getTime()).toBeGreaterThan(BATCH_NOW.getTime());
 
-    // 자동 재시도를 다 쓴 상태로 만들면 배치가 더는 손대지 않는다
+    // 그래서 같은 시각에 다시 돌려도 이 카드는 조회에 안 잡힌다
+    const again = await judgeAndSettleDueCards(prisma, noQuotes, BATCH_NOW);
+    expect(again.cursor?.id).not.toBe(card.id);
+  });
+
+  // **횟수로 자동 재시도를 끊지 않는다.** deferCount는 시도 횟수지 시간이 아니라서,
+  // 기동 따라잡기가 잦으면(배포·재시작) 시간이 안 흘렀는데 예산만 소진된다 —
+  // 멀쩡한 카드가 그렇게 사람 손으로 밀려나면 안 된다
+  it('재시도 횟수를 다 써도 배치가 손을 떼지 않는다 — 데이터가 돌아오면 스스로 낫는다', async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({
+      where: { judgment: null },
+      orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
+    });
     await prisma.predictionCard.update({
       where: { id: card.id },
-      data: { deferCount: MAX_DEFER_ATTEMPTS, nextAttemptAt: null },
+      data: { deferCount: MAX_DEFER_ATTEMPTS + 3, nextAttemptAt: null },
     });
-    const after = await judgeAndSettleDueCards(prisma, noQuotes, BATCH_NOW);
-    const touched = await prisma.predictionCard.findUniqueOrThrow({ where: { id: card.id } });
-    expect(touched.deferCount).toBe(MAX_DEFER_ATTEMPTS); // 손대지 않았다
-    expect(after.deferred).toBeGreaterThanOrEqual(0);
 
-    // 대신 운영자 큐에 뜬다 — 여기 안 뜨면 그 카드는 영원히 아무도 안 본다
-    const queue = await getManualJudgmentQueue(prisma, BATCH_NOW);
-    expect(queue.some((q) => q.cardId === card.id)).toBe(true);
+    // 시세가 돌아온 상황 — 횟수와 무관하게 판정된다
+    const s = await judgeAndSettleDueCards(prisma, withQuotes([card.ticker]), BATCH_NOW);
+    expect(s.judged).toBeGreaterThan(0);
+    const judged = await prisma.judgment.findFirst({ where: { predictionCardId: card.id } });
+    expect(judged).not.toBeNull();
+  });
+
+  // **무기한 기다리게 두지 않는다.** 구매자는 "이 시점까지 이 가격"을 샀는데 시세 소스
+  // 장애로 판정이 미뤄지는 것은 전적으로 플랫폼 사정이다 — 그 대가를 에스크로에 묶인
+  // 돈으로 치를 이유가 없다
+  it(`시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나면 판정 불가로 닫고 전액 환불한다`, async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({
+      where: { judgment: null },
+      orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
+    });
+    const wayLate = new Date(card.deadline.getTime() + (JUDGMENT_HARD_CAP_DAYS + 1) * 86_400_000);
+
+    const s = await judgeAndSettleDueCards(prisma, noQuotes, wayLate);
+    expect(s.hardCapped.length).toBeGreaterThan(0);
+
+    const judgment = await prisma.judgment.findFirstOrThrow({
+      where: { predictionCardId: card.id },
+    });
+    expect(judgment.outcome).toBe('UNDECIDABLE');
+    expect(judgment.undecidableReason).toBe('DATA_UNAVAILABLE');
+    // 소스 장애의 대가를 리서처가 지면 안 된다 — 점수도 증거도 0
+    expect(judgment.score).toBe(0);
+    expect(judgment.info).toBe(0);
   });
 });

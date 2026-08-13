@@ -39,7 +39,16 @@ export type Direction = (typeof DIRECTIONS)[number];
 export const TARGET_TYPES = ['TARGET_PRICE', 'RETURN_PCT'] as const;
 export type TargetType = (typeof TARGET_TYPES)[number];
 
-export const UNDECIDABLE_REASONS = ['TRADING_HALT', 'DELISTED', 'AMBIGUOUS', 'WITHDRAWN'] as const;
+// DATA_UNAVAILABLE = 시세를 끝내 구하지 못해 시한 + JUDGMENT_HARD_CAP_DAYS에 시스템이
+// 닫은 경우. **플랫폼 사정이므로 전액 환불**이고, 리서처 점수에도 반영되지 않는다
+// (판정 불가 공통 규칙 §2.5) — 소스 장애의 대가를 리서처가 지면 안 된다
+export const UNDECIDABLE_REASONS = [
+  'TRADING_HALT',
+  'DELISTED',
+  'AMBIGUOUS',
+  'WITHDRAWN',
+  'DATA_UNAVAILABLE',
+] as const;
 export type UndecidableReason = (typeof UNDECIDABLE_REASONS)[number];
 
 // 기준가 확정 방식 (publishReport.ts의 컷오프 규칙과 연동):

@@ -16,12 +16,17 @@ import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
 import { purgeOldNotifications } from '../src/server/opsAlert';
+import {
+  anotherSchedulerMayBeRunning,
+  clearHeartbeat,
+  writeHeartbeat,
+} from '../src/server/schedulerHealth';
 import { purgeExpiredPaymentIntents } from '../src/server/paymentIntentService';
 import { sweepStuckRefundAttempts } from '../src/server/settlementOpsService';
 import { recalcSeasonTiers } from '../src/server/seasonRecalcService';
 import { syncKrCardInstrumentRisk } from '../src/server/krRiskSync';
 import { healMissingCardData } from '../src/server/cardDataHealer';
-import { STALE_DEFER_DAYS } from '../src/server/judgmentBatch';
+import { JUDGMENT_HARD_CAP_DAYS, STALE_DEFER_DAYS } from '../src/server/judgmentBatch';
 
 // 배치 스케줄러 — npm run scheduler (상시 실행 프로세스)
 //
@@ -99,6 +104,7 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
     due.deferred += next.deferred;
     due.failed += next.failed;
     due.staleDeferred.push(...next.staleDeferred);
+    due.hardCapped.push(...next.hardCapped);
     due.cursor = next.cursor ?? due.cursor;
     due.hasMore = next.hasMore;
     chunks += 1;
@@ -114,6 +120,18 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
 
   // **이월이 오래된 카드는 사람이 봐야 한다.** 지금까지 이 목록은 배치 로그에만 남아
   // 아무도 읽지 않았다 — 돈이 묶인 카드가 조용히 방치되는 경로다
+  // **시스템이 끝낸 건은 사람이 반드시 알아야 한다** — 전액 환불이 이미 나갔고,
+  // 리서처에게는 자기 잘못이 아닌 판정 불가가 기록됐다. 조용히 지나가면 안 되는 사건이다
+  if (due.hardCapped.length > 0) {
+    await notifyOperators(
+      `[확인] 판정 상한 도달 ${due.hardCapped.length}건 — 판정 불가·전액 환불 처리됨`,
+      `시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나도록 시세를 구하지 못해 시스템이 닫았습니다.\n` +
+        `시세 소스 문제인지 확인하고, 반복되면 소스를 바꿔야 합니다.\n` +
+        due.hardCapped.slice(0, 10).join('\n'),
+      '/admin/judgments',
+    );
+  }
+
   if (due.staleDeferred.length > 0) {
     await notifyOperators(
       `판정 이월 ${due.staleDeferred.length}건 — 수동 확인 필요`,
@@ -336,6 +354,12 @@ function tick(): void {
       );
     });
   }
+
+  // ── 심박 (매 틱, 큐 맨 뒤) ──────────────────────────────
+  // **큐 뒤에 세우는 것이 핵심이다.** 앞선 일이 막혀 있으면 심박도 안 찍힌다 —
+  // "프로세스는 살아 있는데 아무 일도 안 하는" 좀비를 그렇게 잡는다.
+  // (pm2는 죽은 것만 살린다. 좀비는 online으로 보인다)
+  enqueue('심박', () => writeHeartbeat(prisma));
 }
 
 /**
@@ -353,23 +377,42 @@ function catchUpOnBoot(): void {
   });
 }
 
-console.log('스케줄러 시작 — 마감+5분 판정 / 장중 2분 감시 갱신 / 04:00 백업 / 06:00 마스터 동기화');
-for (const market of MARKETS) {
-  const day = marketToday(market, new Date());
-  const holiday = holidayName(market, day);
+async function main(): Promise<void> {
+  // **경고만 한다 — 부팅을 막지 않는다.** pm2 재시작이면 이 심박은 방금 죽은 자기
+  // 자신의 것이라, 여기서 종료하면 정상 배포가 크래시 루프가 된다
+  // (제대로 된 상호배제는 Postgres advisory lock — schedulerHealth 주석)
+  if (await anotherSchedulerMayBeRunning(prisma)) {
+    console.warn(
+      '⚠ 최근 심박이 있습니다 — 방금 재시작한 것이면 정상입니다.\n' +
+        '  두 대가 동시에 도는 것이라면 KIS 토큰(분당 1회)에서 서로를 죽입니다. pm2 status로 확인하세요.',
+    );
+  }
+
   console.log(
-    `  ${market} ${day}: ${holiday ? `휴장 (${holiday})` : '거래일'}` +
-      ` / 달력 잔여 ${coverageEndsIn(market, day)}일`,
+    '스케줄러 시작 — 마감+5분 판정 / 장중 2분 감시 갱신 / 04:00 백업 / 06:00 마스터 동기화',
   );
+  for (const market of MARKETS) {
+    const day = marketToday(market, new Date());
+    const holiday = holidayName(market, day);
+    console.log(
+      `  ${market} ${day}: ${holiday ? `휴장 (${holiday})` : '거래일'}` +
+        ` / 달력 잔여 ${coverageEndsIn(market, day)}일`,
+    );
+  }
+  catchUpOnBoot();
+  tick();
 }
-catchUpOnBoot();
-tick();
+
+void main();
 const timer = setInterval(tick, TICK_MS);
 
 for (const sig of ['SIGINT', 'SIGTERM'] as const) {
   process.on(sig, () => {
     clearInterval(timer);
     console.log('스케줄러 종료 — 진행 중인 배치를 기다립니다');
-    void queue.finally(() => prisma.$disconnect().then(() => process.exit(0)));
+    // 심박을 지운다 — 안 지우면 헬스 엔드포인트가 15분간 "살아 있다"고 답한다
+    void queue
+      .finally(() => clearHeartbeat(prisma))
+      .finally(() => prisma.$disconnect().then(() => process.exit(0)));
   });
 }

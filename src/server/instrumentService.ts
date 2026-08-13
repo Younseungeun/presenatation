@@ -46,7 +46,17 @@ export async function searchInstruments(
       ...(opts.shortableOnly ? { shortable: true } : {}),
       // 거래 위험 종목은 애초에 검색되지 않는다 (게시해도 판정 불가로 끝날 가능성이 크다)
       riskLevel: { not: 'DANGER' },
-      OR: [{ ticker: { contains: q } }, { name: { contains: q } }],
+      // **대소문자 — Postgres 전환의 지뢰.** SQLite의 `contains`는 ASCII에서 대소문자를
+      // 가리지 않지만 Postgres는 엄격히 구분한다. 그대로 옮기면 "aapl"이 AAPL을 못 찾는다.
+      // Prisma의 `mode: 'insensitive'`는 **SQLite에서 지원되지 않아** 지금은 못 쓰므로,
+      // 티커는 정본이 대문자라는 사실을 이용해 두 형태를 함께 찾는다.
+      // ⚠ `name`(회사명)은 정본 표기가 없어 이 방법이 안 통한다 — Postgres로 옮기는
+      //    날 `mode: 'insensitive'`를 반드시 붙여야 한다 (docs 전환 체크리스트)
+      OR: [
+        { ticker: { contains: q } },
+        { ticker: { contains: q.toUpperCase() } },
+        { name: { contains: q } },
+      ],
     },
     select: {
       ticker: true,

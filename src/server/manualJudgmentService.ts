@@ -3,7 +3,7 @@ import type { AssetClass, Direction, TargetType, UndecidableReason } from '@/dom
 import { UNDECIDABLE_REASONS } from '@/domain/constants';
 import { judge, type JudgmentResult, type MarketSnapshot } from '@/domain/judgment';
 import { scoreJudgedCard } from '@/domain/scoring';
-import { MAX_DEFER_ATTEMPTS, STALE_DEFER_DAYS } from './judgmentBatch';
+import { STALE_DEFER_DAYS } from './judgmentBatch';
 import { buildJudgmentWrites } from './judgmentWriter';
 
 // 운영자 판정 보류 큐 (§2.5 연장): 자동 판정이 STALE_DEFER_DAYS 이상 이월된 카드를
@@ -42,11 +42,12 @@ export interface QueueEntry {
 }
 
 /**
- * 사람이 봐야 하는 카드 (오래된 순). 두 갈래가 들어온다:
- *  ① 시한이 STALE_DEFER_DAYS 이상 지났는데 아직 판정 안 됨 (오래 방치)
- *  ② 자동 재시도를 다 쓴 카드 (`deferCount >= MAX_DEFER_ATTEMPTS`) — **배치가 더는
- *     손대지 않으므로 여기 안 뜨면 영원히 아무도 안 본다.** 시한 직후에 연달아 실패한
- *     카드가 7일을 기다릴 이유도 없다
+ * 사람이 봐야 하는 카드 (오래된 순) — 시한이 STALE_DEFER_DAYS 이상 지났는데 판정 안 된 것.
+ *
+ * **기준은 시간 하나뿐이다.** 한때 "자동 재시도를 다 쓴 카드"도 넣었는데, 시도 횟수는
+ * 시간이 아니라서(재시작이 잦으면 하루 만에 소진된다) 멀쩡한 카드가 큐로 밀려왔다.
+ * 지금은 배치가 횟수로 손을 떼지 않으므로 이 갈래 자체가 필요 없다
+ * (judgmentBatch.MAX_DEFER_ATTEMPTS 주석).
  */
 export async function getManualJudgmentQueue(
   prisma: PrismaClient,
@@ -56,11 +57,8 @@ export async function getManualJudgmentQueue(
   const cards = await prisma.predictionCard.findMany({
     where: {
       judgment: null,
+      deadline: { lte: staleBefore },
       report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
-      OR: [
-        { deadline: { lte: staleBefore } },
-        { deadline: { lte: now }, deferCount: { gte: MAX_DEFER_ATTEMPTS } },
-      ],
     },
     include: {
       report: {
@@ -146,12 +144,9 @@ export async function manualJudgeCard(
   if (!card.report.publishedAt || !['PUBLISHED', 'CLOSED'].includes(card.report.status)) {
     throw new ManualJudgmentError('게시된 리포트의 카드만 판정할 수 있습니다');
   }
-  // **자동 판정이 우선이다** — 배치가 아직 시도할 여지가 있으면 사람이 끼어들지 않는다.
-  // 다만 **자동 재시도를 다 쓴 카드는 예외**다. 배치가 더는 손대지 않으므로 여기서도
-  // 막으면 그 카드는 아무 경로로도 판정되지 않는다(큐에 보이는데 누를 수 없는 상태)
+  // **자동 판정이 우선이다** — 배치가 아직 시도할 여지가 있으면 사람이 끼어들지 않는다
   const staleDays = (now.getTime() - card.deadline.getTime()) / 86_400_000;
-  const exhausted = card.deferCount >= MAX_DEFER_ATTEMPTS && card.deadline <= now;
-  if (staleDays < STALE_DEFER_DAYS && !exhausted) {
+  if (staleDays < STALE_DEFER_DAYS) {
     throw new ManualJudgmentError(
       `자동 판정 우선 — 시한 경과 ${STALE_DEFER_DAYS}일 미만 카드는 수동 판정할 수 없습니다`,
     );
