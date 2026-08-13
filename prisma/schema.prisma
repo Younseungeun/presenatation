@@ -118,7 +118,6 @@ model Report {
   predictionCard    PredictionCard?
   purchases         Purchase[]
   cartItems         CartItem[]
-  paymentIntents    PaymentIntent[]
   complianceReviews ComplianceReview[]
 }
 
@@ -269,6 +268,11 @@ model Purchase {
   // PG 결제 키 — **환불 자동 실행의 열쇠**. 이게 있어야 정산 콘솔이 PG 취소를 직접 부를 수 있다.
   // 스텁 구매·과거 구매에는 없고, 없으면 계좌이체 환불로만 처리한다. 비밀값이 아니다(승인 API가 이미 클라이언트에 노출)
   paymentKey    String?
+  // 결제 순간의 가격 방어가 **무엇으로** 통과했는지 (domain/priceGate.ts).
+  // LIVE = 실시간 시세로 q를 쟀다 / MARKET_CLOSED = 장이 닫혀 있어 마지막 종가로 쟀다
+  // (닫힌 동안 q는 변하지 않으므로 그것이 맞는 값이다) / NO_CARD = 잴 카드가 없다.
+  // 분쟁이 나면 "이 결제가 어떤 근거로 승인됐는가"의 답이 여기 있다
+  priceGate     String?
   escrowStatus  String   @default("HELD") // HELD | SETTLED | REFUNDED
   paidAt        DateTime @default(now())
   // 판매 마감 확인 — 마감된 내 카드는 리더보드에 계속 보이다가, 구매자가 확인을
@@ -326,7 +330,15 @@ model RefundAttempt {
   operatorId   String // 실행을 누른 운영자 userId
   createdAt    DateTime   @default(now())
   finishedAt   DateTime?
+  // 은행 이체 참조번호 (BANK_TRANSFER 필수) — **계좌이체에는 멱등키가 없다.**
+  // PG 취소는 같은 키로 다시 불러도 한 번만 나가지만, 사람이 은행 앱에서 보내는 돈은
+  // 시스템이 막을 방법이 없다. 시스템 바깥에서 일어난 현금 이동을 안으로 증명하는
+  // 유일한 수단이 이 번호다 — 재시도 화면이 이걸 물으면 운영자가 은행 앱을 다시 보게 된다
+  bankReference String?
+  // 방치 알림을 보낸 시각 — 같은 건을 매 회차 다시 알리면 소음이 되어 아무도 안 읽는다
+  escalatedAt   DateTime?
 
+  @@unique([settlementId, bankReference]) // 같은 이체를 두 번 기록할 수 없다
   @@index([settlementId])
 }
 
@@ -455,8 +467,13 @@ model PaymentIntent {
   orderId   String   @unique // 토스페이먼츠 orderId (6~64자)
   buyerId   String
   buyer     User     @relation(fields: [buyerId], references: [id])
-  reportId  String
-  report    Report   @relation(fields: [reportId], references: [id])
+  // 결제할 리포트 **목록의 스냅샷** — `[{ "reportId": "...", "priceKrw": 10000 }, ...]`.
+  //
+  // 단수 reportId였던 것을 목록으로 바꿨다. 장바구니는 N건 합산을 한 번에 승인하는데,
+  // 그보다 중요한 이유는 **결제창을 여는 사이에 장바구니가 바뀔 수 있다는 것**이다
+  // (다른 탭에서 담거나 뺌). 승인 후 장바구니를 다시 읽으면 승인 금액과 실제 구매가
+  // 어긋난다. 의도를 만드는 순간의 목록을 통째로 박아두고 승인 후에는 이것만 본다.
+  itemsJson String
   amountKrw Int
   // PENDING            승인 전
   // CONFIRMED          승인 + 구매 생성 완료

@@ -8,8 +8,9 @@ import {
   suspendsPurchase,
 } from '@/domain/salesWindow';
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
+import { isMarketOpen } from '@/domain/marketHours';
 import { isFreeReport } from './freeReportService';
-import { fetchCachedPrice } from './priceCache';
+import { fetchCachedQuote } from './priceCache';
 import { recordQuote } from './quoteWatchService';
 import { researcherConfidenceCap } from './scoreService';
 
@@ -192,10 +193,36 @@ async function assertNotSuspendedIntraday(
   prisma: PrismaClient,
   card: IntradayCard | null,
   now: Date,
-): Promise<void> {
-  if (!card || card.basePrice === null) return;
-  const price = await fetchCachedPrice(card.assetClass, card.ticker);
-  if (price === null) return;
+): Promise<PriceGate> {
+  if (!card || card.basePrice === null) return 'NO_CARD';
+  const assetClass = card.assetClass as AssetClass;
+  const { price, live, unchecked } = await fetchCachedQuote(assetClass, card.ticker);
+  const open = isMarketOpen(assetClass, now);
+
+  // **장이 열려 있는데 시세를 못 구하면 팔지 않는다 (2026-08-13).**
+  //
+  // 예전에는 시세가 없으면 그냥 통과시켰다. 판정은 반대로 모르면 멈추는데
+  // (JudgmentDeferredError) 판매만 모르면 팔았다 — 그 비대칭이 문제였다.
+  // 시세 소스가 장중에 몇 시간 죽으면 가격 방어가 **조용히 꺼진 채로** 계속 팔리고,
+  // 그 사이 급락한 종목의 q<0.5 카드가 그대로 나간다. 아무 기록도 남지 않는다.
+  //
+  // 장이 닫혀 있으면 이야기가 다르다. 닫힌 동안 q는 변하지 않으므로 **마지막 종가가
+  // 곧 맞는 값**이고, 여기서 막으면 주말·야간 매출이 통째로 사라진다.
+  //
+  // `unchecked`(공급자 미설정)는 막지 않는다 — 설정 문제라 판매를 멈춰도 나아지지 않고,
+  // 자산군 하나가 통째로 안 팔리는 것을 시세 장애로 오인하면 원인을 못 찾는다.
+  if (price === null) {
+    if (open && !unchecked) {
+      throw new Error(
+        '거래소 시세를 확인할 수 없어 구매가 일시 중단되었습니다. 시세가 복구되면 다시 구매할 수 있습니다.',
+      );
+    }
+    return unchecked ? 'UNCHECKED' : 'MARKET_CLOSED';
+  }
+  // ⚠ 장중의 **낡은 종가**(live=false)는 지금 통과시킨다. 실시간이 없는 공급자에서
+  //   전 종목이 막히는 쪽이 더 나쁘다고 봤다 — 대신 STALE_CLOSE로 남겨 분쟁 시
+  //   "이 결제가 무엇으로 통과했는지"에 답한다. 문턱을 조일지는 실측 후 결정한다
+  const gate: PriceGate = live ? 'LIVE' : 'STALE_CLOSE';
 
   // **이 호출이 감시 대상을 발굴한다** (2026-08-12 사용자 확정).
   // 문턱에서 먼 종목은 장중에 갱신하지 않으므로, 그 사이 문턱으로 다가온 것을 아무도
@@ -217,7 +244,7 @@ async function assertNotSuspendedIntraday(
     card.targetType === 'RETURN_PCT'
       ? card.targetValue
       : (Math.abs(card.targetValue - card.basePrice) / card.basePrice) * 100;
-  if (magnitudePct <= 0) return;
+  if (magnitudePct <= 0) return gate;
   const q = remainingFraction(card.direction as Direction, price, targetPrice, magnitudePct);
   if (suspendsPurchase(q)) {
     throw new Error(
@@ -240,12 +267,30 @@ async function assertNotSuspendedIntraday(
       '예측과 반대로 목표 폭만큼 움직여 판매가 중단되었습니다. 오늘 종가로도 같은 상태면 판매가 마감됩니다.',
     );
   }
+  return gate;
 }
+
+/**
+ * 이 결제의 가격 방어가 **무엇으로** 통과했는지 — 구매 기록에 남는다.
+ * 분쟁이 나면 "이 결제가 어떤 근거로 승인됐는가"의 답이 여기 있다.
+ */
+export type PriceGate =
+  /** 실시간 현재가로 q를 쟀다 */
+  | 'LIVE'
+  /** 일봉 종가로 쟀다 (장이 닫혔거나 실시간을 못 받았다) */
+  | 'STALE_CLOSE'
+  /** 값이 없는데 장도 닫혀 있었다 — 잴 것도 잴 이유도 없다 */
+  | 'MARKET_CLOSED'
+  /** 그 자산군의 시세 공급자가 없다 (설정 문제) */
+  | 'UNCHECKED'
+  /** 잴 카드가 없다 (기준가 미확정 등) */
+  | 'NO_CARD';
 
 /** 검증을 통과한 1건 — 이 값만으로 쓰기 연산을 만들 수 있다 */
 export interface CheckedPurchase {
   reportId: string;
   priceKrw: number;
+  priceGate: PriceGate;
 }
 
 /**
@@ -271,13 +316,13 @@ export async function assertPurchasableNow(
   assertPurchasable(report, buyerId, now, await disciplineCapFor(prisma, report, now));
   // 가격 보호 — 결제 순간 실시간 시세로 남은 몫(q)을 재고 광고의 절반 밑이면 막는다.
   // 피해자는 구매하는 순간에 생기므로 검사도 그 순간에 한다
-  await assertNotSuspendedIntraday(prisma, report.predictionCard, now);
+  const priceGate = await assertNotSuspendedIntraday(prisma, report.predictionCard, now);
 
   const buyer = await prisma.user.findUniqueOrThrow({ where: { id: buyerId } });
   if (!buyer.identityVerified) {
     throw new Error('본인 인증 후 구매할 수 있습니다');
   }
-  return { reportId, priceKrw: report.priceKrw };
+  return { reportId, priceKrw: report.priceKrw, priceGate };
 }
 
 /**
@@ -312,6 +357,7 @@ export function purchaseWriteOps(
         paymentMethod: payment.method,
         paymentInfo: paymentInfoOverride ?? stubPaymentInfo(),
         paymentKey,
+        priceGate: checked.priceGate,
         escrowStatus: 'HELD',
       },
     }),

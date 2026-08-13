@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { notifyOperators } from './opsAlert';
 import { cancelTossPayment, TossPaymentError } from './tossPayments';
 
 // 정산 실행 콘솔 (운영자): 판정이 만든 환불·지급 지시서를 실행하고 기록한다.
@@ -78,7 +79,21 @@ export function getPendingPayouts(prisma: PrismaClient) {
  */
 export async function executeRefund(
   prisma: PrismaClient,
-  input: { settlementId: string; operatorUserId: string; method: RefundMethod },
+  input: {
+    settlementId: string;
+    operatorUserId: string;
+    method: RefundMethod;
+    /**
+     * 은행 이체 참조번호 — `BANK_TRANSFER`에 **필수**.
+     *
+     * 계좌이체에는 멱등키가 없다. PG 취소는 같은 키로 다시 불러도 한 번만 나가지만,
+     * 사람이 은행 앱에서 보내는 돈은 시스템이 막을 방법이 없다 — 재시도 버튼을 보고
+     * "안 나갔구나" 하고 한 번 더 보내면 그대로 두 번 나간다. 시스템 바깥에서 일어난
+     * 현금 이동을 안으로 증명하는 유일한 수단이 이 번호이고, **입력을 요구하는 것
+     * 자체가 운영자를 은행 앱으로 되돌려 보낸다**(거기서 이미 보낸 이체가 보인다).
+     */
+    bankReference?: string;
+  },
   now = new Date(),
 ) {
   const s = await prisma.settlement.findUnique({
@@ -96,6 +111,12 @@ export async function executeRefund(
   if (input.method === 'PG_CANCEL' && !s.purchase.paymentKey) {
     throw new SettlementOpsError(
       'PG 결제 키가 없는 구매라 자동 취소할 수 없습니다 — 계좌이체로 환불해주세요 (모의 결제이거나 결제 키를 저장하기 전에 만들어진 건입니다)',
+    );
+  }
+  const bankReference = input.bankReference?.trim() || null;
+  if (input.method === 'BANK_TRANSFER' && !bankReference) {
+    throw new SettlementOpsError(
+      '계좌이체 환불에는 은행 이체 참조번호가 필요합니다 — 이체를 먼저 실행하고 그 번호를 입력해주세요 (같은 번호는 두 번 기록되지 않습니다)',
     );
   }
 
@@ -119,15 +140,24 @@ export async function executeRefund(
   // 토스가 첫 성공 응답을 그대로 돌려주므로 코드는 성공으로 알고 **돈은 안 나간다.**
   // 판정 정정으로 추가 환불이 필요한 날 조용히 틀린다. 시도마다 키가 새로 생기면
   // 그 위험이 사라지고, 같은 시도의 재시도는 여전히 한 번만 나간다.
-  const attempt = await prisma.refundAttempt.create({
-    data: {
-      settlementId: s.id,
-      amountKrw: s.buyerRefundKrw,
-      method: input.method,
-      operatorId: input.operatorUserId,
-      status: 'PENDING',
-    },
-  });
+  let attempt;
+  try {
+    attempt = await prisma.refundAttempt.create({
+      data: {
+        settlementId: s.id,
+        amountKrw: s.buyerRefundKrw,
+        method: input.method,
+        operatorId: input.operatorUserId,
+        status: 'PENDING',
+        bankReference,
+      },
+    });
+  } catch {
+    // @@unique([settlementId, bankReference]) — 같은 이체를 두 번 기록하려 했다
+    throw new SettlementOpsError(
+      `이 이체 번호(${bankReference})는 이미 이 정산에 기록돼 있습니다. 실제로 두 번 보내셨다면 참조번호가 다를 것입니다 — 은행 앱에서 확인해주세요.`,
+    );
+  }
   await runRefundAttempt(prisma, s, attempt, now);
 }
 
@@ -255,6 +285,55 @@ async function runRefundAttempt(
       },
     }),
   ]);
+}
+
+/**
+ * 끝나지 않은 시도를 몇 분 지나면 방치로 보는가.
+ *
+ * PG 취소는 초 단위로 끝나는 호출이라 30분이 남아 있으면 정상 경로가 아니다.
+ * 결제 쪽 `REQUIRES_MANUAL_VOID`(고객이 돈을 냈는데 못 받은 상태)와 달리 이쪽은
+ * 며칠 안에만 환불되면 되는 건이라 즉시 알림이 아니라 배치로 묶어 올린다.
+ */
+export const STUCK_REFUND_MINUTES = 30;
+
+/**
+ * 방치된 환불 시도를 찾아 운영자에게 **묶어서** 알린다 (스케줄러가 주기적으로 부른다).
+ *
+ * PENDING은 "취소가 나갔는지 우리가 모른다"는 뜻인데, 지금까지 그 행을 **아무도 다시
+ * 보지 않았다.** 정산 큐에는 보이지만 큐를 안 열면 그만이다. 건마다 알리면 소음이 되므로
+ * 한 번에 하나로 묶고, 이미 알린 건은 다시 세지 않는다(escalatedAt).
+ */
+export async function sweepStuckRefundAttempts(
+  prisma: PrismaClient,
+  now = new Date(),
+): Promise<{ stuck: number; notified: boolean }> {
+  const cutoff = new Date(now.getTime() - STUCK_REFUND_MINUTES * 60_000);
+  const stuck = await prisma.refundAttempt.findMany({
+    where: { status: 'PENDING', createdAt: { lt: cutoff }, escalatedAt: null },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (stuck.length === 0) return { stuck: 0, notified: false };
+
+  const total = stuck.reduce((a, r) => a + r.amountKrw, 0);
+  await notifyOperators(prisma, {
+    title: `[확인 필요] 끝나지 않은 환불 시도 ${stuck.length}건 · ${total.toLocaleString()}원`,
+    body: [
+      `${STUCK_REFUND_MINUTES}분 넘게 PENDING으로 남아 있습니다 — 취소가 나갔는지 확인되지 않은 상태입니다.`,
+      `정산 콘솔에서 **재시도**를 눌러주세요(같은 키로 나가므로 두 번 빠지지 않습니다).`,
+      ...stuck
+        .slice(0, 10)
+        .map((r) => `· ${r.method} ${r.amountKrw.toLocaleString()}원 · 시도 ${r.id}`),
+      ...(stuck.length > 10 ? [`… 외 ${stuck.length - 10}건`] : []),
+    ].join('\n'),
+    link: '/admin/settlements',
+  });
+
+  // 같은 건을 매 회차 다시 알리지 않는다 — 소음이 되면 아무도 안 읽는다
+  await prisma.refundAttempt.updateMany({
+    where: { id: { in: stuck.map((r) => r.id) } },
+    data: { escalatedAt: now },
+  });
+  return { stuck: stuck.length, notified: true };
 }
 
 /** 리서처 지급 실행 기록 + 리서처 알림. 이미 실행된 건은 거부 */

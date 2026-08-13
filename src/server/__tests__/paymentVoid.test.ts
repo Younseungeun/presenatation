@@ -123,7 +123,14 @@ async function makeSellable() {
 
 async function seedIntent(orderId: string) {
   await prisma.paymentIntent.create({
-    data: { orderId, buyerId, reportId, amountKrw: 20_000, status: 'PENDING' },
+    data: {
+      orderId,
+      buyerId,
+      // 결제창을 연 순간의 스냅샷 — 승인 후에는 장바구니가 아니라 이것만 본다
+      itemsJson: JSON.stringify([{ reportId, priceKrw: 20_000 }]),
+      amountKrw: 20_000,
+      status: 'PENDING',
+    },
   });
 }
 

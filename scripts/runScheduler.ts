@@ -15,6 +15,7 @@ import { runSalesCloseBatch } from '../src/server/salesCloseService';
 import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
+import { sweepStuckRefundAttempts } from '../src/server/settlementOpsService';
 import { recalcSeasonTiers } from '../src/server/seasonRecalcService';
 import { syncKrCardInstrumentRisk } from '../src/server/krRiskSync';
 import { healMissingCardData } from '../src/server/cardDataHealer';
@@ -225,6 +226,19 @@ function tick(): void {
       const s = await runComplianceOps(prisma);
       console.log(`  시한 경과 초안 복귀 ${s.expired.length}건`);
     });
+  }
+
+  // ── 방치된 환불 시도 (30분마다) ─────────────────────────
+  // PENDING은 "취소가 나갔는지 우리가 모른다"는 뜻인데, 그 행을 아무도 다시 보지 않으면
+  // 구매자 환불이 조용히 멈춘 채 남는다. 정산 큐에는 보이지만 큐를 안 열면 그만이다.
+  // 건마다 알리면 소음이라 배치가 묶어서 한 번에 올린다(이미 알린 건은 다시 안 센다)
+  if (kstClock.endsWith(':00') || kstClock.endsWith(':30')) {
+    if (onceADay(`refund-sweep:${kstClock}`, kstNow)) {
+      enqueue('방치된 환불 시도 점검', async () => {
+        const s = await sweepStuckRefundAttempts(prisma);
+        if (s.stuck > 0) console.log(`  끝나지 않은 환불 시도 ${s.stuck}건 — 운영자에게 알림`);
+      });
+    }
   }
 
   // ── 국내 시장경보·거래정지 (매일 07:10 KST) ─────────────

@@ -108,6 +108,16 @@ describe('리포트 게시 플로우', () => {
     expect(after.predictionCard!.withdrawnAt).toEqual(NOW);
     expect(after.predictionCard!.basePrice).toBe(160_000_000); // 기록은 그대로
 
+    // **정산이 그 자리에서 끝난다** — 시한까지 기다려도 답(전액 환불)은 안 바뀌는데
+    // 그동안 구매자 돈만 에스크로에 묶인다. 365일 카드를 이틀 만에 철회하면 363일이다
+    const judgment = await prisma.judgment.findFirstOrThrow({
+      where: { predictionCardId: after.predictionCard!.id },
+    });
+    expect(judgment.outcome).toBe('UNDECIDABLE');
+    expect(judgment.undecidableReason).toBe('WITHDRAWN');
+    expect(judgment.score).toBe(0);
+    expect(judgment.info).toBe(0); // 증거가 아니므로 규율 래더에 들어가면 안 된다
+
     // 이중 철회 차단
     await expect(withdrawPredictionCard(prisma, draft.id, researcherId)).rejects.toThrow(
       /게시된 리포트만/,

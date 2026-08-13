@@ -1,6 +1,14 @@
 import type { PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
-import { assertPurchasable, disciplineCapFor, purchaseReport } from './purchaseService';
+import { notifyOperators } from './opsAlert';
+import {
+  assertPurchasable,
+  assertPurchasableNow,
+  disciplineCapFor,
+  purchaseWriteOps,
+  type PaymentMethod,
+  type purchaseReport,
+} from './purchaseService';
 import {
   cancelTossPayment,
   confirmTossPayment,
@@ -19,6 +27,20 @@ export interface PreparedPayment {
   orderId: string;
   orderName: string;
   amountKrw: number;
+}
+
+/** 의도에 박아 두는 한 줄 — 결제창을 연 **그 순간**의 리포트와 가격 */
+export interface IntentItem {
+  reportId: string;
+  priceKrw: number;
+}
+
+export function parseIntentItems(itemsJson: string): IntentItem[] {
+  const parsed = JSON.parse(itemsJson) as IntentItem[];
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    throw new TossPaymentError('결제 항목이 비어 있습니다');
+  }
+  return parsed;
 }
 
 export async function createPaymentIntent(
@@ -51,7 +73,9 @@ export async function createPaymentIntent(
     data: {
       orderId,
       buyerId: input.buyerId,
-      reportId: input.reportId,
+      // **목록을 통째로 박아 둔다.** 지금은 한 건이지만 형태를 맞춰 두면
+      // 장바구니 결제가 붙을 때 승인 경로를 다시 쓰지 않아도 된다
+      itemsJson: JSON.stringify([{ reportId: input.reportId, priceKrw: report.priceKrw }]),
       amountKrw: report.priceKrw,
       status: 'PENDING',
     },
@@ -84,9 +108,11 @@ export async function confirmPaymentIntent(
   if (intent.buyerId !== input.buyerId) {
     throw new TossPaymentError('본인의 결제가 아닙니다');
   }
+  // **장바구니가 바뀌어도 이 목록은 안 바뀐다** — 결제창을 연 순간의 스냅샷이다
+  const items = parseIntentItems(intent.itemsJson);
   if (intent.status === 'CONFIRMED') {
     const existing = await prisma.purchase.findUnique({
-      where: { reportId_buyerId: { reportId: intent.reportId, buyerId: intent.buyerId } },
+      where: { reportId_buyerId: { reportId: items[0].reportId, buyerId: intent.buyerId } },
     });
     if (existing) return existing;
   }
@@ -140,15 +166,11 @@ export async function confirmPaymentIntent(
 
   let purchase;
   try {
-    purchase = await purchaseReport(
-      prisma,
-      intent.reportId,
-      intent.buyerId,
-      now,
-      { method },
-      describeTossPayment(result),
-      input.paymentKey,
-    );
+    purchase = await purchaseIntentItems(prisma, items, intent.buyerId, now, {
+      method,
+      paymentInfo: describeTossPayment(result),
+      paymentKey: input.paymentKey,
+    });
   } catch (e) {
     await voidAfterCapture(prisma, input, e, intent.amountKrw);
     throw e; // 원래 사유를 그대로 올린다 — 구매자에게는 왜 막혔는지가 답이다
@@ -156,6 +178,49 @@ export async function confirmPaymentIntent(
 
   await prisma.paymentIntent.update({ where: { orderId: input.orderId }, data: { status: 'CONFIRMED' } });
   return purchase;
+}
+
+/**
+ * 스냅샷의 항목 전부를 산다 — **전부 아니면 아무것도.**
+ *
+ * 승인은 합산 금액 한 번에 났으므로 일부만 만들어지면 "돈은 다 냈는데 일부만 받았다"가
+ * 된다. 그래서 검증(네트워크 시세 포함)을 전부 끝낸 뒤 쓰기만 한 트랜잭션에 묶는다
+ * (cartService.checkoutCart과 같은 구조). 하나라도 실패하면 호출자가 승인을 통째로 되돌린다.
+ *
+ * 항목의 가격이 지금 리포트 가격과 다르면 거절한다 — 승인된 금액과 청구하려는 금액이
+ * 어긋난 것이라 어느 쪽으로든 틀렸다.
+ */
+async function purchaseIntentItems(
+  prisma: PrismaClient,
+  items: IntentItem[],
+  buyerId: string,
+  now: Date,
+  payment: { method: PaymentMethod; paymentInfo: string; paymentKey: string },
+) {
+  const checked = [];
+  for (const item of items) {
+    const c = await assertPurchasableNow(prisma, item.reportId, buyerId, now);
+    if (c.priceKrw !== item.priceKrw) {
+      throw new TossPaymentError(
+        `결제 요청 후 가격이 바뀐 리포트가 있어 구매를 만들지 않았습니다 (${item.priceKrw.toLocaleString()}원 → ${c.priceKrw.toLocaleString()}원)`,
+      );
+    }
+    checked.push(c);
+  }
+
+  const ops = checked.map((c) =>
+    purchaseWriteOps(
+      prisma,
+      c,
+      buyerId,
+      { method: payment.method },
+      payment.paymentInfo,
+      payment.paymentKey,
+    ),
+  );
+  const written = await prisma.$transaction(ops.flatMap((o) => [o.guard, o.create]));
+  // [guard, create, guard, create, …] — 첫 구매를 돌려준다(단건 결제의 기존 계약)
+  return written[1] as Awaited<ReturnType<typeof purchaseReport>>;
 }
 
 /**
@@ -210,6 +275,9 @@ async function voidAfterCapture(
  * 찾는 열쇠(paymentKey·orderId)와 얼마인지(amountKrw)를 본문에 그대로 적는다.
  * 대시보드 배지를 따로 두지 않는 이유는 이 실패가 연 몇 건 수준의 이례적 장애라,
  * 아무도 열어보지 않는 화면보다 밀어주는 알림이 발견 확률이 높기 때문이다.
+ *
+ * **앱 밖으로도 나간다** (server/opsAlert) — 자는 사이에 나면 앱 안 알림은 아침까지
+ * 아무도 못 본다. 돈이 PG에 묶인 건에는 그 지연이 그대로 비용이다.
  */
 async function notifyOperatorsOfStuckPayment(
   prisma: PrismaClient,
@@ -221,30 +289,16 @@ async function notifyOperatorsOfStuckPayment(
     cancelError: string;
   },
 ): Promise<void> {
-  try {
-    const operators = await prisma.user.findMany({
-      where: { role: 'OPERATOR' },
-      select: { id: true },
-    });
-    if (operators.length === 0) return;
-    await prisma.notification.createMany({
-      data: operators.map((o) => ({
-        userId: o.id,
-        type: 'OPS_ALERT',
-        title: `[긴급] 결제 승인 취소 실패 ${detail.amountKrw.toLocaleString()}원 — 수동 처리 필요`,
-        body: [
-          `토스 콘솔에서 직접 취소해야 합니다.`,
-          `paymentKey: ${detail.paymentKey}`,
-          `orderId: ${detail.orderId}`,
-          `금액: ${detail.amountKrw.toLocaleString()}원`,
-          `구매가 막힌 이유: ${detail.reason}`,
-          `자동 취소가 실패한 이유: ${detail.cancelError}`,
-        ].join('\n'),
-        link: '/admin/settlements',
-      })),
-    });
-  } catch (e) {
-    // 알림까지 실패해도 위 console.error와 DB 상태(REQUIRES_MANUAL_VOID)는 남는다
-    console.error('운영자 알림 실패:', e);
-  }
+  await notifyOperators(prisma, {
+    title: `[긴급] 결제 승인 취소 실패 ${detail.amountKrw.toLocaleString()}원 — 수동 처리 필요`,
+    body: [
+      `토스 콘솔에서 직접 취소해야 합니다.`,
+      `paymentKey: ${detail.paymentKey}`,
+      `orderId: ${detail.orderId}`,
+      `금액: ${detail.amountKrw.toLocaleString()}원`,
+      `구매가 막힌 이유: ${detail.reason}`,
+      `자동 취소가 실패한 이유: ${detail.cancelError}`,
+    ].join('\n'),
+    link: '/admin/settlements',
+  });
 }

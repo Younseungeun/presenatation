@@ -18,6 +18,8 @@ const bodySchema = z.discriminatedUnion('kind', [
     kind: z.literal('REFUND'),
     settlementId: z.string().min(1),
     method: z.enum(REFUND_METHODS),
+    // 계좌이체는 멱등키가 없어 이 번호가 유일한 중복 방지 수단이다 (서비스가 필수를 강제)
+    bankReference: z.string().min(1).max(100).optional(),
   }),
   // 끝나지 않은 시도를 **같은 멱등키로** 이어받는다 — 새 실행과 반드시 구분해야 한다
   z.object({ kind: z.literal('REFUND_RETRY'), attemptId: z.string().min(1) }),
@@ -46,6 +48,7 @@ export async function POST(req: NextRequest) {
         settlementId: body.settlementId,
         operatorUserId,
         method: body.method,
+        bankReference: body.bankReference,
       });
     } else if (body.kind === 'REFUND_RETRY') {
       await retryRefundAttempt(prisma, { attemptId: body.attemptId, operatorUserId });

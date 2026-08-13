@@ -21,12 +21,18 @@ export function ExecuteButton({
 }) {
   const router = useRouter();
   const [method, setMethod] = useState("PG_CANCEL");
+  const [bankReference, setBankReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const retrying = kind === "REFUND" && !!stuckAttemptId;
+  const needsReference = kind === "REFUND" && !retrying && method === "BANK_TRANSFER";
 
   async function execute() {
     const label = kind === "REFUND" ? "환불" : "지급";
+    if (needsReference && bankReference.trim() === "") {
+      setError("은행 이체 참조번호를 입력해주세요 — 계좌이체는 중복 송금을 시스템이 막을 수 없습니다.");
+      return;
+    }
     const question = retrying
       ? "끝나지 않은 환불 시도를 같은 키로 다시 보낼까요? 이미 나갔다면 중복되지 않습니다."
       : `${label}을 실행 완료로 기록할까요? 되돌릴 수 없습니다.`;
@@ -41,7 +47,12 @@ export function ExecuteButton({
           retrying
             ? { kind: "REFUND_RETRY", attemptId: stuckAttemptId }
             : kind === "REFUND"
-              ? { kind, settlementId, method }
+              ? {
+                  kind,
+                  settlementId,
+                  method,
+                  ...(needsReference ? { bankReference: bankReference.trim() } : {}),
+                }
               : { kind, settlementId },
         ),
       });
@@ -70,6 +81,17 @@ export function ExecuteButton({
           <option value="PG_CANCEL">PG 결제 취소</option>
           <option value="BANK_TRANSFER">계좌이체 (취소 기한 초과)</option>
         </select>
+      )}
+      {/* 계좌이체에는 멱등키가 없다 — 은행에서 이미 보낸 이체를 시스템이 알 방법이
+          이 번호뿐이고, 입력을 요구하는 것 자체가 운영자를 은행 앱으로 되돌려 보낸다 */}
+      {needsReference && (
+        <input
+          className={styles.input}
+          value={bankReference}
+          onChange={(e) => setBankReference(e.target.value)}
+          placeholder="은행 이체 참조번호"
+          style={{ maxWidth: 220 }}
+        />
       )}
       <button className={styles.primaryBtn} onClick={execute} disabled={busy}>
         {busy

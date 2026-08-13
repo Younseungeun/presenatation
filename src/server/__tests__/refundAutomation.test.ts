@@ -6,7 +6,12 @@ import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { judgeAndSettleDueCards } from '../judgmentBatch';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
-import { executeRefund, getPendingRefunds, retryRefundAttempt } from '../settlementOpsService';
+import {
+  executeRefund,
+  getPendingRefunds,
+  retryRefundAttempt,
+  sweepStuckRefundAttempts,
+} from '../settlementOpsService';
 
 // **환불은 이제 코드가 돈을 움직인다.**
 //
@@ -207,7 +212,12 @@ describe('PG 취소 환불 자동 실행', () => {
   it('계좌이체 환불은 PG를 부르지 않는다 — 결제 키가 없는 건의 폴백이다', async () => {
     await executeRefund(
       prisma,
-      { settlementId: noKeyRefundId, operatorUserId: OPERATOR, method: 'BANK_TRANSFER' },
+      {
+        settlementId: noKeyRefundId,
+        operatorUserId: OPERATOR,
+        method: 'BANK_TRANSFER',
+        bankReference: 'TRX-9001',
+      },
       EXEC_NOW,
     );
     expect(cancelCalls).toHaveLength(0);
@@ -346,5 +356,78 @@ describe('응답을 못 받은 시도는 PENDING으로 남고, 같은 키로만 
     await expect(
       retryRefundAttempt(prisma, { attemptId: attempt.id, operatorUserId: OPERATOR }, EXEC_NOW),
     ).rejects.toThrow(/이미 끝난 시도/);
+  });
+
+  it('30분 넘게 남은 시도는 배치가 묶어서 알린다 — 큐를 안 열면 아무도 모른다', async () => {
+    // RefundAttempt.createdAt은 DB가 찍는 실제 시각이라 픽스처 시각(EXEC_NOW)이 아니라
+    // 지금을 기준으로 재야 한다
+    const later = new Date(Date.now() + 31 * 60_000);
+    const first = await sweepStuckRefundAttempts(prisma, later);
+    // 앞선 테스트들이 남긴 PENDING까지 함께 잡힌다 — 개수가 아니라 **잡힌다는 것**과
+    // **두 번 알리지 않는다는 것**이 이 시험의 대상이다
+    expect(first.stuck).toBeGreaterThan(0);
+    expect(first.notified).toBe(true);
+
+    // 같은 건을 매 회차 다시 알리지 않는다 — 소음이 되면 아무도 안 읽는다
+    const second = await sweepStuckRefundAttempts(prisma, later);
+    expect(second.stuck).toBe(0);
+    expect(second.notified).toBe(false);
+  });
+});
+
+// **계좌이체에는 멱등키가 없다.** PG 취소는 같은 키로 다시 불러도 한 번만 나가지만,
+// 사람이 은행 앱에서 보내는 돈은 시스템이 막을 방법이 없다 — 재시도 버튼을 보고
+// "안 나갔구나" 하고 한 번 더 보내면 그대로 두 번 나간다.
+describe('계좌이체 환불은 이체 참조번호로 증명한다', () => {
+  let settlementId: string;
+
+  beforeEach(async () => {
+    settlementId = await seedMissedPurchase(
+      (await prisma.researcherProfile.findFirstOrThrow()).id,
+      'KRW-AAA',
+      0,
+      undefined,
+    );
+  });
+
+  it('참조번호 없이는 실행되지 않는다', async () => {
+    await expect(
+      executeRefund(
+        prisma,
+        { settlementId, operatorUserId: OPERATOR, method: 'BANK_TRANSFER' },
+        EXEC_NOW,
+      ),
+    ).rejects.toThrow(/이체 참조번호가 필요합니다/);
+    expect(await prisma.refundAttempt.count({ where: { settlementId } })).toBe(0);
+  });
+
+  it('같은 번호를 두 번 기록할 수 없다 — 이중 송금의 흔적을 DB가 막는다', async () => {
+    await executeRefund(
+      prisma,
+      {
+        settlementId,
+        operatorUserId: OPERATOR,
+        method: 'BANK_TRANSFER',
+        bankReference: 'TRX-DUP',
+      },
+      EXEC_NOW,
+    );
+    // 정산이 이미 실행됐으므로 여기서 먼저 걸리고, 설령 풀리더라도 유니크 제약이 막는다
+    await expect(
+      executeRefund(
+        prisma,
+        {
+          settlementId,
+          operatorUserId: OPERATOR,
+          method: 'BANK_TRANSFER',
+          bankReference: 'TRX-DUP',
+        },
+        EXEC_NOW,
+      ),
+    ).rejects.toThrow(/이미 환불/);
+
+    const attempt = await prisma.refundAttempt.findFirstOrThrow({ where: { settlementId } });
+    expect(attempt.bankReference).toBe('TRX-DUP');
+    expect(attempt.status).toBe('SUCCEEDED');
   });
 });

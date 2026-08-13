@@ -24,6 +24,7 @@ import { buildNewCardNotificationWrites } from './followService';
 import { validateListedInstrument } from './instrumentService';
 import { captureBaseAnchor } from './corporateActionService';
 import { getInstrumentSigma } from './instrumentSigma';
+import { buildJudgmentWrites } from './judgmentWriter';
 import { researcherSeasonTotals } from './scoreService';
 
 // 리포트 생명주기: DRAFT → PUBLISHED → (철회 시) CLOSED
@@ -473,8 +474,17 @@ export async function rejectPendingReport(
 }
 
 /**
- * 철회: 카드 기록은 그대로 남기고(withdrawnAt), 리포트를 판매 중지한다.
- * 판정 시 UNDECIDABLE(WITHDRAWN) → 전액 환불로 이어진다 (judgment.ts).
+ * 철회: 카드 기록은 그대로 남기고(withdrawnAt), 판매를 중지하고 **그 자리에서 정산한다.**
+ *
+ * 기록은 지우지 않는다 — 게시 후 삭제 불가가 이 도메인의 기본 규칙이고, 판정 배치도
+ * `status: CLOSED`인 리포트를 계속 본다(judgmentBatch).
+ *
+ * **정산을 시한까지 미루지 않는 이유 (2026-08-13 수정).** 예전에는 withdrawnAt만 찍고
+ * 판정 배치가 시한에 UNDECIDABLE(WITHDRAWN)로 처리하게 뒀다. 그런데 철회는 **이미
+ * 결과가 확정된 사건**이다 — 시한까지 기다려도 전액 환불이라는 답은 바뀌지 않는다.
+ * 그동안 구매자 돈만 에스크로에 묶인다. 365일 카드를 이틀 만에 철회하면 **363일**이다.
+ * 운영자 강제 철회(complianceService.takedown)는 처음부터 즉시 정산했는데, 리서처 본인
+ * 철회만 그러지 않아 같은 사건이 경로에 따라 다르게 끝나고 있었다.
  */
 export async function withdrawPredictionCard(
   prisma: PrismaClient,
@@ -484,7 +494,11 @@ export async function withdrawPredictionCard(
 ) {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
-    include: { predictionCard: { include: { judgment: true } } },
+    include: {
+      predictionCard: { include: { judgment: true } },
+      purchases: { where: { escrowStatus: 'HELD' } },
+      researcher: { select: { userId: true } },
+    },
   });
 
   if (report.researcherId !== researcherId) {
@@ -500,7 +514,25 @@ export async function withdrawPredictionCard(
 
   await prisma.$transaction([
     prisma.predictionCard.update({ where: { id: card.id }, data: { withdrawnAt: now } }),
-    prisma.report.update({ where: { id: reportId }, data: { status: 'CLOSED' } }),
+    // 동시 요청 대비: PUBLISHED 조건을 다시 걸어 원자적으로 전이
+    prisma.report.update({
+      where: { id: reportId, status: 'PUBLISHED' },
+      data: { status: 'CLOSED' },
+    }),
+    // 판정 불가(WITHDRAWN) 즉시 확정 → 전액 환불 지시서 + 당사자 알림까지 자동 경로와 동일
+    ...buildJudgmentWrites(
+      prisma,
+      { ...card, report: { ...report, purchases: report.purchases } },
+      {
+        result: { outcome: 'UNDECIDABLE', undecidableReason: 'WITHDRAWN' },
+        realizedReturnPct: null,
+        score: 0, // 판정 불가는 표본 제외 (§2.2)
+        info: 0, // 증거도 없다 — 규율 래더에 들어가면 안 된다
+        dataSource: `withdraw:${researcherId}`,
+        audit: { withdrawnBy: 'RESEARCHER', researcherId, withdrawnAt: now.toISOString() },
+      },
+      now,
+    ),
   ]);
 }
 

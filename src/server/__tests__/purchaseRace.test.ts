@@ -85,7 +85,10 @@ describe('결제 도중 판매 마감', () => {
 
   it('정상 상태면 구매가 만들어진다 — 가드가 멀쩡한 결제까지 막지 않는다', async () => {
     const id = await makeReport();
-    setPriceForTests(() => null);
+    // 가격 게이트를 시험하는 자리가 아니라 **동시성 가드**를 시험하는 자리다 →
+    // 조회 자체를 끈다. `() => null`은 이제 "물어봤는데 답이 없다"(시장 장애)라
+    // 장이 열린 자산군에서는 판매가 막힌다
+    setPriceForTests(null);
     const p = await purchaseReport(prisma, id, buyerId, NOW);
     expect(p.escrowStatus).toBe('HELD');
     expect(await prisma.purchase.count({ where: { reportId: id } })).toBe(1);

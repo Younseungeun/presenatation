@@ -20,7 +20,28 @@ import { createDefaultRegistry } from '@/infra/marketData/registry';
 // createDefaultRegistry가 던지면 그것 하나로 전 종목 결제가 막힌다.
 
 const PRICE_TTL_MS = 60_000;
-const priceCache = new Map<string, { at: number; price: number | null }>();
+const priceCache = new Map<string, { at: number; quote: CachedQuote }>();
+
+/**
+ * 시세와 **그 시세가 어디서 왔는지.**
+ *
+ * 값 하나만 돌려주면 "실시간 현재가"와 "며칠 전 종가"가 구별되지 않는다. 결제 관문은
+ * 그 둘을 다르게 다뤄야 한다 — 장중에 하루 낡은 종가로 q를 재면 급락 중인 종목이
+ * "아직 여유 있다"로 통과한다. 화면은 구별할 필요가 없어 값만 쓴다(fetchCachedPrice).
+ */
+export interface CachedQuote {
+  price: number | null;
+  /** 실시간 현재가를 받았나. false면 일봉 종가 폴백이거나 값이 없다 */
+  live: boolean;
+  /**
+   * 조회를 **시도조차 하지 않았다** — 그 자산군의 공급자가 없거나 레지스트리가 죽었다.
+   *
+   * "물어봤는데 답이 없다"(시장 장애)와 구별해야 한다. 결제 관문은 앞의 경우 판매를
+   * 멈추지만, 뒤의 경우는 설정 문제라 멈춰도 시장이 나아지지 않는다 — 자산군 하나가
+   * 통째로 안 팔리는 것을 시세 장애로 오인하면 원인을 영영 못 찾는다.
+   */
+  unchecked: boolean;
+}
 
 // 테스트 대체 시세 — 단위 테스트가 실서비스 시세에 좌우되면 안 된다.
 // (픽스처 카드의 기준가 7천만원과 진짜 비트코인 시세가 충돌해 결제 게이트가
@@ -35,15 +56,30 @@ export function setPriceForTests(fn: TestPriceFn | null): void {
   testPriceFn = fn;
 }
 
+/** 값만 필요한 곳(화면)용 — 출처는 버린다 */
 export async function fetchCachedPrice(
   assetClass: string,
   ticker: string,
 ): Promise<number | null> {
-  if (process.env.VITEST) return testPriceFn ? testPriceFn(assetClass, ticker) : null;
+  return (await fetchCachedQuote(assetClass, ticker)).price;
+}
+
+export async function fetchCachedQuote(
+  assetClass: string,
+  ticker: string,
+): Promise<CachedQuote> {
+  if (process.env.VITEST) {
+    // 값을 안 꽂은 테스트는 **시세를 시험하지 않는 테스트**다 — 조회 안 함으로 둔다.
+    // 여기서 "장애"로 취급하면 판매·구매를 다루는 모든 픽스처가 가격 게이트에 걸린다
+    if (!testPriceFn) return { price: null, live: false, unchecked: true };
+    const p = await testPriceFn(assetClass, ticker);
+    // 테스트가 꽂은 값은 "실시간을 받았다"로 본다 — 게이트 동작 자체를 시험하려는 값이다
+    return { price: p, live: p !== null, unchecked: false };
+  }
   const key = `${assetClass}:${ticker}`;
   const hit = priceCache.get(key);
   const now = Date.now();
-  if (hit && now - hit.at < PRICE_TTL_MS) return hit.price;
+  if (hit && now - hit.at < PRICE_TTL_MS) return hit.quote;
 
   // 실시간 현재가 → 실패하면 최근 일봉 종가로 **폴백**한다.
   // 판매 중단 검사가 이 값 하나에 의존하므로, 실시간 API가 잠깐 흔들렸다고
@@ -54,12 +90,16 @@ export async function fetchCachedPrice(
   // 닷새 넘게 시세가 없다. 창이 짧으면 그 기간에 "시세 없음"이 되어 가격 방어가 꺼진다
   // (막히지는 않지만 보호가 사라진다).
   let price: number | null = null;
+  let live = false;
+  let unchecked = true; // 공급자에게 실제로 물어본 순간 false가 된다
   try {
     const provider = createDefaultRegistry()[assetClass as AssetClass];
     if (provider) {
+      unchecked = false;
       if (provider.getCurrentPrice) {
         try {
           price = await provider.getCurrentPrice(ticker);
+          live = price !== null && Number.isFinite(price) && price > 0;
         } catch {
           price = null; // 아래 일봉 폴백으로
         }
@@ -79,10 +119,14 @@ export async function fetchCachedPrice(
       }
     }
   } catch {
-    // 레지스트리 생성 실패(설정 오류 등) — 이것 하나로 전 종목 결제가 막히면 안 된다
+    // 레지스트리 생성 실패(설정 오류 등) — 여기서 예외가 새면 전 종목 결제가 죽는다.
+    // 시장 장애가 아니라 우리 설정 문제이므로 unchecked로 남긴다
     price = null;
+    live = false;
+    unchecked = true;
   }
 
-  priceCache.set(key, { at: now, price });
-  return price;
+  const quote: CachedQuote = { price, live, unchecked };
+  priceCache.set(key, { at: now, quote });
+  return quote;
 }

@@ -109,7 +109,8 @@ describe('환불 실행', () => {
     const [refund] = await getPendingRefunds(prisma);
     await executeRefund(
       prisma,
-      { settlementId: refund.id, operatorUserId: OPERATOR, method: 'BANK_TRANSFER' },
+      // 계좌이체는 멱등키가 없어 이체 참조번호가 필수다 (중복 송금 방지의 유일한 수단)
+      { settlementId: refund.id, operatorUserId: OPERATOR, method: 'BANK_TRANSFER', bankReference: 'TRX-0001' },
       EXEC_NOW,
     );
 
