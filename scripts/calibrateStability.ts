@@ -5,8 +5,8 @@ import { isLeveragedProduct } from '../src/domain/leveragedProduct';
 import { isNonEquityProduct } from '../src/domain/nonEquityProduct';
 import { resolveProvider, toMarketDateString, type DailyQuote } from '../src/domain/marketData';
 import {
+  estimateDailySigma,
   MAX_RETURN_SAMPLES,
-  realizedDailySigma,
   STABILITY_SIGMA_BOUNDS,
 } from '../src/domain/stability';
 import { fetchUsListings } from '../src/infra/marketData/nasdaqTrader';
@@ -170,9 +170,16 @@ async function main() {
     for (const t of targets) {
       try {
         const quotes = await provider.getDailyQuotes(t.ticker, from, to);
-        const sigma = realizedDailySigma(
-          quotes.map((q) => q.close),
-          quotes.map((q) => q.volume),
+        // 눈금은 **채점이 실제로 쓰는 σ**의 분포에서 나와야 한다 —
+        // 다른 추정기로 눈금을 잡으면 5분위가 20%씩에서 틀어진다
+        const sigma = estimateDailySigma(
+          {
+            closes: quotes.map((q) => q.close),
+            highs: quotes.map((q) => q.high),
+            lows: quotes.map((q) => q.low),
+            volumes: quotes.map((q) => q.volume),
+          },
+          assetClass,
         );
         if (sigma === null) {
           failed++;

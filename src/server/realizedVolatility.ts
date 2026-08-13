@@ -4,9 +4,10 @@ import {
   type ProviderRegistry,
 } from '@/domain/marketData';
 import type { AssetClass } from '@/domain/constants';
-import { MAX_RETURN_SAMPLES, realizedDailySigma } from '@/domain/stability';
+import { estimateDailySigma, MAX_RETURN_SAMPLES } from '@/domain/stability';
 
-// 게시 시점 실현 변동성 측정 — 안정성 별점(domain/stability.ts)의 원천 데이터.
+// 게시 시점 실현 변동성 측정 — **p₀·크기 하한·안정성 별점 셋의 원천 데이터.**
+// 추정 방식은 domain/stability.estimateDailySigma 한 곳에 있다 (종가 σ + Parkinson).
 //
 // 게시 순간에 한 번 재서 카드에 고정한다(sigmaDaily). 표시 때마다 다시 재면
 //  · 카드 목록 한 번에 종목 수만큼 시세 호출이 나가고 (KIS 초당 1회 제한과 정면 충돌)
@@ -36,9 +37,14 @@ export async function fetchRealizedSigma(
       assetClass,
     );
     const quotes = await provider.getDailyQuotes(ticker, from, to);
-    return realizedDailySigma(
-      quotes.map((q) => q.close),
-      quotes.map((q) => q.volume),
+    return estimateDailySigma(
+      {
+        closes: quotes.map((q) => q.close),
+        highs: quotes.map((q) => q.high),
+        lows: quotes.map((q) => q.low),
+        volumes: quotes.map((q) => q.volume),
+      },
+      assetClass,
     );
   } catch {
     return null;

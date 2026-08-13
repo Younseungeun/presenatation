@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   cardStabilityLevel,
+  estimateDailySigma,
   MAX_RETURN_SAMPLES,
   MIN_RETURN_SAMPLES,
+  parkinsonSigma,
   realizedDailySigma,
   stabilityLevel,
   STABILITY_SIGMA_BOUNDS,
@@ -54,12 +56,13 @@ describe('realizedDailySigma — 일봉 종가열 → 하루 변동성', () => {
 });
 
 describe('stabilityLevel — σ → 별 5구간 (실측 5분위, STABILITY_SIGMA_BOUNDS)', () => {
-  it('조용할수록 별이 많다 — 실측 앵커가 앉는 자리 (2026-08-13, 120거래일)', () => {
+  it('조용할수록 별이 많다 — 실측 앵커가 앉는 자리 (2026-08-13, estimateDailySigma)', () => {
     expect(stabilityLevel(0.0131)).toBe(5); // 코카콜라
-    expect(stabilityLevel(0.0248)).toBe(4); // 엔비디아
-    expect(stabilityLevel(0.0428)).toBe(3); // NAVER
-    expect(stabilityLevel(0.0591)).toBe(2); // 삼성전자
-    expect(stabilityLevel(0.0703)).toBe(1); // SK하이닉스
+    expect(stabilityLevel(0.0248)).toBe(5); // 엔비디아 (경계 2.50% 바로 아래)
+    expect(stabilityLevel(0.0431)).toBe(3); // NAVER
+    expect(stabilityLevel(0.0592)).toBe(2); // 삼성전자
+    expect(stabilityLevel(0.0704)).toBe(2); // SK하이닉스 — 경계 7.05% 바로 아래
+    expect(stabilityLevel(0.182)).toBe(1); // 퓨즈머신즈 — 표본에서 가장 거친 축
   });
 
   it('경계값은 아래 구간으로 (>= 경계 → 별 하나 감소)', () => {
@@ -85,5 +88,100 @@ describe('cardStabilityLevel — 저장값 → 별', () => {
 
   it('σ가 있으면 stabilityLevel 그대로', () => {
     expect(cardStabilityLevel(0.03)).toBe(stabilityLevel(0.03));
+  });
+});
+
+describe('parkinsonSigma — 고가·저가로 잰 변동성', () => {
+  it('같은 σ를 재는 다른 추정량이다 — 종가 σ와 대체로 같은 값을 낸다', () => {
+    // 하루 ±2% 폭으로 오르내리는 종가열 + 그 폭에 맞는 고가·저가
+    const closes: number[] = [100];
+    const highs: number[] = [];
+    const lows: number[] = [];
+    let seed = 1;
+    const rnd = () => {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      return seed / 0x7fffffff;
+    };
+    for (let i = 0; i < 200; i++) {
+      const r = (rnd() - 0.5) * 0.07; // 하루 로그수익률
+      const prev = closes[closes.length - 1];
+      const next = prev * Math.exp(r);
+      closes.push(next);
+      highs.push(Math.max(prev, next) * 1.004);
+      lows.push(Math.min(prev, next) * 0.996);
+    }
+    const close = realizedDailySigma(closes)!;
+    const park = parkinsonSigma(highs, lows)!;
+    // 같은 과정을 재므로 자릿수가 같아야 한다 (추정량이 다르니 정확히 같지는 않다)
+    expect(park).toBeGreaterThan(close * 0.4);
+    expect(park).toBeLessThan(close * 2.5);
+  });
+
+  it('장중 폭이 벌어지면 종가가 제자리여도 잡아낸다 — 이것이 쓰는 이유다', () => {
+    const flat = Array.from({ length: 20 }, () => 100);
+    const wide = parkinsonSigma(
+      flat.map(() => 105),
+      flat.map(() => 95),
+    )!;
+    const narrow = parkinsonSigma(
+      flat.map(() => 100.2),
+      flat.map(() => 99.8),
+    )!;
+    expect(wide).toBeGreaterThan(narrow * 10);
+  });
+
+  it('거래 없던 날은 빼고, 표본이 모자라면 null', () => {
+    expect(parkinsonSigma([105, 106], [95, 96])).toBeNull();
+    const h = Array.from({ length: 10 }, () => 105);
+    const l = Array.from({ length: 10 }, () => 95);
+    expect(parkinsonSigma(h, l, Array.from({ length: 10 }, () => 0))).toBeNull();
+  });
+});
+
+describe('estimateDailySigma — 채점·하한·별점이 함께 쓰는 σ', () => {
+  const bars = (closeSigma: 'calm', wideRange: boolean) => {
+    void closeSigma;
+    const closes: number[] = [];
+    for (let i = 0; i < 130; i++) closes.push(100 * (1 + (i % 2 ? 0.002 : -0.002)));
+    const highs = closes.map((c) => c * (wideRange ? 1.05 : 1.001));
+    const lows = closes.map((c) => c * (wideRange ? 0.95 : 0.999));
+    return { closes, highs, lows, volumes: closes.map(() => 1000) };
+  };
+
+  it('주식: 장중 폭이 벌어지면 종가 σ 대신 그것을 쓴다 (더 큰 쪽)', () => {
+    const quiet = estimateDailySigma(bars('calm', false), 'KR_EQUITY')!;
+    const coiled = estimateDailySigma(bars('calm', true), 'KR_EQUITY')!;
+    expect(coiled).toBeGreaterThan(quiet * 3);
+  });
+
+  it('코인은 Parkinson을 쓰지 않는다 — 장중 되돌림이 커 구조적으로 과대해진다', () => {
+    const wide = bars('calm', true);
+    expect(estimateDailySigma(wide, 'CRYPTO')).toBeCloseTo(realizedDailySigma(wide.closes)!, 12);
+  });
+
+  it('고가·저가가 없으면 종가 σ로 물러선다', () => {
+    const b = bars('calm', true);
+    expect(estimateDailySigma({ closes: b.closes, volumes: b.volumes }, 'US_EQUITY')).toBeCloseTo(
+      realizedDailySigma(b.closes)!,
+      12,
+    );
+  });
+
+  it('종가 σ를 낼 수 없으면(거래 부재) Parkinson이 커도 null이다', () => {
+    const flat = Array.from({ length: 130 }, () => 100);
+    expect(
+      estimateDailySigma(
+        { closes: flat, highs: flat.map(() => 110), lows: flat.map(() => 90) },
+        'KR_EQUITY',
+      ),
+    ).toBeNull();
+  });
+
+  it('추정값은 종가 σ보다 작아지지 않는다 — 보수적인 방향으로만 움직인다', () => {
+    for (const wide of [true, false]) {
+      const b = bars('calm', wide);
+      const close = realizedDailySigma(b.closes, b.volumes)!;
+      expect(estimateDailySigma(b, 'US_EQUITY')!).toBeGreaterThanOrEqual(close - 1e-12);
+    }
   });
 });
