@@ -299,6 +299,9 @@ async function finalizePublish(
     report: { researcherId: report.researcherId, status: 'PUBLISHED' as const },
   };
   const activeCardCount = await prisma.predictionCard.count({ where: activeWhere });
+  // 자산군을 합친 총량 — 나눠 내는 것으로 물량이 배가 되지 않게 한다
+  const { assetClass: _ac, ...activeAnyClass } = activeWhere;
+  const activeCardCountTotal = await prisma.predictionCard.count({ where: activeAnyClass });
   // 그중 장기 카드 — 미판정이라 증거에 안 들어가므로 따로 상한을 건다
   const activeLongCardCount = await prisma.predictionCard.count({
     where: {
@@ -318,6 +321,7 @@ async function finalizePublish(
       promoActive: isPromoActive(report.researcher.promoFeeUntil, now),
       assetClassEvidence: seasonTotals.evidence[cardDraft.assetClass],
       activeCardCount,
+      activeCardCountTotal,
       activeLongCardCount,
     },
     basePrice,

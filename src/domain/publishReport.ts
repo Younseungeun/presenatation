@@ -86,6 +86,39 @@ export const MAX_ACTIVE_CARDS: Record<Tier, number> = {
   CHALLENGER: 15,
 };
 
+/**
+ * 자산군을 **합친** 동시 활성 카드 상한 — 자산군별 상한의 1.6배(반올림).
+ *
+ * ── 왜 총량 상한이 따로 필요한가 (2026-08-13, scripts/simAssetClassSplit.ts) ──
+ * 위 상한이 자산군별이라, 셋에 나눠 내면 동시에 여는 카드가 5장이 아니라 **15장**이
+ * 된다. 증거·규율도 자산군별이라 저장고가 셋으로 갈리는데, **래더가 각 저장고에서
+ * 문턱에 닿는 속도는 그대로다**(실측 1년 발동 시점 147일 대 146일).
+ * 즉 분할은 탐지를 피하지 못하지만 **같은 시간 동안 3배를 판다** —
+ * 발동 전에 팔린 ★4+ 카드가 1.50장에서 4.25장이 됐다.
+ *
+ * (처음에는 "나누면 자산군당 표본이 1/3이라 탐지가 무너진다"고 봤는데 틀렸다.
+ *  몰아서 자주 내면 카드가 더 겹치고 상관 보정이 그만큼 깎으므로 두 효과가 상쇄된다.
+ *  피해는 증거 희석이 아니라 **물량**에서 온다.)
+ *
+ * 1.6배인 이유 — 총량을 조일수록 피해는 줄지만 **오작동이 오른다.** 물량이 줄면
+ * 카드 간격이 벌어져 덜 겹치고, 상관 보정이 정직한 사람을 감싸주던 몫이 얇아진다:
+ *
+ *   3자산군 1년      표적 게시   발동전 ★4+   정직한 사람 오작동
+ *     상한 없음        183장       4.25          0.64%
+ *     전체 12장        138장       3.53          1.01%
+ *     **전체 8장**      93장       **2.07**      **2.90%**
+ *     전체 6장          75장       1.82          4.20%
+ *
+ * 8장(=5×1.6)에서 피해가 한 자산군만 하는 경우(1.50)에 근접하면서 오작동은
+ * α=10%에 여유가 남는다. 6장 이하는 피해가 조금 더 줄지만 오작동이 4%대로 뛴다.
+ * **한 자산군만 다루는 리서처는 영향을 받지 않는다**(실측 61장 그대로).
+ *
+ * 자산군별 상한에서 유도한다 — 두 곳에 적어 두면 한쪽을 고칠 때 다른 쪽이 어긋난다.
+ */
+export const MAX_ACTIVE_CARDS_TOTAL: Record<Tier, number> = Object.fromEntries(
+  Object.entries(MAX_ACTIVE_CARDS).map(([tier, n]) => [tier, Math.round(n * 1.6)]),
+) as Record<Tier, number>;
+
 /** 이 시한(일)을 넘으면 **장기 카드** — 한 시즌(91일) 안에 판정이 끝나지 않는다 */
 export const LONG_HORIZON_DAYS = 90;
 
@@ -192,6 +225,11 @@ export interface PublishConditions {
   assetClassEvidence?: number;
   /** 해당 자산군의 현재 활성(게시·미판정·미철회) 카드 수 — 동시 게시 상한 판단용 */
   activeCardCount?: number;
+  /**
+   * **모든 자산군을 합친** 활성 카드 수 — 자산군별 상한만으로는 셋에 나눠 내는 것으로
+   * 물량이 3배가 된다 (MAX_ACTIVE_CARDS_TOTAL 주석).
+   */
+  activeCardCountTotal?: number;
   /**
    * 그중 **장기 카드**(시한 > LONG_HORIZON_DAYS)의 수 — 판정 유예 악용 방지용.
    * 미판정 카드는 증거에 들어가지 않으므로, 장기 카드로 슬롯을 다 채우면
@@ -388,6 +426,14 @@ export function preparePublish(
   if ((cond.activeCardCount ?? 0) >= maxActive) {
     issues.push(
       `${card.assetClass} 동시 활성 카드가 상한(${TIER_NAME[cond.tier]} 등급 ${maxActive}건)에 도달했습니다 — 기존 카드가 판정되거나 철회되면 다시 게시할 수 있습니다`,
+    );
+  }
+
+  // 총량 상한: 자산군을 나누는 것으로 물량을 3배로 여는 길을 막는다
+  const maxTotal = MAX_ACTIVE_CARDS_TOTAL[cond.tier];
+  if ((cond.activeCardCountTotal ?? 0) >= maxTotal) {
+    issues.push(
+      `전체 동시 활성 카드가 상한(${TIER_NAME[cond.tier]} 등급 ${maxTotal}건)에 도달했습니다 — 자산군을 나눠도 한 번에 여는 카드 수는 합쳐서 셉니다. 기존 카드가 판정되거나 철회되면 다시 게시할 수 있습니다`,
     );
   }
 

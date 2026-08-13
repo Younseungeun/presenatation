@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   LONG_HORIZON_DAYS,
   MAX_ACTIVE_CARDS,
+  MAX_ACTIVE_CARDS_TOTAL,
   MAX_ACTIVE_LONG_CARDS,
   preparePublish,
   REPORT_TEXT_LIMITS,
@@ -197,6 +198,24 @@ describe('preparePublish', () => {
         NOW,
       ).feeRateBp,
     ).toBe(1500);
+  });
+
+  it('총량 상한: 자산군을 나눠도 합쳐서 센다', () => {
+    // 무표기는 자산군당 5장이지만 셋에 나누면 15장이 열린다 — 총량으로 묶는다
+    expect(MAX_ACTIVE_CARDS_TOTAL.BRONZE).toBe(8);
+    expect(() =>
+      preparePublish(validCard, { ...validCond, activeCardCountTotal: 8 }, 70_000, NOW),
+    ).toThrow(/전체 동시 활성 카드/);
+    expect(
+      preparePublish(validCard, { ...validCond, activeCardCountTotal: 7 }, 70_000, NOW).feeRateBp,
+    ).toBe(2000);
+  });
+
+  it('한 자산군만 다루면 총량 상한에 걸리지 않는다 — 자산군별 상한이 먼저 잡는다', () => {
+    // 자산군별 5장이 총량 8장보다 작으므로, 한 곳만 쓰는 사람은 총량을 볼 일이 없다
+    for (const tier of Object.keys(MAX_ACTIVE_CARDS) as (keyof typeof MAX_ACTIVE_CARDS)[]) {
+      expect(MAX_ACTIVE_CARDS[tier]).toBeLessThan(MAX_ACTIVE_CARDS_TOTAL[tier]);
+    }
   });
 
   it('장기 카드 슬롯: 시한 90일 초과는 활성 상한의 절반까지만', () => {

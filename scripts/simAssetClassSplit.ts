@@ -158,8 +158,11 @@ interface Person {
 /**
  * @param classes 몇 개 자산군에 나눠 내나 (1 = 몰아서, 3 = 나눠서)
  * @param days 관측 기간(증거는 리셋하지 않는다)
+ * @param globalCap 자산군을 합친 동시 활성 상한. 없으면 자산군별 상한만 적용된다.
+ *   피해가 물량에서 오므로 상한을 총량으로 묶으면 그만큼 줄어야 한다 — 얼마나 줄고
+ *   어떤 대가를 치르는지가 이 인자의 질문이다.
  */
-function run(classes: number, days: number): Person[] {
+function run(classes: number, days: number, globalCap?: number): Person[] {
   const people: Person[] = [];
   const totalDays = days + H + 2;
   for (let i = 0; i < N; i++) {
@@ -186,10 +189,16 @@ function run(classes: number, days: number): Person[] {
     let fired = false;
     let firedDay = -1;
 
-    // 자산군마다 GAP일 간격으로 낸다 — 슬롯을 꽉 채워 돌리는 속도다
+    // 슬롯을 꽉 채워 돌리는 속도로 낸다. 자산군당 쓸 수 있는 슬롯은
+    // 자산군별 상한과 (있다면) 전체 상한을 나눈 것 중 작은 쪽이다.
+    const slotsPerClass = globalCap == null ? CAP : Math.min(CAP, globalCap / classes);
+    const gapRun = H / slotsPerClass; // 카드 한 장이 슬롯을 H일 점유한다
+    const nextPost = Array.from({ length: classes }, () => 0);
+
     for (let day = 0; day <= days; day++) {
       for (let a = 0; a < classes; a++) {
-        if (day % GAP !== 0) continue;
+        if (day < nextPost[a]) continue;
+        nextPost[a] = day + gapRun;
         const cls = CLASS_LIST[a];
 
         // 그 자산군의 증거 — 판정이 끝난 카드만
@@ -236,8 +245,8 @@ function run(classes: number, days: number): Person[] {
   return people;
 }
 
-function report(label: string, classes: number, days: number): void {
-  const people = run(classes, days);
+function report(label: string, classes: number, days: number, globalCap?: number): void {
+  const people = run(classes, days, globalCap);
   let harm = 0;
   let harmBefore = 0;
   let hitFire = 0;
@@ -289,5 +298,27 @@ for (const days of [91, 364, 728]) {
   console.log(`  ── ${label} ──`);
   report('한 곳에 몰아', 1, days);
   report('셋에 나눠', 3, days);
+}
+console.log('');
+
+// ── 전체 상한을 씌우면 ───────────────────────────────────────
+// 피해가 물량에서 오므로 총량을 묶으면 그만큼 줄어야 한다. 얼마로 묶을지는
+// 지어내지 않고 여기서 고른다. 기준 둘:
+//   ① 한 분야 전문가(자산군 1개)가 손해를 보면 안 된다 → 전체 상한 ≥ 자산군별 5장
+//   ② 셋을 다 하는 표적의 피해가 "몰아서 낸 경우"에 가까워야 한다
+console.log('■ 전체(자산군 합산) 활성 상한을 씌웠을 때 — 1년');
+console.log(
+  `  ${'구성'.padEnd(14)}${'표적 게시'.padStart(8)}${'발동'.padStart(9)}${'발동 시점'.padStart(9)}${'오작동'.padStart(9)}${'발동전 ★4+'.padStart(11)}${'총 ★4+'.padStart(9)}`,
+);
+console.log('  ── 기준선 ──');
+report('1군(상한 없음)', 1, 364);
+report('3군(상한 없음)', 3, 364);
+console.log('  ── 3군 + 전체 상한 ──');
+for (const g of [5, 6, 8, 10, 12]) {
+  report(`3군 · 전체 ${g}장`, 3, 364, g);
+}
+console.log('  ── 1군은 영향을 받으면 안 된다 ──');
+for (const g of [5, 8]) {
+  report(`1군 · 전체 ${g}장`, 1, 364, g);
 }
 console.log('');
