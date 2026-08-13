@@ -20,6 +20,7 @@ import {
   claimedProbability,
   magnitudePctToTargetPrice,
   noSkillTouchProbability,
+  SCORE_MODEL_NAME,
 } from "@/domain/scoring";
 import { fetchCachedPrice } from "@/server/priceCache";
 import { isFreeReport } from "@/server/freeReportService";
@@ -95,7 +96,7 @@ export default async function ReportDetail({
   const now = new Date();
 
   // 카드별 신고 확률 — 별점 각주가 이 카드의 난이도(p₀)로 정확한 값을 말하게 한다.
-  // v5에서 이것은 "손해가 아니려면 믿어야 하는 최소 확률"이자 곧 **신고한 확률 그 자체**다
+  // vmax에서 이것은 "손해가 아니려면 믿어야 하는 최소 확률"이자 곧 **신고한 확률 그 자체**다
   // (적정 점수법이라 둘이 같은 값이다 — v4에서는 승산 조건을 풀어야 나오던 값이었다).
   // 게시 전(기간 미확정)이나 기준가 없는 소급 카드는 계산하지 않는다
   let cardClaimed: { p0: number; claimed: number } | null = null;
@@ -235,7 +236,7 @@ export default async function ReportDetail({
           <StarRating stars={confidenceStars(card.confidence)} label="신뢰도" />
         </span>
       </div>
-      {/* 별점 읽는 법 — 구매자의 알 권리 (점수 v5 기준).
+      {/* 별점 읽는 법 — 구매자의 알 권리 (점수 vmax 기준).
           별은 다이얼값에 선형이지만(별 한 칸 = 승산 ×1.73), 그 칸이 **몇 %를 뜻하는지**는
           카드 난이도(무정보 도달 확률 p₀)에 따라 달라진다. 그래서 고정 문구가 아니라
           이 카드의 p₀로 계산한 신고 확률을 적는다 — 채점이 쓰는 claimedProbability 그대로 */}
@@ -251,7 +252,7 @@ export default async function ReportDetail({
           <>신뢰도 별점은 리서처가 신고한 적중 확률입니다.</>
         )}{" "}
         안정성 별점은 리서처 입력이 아니라 종목의 최근 변동성으로 시스템이
-        매기며, 점수·정산과 무관합니다.{" "}
+        매기며, 점수·정산과 무관합니다. 채점은 {SCORE_MODEL_NAME}를 따릅니다.{" "}
         <Link href="/score" className={styles.cardFootnoteLink}>
           산정 방식 직접 계산해 보기 →
         </Link>

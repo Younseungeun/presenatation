@@ -1,4 +1,4 @@
-import { DISCIPLINE_ALPHA, MAGNITUDE_FLOOR_K } from "@/domain/scoring";
+import { DISCIPLINE_ALPHA, MAGNITUDE_FLOOR_K, SCORE_MODEL_NAME } from "@/domain/scoring";
 import { AppHeader } from "../AppHeader";
 import { Disclaimer } from "../Disclaimer";
 import { ScoreCalculator } from "./ScoreCalculator";
@@ -7,7 +7,7 @@ import s from "./score.module.css";
 
 export const metadata = { title: "점수 계산기 — INTOVILL" };
 
-// 점수 계산기 화면 (모델 v5 — 정보량 로그 점수).
+// 점수 계산기 화면 (모델 vmax — 정보량 로그 점수).
 //
 // 왜 별도 화면인가: 점수 모델은 등급의 유일한 기준이라 이 서비스에서 가장 민감한
 // 규칙이다. "우리는 공정하다"는 문장 백 개보다 직접 만져보는 계산기 하나가 낫다.
@@ -24,8 +24,8 @@ export default function ScorePage() {
         <p className={styles.sub}>
           예측 카드는 &quot;기한 안에 목표가에 닿는다&quot;(일봉 종가 기준)는 주장이고,
           닿으면 적중·못 닿으면 실패로 자동 채점됩니다. 값을 움직여 보면 어떤 경우에
-          얼마를 따고 잃는지 그대로 보입니다. 아래 계산은 실제 정산이 쓰는 것과 같은
-          함수로 돌아갑니다.
+          얼마를 따고 잃는지 그대로 보입니다. 채점은 <strong>{SCORE_MODEL_NAME}</strong>
+          를 따르며, 아래 계산은 실제 정산이 쓰는 것과 같은 함수로 돌아갑니다.
         </p>
 
         <ScoreCalculator />

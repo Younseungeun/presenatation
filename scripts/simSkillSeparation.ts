@@ -11,7 +11,7 @@ import {
   scoreJudgedCard,
 } from '../src/domain/scoring';
 
-// 실력 분리력 측정 (점수 v5 정보량 모델) — npx tsx scripts/simSkillSeparation.ts
+// 실력 분리력 측정 (점수 vmax 정보량 모델) — npx tsx scripts/simSkillSeparation.ts
 //
 // 묻는 것: **점수가 실력을 얼마나 잘 가르는가.** 그리고 신뢰도 하한·규율 래더·등급
 // 임계값을 어떻게 잡아야 그 분리가 가장 좋아지는가.

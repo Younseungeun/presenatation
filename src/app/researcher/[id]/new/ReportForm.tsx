@@ -512,7 +512,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             );
           })()}
           {/* 별점 미리보기 — 고르는 바로 그 자리에서 구매자가 볼 별을 보여준다.
-              v5에서 별은 다이얼값에 선형이라 규칙 설명이 짧아졌다(별 한 칸 = 승산 ×1.73) */}
+              vmax에서 별은 다이얼값에 선형이라 규칙 설명이 짧아졌다(별 한 칸 = 승산 ×1.73) */}
           {(() => {
             const c = toNumber(confidence)!;
             return (

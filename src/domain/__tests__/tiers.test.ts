@@ -22,7 +22,7 @@ describe('evaluateTier — 등급은 전적으로 점수로 산정 (경쟁적 �
     expect(evaluateTier(PLATINUM)).toBe('PLATINUM');
   });
 
-  it('현재 임계값 (v5 + 연속 가중 w 재캘리브레이션, 2026-08-13)', () => {
+  it('현재 임계값 (vmax + 연속 가중 w 재캘리브레이션, 2026-08-13)', () => {
     expect(DEFAULT_TIER_THRESHOLDS).toEqual({ SILVER: 1_200, GOLD: 2_650, PLATINUM: 5_070 });
   });
 

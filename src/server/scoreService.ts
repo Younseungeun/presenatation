@@ -134,7 +134,7 @@ export async function researcherSeasonTotals(
     // 점수는 이번 시즌 판정분만 — 등급은 분기마다 새로 겨룬다
     if (j.judgedAt >= from) score[a] += j.score!;
     // 증거는 기간 제한이 없다 (파일 상단 주석)
-    // info는 v5 이전 판정에 없다(null) — 그 카드는 증거로 세지 않는다.
+    // info는 vmax 이전 판정에 없다(null) — 그 카드는 증거로 세지 않는다.
     // 규율이 옛 데이터로 소급 발동하지 않는 편이 안전하다(불리한 처분은 소급하지 않는다)
     if (j.info == null) continue;
     const publishedAt = j.predictionCard.report.publishedAt;
