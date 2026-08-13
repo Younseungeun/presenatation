@@ -9,6 +9,7 @@ import { createDraftReport, publishReport } from '../reportService';
 import {
   executeRefund,
   getPendingRefunds,
+  resolveBankTransferAttempt,
   retryRefundAttempt,
   sweepStuckRefundAttempts,
 } from '../settlementOpsService';
@@ -399,6 +400,73 @@ describe('계좌이체 환불은 이체 참조번호로 증명한다', () => {
       ),
     ).rejects.toThrow(/이체 참조번호가 필요합니다/);
     expect(await prisma.refundAttempt.count({ where: { settlementId } })).toBe(0);
+  });
+
+  // **계좌이체에는 재시도가 없다.** PG 취소는 멱등키로 "다시 보내기"가 안전하지만
+  // 사람이 은행 앱에서 보내는 돈에는 그런 장치가 없다 — 재시도 버튼은 곧 이중 송금 버튼이다
+  it('멈춘 계좌이체는 재시도가 아니라 사람이 상태를 확정한다', async () => {
+    // 기록 트랜잭션만 실패해 PENDING으로 남은 상황을 직접 만든다
+    const attempt = await prisma.refundAttempt.create({
+      data: {
+        settlementId,
+        amountKrw: 10_000,
+        method: 'BANK_TRANSFER',
+        operatorId: OPERATOR,
+        status: 'PENDING',
+      },
+    });
+
+    await expect(
+      retryRefundAttempt(prisma, { attemptId: attempt.id, operatorUserId: OPERATOR }, EXEC_NOW),
+    ).rejects.toThrow(/자동 재시도할 수 없습니다/);
+
+    // "안 보냈다" → 시도를 닫아 새 실행을 풀어 준다
+    await resolveBankTransferAttempt(
+      prisma,
+      { attemptId: attempt.id, operatorUserId: OPERATOR, resolution: 'NOT_SENT' },
+      EXEC_NOW,
+    );
+    const closed = await prisma.refundAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+    expect(closed.status).toBe('FAILED');
+    const s = await prisma.settlement.findUniqueOrThrow({ where: { id: settlementId } });
+    expect(s.refundExecutedAt).toBeNull(); // 정산은 아직 미실행이라 다시 실행할 수 있다
+  });
+
+  it('"이미 보냈다"로 닫으려면 이체 참조번호가 필요하다', async () => {
+    const attempt = await prisma.refundAttempt.create({
+      data: {
+        settlementId,
+        amountKrw: 10_000,
+        method: 'BANK_TRANSFER',
+        operatorId: OPERATOR,
+        status: 'PENDING',
+      },
+    });
+
+    await expect(
+      resolveBankTransferAttempt(
+        prisma,
+        { attemptId: attempt.id, operatorUserId: OPERATOR, resolution: 'SENT' },
+        EXEC_NOW,
+      ),
+    ).rejects.toThrow(/참조번호를 입력해주세요/);
+
+    await resolveBankTransferAttempt(
+      prisma,
+      {
+        attemptId: attempt.id,
+        operatorUserId: OPERATOR,
+        resolution: 'SENT',
+        bankReference: 'TRX-RESOLVED',
+      },
+      EXEC_NOW,
+    );
+    const done = await prisma.refundAttempt.findUniqueOrThrow({ where: { id: attempt.id } });
+    expect(done.status).toBe('SUCCEEDED');
+    expect(done.bankReference).toBe('TRX-RESOLVED');
+    const s = await prisma.settlement.findUniqueOrThrow({ where: { id: settlementId } });
+    expect(s.refundExecutedAt).toEqual(EXEC_NOW); // 정산도 함께 닫힌다
+    expect(cancelCalls).toHaveLength(0); // 계좌이체는 PG를 타지 않는다
   });
 
   it('같은 번호를 두 번 기록할 수 없다 — 이중 송금의 흔적을 DB가 막는다', async () => {

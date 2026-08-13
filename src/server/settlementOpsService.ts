@@ -178,6 +178,13 @@ export async function retryRefundAttempt(
   if (attempt.status !== 'PENDING') {
     throw new SettlementOpsError(`이미 끝난 시도입니다 (${attempt.status})`);
   }
+  if (attempt.method === 'BANK_TRANSFER') {
+    // **계좌이체에는 재시도가 없다.** 멱등키가 없으므로 "다시 보낸다"가 곧 이중 송금이다.
+    // 사람이 은행 앱에서 실제로 보냈는지 확인해 상태를 확정하는 것만 가능하다
+    throw new SettlementOpsError(
+      '계좌이체는 자동 재시도할 수 없습니다 — 은행 앱에서 이체 여부를 확인한 뒤 상태를 확정해주세요.',
+    );
+  }
   const s = await prisma.settlement.findUnique({
     where: { id: attempt.settlementId },
     include: PENDING_INCLUDE,
@@ -191,6 +198,65 @@ export async function retryRefundAttempt(
     });
     return;
   }
+  await runRefundAttempt(prisma, s, attempt, now, input.operatorUserId);
+}
+
+/**
+ * 끝나지 않은 **계좌이체** 시도의 상태를 사람이 확정한다 — 재시도가 아니라 확인이다.
+ *
+ * PG 취소는 멱등키가 있어 "같은 키로 다시 보낸다"가 안전하지만, 은행 앱에서 사람이
+ * 보내는 돈에는 그런 장치가 없다. 재시도 버튼을 주면 운영자가 "안 나갔구나" 하고 한 번
+ * 더 보낼 수 있고 그건 그대로 이중 송금이다. 그래서 물어보는 것은 하나다 —
+ * **실제로 보내셨습니까.**
+ *
+ * - `SENT`: 이미 보냈다 → 이체 참조번호를 받아 그 시도를 성공으로 닫고 정산을 기록한다
+ * - `NOT_SENT`: 안 보냈다 → 시도를 FAILED로 닫아 새 시도를 만들 수 있게 푼다
+ */
+export async function resolveBankTransferAttempt(
+  prisma: PrismaClient,
+  input: {
+    attemptId: string;
+    operatorUserId: string;
+    resolution: 'SENT' | 'NOT_SENT';
+    bankReference?: string;
+  },
+  now = new Date(),
+) {
+  const attempt = await prisma.refundAttempt.findUnique({ where: { id: input.attemptId } });
+  if (!attempt) throw new SettlementOpsError('환불 시도를 찾을 수 없습니다');
+  if (attempt.method !== 'BANK_TRANSFER') {
+    throw new SettlementOpsError('계좌이체 시도가 아닙니다 — PG 취소는 재시도로 처리합니다');
+  }
+  if (attempt.status !== 'PENDING') {
+    throw new SettlementOpsError(`이미 끝난 시도입니다 (${attempt.status})`);
+  }
+
+  if (input.resolution === 'NOT_SENT') {
+    await prisma.refundAttempt.update({
+      where: { id: attempt.id },
+      data: { status: 'FAILED', error: '운영자 확인: 이체하지 않음', finishedAt: now },
+    });
+    return;
+  }
+
+  const bankReference = input.bankReference?.trim();
+  if (!bankReference) {
+    throw new SettlementOpsError('이체를 완료했다면 은행 이체 참조번호를 입력해주세요');
+  }
+  const s = await prisma.settlement.findUnique({
+    where: { id: attempt.settlementId },
+    include: PENDING_INCLUDE,
+  });
+  if (!s) throw new SettlementOpsError('정산 건을 찾을 수 없습니다');
+  if (s.refundExecutedAt) {
+    // 기록은 됐는데 시도만 PENDING으로 남은 경우 — 시도만 닫는다
+    await prisma.refundAttempt.update({
+      where: { id: attempt.id },
+      data: { status: 'SUCCEEDED', bankReference, finishedAt: now },
+    });
+    return;
+  }
+  await prisma.refundAttempt.update({ where: { id: attempt.id }, data: { bankReference } });
   await runRefundAttempt(prisma, s, attempt, now, input.operatorUserId);
 }
 

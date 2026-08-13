@@ -26,6 +26,36 @@ export interface OpsAlert {
   link?: string;
   /** 알림 유형 (Notification.type) */
   type?: string;
+  /**
+   * 같은 사건을 반복해서 알리지 않기 위한 키.
+   *
+   * **결제처럼 뜨거운 경로에서 부를 때는 반드시 준다.** 시세 공급자가 빠진 상태로
+   * 초당 수십 명이 결제를 누르면 같은 사고를 초당 수십 번 알리게 되고, 그 순간
+   * 알림 채널이 죽어 **정작 다른 사고를 못 받는다**. 사고 하나에 알림 하나면 충분하다.
+   */
+  dedupeKey?: string;
+  /** 같은 키를 다시 알리기까지의 시간 (기본 10분) */
+  dedupeMs?: number;
+}
+
+/** 최근에 보낸 dedupeKey → 보낸 시각 */
+const recentAlerts = new Map<string, number>();
+const DEFAULT_DEDUPE_MS = 10 * 60_000;
+
+function shouldSkip(alert: OpsAlert): boolean {
+  if (!alert.dedupeKey) return false;
+  const window = alert.dedupeMs ?? DEFAULT_DEDUPE_MS;
+  const last = recentAlerts.get(alert.dedupeKey);
+  const now = Date.now();
+  if (last !== undefined && now - last < window) return true;
+  recentAlerts.set(alert.dedupeKey, now);
+  // 키가 무한정 쌓이지 않게 지난 것을 걷어낸다
+  if (recentAlerts.size > 200) {
+    for (const [k, at] of recentAlerts) {
+      if (now - at >= window) recentAlerts.delete(k);
+    }
+  }
+  return false;
 }
 
 /**
@@ -33,6 +63,7 @@ export interface OpsAlert {
  * 어느 쪽이 실패해도 다른 쪽은 나가고, 둘 다 실패해도 던지지 않는다(호출자의 본업 보호).
  */
 export async function notifyOperators(prisma: PrismaClient, alert: OpsAlert): Promise<void> {
+  if (shouldSkip(alert)) return;
   await Promise.all([writeInAppNotifications(prisma, alert), postWebhook(alert)]);
 }
 

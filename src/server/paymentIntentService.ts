@@ -35,6 +35,25 @@ export interface IntentItem {
   priceKrw: number;
 }
 
+/**
+ * 승인은 났는데 살 수 없는 항목이 있었다 — **승인 전체가 취소된다.**
+ *
+ * 어느 항목이 막았는지를 id로 들고 있어야 화면이 "그것만 빼고 다시 결제"를 만들 수 있다.
+ * 사유 문자열만 던지면 사용자가 목록에서 직접 찾아야 하는데, 담은 것이 많을수록
+ * 그게 불가능해진다(막힌 이유는 시세라 화면에는 보이지도 않는다).
+ */
+export class BlockedItemsError extends TossPaymentError {
+  constructor(readonly blocked: { reportId: string; reason: string }[]) {
+    super(
+      blocked.length === 1
+        ? blocked[0].reason
+        : `${blocked.length}건을 구매할 수 없어 결제를 취소했습니다: ${blocked.map((b) => b.reason).join(' / ')}`,
+      'BLOCKED_ITEMS',
+    );
+    this.name = 'BlockedItemsError';
+  }
+}
+
 export function parseIntentItems(itemsJson: string): IntentItem[] {
   const parsed = JSON.parse(itemsJson) as IntentItem[];
   if (!Array.isArray(parsed) || parsed.length === 0) {
@@ -198,15 +217,26 @@ async function purchaseIntentItems(
   payment: { method: PaymentMethod; paymentInfo: string; paymentKey: string },
 ) {
   const checked = [];
+  const blocked: { reportId: string; reason: string }[] = [];
   for (const item of items) {
-    const c = await assertPurchasableNow(prisma, item.reportId, buyerId, now);
-    if (c.priceKrw !== item.priceKrw) {
-      throw new TossPaymentError(
-        `결제 요청 후 가격이 바뀐 리포트가 있어 구매를 만들지 않았습니다 (${item.priceKrw.toLocaleString()}원 → ${c.priceKrw.toLocaleString()}원)`,
-      );
+    try {
+      const c = await assertPurchasableNow(prisma, item.reportId, buyerId, now);
+      if (c.priceKrw !== item.priceKrw) {
+        throw new Error(
+          `결제 요청 후 가격이 바뀌었습니다 (${item.priceKrw.toLocaleString()}원 → ${c.priceKrw.toLocaleString()}원)`,
+        );
+      }
+      checked.push(c);
+    } catch (e) {
+      blocked.push({
+        reportId: item.reportId,
+        reason: e instanceof Error ? e.message : '구매할 수 없습니다',
+      });
     }
-    checked.push(c);
   }
+  // **어느 항목이 막았는지 호출자에게 알려준다.** 승인은 전체 취소되지만, 화면이
+  // 그 항목만 빼고 다시 결제하려면 id가 필요하다 — 사유 문자열만으로는 못 고른다
+  if (blocked.length > 0) throw new BlockedItemsError(blocked);
 
   const ops = checked.map((c) =>
     purchaseWriteOps(

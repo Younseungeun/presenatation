@@ -81,6 +81,7 @@ export default async function AdminSettlementsPage() {
               kind="REFUND"
               settlementId={s.id}
               stuckAttemptId={s.refundAttempts[0]?.id}
+              stuckAttemptMethod={s.refundAttempts[0]?.method}
             />
           </div>
         ))

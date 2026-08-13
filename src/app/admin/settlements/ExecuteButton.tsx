@@ -7,35 +7,38 @@ import styles from "../../researcher/researcher.module.css";
 // 지시서 실행 버튼: 환불은 방법(PG 취소/계좌이체)을 골라 실행, 지급은 바로 실행.
 // 실행은 되돌릴 수 없으므로 confirm 한 번을 거친다.
 //
-// **끝나지 않은 시도(stuckAttemptId)가 있으면 "새로 실행"을 아예 내보내지 않는다.**
-// PENDING은 "취소가 나갔는지 우리가 모른다"는 뜻이라, 새로 실행하면 새 멱등키로 한 번 더
-// 나가 두 번 빠질 수 있다. 그 시도를 같은 키로 이어받는 재시도만 남긴다.
+// **끝나지 않은 시도(stuckAttempt)가 있으면 "새로 실행"을 아예 내보내지 않는다.**
+// PENDING은 "돈이 나갔는지 우리가 모른다"는 뜻이라, 새로 실행하면 새 키로 한 번 더 나가
+// 두 번 빠질 수 있다. 다만 **이어받는 방법이 수단마다 다르다**:
+//
+//  · PG 취소 → **재시도.** 멱등키가 있어 같은 키로 다시 보내면 결과는 한 번이다
+//  · 계좌이체 → **상태 확정.** 사람이 은행 앱에서 보낸 돈에는 멱등키가 없다. 여기서
+//    "재시도"를 내보내면 운영자가 "안 나갔구나" 하고 한 번 더 보낼 수 있고 그게 곧
+//    이중 송금이다. 그래서 물어보는 것은 하나뿐이다 — **실제로 보내셨습니까**
 export function ExecuteButton({
   kind,
   settlementId,
   stuckAttemptId,
+  stuckAttemptMethod,
 }: {
   kind: "REFUND" | "PAYOUT";
   settlementId: string;
   stuckAttemptId?: string;
+  stuckAttemptMethod?: string;
 }) {
   const router = useRouter();
   const [method, setMethod] = useState("PG_CANCEL");
   const [bankReference, setBankReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const retrying = kind === "REFUND" && !!stuckAttemptId;
-  const needsReference = kind === "REFUND" && !retrying && method === "BANK_TRANSFER";
 
-  async function execute() {
-    const label = kind === "REFUND" ? "환불" : "지급";
-    if (needsReference && bankReference.trim() === "") {
-      setError("은행 이체 참조번호를 입력해주세요 — 계좌이체는 중복 송금을 시스템이 막을 수 없습니다.");
-      return;
-    }
-    const question = retrying
-      ? "끝나지 않은 환불 시도를 같은 키로 다시 보낼까요? 이미 나갔다면 중복되지 않습니다."
-      : `${label}을 실행 완료로 기록할까요? 되돌릴 수 없습니다.`;
+  const stuck = kind === "REFUND" && !!stuckAttemptId;
+  const resolving = stuck && stuckAttemptMethod === "BANK_TRANSFER";
+  const retrying = stuck && !resolving;
+  // 새 계좌이체 실행이거나, 멈춘 계좌이체를 "보냈다"로 닫을 때 참조번호가 필요하다
+  const needsReference = resolving || (kind === "REFUND" && !stuck && method === "BANK_TRANSFER");
+
+  async function post(body: unknown, question: string) {
     if (!window.confirm(question)) return;
     setBusy(true);
     setError(null);
@@ -43,22 +46,11 @@ export function ExecuteButton({
       const res = await fetch("/api/admin/settlements", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(
-          retrying
-            ? { kind: "REFUND_RETRY", attemptId: stuckAttemptId }
-            : kind === "REFUND"
-              ? {
-                  kind,
-                  settlementId,
-                  method,
-                  ...(needsReference ? { bankReference: bankReference.trim() } : {}),
-                }
-              : { kind, settlementId },
-        ),
+        body: JSON.stringify(body),
       });
-      const body = await res.json();
+      const json = await res.json();
       if (!res.ok) {
-        setError(body.error ?? "실행 실패");
+        setError(json.error ?? "실행 실패");
         return;
       }
       router.refresh();
@@ -69,9 +61,55 @@ export function ExecuteButton({
     }
   }
 
+  async function execute() {
+    const label = kind === "REFUND" ? "환불" : "지급";
+    if (needsReference && bankReference.trim() === "") {
+      setError(
+        "은행 이체 참조번호를 입력해주세요 — 계좌이체는 중복 송금을 시스템이 막을 수 없습니다.",
+      );
+      return;
+    }
+    if (retrying) {
+      return post(
+        { kind: "REFUND_RETRY", attemptId: stuckAttemptId },
+        "끝나지 않은 PG 취소를 같은 키로 다시 보낼까요? 이미 나갔다면 중복되지 않습니다.",
+      );
+    }
+    if (resolving) {
+      return post(
+        {
+          kind: "REFUND_RESOLVE",
+          attemptId: stuckAttemptId,
+          resolution: "SENT",
+          bankReference: bankReference.trim(),
+        },
+        "이 이체를 완료로 확정할까요? 은행 앱에서 실제로 보낸 것이 맞는지 먼저 확인해주세요.",
+      );
+    }
+    return post(
+      kind === "REFUND"
+        ? {
+            kind,
+            settlementId,
+            method,
+            ...(needsReference ? { bankReference: bankReference.trim() } : {}),
+          }
+        : { kind, settlementId },
+      `${label}을 실행 완료로 기록할까요? 되돌릴 수 없습니다.`,
+    );
+  }
+
+  /** 계좌이체를 "안 보냈다"로 닫는다 — 새 시도를 만들 수 있게 풀어 준다 */
+  async function markNotSent() {
+    return post(
+      { kind: "REFUND_RESOLVE", attemptId: stuckAttemptId, resolution: "NOT_SENT" },
+      "이체하지 않은 것으로 확정할까요? 이 건은 다시 환불 실행 대상이 됩니다.",
+    );
+  }
+
   return (
     <div className={styles.formActions}>
-      {kind === "REFUND" && !retrying && (
+      {kind === "REFUND" && !stuck && (
         <select
           className={styles.select}
           value={method}
@@ -97,15 +135,28 @@ export function ExecuteButton({
         {busy
           ? "기록 중…"
           : retrying
-            ? "미완료 환불 재시도"
-            : kind === "REFUND"
-              ? "환불 실행 완료"
-              : "지급 실행 완료"}
+            ? "미완료 PG 취소 재시도"
+            : resolving
+              ? "이체 완료로 확정"
+              : kind === "REFUND"
+                ? "환불 실행 완료"
+                : "지급 실행 완료"}
       </button>
+      {resolving && (
+        <button className={styles.secondaryBtn} onClick={markNotSent} disabled={busy}>
+          이체하지 않았습니다
+        </button>
+      )}
       {retrying && (
         <p className={styles.sub}>
           앞선 시도의 PG 응답을 받지 못했습니다. 같은 키로 다시 보내므로 이미 나갔다면
           중복되지 않습니다.
+        </p>
+      )}
+      {resolving && (
+        <p className={styles.sub}>
+          계좌이체는 자동 재시도할 수 없습니다(멱등키가 없어 재시도가 곧 이중 송금입니다).
+          <strong> 은행 앱에서 이체 여부를 먼저 확인</strong>한 뒤 상태를 골라주세요.
         </p>
       )}
       {error && <p className={styles.error}>{error}</p>}

@@ -41,6 +41,14 @@ export interface CachedQuote {
    * 통째로 안 팔리는 것을 시세 장애로 오인하면 원인을 영영 못 찾는다.
    */
   unchecked: boolean;
+  /**
+   * **테스트 전용.** 시세를 꽂지 않은 테스트 = 가격 관문을 시험하지 않는 테스트다.
+   * 프로덕션에서는 항상 false — 이 값이 true인 경로는 `process.env.VITEST`뿐이다.
+   *
+   * 별도 필드로 둔 이유: 프로덕션의 `unchecked`(공급자 미설정)는 **판매를 막는** 사건인데,
+   * 테스트의 "안 꽂음"은 그것과 뜻이 다르다. 같은 필드로 뭉치면 둘 중 하나가 반드시 틀린다.
+   */
+  gateDisabled: boolean;
 }
 
 // 테스트 대체 시세 — 단위 테스트가 실서비스 시세에 좌우되면 안 된다.
@@ -71,10 +79,13 @@ export async function fetchCachedQuote(
   if (process.env.VITEST) {
     // 값을 안 꽂은 테스트는 **시세를 시험하지 않는 테스트**다 — 조회 안 함으로 둔다.
     // 여기서 "장애"로 취급하면 판매·구매를 다루는 모든 픽스처가 가격 게이트에 걸린다
-    if (!testPriceFn) return { price: null, live: false, unchecked: true };
+    if (!testPriceFn) {
+      return { price: null, live: false, unchecked: false, gateDisabled: true };
+    }
     const p = await testPriceFn(assetClass, ticker);
-    // 테스트가 꽂은 값은 "실시간을 받았다"로 본다 — 게이트 동작 자체를 시험하려는 값이다
-    return { price: p, live: p !== null, unchecked: false };
+    // 테스트가 꽂은 값은 "실시간을 받았다"로 본다 — 게이트 동작 자체를 시험하려는 값이다.
+    // null을 꽂았다면 "물어봤는데 답이 없다"(시장 장애)를 시험하는 것이다
+    return { price: p, live: p !== null, unchecked: false, gateDisabled: false };
   }
   const key = `${assetClass}:${ticker}`;
   const hit = priceCache.get(key);
@@ -126,7 +137,7 @@ export async function fetchCachedQuote(
     unchecked = true;
   }
 
-  const quote: CachedQuote = { price, live, unchecked };
+  const quote: CachedQuote = { price, live, unchecked, gateDisabled: false };
   priceCache.set(key, { at: now, quote });
   return quote;
 }

@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import type { AssetClass, Direction, TargetType } from '@/domain/constants';
 import { JudgmentDeferredError, runJudgmentFromRegistry } from '@/domain/judgmentPipeline';
 import type { ProviderRegistry } from '@/domain/marketData';
@@ -20,10 +20,25 @@ export interface BatchSummary {
   failed: number;
   /** 시한이 STALE_DEFER_DAYS 이상 지났는데 아직 판정 못 한 카드 — 수동 확인 필요 */
   staleDeferred: string[];
+  /** 이번 회차에 손대지 못하고 남은 카드 수 — 0이 아니면 곧바로 한 번 더 돌아야 한다 */
+  remaining: number;
 }
 
 /** 이월이 이 일수를 넘으면 운영자 보류 큐 대상 */
 export const STALE_DEFER_DAYS = 7;
+
+/**
+ * 한 회차에 처리할 카드 수 상한.
+ *
+ * 판정은 카드마다 시세를 부르는데 KIS는 **호출 간격 1.1초**다. 분기말처럼 시한이 몰린
+ * 날 수백 장이 한 번에 들어오면 회차 하나가 수백 초를 잡아먹고, 그동안 큐 뒤의 다른
+ * 배치(판매 마감·감시 갱신)가 통째로 밀린다. 토큰 만료·프로세스 재시작이라도 끼면
+ * **그 회차가 통째로 날아간다** — 20장씩 끊으면 최악이 22초고, 죽어도 20장어치만 잃는다.
+ *
+ * 판정은 멱등이라 여러 회차로 나눠 돌아도 결과가 같다. 남은 수(remaining)를 돌려주면
+ * 스케줄러가 그 자리에서 다시 부른다.
+ */
+export const JUDGE_BATCH_SIZE = 20;
 
 /**
  * 종목 마스터에서 사라졌나 — 상장폐지의 신호.
@@ -50,13 +65,17 @@ export async function judgeAndSettleDueCards(
   assetClass?: AssetClass,
 ): Promise<BatchSummary> {
   // HELD 구매까지 한 번에 조회 — 카드별 개별 쿼리(N+1) 제거
+  const where: Prisma.PredictionCardWhereInput = {
+    judgment: null,
+    ...(assetClass ? { assetClass } : {}),
+    deadline: { lte: now },
+    report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
+  };
+
+  // **한 번에 다 하지 않는다** (JUDGE_BATCH_SIZE 주석 참고). 오래된 시한부터 —
+  // 이월이 길어진 카드가 뒤로 밀리면 돈이 묶인 채 계속 밀린다
   const dueCards = await prisma.predictionCard.findMany({
-    where: {
-      judgment: null,
-      ...(assetClass ? { assetClass } : {}),
-      deadline: { lte: now },
-      report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
-    },
+    where,
     include: {
       report: {
         include: {
@@ -66,12 +85,20 @@ export async function judgeAndSettleDueCards(
       },
     },
     orderBy: { deadline: 'asc' },
+    take: JUDGE_BATCH_SIZE,
   });
+  const totalDue = await prisma.predictionCard.count({ where });
 
   // 같은 종목의 만기 카드가 여러 장이면 조회는 한 번이면 된다 (memoRegistry)
   const quotes = memoizeRegistry(registry);
 
-  const summary: BatchSummary = { judged: 0, deferred: 0, failed: 0, staleDeferred: [] };
+  const summary: BatchSummary = {
+    judged: 0,
+    deferred: 0,
+    failed: 0,
+    staleDeferred: [],
+    remaining: Math.max(0, totalDue - dueCards.length),
+  };
 
   for (const card of dueCards) {
     // 정산이 걸린 자리라 권리 사건 반영이 더 중요하다 — 옛 눈금으로 채점하면

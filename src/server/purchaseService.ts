@@ -10,6 +10,7 @@ import {
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isMarketOpen } from '@/domain/marketHours';
 import { isFreeReport } from './freeReportService';
+import { notifyOperators } from './opsAlert';
 import { fetchCachedQuote } from './priceCache';
 import { recordQuote } from './quoteWatchService';
 import { researcherConfidenceCap } from './scoreService';
@@ -196,33 +197,48 @@ async function assertNotSuspendedIntraday(
 ): Promise<PriceGate> {
   if (!card || card.basePrice === null) return 'NO_CARD';
   const assetClass = card.assetClass as AssetClass;
-  const { price, live, unchecked } = await fetchCachedQuote(assetClass, card.ticker);
+  const { price, live, unchecked, gateDisabled } = await fetchCachedQuote(assetClass, card.ticker);
+  if (gateDisabled) return 'NO_CARD'; // 시세를 꽂지 않은 테스트 — 관문을 시험하지 않는다
   const open = isMarketOpen(assetClass, now);
 
-  // **장이 열려 있는데 시세를 못 구하면 팔지 않는다 (2026-08-13).**
+  // **시세를 못 구하면 팔지 않는다 (2026-08-13).**
   //
   // 예전에는 시세가 없으면 그냥 통과시켰다. 판정은 반대로 모르면 멈추는데
   // (JudgmentDeferredError) 판매만 모르면 팔았다 — 그 비대칭이 문제였다.
   // 시세 소스가 장중에 몇 시간 죽으면 가격 방어가 **조용히 꺼진 채로** 계속 팔리고,
   // 그 사이 급락한 종목의 q<0.5 카드가 그대로 나간다. 아무 기록도 남지 않는다.
   //
-  // 장이 닫혀 있으면 이야기가 다르다. 닫힌 동안 q는 변하지 않으므로 **마지막 종가가
-  // 곧 맞는 값**이고, 여기서 막으면 주말·야간 매출이 통째로 사라진다.
-  //
-  // `unchecked`(공급자 미설정)는 막지 않는다 — 설정 문제라 판매를 멈춰도 나아지지 않고,
-  // 자산군 하나가 통째로 안 팔리는 것을 시세 장애로 오인하면 원인을 못 찾는다.
+  // ① 공급자 미설정 — **판다는 것 자체가 사고다.** 배선을 깜빡했거나 키가 빠진
+  //    배포 오류인데, 그 상태로 파는 것은 가격 방어 없이 파는 것과 같다. 막고 즉시 알린다
+  //    (앞서 "설정 문제라 막아도 나아지지 않는다"고 통과시켰는데, **결과만 보면
+  //     방어 없이 파는 것은 똑같다**. 막으면 판매가 멈춰 사고가 즉시 드러난다)
+  if (unchecked) {
+    await alertMissingProvider(prisma, assetClass);
+    throw new Error(
+      '시세 확인 경로가 준비되지 않아 구매가 일시 중단되었습니다. 잠시 후 다시 시도해주세요.',
+    );
+  }
+  // ② 물어봤는데 답이 없다 — 장중이면 막고, 장이 닫혔으면 잴 이유가 없으므로 통과
   if (price === null) {
-    if (open && !unchecked) {
+    if (open) {
       throw new Error(
         '거래소 시세를 확인할 수 없어 구매가 일시 중단되었습니다. 시세가 복구되면 다시 구매할 수 있습니다.',
       );
     }
-    return unchecked ? 'UNCHECKED' : 'MARKET_CLOSED';
+    return 'MARKET_CLOSED';
   }
-  // ⚠ 장중의 **낡은 종가**(live=false)는 지금 통과시킨다. 실시간이 없는 공급자에서
-  //   전 종목이 막히는 쪽이 더 나쁘다고 봤다 — 대신 STALE_CLOSE로 남겨 분쟁 시
-  //   "이 결제가 무엇으로 통과했는지"에 답한다. 문턱을 조일지는 실측 후 결정한다
-  const gate: PriceGate = live ? 'LIVE' : 'STALE_CLOSE';
+  // ③ 값은 있는데 **장중의 낡은 종가**다 — 어제 종가로 q를 재면 방어선이 사실상 꺼진다.
+  //    당일 5% 변동이 흔한 시장에서 하루치 오차는 q<0.5 판정을 그냥 뒤집는다.
+  //    (프로덕션 공급자 KIS·업비트는 둘 다 실시간을 준다 — 여기 걸리면 소스 장애다)
+  if (!live && open) {
+    console.warn(
+      `[가격관문] 장중 실시간 시세 없음 — 결제 차단 ${assetClass}:${card.ticker} (소스 장애 빈도 관측용)`,
+    );
+    throw new Error(
+      '거래소 실시간 시세를 확인할 수 없어 구매가 일시 중단되었습니다. 시세가 복구되면 다시 구매할 수 있습니다.',
+    );
+  }
+  const gate: PriceGate = live ? 'LIVE' : 'MARKET_CLOSED';
 
   // **이 호출이 감시 대상을 발굴한다** (2026-08-12 사용자 확정).
   // 문턱에서 먼 종목은 장중에 갱신하지 않으므로, 그 사이 문턱으로 다가온 것을 아무도
@@ -271,18 +287,31 @@ async function assertNotSuspendedIntraday(
 }
 
 /**
+ * 시세 공급자가 없다 — **배포 사고다.** 그 자산군 판매가 통째로 멈추므로 즉시 알린다.
+ * 결제마다 불리는 자리라 같은 자산군은 10분에 한 번만 나간다(알림 채널을 죽이면
+ * 정작 다른 사고를 못 받는다).
+ */
+async function alertMissingProvider(prisma: PrismaClient, assetClass: AssetClass): Promise<void> {
+  await notifyOperators(prisma, {
+    title: `[P0] ${assetClass} 시세 공급자 미설정 — 해당 자산군 결제가 전부 막혔습니다`,
+    body: [
+      '가격 방어(q ≥ 0.5)를 확인할 수 없어 구매를 거절하고 있습니다.',
+      '배선 누락이나 API 키 누락일 가능성이 높습니다 — 배포 설정을 확인해주세요.',
+      `자산군: ${assetClass}`,
+    ].join('\n'),
+    dedupeKey: `missing-provider:${assetClass}`,
+  });
+}
+
+/**
  * 이 결제의 가격 방어가 **무엇으로** 통과했는지 — 구매 기록에 남는다.
  * 분쟁이 나면 "이 결제가 어떤 근거로 승인됐는가"의 답이 여기 있다.
  */
 export type PriceGate =
-  /** 실시간 현재가로 q를 쟀다 */
+  /** 실시간 현재가로 q를 쟀다 — 장중 결제는 **반드시** 이 값이다 */
   | 'LIVE'
-  /** 일봉 종가로 쟀다 (장이 닫혔거나 실시간을 못 받았다) */
-  | 'STALE_CLOSE'
-  /** 값이 없는데 장도 닫혀 있었다 — 잴 것도 잴 이유도 없다 */
+  /** 장이 닫혀 있었다. 닫힌 동안 q는 변하지 않으므로 마지막 종가가 곧 맞는 값이다 */
   | 'MARKET_CLOSED'
-  /** 그 자산군의 시세 공급자가 없다 (설정 문제) */
-  | 'UNCHECKED'
   /** 잴 카드가 없다 (기준가 미확정 등) */
   | 'NO_CARD';
 

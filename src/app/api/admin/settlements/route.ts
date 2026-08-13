@@ -7,6 +7,7 @@ import {
   getPendingPayouts,
   getPendingRefunds,
   REFUND_METHODS,
+  resolveBankTransferAttempt,
   retryRefundAttempt,
 } from '@/server/settlementOpsService';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
@@ -23,6 +24,13 @@ const bodySchema = z.discriminatedUnion('kind', [
   }),
   // 끝나지 않은 시도를 **같은 멱등키로** 이어받는다 — 새 실행과 반드시 구분해야 한다
   z.object({ kind: z.literal('REFUND_RETRY'), attemptId: z.string().min(1) }),
+  // 계좌이체는 재시도가 아니라 **사람이 상태를 확정**한다 (멱등키가 없어 재시도 = 이중 송금)
+  z.object({
+    kind: z.literal('REFUND_RESOLVE'),
+    attemptId: z.string().min(1),
+    resolution: z.enum(['SENT', 'NOT_SENT']),
+    bankReference: z.string().min(1).max(100).optional(),
+  }),
   z.object({ kind: z.literal('PAYOUT'), settlementId: z.string().min(1) }),
 ]);
 
@@ -52,6 +60,13 @@ export async function POST(req: NextRequest) {
       });
     } else if (body.kind === 'REFUND_RETRY') {
       await retryRefundAttempt(prisma, { attemptId: body.attemptId, operatorUserId });
+    } else if (body.kind === 'REFUND_RESOLVE') {
+      await resolveBankTransferAttempt(prisma, {
+        attemptId: body.attemptId,
+        operatorUserId,
+        resolution: body.resolution,
+        bankReference: body.bankReference,
+      });
     } else {
       await executePayout(prisma, { settlementId: body.settlementId, operatorUserId });
     }

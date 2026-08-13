@@ -211,7 +211,10 @@ export async function getMarketStats(
     });
     rows.push({
       key: 'escrow',
-      label: '에스크로 보관 중',
+      // **"당사 기준"을 라벨에 박는다.** 이 값은 우리 DB의 HELD 합계일 뿐 PG 미정산
+      // 잔액과 대조한 적이 없다. 대외 숫자인데 검증이 없으므로, 검증이 붙기 전까지는
+      // 무엇을 센 값인지 라벨이 스스로 밝혀야 한다 (대조 배치는 미착수)
+      label: '에스크로 보관 중(당사 기준)',
       value: formatKrw(numbers.escrowKrw),
       delta: delta(numbers.escrowKrw, baseline?.escrowKrw, true),
       isAmount: true,
