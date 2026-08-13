@@ -5,16 +5,15 @@ import type { AssetClass } from '../src/domain/constants';
 import { estimateDailySigma } from '../src/domain/stability';
 import {
   claimedProbability,
-  disciplineFor,
   DISCIPLINE_ALPHA,
   evidenceThreshold,
   minMagnitudePct,
   noSkillTouchProbability,
 } from '../src/domain/scoring';
 import { aggregateEvidence, type EvidenceCard } from '../src/domain/evidence';
-
 // 급변장에서 래더가 정직한 리서처를 쓸어버리는가 — npx tsx scripts/simRegimeShift.ts
 //
+
 // ── 왜 이걸 재나 ──────────────────────────────────────────────
 // 카드를 낼 때 그 종목의 변동성 σ를 재서 **게시 순간에 고정**한다. σ가 무정보 도달
 // 확률 p₀를 정하고, p₀가 채점의 기준선이다. 그런데 시장 국면이 바뀌면 게시 시점의
@@ -32,6 +31,7 @@ import { aggregateEvidence, type EvidenceCard } from '../src/domain/evidence';
 // **그 규칙이 존재하지 않고, 문제 크기를 잰 적도 없다.** 발동 조건을 지어내기 전에
 // 실제 급변장 데이터로 크기부터 잰다.
 //
+
 // ── 무엇을 재나 ───────────────────────────────────────────────
 // 실제 일봉으로 카드를 굴린다. 고정된 신고 정책(상승·하한 크기·신뢰도 c)을 두고
 //   ① 모델이 말한 p₀ vs **실제 도달률** — 국면별로 얼마나 어긋나나
@@ -40,9 +40,13 @@ import { aggregateEvidence, type EvidenceCard } from '../src/domain/evidence';
 // 국면 사이에서 얼마나 흔들리는지**를 보는 것이다.
 
 const FROM = '2019-01-01';
+
 const TO = '2021-12-31';
+
 const HORIZON = 30; // 거래일
+
 const CADENCE = 6; // 거래일마다 한 장 (자산군당 활성 5장 × 기한 30일)
+
 /**
  * 신고 정책. **정직한 값을 데이터에서 찾아야 한다** — 처음에 c=5로 돌렸더니 모든
  * 구간에서 D가 내려갔는데, 그것은 국면 문제가 아니라 c=5가 p̂≈70%를 신고하는 값이라
@@ -50,7 +54,9 @@ const CADENCE = 6; // 거래일마다 한 장 (자산군당 활성 5장 × 기�
  * 급변장 때문이 아니다. 여러 c로 훑어 정직한 자리를 찾고, **그 자리에서 국면 간
  * 차이**를 본다.
  */
+
 let CONFIDENCE = 5;
+
 const RUNG1 = evidenceThreshold(DISCIPLINE_ALPHA[0]); // −2.30
 
 const UNIVERSE: Record<AssetClass, string[]> = {
@@ -76,6 +82,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * 맞는 값이다. 그래서 공급자를 고치지 않고 여기서 구간을 쪼갠다.
  * (업비트는 자르지 않지만 초당 요청 제한이 있어 사이를 띄운다)
  */
+
 async function loadBars(): Promise<Map<string, { assetClass: AssetClass; bars: Bar[] }>> {
   const registry = createDefaultRegistry();
   const out = new Map<string, { assetClass: AssetClass; bars: Bar[] }>();
@@ -135,6 +142,7 @@ interface Card {
 }
 
 /** 한 종목에서 낼 수 있는 카드를 전부 만든다 — 실제 종가로 판정까지 */
+
 function buildCards(key: string, assetClass: AssetClass, bars: Bar[]): Card[] {
   const cards: Card[] = [];
   const WARMUP = 120; // σ 추정에 필요한 창
@@ -150,11 +158,9 @@ function buildCards(key: string, assetClass: AssetClass, bars: Bar[]): Card[] {
       assetClass,
     );
     if (sigma == null) continue;
-
     const magnitudePct = minMagnitudePct(assetClass, sigma, HORIZON);
     const p0 = noSkillTouchProbability('UP', magnitudePct, assetClass, HORIZON, sigma);
     const pHat = claimedProbability(p0, CONFIDENCE);
-
     const base = bars[i].close;
     const target = base * (1 + magnitudePct / 100);
     let hit = false;
@@ -190,7 +196,6 @@ async function main() {
   process.stdout.write('  시세 받는 중 ');
   const data = await loadBars();
   console.log(`  종목 ${data.size}개\n`);
-
   const build = () => {
     const out: Card[] = [];
     for (const [key, { assetClass, bars }] of data) out.push(...buildCards(key, assetClass, bars));
@@ -198,7 +203,6 @@ async function main() {
   };
   const all = build();
   console.log(`  카드 ${all.length}장 생성\n`);
-
   // ── ⓪ 정직한 신뢰도는 어디인가 ────────────────────────────
   // 국면을 논하기 전에 "이 정책이 애초에 정직한가"부터 정해야 한다.
   const PERIODS: [string, string, string][] = [
@@ -230,10 +234,8 @@ async function main() {
     );
   }
   console.log('');
-
   CONFIDENCE = 2; // ⓪이 가리키는 정직한 자리 — 아래는 전부 이 값으로 다시 만든다
   const honest = build();
-
   // ── ① 모델 p₀ vs 실제 도달률 (월별) ────────────────────────
   console.log(`■ ① 모델이 말한 p₀ vs 실제 도달률 — 상승 카드 (정직한 신뢰도 c=${CONFIDENCE})`);
   console.log(`  ${'월'.padEnd(9)}${'카드'.padStart(6)}${'모델 p₀'.padStart(9)}${'실제'.padStart(8)}${'차이'.padStart(9)}${'카드당 정보량'.padStart(14)}`);
@@ -270,7 +272,6 @@ async function main() {
   for (const r of worst.sort((a, b) => a.m.localeCompare(b.m))) show(r);
   console.log('  ── 가장 좋은 3개월 ──');
   for (const r of best.sort((a, b) => a.m.localeCompare(b.m))) show(r);
-
   // ── ② 리서처의 D가 어디까지 내려가나 ──────────────────────
   // 리서처 한 명 = 자산군 하나에서 그 자산군 종목들에 순서대로 카드를 낸다.
   // 상관 보정을 그대로 적용하고, 증거는 리셋하지 않는다(현행).
@@ -312,7 +313,6 @@ async function main() {
         `  ${(minAt || '—').padStart(10)}  ${(hit1 || '—').padStart(10)}  ${(hit2 || '—').padStart(10)}`,
     );
   }
-
   // ── ③ 폭락 구간만 따로 ────────────────────────────────────
   console.log(`\n■ ③ 구간별 — 정직한 신뢰도 c=${CONFIDENCE} 기준`);
   console.log(
@@ -336,5 +336,4 @@ async function main() {
   }
   console.log('');
 }
-
 main();
