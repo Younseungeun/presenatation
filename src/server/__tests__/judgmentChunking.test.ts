@@ -13,6 +13,7 @@ import {
   nextAttemptAfterDefer,
 } from '../judgmentBatch';
 import { createDraftReport, publishReport } from '../reportService';
+import { searchInstruments, validateListedInstrument } from '../instrumentService';
 
 // **판정 배치는 한 회차 JUDGE_BATCH_SIZE장으로 끊는다.**
 //
@@ -241,16 +242,26 @@ describe('판정 배치 청킹', () => {
     const inst = await prisma.instrument.findUniqueOrThrow({
       where: { assetClass_ticker: { assetClass: 'CRYPTO', ticker: REPEAT_TICKER } },
     });
-    expect(inst.riskLevel).toBe('DANGER'); // 검색 제외 + 신규 카드 차단
+    expect(inst.unjudgeableAt).not.toBeNull();
+    // **거래소 위험 등급과 섞지 않는다.** 처분(신규 게시 차단)은 같아도 riskLevel은
+    // 거래소가 지정한 사실이고 이쪽은 우리 시세 소스의 한계다 — 한 칸에 담으면
+    // 공급자를 갈아 끼울 때 "진짜 상폐"와 "우리가 못 구한 것"을 구분할 수 없다
+    expect(inst.riskLevel).toBe('NONE');
     // 진행 중인 카드와 돈은 건드리지 않는다 — 유니버스만 줄인다
     expect(inst.active).toBe(true);
+
+    // 알림을 밀지 않고 당긴다 — 검색에서 빠지고, 티커를 직접 아는 사람에게는
+    // 게시 검증이 사유를 말한다 (그것도 "종목이 나쁘다"가 아니라 "우리가 못 잰다"로)
+    expect(await searchInstruments(prisma, 'CRYPTO', REPEAT_TICKER)).toHaveLength(0);
+    const check = await validateListedInstrument(prisma, 'CRYPTO', REPEAT_TICKER, 'UP');
+    expect(check.issues[0]).toContain('시세 검증을 지원하지 못하는');
   });
 
   // 소스 전체가 하루 죽으면 수십 종목이 **한 번씩** 걸린다. 그때 종목을 무더기로
   // 내리면 장애 하나가 유니버스를 통째로 지운다 — 문턱이 1이 아닌 이유가 이것이다
   it('한 번씩 걸린 종목들은 막지 않는다 — 소스 장애가 유니버스를 지우면 안 된다', async () => {
     const blockedOnce = await prisma.instrument.count({
-      where: { assetClass: 'CRYPTO', ticker: { in: TICKERS }, riskLevel: 'DANGER' },
+      where: { assetClass: 'CRYPTO', ticker: { in: TICKERS }, unjudgeableAt: { not: null } },
     });
     expect(blockedOnce).toBe(0);
   });

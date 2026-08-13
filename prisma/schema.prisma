@@ -240,6 +240,14 @@ model Instrument {
   // 채점 기준이 흔들리기 때문
   sigmaDaily    Float?
   sigmaSyncedAt DateTime?
+  // **우리가 판정하지 못하는 종목** — riskLevel과 뜻이 다르므로 칸을 나눈다.
+  // riskLevel은 **거래소가 지정한 사실**(정리매매·거래지원 종료)이고, 이쪽은
+  // **우리 쪽 한계**(시세 소스가 이 티커를 못 준다)다. 처분은 둘 다 "신규 게시 차단"으로
+  // 같지만 처분이 같다고 한 칸에 담으면, 나중에 시세 공급자를 갈아 끼울 때
+  // "진짜 상폐된 종목"과 "우리가 못 구해서 막아 둔 종목"을 쿼리로 구분할 수 없다.
+  // 값이 있으면 막힌 것이고, 그 시각이 곧 막은 때다 (`npm run risk:set --judgeable`로 해제)
+  unjudgeableAt   DateTime?
+  unjudgeableNote String?
   source        String // 유니버스 출처 (upbit | fsc-data.go.kr | twelvedata | seed)
   syncedAt      DateTime  @default(now())
 

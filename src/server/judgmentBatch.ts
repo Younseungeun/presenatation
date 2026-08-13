@@ -128,9 +128,12 @@ export const JUDGMENT_HARD_CAP_DAYS = 14;
  * 문턱이 1이 아니라 2인 이유: 소스 전체가 하루 죽으면 수십 종목이 한 번씩 걸린다.
  * **같은 종목**이 두 번 걸려야 종목의 문제다 — 한 번은 사건이고 두 번은 성질이다.
  *
- * 처분은 DANGER 등급이다. 검색에서 빠지고 신규 카드가 막히되 **진행 중인 카드와 돈은
- * 건드리지 않는다**. 매일 도는 마스터 동기화가 등급을 내리지 않으므로(올리기만 한다)
- * 조용히 되살아나지 않고, 원인이 풀리면 운영자가 `npm run risk:set`으로 되돌린다.
+ * 처분은 `unjudgeableAt` — **riskLevel과 다른 칸이다.** 검색에서 빠지고 신규 카드가
+ * 막히는 결과는 DANGER와 같지만, riskLevel은 **거래소가 지정한 사실**이고 이쪽은
+ * **우리 쪽 시세 소스의 한계**다. 처분이 같다고 한 칸에 담으면 공급자를 갈아 끼울 때
+ * "진짜 상폐된 종목"과 "우리가 못 구해서 막아 둔 종목"을 쿼리로 구분할 수 없다.
+ * **진행 중인 카드와 돈은 건드리지 않는다.** 마스터 동기화는 이 칸을 만지지 않으므로
+ * 조용히 되살아나지 않고, 원인이 풀리면 `npm run risk:set -- --judgeable`로 되돌린다.
  */
 export const HARD_CAP_BLOCK_THRESHOLD = 2;
 
@@ -153,17 +156,16 @@ async function blockUnjudgeableInstrument(
   if (hardCaps < HARD_CAP_BLOCK_THRESHOLD) return null;
   const inst = await prisma.instrument.findUnique({
     where: { assetClass_ticker: { assetClass, ticker } },
-    select: { riskLevel: true },
+    select: { unjudgeableAt: true },
   });
   // 이미 막혀 있거나 마스터에 없으면 할 일이 없다 (마스터에서 사라진 종목은 상장폐지
   // 경로가 따로 처리한다 — 거기서는 전액 환불까지 이미 났다)
-  if (!inst || inst.riskLevel === 'DANGER') return null;
+  if (!inst || inst.unjudgeableAt !== null) return null;
   await prisma.instrument.update({
     where: { assetClass_ticker: { assetClass, ticker } },
     data: {
-      riskLevel: 'DANGER',
-      riskNote: `시세를 구하지 못해 판정 불가로 닫힌 카드 ${hardCaps}건 — 신규 게시 중단`,
-      riskSyncedAt: now,
+      unjudgeableAt: now,
+      unjudgeableNote: `시세를 구하지 못해 판정 불가로 닫힌 카드 ${hardCaps}건`,
     },
   });
   return `${ticker} (${assetClass}): 판정 불가 ${hardCaps}건 — 신규 게시 중단`;

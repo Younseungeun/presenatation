@@ -46,6 +46,10 @@ export async function searchInstruments(
       ...(opts.shortableOnly ? { shortable: true } : {}),
       // 거래 위험 종목은 애초에 검색되지 않는다 (게시해도 판정 불가로 끝날 가능성이 크다)
       riskLevel: { not: 'DANGER' },
+      // 우리가 판정하지 못하는 종목도 마찬가지 — 다만 **사유가 다르다**(거래소 지정이
+      // 아니라 우리 시세 소스의 한계). 알리는 방식은 밀지 않고 당긴다: 검색에서 빠지고,
+      // 티커를 직접 아는 사람에게는 게시 검증이 사유를 말한다
+      unjudgeableAt: null,
       // **대소문자 — Postgres 전환의 지뢰.** SQLite의 `contains`는 ASCII에서 대소문자를
       // 가리지 않지만 Postgres는 엄격히 구분한다. 그대로 옮기면 "aapl"이 AAPL을 못 찾는다.
       // Prisma의 `mode: 'insensitive'`는 **SQLite에서 지원되지 않아** 지금은 못 쓰므로,
@@ -111,6 +115,18 @@ export async function validateListedInstrument(
       issues: [
         `시세 공급자가 지원하지 않는 종목입니다: ${ticker} — 종목 검색에서 선택해주세요 (지원 종목만 판정이 가능합니다)`,
       ],
+    };
+  }
+  // **판정할 수 없는 종목을 파는 것은 지킬 수 없는 약속이다.** 시세를 못 구해 판정
+  // 불가로 닫힌 카드가 반복된 종목이라(judgmentBatch.HARD_CAP_BLOCK_THRESHOLD),
+  // 새 카드도 같은 끝을 맞는다. 거래소 위험(riskLevel)과 달리 **우리 쪽 사정**이므로
+  // 문구도 그렇게 말한다 — 리서처가 종목을 의심하게 만들면 안 된다
+  if (inst.unjudgeableAt !== null) {
+    return {
+      issues: [
+        `플랫폼이 시세 검증을 지원하지 못하는 종목입니다: ${ticker} — 시세 소스에서 값을 받지 못해 판정이 불가능합니다${inst.unjudgeableNote ? ` (${inst.unjudgeableNote})` : ''}`,
+      ],
+      name: inst.name,
     };
   }
   if (direction === 'DOWN' && !inst.shortable) {
