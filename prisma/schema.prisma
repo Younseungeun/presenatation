@@ -264,8 +264,11 @@ model Purchase {
   buyerId       String
   buyer         User     @relation(fields: [buyerId], references: [id])
   amountKrw     Int // 결제 총액
-  paymentMethod String   @default("CARD") // CARD | VBANK(무통장입금·가상계좌) — PG 스텁 단계에서는 모의 기록
-  paymentInfo   String? // 마스킹된 표시용 결제 정보(카드 끝 4자리·가상계좌 은행/번호). 카드번호 원문은 절대 저장 금지
+  paymentMethod String   @default("CARD") // CARD만 받는다 (VBANK는 차단 전 기록에만 남음 — purchaseService.ACCEPTED_PAYMENT_METHODS)
+  paymentInfo   String? // 마스킹된 표시용 결제 정보(카드 끝 4자리). 카드번호 원문은 절대 저장 금지
+  // PG 결제 키 — **환불 자동 실행의 열쇠**. 이게 있어야 정산 콘솔이 PG 취소를 직접 부를 수 있다.
+  // 스텁 구매·과거 구매에는 없고, 없으면 계좌이체 환불로만 처리한다. 비밀값이 아니다(승인 API가 이미 클라이언트에 노출)
+  paymentKey    String?
   escrowStatus  String   @default("HELD") // HELD | SETTLED | REFUNDED
   paidAt        DateTime @default(now())
   // 판매 마감 확인 — 마감된 내 카드는 리더보드에 계속 보이다가, 구매자가 확인을

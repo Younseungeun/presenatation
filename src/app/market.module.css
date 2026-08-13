@@ -633,36 +633,9 @@
   cursor: default;
 }
 
-/* 결제 수단 선택 (카드 / 무통장입금) */
-.payMethods {
-  display: flex;
-  gap: 8px;
-  margin: 12px 0 4px;
-}
-.payMethod {
-  flex: 1;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  height: 44px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  font-size: 13.5px;
-  font-weight: 700;
-  color: var(--text-weak);
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-.payMethod input {
-  accent-color: var(--brand-strong);
-}
-.payMethodActive {
-  border-color: color-mix(in srgb, var(--brand-strong) 45%, transparent);
-  background: var(--brand-soft);
-  color: var(--brand-strong);
-}
+/* 결제 수단 선택 UI는 없앴다 — 카드만 받는다.
+   무통장입금은 계좌를 받는 시각과 입금 시각이 달라 그 사이 시세 변동을 구매자가 뒤집어쓴다
+   (server/purchaseService.ACCEPTED_PAYMENT_METHODS) */
 
 /* 장바구니 */
 .cartRow {

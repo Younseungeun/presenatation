@@ -17,9 +17,20 @@ import { researcherConfidenceCap } from './scoreService';
 // 실제 연동 시 PG 승인 후 이 함수를 호출하는 구조가 된다 (금액·상태 기록은 동일).
 // 토스페이먼츠 테스트 연동(paymentIntentService)도 승인 후 이 함수를 그대로 호출한다.
 
-export type PaymentMethod = 'CARD' | 'VBANK';
+/**
+ * 받는 결제 수단 — **즉시 승인되는 것만 받는다.**
+ *
+ * 무통장입금(가상계좌)은 뺐다. 이 마켓의 상품은 장중 시세에 값이 묶여 있는데,
+ * 계좌를 받는 시각과 입금하는 시각이 다르면 그 사이의 시세 변동을 구매자가 뒤집어쓴다 —
+ * "결제가 승인되는 순간 광고 폭의 절반 이상"이라는 고지가 거기서 깨진다.
+ * 그리고 입금 전에 리포트를 열어주면 입금하지 않는 쪽이 이득이다.
+ * (실PG 경로의 차단은 tossPayments.pendingDepositReason)
+ */
+export const ACCEPTED_PAYMENT_METHODS = ['CARD'] as const;
+export type PaymentMethod = (typeof ACCEPTED_PAYMENT_METHODS)[number];
 
-export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
+/** 표시용 — VBANK는 이 규칙이 생기기 전 구매 기록에만 남아 있다 */
+export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   CARD: '카드',
   VBANK: '무통장입금(가상계좌)',
 };
@@ -29,15 +40,26 @@ export interface PaymentInput {
 }
 
 /**
+ * 요청이 지정한 결제 수단을 검사한다 — **조용히 카드로 바꾸지 않는다.**
+ *
+ * 모르는 값을 CARD로 눕히면 무통장입금을 고른 사람의 카드가 긁힌다. 안 받는 수단이면
+ * 안 받는다고 답하는 것이 맞다. 생략은 허용한다(화면이 더는 보내지 않는다).
+ */
+export function assertAcceptedPaymentMethod(method: unknown): asserts method is PaymentMethod | undefined {
+  if (method == null) return;
+  if (!ACCEPTED_PAYMENT_METHODS.includes(method as PaymentMethod)) {
+    throw new Error(
+      `${PAYMENT_METHOD_LABEL[String(method)] ?? String(method)}은(는) 받지 않는 결제 수단입니다. 예측 카드는 장중 시세에 값이 묶여 있어 즉시 승인되는 수단만 받습니다.`,
+    );
+  }
+}
+
+/**
  * PG 스텁용 모의 결제 정보 — 실제 승인 정보가 없으므로 "모의"임이 표시에 드러나게 만든다.
  * 토스페이먼츠 테스트 연동(paymentIntentService)을 타면 이 대신 실제 승인 응답 요약이 쓰인다.
  * 어느 경우든 카드번호 원문은 저장하지 않는다(마스킹된 표시 문자열만).
  */
-function stubPaymentInfo(method: PaymentMethod): string {
-  if (method === 'VBANK') {
-    const acct = `562-${100000 + Math.floor(Math.random() * 900000)}-01-999`;
-    return `신한은행 ${acct} (모의 가상계좌)`;
-  }
+function stubPaymentInfo(): string {
   const last4 = String(1000 + Math.floor(Math.random() * 9000));
   return `개인 신용카드 ****-${last4} (모의 승인)`;
 }
@@ -220,6 +242,12 @@ export async function purchaseReport(
   payment: PaymentInput = { method: 'CARD' },
   /** 실PG 승인 응답 요약 — 넘기지 않으면 스텁 모의 정보를 만든다 */
   paymentInfoOverride?: string,
+  /**
+   * 토스 결제 키 — **환불을 자동으로 실행하려면 이게 있어야 한다.**
+   * 정산 콘솔의 PG 취소는 이 키로 그 결제를 찾는다(settlementOpsService.executeRefund).
+   * 스텁 구매에는 없고, 없으면 계좌이체로만 환불한다
+   */
+  paymentKey?: string,
 ) {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
@@ -261,7 +289,8 @@ export async function purchaseReport(
         buyerId,
         amountKrw: report.priceKrw,
         paymentMethod: payment.method,
-        paymentInfo: paymentInfoOverride ?? stubPaymentInfo(payment.method),
+        paymentInfo: paymentInfoOverride ?? stubPaymentInfo(),
+        paymentKey,
         escrowStatus: 'HELD',
       },
     }),

@@ -3,6 +3,7 @@ import { LEGAL_DOCS } from '@/domain/legalDocs';
 import { checkoutCart } from '@/server/cartService';
 import { recordConsentEvent } from '@/server/consentService';
 import { prisma } from '@/server/db';
+import { assertAcceptedPaymentMethod } from '@/server/purchaseService';
 import { HttpError, requireUserId, toErrorResponse } from '../../_lib/http';
 
 /**
@@ -20,8 +21,8 @@ export async function POST(req: NextRequest) {
       throw new HttpError(400, '환불 규정 확인·동의가 필요합니다');
     }
 
-    const method = body.paymentMethod === 'VBANK' ? 'VBANK' : 'CARD';
-    const result = await checkoutCart(prisma, userId, new Date(), { method });
+    assertAcceptedPaymentMethod(body.paymentMethod);
+    const result = await checkoutCart(prisma, userId, new Date(), { method: 'CARD' });
     for (const reportId of result.purchased) {
       await recordConsentEvent(
         prisma,

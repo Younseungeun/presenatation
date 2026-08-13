@@ -1,11 +1,21 @@
 import type { PrismaClient } from '@prisma/client';
+import { cancelTossPayment, TossPaymentError } from './tossPayments';
 
-// 정산 실행 콘솔 (운영자): 판정이 만든 환불·지급 지시서를 사람이 실행하고 기록한다.
-// PG 취소·계좌이체·지급이체가 자동화되기 전의 수동 운영 경로 —
-// 자동화가 붙어도 "지시서 → 실행 기록" 구조는 그대로 유지된다 (실행 주체만 교체).
+// 정산 실행 콘솔 (운영자): 판정이 만든 환불·지급 지시서를 실행하고 기록한다.
+// "지시서 → 실행 기록" 구조는 그대로 두고 실행 주체만 바뀐다 —
+// **PG 취소는 이제 이 코드가 직접 부른다**(executeRefund). 계좌이체·리서처 지급은 아직 사람이 한다.
 
 export const REFUND_METHODS = ['PG_CANCEL', 'BANK_TRANSFER'] as const;
 export type RefundMethod = (typeof REFUND_METHODS)[number];
+
+/** 토스 콘솔·구매자 카드 명세서에 그대로 남는 취소 사유 */
+function refundReason(outcome: string, amountKrw: number): string {
+  const what =
+    outcome === 'UNDECIDABLE'
+      ? '판정 불가에 따른 전액 환불'
+      : '예측 실패에 따른 성과 연동분 환불';
+  return `인투빌 ${what} (${amountKrw.toLocaleString()}원)`.slice(0, 200);
+}
 
 export class SettlementOpsError extends Error {
   constructor(message: string) {
@@ -50,7 +60,14 @@ export function getPendingPayouts(prisma: PrismaClient) {
   });
 }
 
-/** 환불 실행 기록 + 구매자 알림. 이미 실행된 건은 거부 (이중 지급 방지) */
+/**
+ * 환불 실행 + 구매자 알림. 이미 실행된 건은 거부 (이중 지급 방지)
+ *
+ * `PG_CANCEL`이면 **여기서 실제로 토스 취소 API를 부른다.** 실패(MISS)는 선결제분을
+ * 빼고 성과 연동분만 돌려주므로 부분 취소가 기본이라, 지시서의 금액을 그대로 넘긴다.
+ * `BANK_TRANSFER`는 여전히 사람이 은행에서 보내고 여기에는 기록만 남긴다
+ * (PG 취소 기한을 넘겼거나 결제 키가 없는 옛 구매의 폴백).
+ */
 export async function executeRefund(
   prisma: PrismaClient,
   input: { settlementId: string; operatorUserId: string; method: RefundMethod },
@@ -65,6 +82,38 @@ export async function executeRefund(
   if (s.refundExecutedAt) throw new SettlementOpsError('이미 환불이 실행된 건입니다');
   if (!REFUND_METHODS.includes(input.method)) {
     throw new SettlementOpsError(`환불 방법이 유효하지 않습니다: ${input.method}`);
+  }
+
+  // **돈을 먼저 보내고 기록은 그 다음이다.**
+  //
+  // 순서를 뒤집으면(기록 먼저 → 취소 호출) 취소가 실패했을 때 "환불 완료" 알림까지
+  // 나간 채로 돈은 그대로 있는 상태가 남는다. 구매자는 완료됐다고 믿고, 그 건은
+  // 미실행 목록에서도 사라져 아무도 다시 보지 않는다 — 조용히 틀리는 방향이다.
+  //
+  // 이 순서의 위험은 반대다: 취소는 됐는데 기록이 실패하면 미실행으로 남아 운영자가
+  // 다시 누른다. 그래서 **멱등키를 정산 id로 건다** — 몇 번을 눌러도 그 정산의 환불은
+  // 한 번이다. "두 번 빠지는 것"보다 "한 번 더 눌러야 하는 것"이 낫다.
+  if (input.method === 'PG_CANCEL') {
+    const paymentKey = s.purchase.paymentKey;
+    if (!paymentKey) {
+      throw new SettlementOpsError(
+        'PG 결제 키가 없는 구매라 자동 취소할 수 없습니다 — 계좌이체로 환불해주세요 (모의 결제이거나 결제 키를 저장하기 전에 만들어진 건입니다)',
+      );
+    }
+    try {
+      await cancelTossPayment({
+        paymentKey,
+        cancelReason: refundReason(s.outcome, s.buyerRefundKrw),
+        // 전액이어도 명시한다 — 지시서 금액과 실제로 나간 금액을 같은 값 하나로 묶는다
+        cancelAmount: s.buyerRefundKrw,
+        idempotencyKey: `refund_${s.id}`,
+      });
+    } catch (e) {
+      const detail = e instanceof TossPaymentError ? e.message : String(e);
+      throw new SettlementOpsError(
+        `PG 취소에 실패해 환불을 기록하지 않았습니다 (${detail}). 다시 시도하거나, 취소 기한이 지난 건이면 계좌이체로 환불해주세요.`,
+      );
+    }
   }
 
   await prisma.$transaction([

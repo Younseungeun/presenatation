@@ -43,7 +43,6 @@ export function CheckoutButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failed, setFailed] = useState<{ reportId: string; reason: string }[]>([]);
-  const [method, setMethod] = useState<"CARD" | "VBANK">("CARD");
 
   async function checkout() {
     setBusy(true);
@@ -53,7 +52,7 @@ export function CheckoutButton({
       const res = await fetch("/api/cart/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agreedRefund: true, paymentMethod: method }),
+        body: JSON.stringify({ agreedRefund: true }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -72,28 +71,7 @@ export function CheckoutButton({
 
   return (
     <div className={styles.cartCheckout}>
-      <div className={styles.payMethods} role="radiogroup" aria-label="결제 수단">
-        {(
-          [
-            ["CARD", "카드"],
-            ["VBANK", "무통장입금"],
-          ] as const
-        ).map(([key, label]) => (
-          <label
-            key={key}
-            className={`${styles.payMethod} ${method === key ? styles.payMethodActive : ""}`}
-          >
-            <input
-              type="radio"
-              name="cartPaymentMethod"
-              value={key}
-              checked={method === key}
-              onChange={() => setMethod(key)}
-            />
-            {label}
-          </label>
-        ))}
-      </div>
+      {/* 결제 수단 선택 없음 — 카드만 받는다 (server/purchaseService.ACCEPTED_PAYMENT_METHODS) */}
       <label className={styles.consent}>
         <input type="checkbox" checked={agreed} onChange={(e) => setAgreed(e.target.checked)} />
         <span>

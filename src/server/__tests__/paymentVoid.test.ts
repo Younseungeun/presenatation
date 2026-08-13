@@ -12,37 +12,38 @@ import { createTestDb, seedTestInstruments } from './helpers/testDb';
 // 재검증을 없애는 선택지는 쓰지 않는다 — 이미 판정된 카드가 팔리면 정산이 꼬인다.
 // 잘못 파는 것보다 승인 취소가 낫다.
 
-const cancelCalls: { paymentKey: string; cancelReason: string }[] = [];
+const cancelCalls: { paymentKey: string; cancelReason: string; idempotencyKey?: string }[] = [];
 let cancelShouldFail = false;
+/** 승인 응답에 덮어씌울 필드 — 가상계좌·입금대기 응답을 만들 때 쓴다 */
+let confirmOverride: Record<string, unknown> = {};
 
-vi.mock('../tossPayments', () => ({
-  TossPaymentError: class TossPaymentError extends Error {
-    constructor(
-      message: string,
-      readonly code?: string,
-    ) {
-      super(message);
-      this.name = 'TossPaymentError';
-    }
-  },
-  confirmTossPayment: vi.fn(async (p: { orderId: string; amount: number }) => ({
-    paymentKey: 'pk_test',
-    orderId: p.orderId,
-    method: '카드',
-    totalAmount: p.amount,
-    status: 'DONE',
-    approvedAt: new Date().toISOString(),
-    card: null,
-    virtualAccount: null,
-  })),
-  cancelTossPayment: vi.fn(async (p: { paymentKey: string; cancelReason: string }) => {
-    cancelCalls.push(p);
-    if (cancelShouldFail) throw new Error('PG 장애');
-    return { paymentKey: p.paymentKey, status: 'CANCELED' };
-  }),
-  describeTossPayment: () => '카드 결제(모의)',
-  TOSS_CLIENT_KEY: 'test',
-}));
+// **네트워크 호출만 가짜로 만든다.** pendingDepositReason은 진짜를 그대로 쓴다 —
+// "이 응답을 받으면 팔면 안 된다"는 판단 자체가 이 파일이 지키려는 규칙이다
+vi.mock('../tossPayments', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../tossPayments')>();
+  return {
+    ...actual,
+    confirmTossPayment: vi.fn(async (p: { orderId: string; amount: number }) => ({
+      paymentKey: 'pk_test',
+      orderId: p.orderId,
+      method: '카드',
+      totalAmount: p.amount,
+      status: 'DONE',
+      approvedAt: new Date().toISOString(),
+      card: null,
+      virtualAccount: null,
+      ...confirmOverride,
+    })),
+    cancelTossPayment: vi.fn(
+      async (p: { paymentKey: string; cancelReason: string; idempotencyKey?: string }) => {
+        cancelCalls.push(p);
+        if (cancelShouldFail) throw new Error('PG 장애');
+        return { paymentKey: p.paymentKey, status: 'CANCELED' };
+      },
+    ),
+    describeTossPayment: () => '카드 결제(모의)',
+  };
+});
 
 let prisma: PrismaClient;
 let buyerId: string;
@@ -103,6 +104,7 @@ afterAll(async () => {
 beforeEach(async () => {
   cancelCalls.length = 0;
   cancelShouldFail = false;
+  confirmOverride = {};
   await prisma.paymentIntent.deleteMany({});
   await prisma.purchase.deleteMany({});
   await prisma.notification.deleteMany({});
@@ -142,7 +144,9 @@ describe('승인 후 구매 생성 실패 — 보상 트랜잭션', () => {
     // 취소가 실제로 호출됐다
     expect(cancelCalls).toHaveLength(1);
     expect(cancelCalls[0].paymentKey).toBe('pk_test');
-    expect(cancelCalls[0].cancelReason).toContain('구매 생성 실패');
+    expect(cancelCalls[0].cancelReason).toContain('판매가 마감된 리포트');
+    // 같은 successUrl이 두 번 열려도 취소는 한 번이다
+    expect(cancelCalls[0].idempotencyKey).toBe('void_order-1');
 
     const intent = await prisma.paymentIntent.findUniqueOrThrow({ where: { orderId: 'order-1' } });
     expect(intent.status).toBe('CANCELLED');
@@ -217,5 +221,81 @@ describe('승인 후 구매 생성 실패 — 보상 트랜잭션', () => {
     expect(cancelCalls).toHaveLength(0);
     const intent = await prisma.paymentIntent.findUniqueOrThrow({ where: { orderId: 'order-5' } });
     expect(intent.status).toBe('FAILED');
+  });
+
+  it('결제 키를 구매에 남긴다 — 환불을 자동으로 실행하려면 이게 있어야 한다', async () => {
+    const { confirmPaymentIntent } = await import('../paymentIntentService');
+    await makeSellable();
+    await seedIntent('order-6');
+
+    const purchase = await confirmPaymentIntent(
+      prisma,
+      { orderId: 'order-6', paymentKey: 'pk_test', clientAmount: 20_000, buyerId },
+      NOW,
+    );
+    expect(purchase.paymentKey).toBe('pk_test');
+    expect(purchase.paymentMethod).toBe('CARD');
+  });
+});
+
+// **승인 API가 200을 돌려줬다고 돈이 들어온 것이 아니다.**
+//
+// 가상계좌를 고르면 토스는 계좌를 발급하고 status: "WAITING_FOR_DEPOSIT"으로 **성공
+// 응답**을 준다. 이 구분을 안 하면 입금 전에 구매가 만들어져 리포트가 열린다 —
+// 무통장입금을 고르고 입금하지 않는 쪽이 이득이 된다.
+//
+// 입금이 끝나도 문제가 남는다: 계좌를 받는 시각과 넣는 시각 사이에 시세가 움직이면
+// "결제가 승인되는 순간 광고 폭의 절반 이상"이라는 고지가 깨진다. 그 고지를 집행하는
+// 관문(assertNotSuspendedIntraday)은 **누르는 그 순간**을 재는 장치라 걸릴 자리가 없다.
+describe('입금이 나중에 이뤄지는 결제 수단은 받지 않는다', () => {
+  it('가상계좌 응답이면 구매를 만들지 않고 발급된 계좌를 닫는다', async () => {
+    const { confirmPaymentIntent } = await import('../paymentIntentService');
+    await makeSellable();
+    await seedIntent('order-vb');
+    confirmOverride = {
+      method: '가상계좌',
+      status: 'WAITING_FOR_DEPOSIT',
+      approvedAt: null,
+      virtualAccount: { bankCode: '088', accountNumber: '1234', dueDate: '2026-08-27T00:00:00' },
+    };
+
+    await expect(
+      confirmPaymentIntent(
+        prisma,
+        { orderId: 'order-vb', paymentKey: 'pk_vb', clientAmount: 20_000, buyerId },
+        NOW,
+      ),
+    ).rejects.toThrow(/가상계좌\(무통장입금\)으로는 결제할 수 없습니다/);
+
+    // 리포트가 열리지 않았다 — 이게 이 검사의 본론이다
+    expect(await prisma.purchase.count()).toBe(0);
+    // 발급된 계좌를 그대로 두면 나중에 입금이 들어와 붕 뜬다
+    expect(cancelCalls).toHaveLength(1);
+    expect(cancelCalls[0].paymentKey).toBe('pk_vb');
+    const intent = await prisma.paymentIntent.findUniqueOrThrow({ where: { orderId: 'order-vb' } });
+    expect(intent.status).toBe('CANCELLED');
+  });
+
+  it('가상계좌가 아니어도 DONE이 아니면 막는다 — 상태를 신뢰의 기준으로 삼는다', async () => {
+    const { confirmPaymentIntent } = await import('../paymentIntentService');
+    await makeSellable();
+    await seedIntent('order-wait');
+    confirmOverride = { status: 'WAITING_FOR_DEPOSIT' };
+
+    await expect(
+      confirmPaymentIntent(
+        prisma,
+        { orderId: 'order-wait', paymentKey: 'pk_w', clientAmount: 20_000, buyerId },
+        NOW,
+      ),
+    ).rejects.toThrow(/입금 대기 상태\(WAITING_FOR_DEPOSIT\)/);
+    expect(await prisma.purchase.count()).toBe(0);
+  });
+
+  it('스텁 구매 경로도 무통장입금을 거절한다 — 조용히 카드로 바꾸지 않는다', async () => {
+    const { assertAcceptedPaymentMethod } = await import('../purchaseService');
+    expect(() => assertAcceptedPaymentMethod('VBANK')).toThrow(/무통장입금\(가상계좌\)/);
+    expect(() => assertAcceptedPaymentMethod('CARD')).not.toThrow();
+    expect(() => assertAcceptedPaymentMethod(undefined)).not.toThrow(); // 화면이 더는 보내지 않는다
   });
 });

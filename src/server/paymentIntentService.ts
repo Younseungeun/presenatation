@@ -1,15 +1,11 @@
 import type { PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
-import {
-  assertPurchasable,
-  disciplineCapFor,
-  purchaseReport,
-  type PaymentMethod,
-} from './purchaseService';
+import { assertPurchasable, disciplineCapFor, purchaseReport } from './purchaseService';
 import {
   cancelTossPayment,
   confirmTossPayment,
   describeTossPayment,
+  pendingDepositReason,
   TossPaymentError,
 } from './tossPayments';
 
@@ -116,7 +112,19 @@ export async function confirmPaymentIntent(
   // 재검증을 없애는 선택지는 쓰지 않는다: 이미 판정된 카드가 팔리면 정산이 꼬이고,
   // 규율 상한이 내려간 카드가 팔리면 처분이 이름만 남는다. **잘못 파는 것보다
   // 승인 취소가 낫다.**
-  const method: PaymentMethod = result.virtualAccount ? 'VBANK' : 'CARD';
+  // 입금이 아직 안 끝난 수단(가상계좌)이면 **구매를 만들기 전에** 되돌린다.
+  // 승인 응답이 200이라 여기까지 오지만 돈은 안 들어왔다 — 이유는
+  // tossPayments.pendingDepositReason 주석에 있다
+  const pending = pendingDepositReason(result);
+  if (pending) {
+    const rejection = new TossPaymentError(
+      `${pending}으로는 결제할 수 없습니다. 예측 카드는 장중 시세에 값이 묶여 있어, 입금이 나중에 이뤄지는 수단으로는 "결제가 승인되는 순간 광고 폭의 절반 이상"이라는 약속을 지킬 수 없습니다. 카드나 간편결제로 다시 시도해주세요.`,
+      'ASYNC_PAYMENT_NOT_SUPPORTED',
+    );
+    await voidAfterCapture(prisma, input, rejection, intent.amountKrw);
+    throw rejection;
+  }
+
   let purchase;
   try {
     purchase = await purchaseReport(
@@ -124,11 +132,12 @@ export async function confirmPaymentIntent(
       intent.reportId,
       intent.buyerId,
       now,
-      { method },
+      { method: 'CARD' },
       describeTossPayment(result),
+      input.paymentKey,
     );
   } catch (e) {
-    await voidAfterCapture(prisma, input, e);
+    await voidAfterCapture(prisma, input, e, intent.amountKrw);
     throw e; // 원래 사유를 그대로 올린다 — 구매자에게는 왜 막혔는지가 답이다
   }
 
@@ -148,12 +157,15 @@ async function voidAfterCapture(
   prisma: PrismaClient,
   input: ConfirmInput,
   cause: unknown,
+  amountKrw: number,
 ): Promise<void> {
   const reason = cause instanceof Error ? cause.message : '구매 생성 실패';
   try {
     await cancelTossPayment({
       paymentKey: input.paymentKey,
-      cancelReason: `구매 생성 실패로 자동 취소: ${reason}`.slice(0, 200),
+      cancelReason: `구매가 완료되지 않아 자동 취소: ${reason}`.slice(0, 200),
+      // 같은 successUrl이 두 번 열려도(새로고침·뒤로가기) 취소는 한 번이다
+      idempotencyKey: `void_${input.orderId}`,
     });
     await prisma.paymentIntent.update({
       where: { orderId: input.orderId },
@@ -166,18 +178,35 @@ async function voidAfterCapture(
     });
     const detail = cancelError instanceof Error ? cancelError.message : String(cancelError);
     console.error(
-      `[P0] 승인 취소 실패 — 수동 취소 필요. orderId=${input.orderId} paymentKey=${input.paymentKey} 사유=${reason} 취소실패=${detail}`,
+      `[P0] 승인 취소 실패 — 수동 취소 필요. orderId=${input.orderId} paymentKey=${input.paymentKey} 금액=${amountKrw} 사유=${reason} 취소실패=${detail}`,
     );
-    await notifyOperatorsOfStuckPayment(prisma, input.orderId, reason, detail);
+    await notifyOperatorsOfStuckPayment(prisma, {
+      orderId: input.orderId,
+      paymentKey: input.paymentKey,
+      amountKrw,
+      reason,
+      cancelError: detail,
+    });
   }
 }
 
-/** 운영자 전원에게 알린다 — 이 알림이 유일한 발견 경로다 */
+/**
+ * 운영자 전원에게 알린다 — **이 알림이 유일한 발견 경로다.**
+ *
+ * 그래서 알림 하나만 보고 토스 콘솔에서 처리를 끝낼 수 있어야 한다: 콘솔에서 결제를
+ * 찾는 열쇠(paymentKey·orderId)와 얼마인지(amountKrw)를 본문에 그대로 적는다.
+ * 대시보드 배지를 따로 두지 않는 이유는 이 실패가 연 몇 건 수준의 이례적 장애라,
+ * 아무도 열어보지 않는 화면보다 밀어주는 알림이 발견 확률이 높기 때문이다.
+ */
 async function notifyOperatorsOfStuckPayment(
   prisma: PrismaClient,
-  orderId: string,
-  reason: string,
-  cancelError: string,
+  detail: {
+    orderId: string;
+    paymentKey: string;
+    amountKrw: number;
+    reason: string;
+    cancelError: string;
+  },
 ): Promise<void> {
   try {
     const operators = await prisma.user.findMany({
@@ -189,9 +218,16 @@ async function notifyOperatorsOfStuckPayment(
       data: operators.map((o) => ({
         userId: o.id,
         type: 'OPS_ALERT',
-        title: '[긴급] 결제 승인 취소 실패 — 수동 처리 필요',
-        body: `주문 ${orderId}: 승인은 됐으나 구매 생성이 실패했고(${reason}) 자동 취소도 실패했습니다(${cancelError}). 토스 콘솔에서 직접 취소해야 합니다.`,
-        link: '/admin/settlement',
+        title: `[긴급] 결제 승인 취소 실패 ${detail.amountKrw.toLocaleString()}원 — 수동 처리 필요`,
+        body: [
+          `토스 콘솔에서 직접 취소해야 합니다.`,
+          `paymentKey: ${detail.paymentKey}`,
+          `orderId: ${detail.orderId}`,
+          `금액: ${detail.amountKrw.toLocaleString()}원`,
+          `구매가 막힌 이유: ${detail.reason}`,
+          `자동 취소가 실패한 이유: ${detail.cancelError}`,
+        ].join('\n'),
+        link: '/admin/settlements',
       })),
     });
   } catch (e) {

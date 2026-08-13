@@ -26,7 +26,6 @@ export function PurchaseButton({
   const [error, setError] = useState<string | null>(null);
   const [cartBusy, setCartBusy] = useState(false);
   const [added, setAdded] = useState(false);
-  const [method, setMethod] = useState<"CARD" | "VBANK">("CARD");
 
   // 카드지갑 담기는 결제가 아니므로 환불 규정 동의를 받지 않는다(동의는 결제 시점에 받는다)
   async function addToCart() {
@@ -71,7 +70,7 @@ export function PurchaseButton({
       const res = await fetch(`/api/reports/${reportId}/purchase`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ agreedRefund: true, paymentMethod: method }),
+        body: JSON.stringify({ agreedRefund: true }),
       });
       const body = await res.json();
       if (!res.ok) {
@@ -91,28 +90,10 @@ export function PurchaseButton({
       {hasIdentity && (
         <>
           <p className={styles.refundNotice}>{REFUND_POLICY_SUMMARY}</p>
-          <div className={styles.payMethods} role="radiogroup" aria-label="결제 수단">
-            {(
-              [
-                ["CARD", "카드"],
-                ["VBANK", "무통장입금"],
-              ] as const
-            ).map(([key, label]) => (
-              <label
-                key={key}
-                className={`${styles.payMethod} ${method === key ? styles.payMethodActive : ""}`}
-              >
-                <input
-                  type="radio"
-                  name="paymentMethod"
-                  value={key}
-                  checked={method === key}
-                  onChange={() => setMethod(key)}
-                />
-                {label}
-              </label>
-            ))}
-          </div>
+          {/* 결제 수단 선택이 없다 — 카드(간편결제 포함)만 받는다.
+              무통장입금은 계좌를 받는 시각과 입금하는 시각이 달라, 그 사이 시세가 움직이면
+              "결제가 승인되는 순간 광고 폭의 절반 이상"이라는 이 화면의 고지가 깨진다
+              (server/purchaseService.ACCEPTED_PAYMENT_METHODS) */}
           <label className={styles.consent}>
             <input
               type="checkbox"

@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { LEGAL_DOCS } from '@/domain/legalDocs';
 import { recordConsentEvent } from '@/server/consentService';
 import { prisma } from '@/server/db';
-import { purchaseReport } from '@/server/purchaseService';
+import { assertAcceptedPaymentMethod, purchaseReport } from '@/server/purchaseService';
 import { HttpError, requireUserId, toErrorResponse } from '../../../_lib/http';
 
 /**
@@ -21,8 +21,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     if (!body.agreedRefund) {
       throw new HttpError(400, '환불 규정 확인·동의가 필요합니다');
     }
-    const method = body.paymentMethod === 'VBANK' ? 'VBANK' : 'CARD';
-    const purchase = await purchaseReport(prisma, id, buyerId, new Date(), { method });
+    assertAcceptedPaymentMethod(body.paymentMethod);
+    const purchase = await purchaseReport(prisma, id, buyerId, new Date(), { method: 'CARD' });
     // 구매 시점 환불 규정 동의 이력 (이용약관 버전 기준, 대상 리포트 기록)
     await recordConsentEvent(
       prisma,

@@ -14,7 +14,7 @@ import {
 import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getResearcherCallout } from "@/server/marketQueries";
-import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/server/purchaseService";
+import { PAYMENT_METHOD_LABEL } from "@/server/purchaseService";
 import { researcherConfidenceCap } from "@/server/scoreService";
 import {
   claimedProbability,
@@ -412,8 +412,7 @@ export default async function ReportDetail({
             <div className={styles.cardRow}>
               <span className={styles.cardKey}>결제 수단</span>
               <span className={styles.cardVal}>
-                {PAYMENT_METHOD_LABEL[purchase.paymentMethod as PaymentMethod] ??
-                  purchase.paymentMethod}
+                {PAYMENT_METHOD_LABEL[purchase.paymentMethod] ?? purchase.paymentMethod}
                 {purchase.paymentInfo && (
                   <>
                     <br />
