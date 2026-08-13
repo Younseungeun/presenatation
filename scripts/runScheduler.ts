@@ -77,24 +77,32 @@ const MAX_JUDGE_CHUNKS = 40;
 async function judgeMarket(assetClass: AssetClass): Promise<void> {
   const reached = await runReachedJudgmentBatch(prisma, registry, new Date(), assetClass);
 
-  // **밀린 카드를 다 소진할 때까지 이어서 돈다.** 판정은 한 회차 20장으로 끊기는데
+  // **밀린 카드를 다 소진할 때까지 커서로 이어서 돈다.** 판정은 한 회차 20장으로 끊기는데
   // (JUDGE_BATCH_SIZE — KIS 호출 간격 1.1초 때문에 한 번에 다 하면 큐가 통째로 막힌다),
-  // 분기말처럼 시한이 몰린 날 20장만 하고 내일로 넘기면 정산이 하루씩 밀린다
+  // 분기말처럼 시한이 몰린 날 20장만 하고 내일로 넘기면 정산이 하루씩 밀린다.
+  //
+  // **커서가 없으면 이월 카드가 앞자리를 영구히 막는다** — 이월은 Judgment를 안 만들어
+  // 다음 조회에도 그대로 잡히기 때문이다. 그러면 뒤의 멀쩡한 카드가 영영 판정되지 않는다
   const due = await judgeAndSettleDueCards(prisma, registry, new Date(), assetClass);
   let chunks = 1;
-  while (due.remaining > 0 && chunks < MAX_JUDGE_CHUNKS) {
-    const next = await judgeAndSettleDueCards(prisma, registry, new Date(), assetClass);
+  while (due.hasMore && due.lastId && chunks < MAX_JUDGE_CHUNKS) {
+    const next = await judgeAndSettleDueCards(
+      prisma,
+      registry,
+      new Date(),
+      assetClass,
+      due.lastId,
+    );
     due.judged += next.judged;
     due.deferred += next.deferred;
     due.failed += next.failed;
     due.staleDeferred.push(...next.staleDeferred);
-    due.remaining = next.remaining;
+    due.lastId = next.lastId ?? due.lastId;
+    due.hasMore = next.hasMore;
     chunks += 1;
-    // 이월만 남으면 더 돌아도 같은 카드를 다시 만난다 — 다음 회차로 넘긴다
-    if (next.judged === 0 && next.failed === 0) break;
   }
-  if (due.remaining > 0) {
-    console.warn(`  ${assetClass}: 판정 대기 ${due.remaining}장 남음 — 다음 회차로 이월`);
+  if (due.hasMore) {
+    console.warn(`  ${assetClass}: 판정 대기가 ${MAX_JUDGE_CHUNKS}회차 상한에 걸렸습니다 — 다음 창구로 이월`);
   }
 
   const sales = await runSalesCloseBatch(prisma, new Date(), registry, assetClass);

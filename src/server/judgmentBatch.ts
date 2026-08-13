@@ -20,8 +20,16 @@ export interface BatchSummary {
   failed: number;
   /** 시한이 STALE_DEFER_DAYS 이상 지났는데 아직 판정 못 한 카드 — 수동 확인 필요 */
   staleDeferred: string[];
-  /** 이번 회차에 손대지 못하고 남은 카드 수 — 0이 아니면 곧바로 한 번 더 돌아야 한다 */
-  remaining: number;
+  /**
+   * 이번 회차에서 마지막으로 손댄 카드 — **다음 회차의 커서다.**
+   *
+   * 왜 개수가 아니라 커서인가: 이월된 카드는 Judgment 행이 안 생겨 다음 조회에도
+   * 그대로 잡힌다. 커서 없이 `take 20`만 쓰면 **오래된 이월 20장이 매 회차 앞자리를
+   * 차지해 그 뒤 카드는 영원히 판정되지 않는다.** 커서로 앞으로 나아가야 한다.
+   */
+  lastId: string | null;
+  /** 커서 뒤에 더 있을 수 있다 — 스케줄러가 이어서 한 번 더 돈다 */
+  hasMore: boolean;
 }
 
 /** 이월이 이 일수를 넘으면 운영자 보류 큐 대상 */
@@ -63,6 +71,8 @@ export async function judgeAndSettleDueCards(
   now = new Date(),
   /** 자산군 스코프 — 시장별로 마감 직후 그 시장만 판정한다 (없으면 전부) */
   assetClass?: AssetClass,
+  /** 이어서 돌 때의 커서 — 직전 회차의 lastId */
+  afterCardId?: string,
 ): Promise<BatchSummary> {
   // HELD 구매까지 한 번에 조회 — 카드별 개별 쿼리(N+1) 제거
   const where: Prisma.PredictionCardWhereInput = {
@@ -73,7 +83,12 @@ export async function judgeAndSettleDueCards(
   };
 
   // **한 번에 다 하지 않는다** (JUDGE_BATCH_SIZE 주석 참고). 오래된 시한부터 —
-  // 이월이 길어진 카드가 뒤로 밀리면 돈이 묶인 채 계속 밀린다
+  // 이월이 길어진 카드가 뒤로 밀리면 돈이 묶인 채 계속 밀린다.
+  //
+  // **커서로 앞으로 나아간다.** 이월된 카드는 Judgment가 안 생겨 다음 조회에도 그대로
+  // 잡히므로, 커서 없이 take만 쓰면 오래된 이월 20장이 앞자리를 영구히 차지한다.
+  // 정렬에 id를 더한 이유도 같다 — 시한이 같은 카드가 여럿이면 순서가 흔들려
+  // 커서가 어떤 카드를 건너뛸 수 있다.
   const dueCards = await prisma.predictionCard.findMany({
     where,
     include: {
@@ -84,10 +99,10 @@ export async function judgeAndSettleDueCards(
         },
       },
     },
-    orderBy: { deadline: 'asc' },
+    orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
     take: JUDGE_BATCH_SIZE,
+    ...(afterCardId ? { cursor: { id: afterCardId }, skip: 1 } : {}),
   });
-  const totalDue = await prisma.predictionCard.count({ where });
 
   // 같은 종목의 만기 카드가 여러 장이면 조회는 한 번이면 된다 (memoRegistry)
   const quotes = memoizeRegistry(registry);
@@ -97,7 +112,8 @@ export async function judgeAndSettleDueCards(
     deferred: 0,
     failed: 0,
     staleDeferred: [],
-    remaining: Math.max(0, totalDue - dueCards.length),
+    lastId: dueCards.length > 0 ? dueCards[dueCards.length - 1].id : null,
+    hasMore: dueCards.length === JUDGE_BATCH_SIZE,
   };
 
   for (const card of dueCards) {
