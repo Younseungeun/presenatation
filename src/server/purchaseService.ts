@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import type { Direction } from '@/domain/constants';
+import type { AssetClass, Direction } from '@/domain/constants';
 import {
   adverseMoveFraction,
   closesOnAdverseMove,
@@ -11,6 +11,7 @@ import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isFreeReport } from './freeReportService';
 import { fetchCachedPrice } from './priceCache';
 import { recordQuote } from './quoteWatchService';
+import { researcherConfidenceCap } from './scoreService';
 
 // 구매 → 에스크로 보관. PG(웹 결제) 연동 전까지는 결제 성공을 가정하는 스텁 —
 // 실제 연동 시 PG 승인 후 이 함수를 호출하는 구조가 된다 (금액·상태 기록은 동일).
@@ -49,11 +50,27 @@ interface PurchasableReport {
   publishedAt?: Date | null;
   researcher: { userId: string };
   /** judgment: 조기 판정으로 시한 전에 결과가 나올 수 있어 반드시 함께 본다 */
-  predictionCard: { deadline: Date; judgment?: { outcome: string } | null } | null;
+  predictionCard: {
+    deadline: Date;
+    /** 규율 상한과 대조한다 — 상한 위의 확신은 팔리면 안 된다 */
+    confidence?: number;
+    judgment?: { outcome: string } | null;
+  } | null;
 }
 
-/** 구매·결제 요청 양쪽에서 공유하는 검증 — 한쪽만 고치고 다른 쪽을 깜빡하는 일을 막는다 */
-export function assertPurchasable(report: PurchasableReport, buyerId: string, now: Date): void {
+/**
+ * 구매·결제 요청 양쪽에서 공유하는 검증 — 한쪽만 고치고 다른 쪽을 깜빡하는 일을 막는다.
+ *
+ * @param disciplineCap 지금 그 리서처가 그 자산군에서 쓸 수 있는 최대 신뢰도
+ *   (server/scoreService.researcherConfidenceCap). 생략하면 검사하지 않는다 —
+ *   무료 글·테스트처럼 규율과 무관한 자리를 위한 것이다.
+ */
+export function assertPurchasable(
+  report: PurchasableReport,
+  buyerId: string,
+  now: Date,
+  disciplineCap?: number,
+): void {
   if (report.status !== 'PUBLISHED') {
     throw new Error(`판매 중인 리포트가 아닙니다 (현재: ${report.status})`);
   }
@@ -88,6 +105,37 @@ export function assertPurchasable(report: PurchasableReport, buyerId: string, no
   if (!isSalesWindowOpen(report.publishedAt, report.predictionCard?.deadline, now)) {
     throw new Error('판매 기간이 끝난 리포트입니다');
   }
+  // **규율 상한은 신규 게시가 아니라 팔리는 확신에 걸린다.**
+  // 게시 때만 보면 상한이 내려가기 직전에 낸 ★5 카드가 시한이 끝날 때까지 팔린다 —
+  // 장기 카드라면 1년이다. 그동안 처분은 이름만 있고 구매자는 그대로 노출된다.
+  // 별점을 소급해서 내리는 방법은 쓰지 않는다: 그 카드는 신고한 확신으로 채점되고
+  // 있으므로, 표시만 낮추면 "별점 = 확률 신고"가 깨지고 이미 산 사람이 보는 것도 바뀐다.
+  // **가역적 판매 중단**이 맞다 — 적중이 쌓여 상한이 풀리면 다시 팔린다
+  // (장중 시세 중단 assertNotSuspendedIntraday와 같은 성격이다).
+  const confidence = report.predictionCard?.confidence;
+  if (disciplineCap != null && confidence != null && confidence > disciplineCap) {
+    throw new Error(
+      '리서처의 확신 상한이 내려가 이 카드의 판매가 일시 중단되었습니다 — 신고한 확신이 적중으로 뒷받침되지 않는 동안 그 확신으로는 팔지 않습니다. 적중이 쌓이면 다시 구매할 수 있습니다.',
+    );
+  }
+}
+
+/**
+ * 구매 관문에 넘길 규율 상한 — 예측 카드가 없는 글(무료 시황)에는 규율이 없다.
+ * 두 관문(구매·결제 요청)이 같은 값을 보도록 여기 한 곳에 둔다.
+ */
+export async function disciplineCapFor(
+  prisma: PrismaClient,
+  report: { researcherId: string; predictionCard: { assetClass: string } | null },
+  now: Date,
+): Promise<number | undefined> {
+  if (!report.predictionCard) return undefined;
+  return researcherConfidenceCap(
+    prisma,
+    report.researcherId,
+    report.predictionCard.assetClass as AssetClass,
+    now,
+  );
 }
 
 interface IntradayCard {
@@ -177,7 +225,7 @@ export async function purchaseReport(
     where: { id: reportId },
     include: { researcher: true, predictionCard: true },
   });
-  assertPurchasable(report, buyerId, now);
+  assertPurchasable(report, buyerId, now, await disciplineCapFor(prisma, report, now));
   // 가격 보호 — 결제 순간 실시간 시세로 남은 몫(q)을 재고 광고의 절반 밑이면 막는다.
   // 피해자는 구매하는 순간에 생기므로 검사도 그 순간에 한다
   await assertNotSuspendedIntraday(prisma, report.predictionCard, now);

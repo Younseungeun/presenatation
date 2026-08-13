@@ -15,6 +15,7 @@ import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getResearcherCallout } from "@/server/marketQueries";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/server/purchaseService";
+import { researcherConfidenceCap } from "@/server/scoreService";
 import {
   claimedProbability,
   magnitudePctToTargetPrice,
@@ -126,10 +127,21 @@ export default async function ReportDetail({
   // 저장된 salesClosedAt만 보면 화면이 서버보다 헐거워진다: 판매 기간이 끝났는데
   // 배치가 아직 기록 전이면 구매 버튼이 그대로 떠 있고, 눌러야 에러를 만난다.
   // 화면이 "살 수 있다"고 말한 것은 서버도 그렇게 답해야 한다
+  // 규율 상한도 관문이 본다 — 상한 위의 확신은 팔지 않는다(가역적 중단).
+  // 화면이 먼저 알아야 "구매" 버튼이 떠 있다가 눌렀을 때 거절당하는 일이 없다
+  const disciplineCap = card
+    ? await researcherConfidenceCap(
+        prisma,
+        report.researcherId,
+        card.assetClass as AssetClass,
+        now,
+      )
+    : null;
   const sellable =
     !report.salesClosedAt &&
     !judgment &&
     (!card || card.deadline > now) &&
+    (card == null || disciplineCap == null || card.confidence <= disciplineCap) &&
     isSalesWindowOpen(report.publishedAt, card?.deadline, now);
 
   // 괴리 고지 상태 — 결제 직전과 같은 실시간 시세(60초 캐시)로 잰다.

@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { ASSET_CLASSES, type AssetClass, type Direction } from '@/domain/constants';
 import { aggregateEvidence, type EvidenceCard } from '@/domain/evidence';
+import { disciplineFor } from '@/domain/scoring';
 
 // 점수 집계: Judgment.score를 시즌·자산군별로 합산한다. 시즌 = 분기 (KST 기준).
 //
@@ -61,6 +62,23 @@ export function seasonStart(d: Date): Date {
 /** 다음 시즌 시작 시각 */
 export function nextSeasonStart(d: Date): Date {
   return seasonBoundary(d, 1);
+}
+
+/**
+ * 그 자산군에서 지금 쓸 수 있는 **최대 신뢰도** — 규율 래더가 정한다.
+ *
+ * 게시 관문(preparePublish)뿐 아니라 **구매 관문**도 이 값을 본다. 게시 때만 보면
+ * 상한이 내려가기 직전에 낸 ★5 카드가 시한이 끝날 때까지 계속 팔린다 —
+ * 장기 카드라면 1년이다. 처분은 신규 게시가 아니라 **판매되는 확신**에 걸려야 한다.
+ */
+export async function researcherConfidenceCap(
+  prisma: PrismaClient,
+  researcherId: string,
+  assetClass: AssetClass,
+  at = new Date(),
+): Promise<number> {
+  const { evidence } = await researcherSeasonTotals(prisma, researcherId, at);
+  return disciplineFor(evidence[assetClass]).maxConfidence;
 }
 
 /** 기준 시각이 속한 시즌의 자산군별 누적 점수 (판정 시각 기준 집계) */

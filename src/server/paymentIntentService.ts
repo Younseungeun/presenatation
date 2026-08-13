@@ -1,6 +1,11 @@
 import type { PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
-import { assertPurchasable, purchaseReport, type PaymentMethod } from './purchaseService';
+import {
+  assertPurchasable,
+  disciplineCapFor,
+  purchaseReport,
+  type PaymentMethod,
+} from './purchaseService';
 import { confirmTossPayment, describeTossPayment, TossPaymentError } from './tossPayments';
 
 // 토스페이먼츠 결제창을 띄우기 전 "결제 의도"를 서버에 먼저 기록하고,
@@ -23,7 +28,7 @@ export async function createPaymentIntent(
     where: { id: input.reportId },
     include: { researcher: true, predictionCard: true },
   });
-  assertPurchasable(report, input.buyerId, now);
+  assertPurchasable(report, input.buyerId, now, await disciplineCapFor(prisma, report, now));
 
   const buyer = await prisma.user.findUniqueOrThrow({ where: { id: input.buyerId } });
   if (!buyer.identityVerified) {
