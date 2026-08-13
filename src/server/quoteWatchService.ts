@@ -105,6 +105,8 @@ export interface QuoteRefreshSummary {
   refreshed: number;
   released: number;
   failed: number;
+  /** 회차 상한을 넘겨 이번에 갱신하지 못한 종목 수 — 0이 아니면 시세 예산이 모자란다 */
+  skipped: number;
 }
 
 /**
@@ -125,6 +127,7 @@ export async function refreshWatchedQuotes(
     where: { watching: true, ...(assetClass ? { assetClass } : {}) },
   });
   const summary: QuoteRefreshSummary = {
+    skipped: Math.max(0, watched.length - limit),
     watched: watched.length,
     refreshed: 0,
     released: 0,
@@ -136,6 +139,21 @@ export async function refreshWatchedQuotes(
   );
 
   const targets = ordered.slice(0, limit);
+
+  // **넘치면 조용히 버리지 않는다.** 상한은 KIS 제약에서 나온 값이다(1.1초 간격 ×
+  // 60종목 = 66초, 장중 2분 주기 안에 들어간다). 넘친 종목은 목록에서 "중단"으로
+  // 숨겨지지 않은 채 남는데, **돈이 새지는 않는다** — 실제 구매 차단은 결제 순간
+  // 별도 조회로 하기 때문이다(purchaseService.assertNotSuspendedIntraday).
+  // 그래도 넘친 사실 자체는 남겨야 한다: 이게 상시화되면 시세 소스를 늘려야 하는데,
+  // 로그가 없으면 그 시점을 알 방법이 없다.
+  if (ordered.length > limit) {
+    console.warn(
+      `[시세 감시] 감시 대상 ${ordered.length}종목이 회차 상한 ${limit}을 넘었습니다 — ` +
+        `${ordered.length - limit}종목은 이번 회차에서 갱신되지 않습니다` +
+        `${assetClass ? ` (${assetClass})` : ''}. ` +
+        `목록의 중단 표시만 늦어지고 결제 차단은 정상 동작합니다.`,
+    );
+  }
 
   // **코인은 한 번에 받는다** (사용자 확정) — 업비트는 markets=A,B,C로 여러 마켓을 한
   // 응답에 준다. 무료이고 제한도 느슨해 종목 수와 무관하게 호출 1회다.

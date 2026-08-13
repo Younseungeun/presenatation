@@ -75,3 +75,26 @@ export function coverageEndsIn(assetClass: Market, marketDate: string): number {
   const end = Date.parse(`${CALENDAR_COVERAGE[assetClass].to}T00:00:00Z`);
   return Math.floor((end - Date.parse(`${marketDate}T00:00:00Z`)) / 86_400_000);
 }
+
+/**
+ * 달력이 책임지는 구간 밖인가 — **그렇다면 판정하면 안 된다.**
+ *
+ * 만료 30일 전부터 운영자에게 주 1회 알림이 가지만(scripts/runScheduler), 알림은
+ * 아무것도 막지 않는다. 사람이 안 채우면 그대로 지나가고, 그때부터 이 달력은
+ * **"휴일이 없다"고 답한다** — 설 연휴에 판정을 시도하고, 늦은 마감을 모른 채
+ * 장중에 판정한다. 둘 다 조용히 틀리는 방향이다.
+ *
+ * 그래서 구간 밖에서는 **판정을 이월한다.** 판정이 하루 늦는 것은 되돌릴 수 있지만
+ * 잘못된 판정은 정산까지 흘러가 되돌릴 수 없다. 이 도메인의 기본 태도와 같다 —
+ * 모르면 지어내지 않고 멈춘다.
+ *
+ * **뒤쪽(만료)만 본다.** `from`은 이 달력을 쓴 날짜일 뿐이라 그보다 앞선 시한을 가진
+ * 카드는 프로덕션에 존재할 수 없고(카드의 시한은 게시일 이후다), 과거 구간을 막으면
+ * 실데이터 재현·백필이 통째로 멈춘다(scripts/simRegimeShift 등). 이 장치가 막으려는
+ * 것은 **달력이 소진되는 미래** — 사람이 안 채우면 조용히 지나가는 방향이다.
+ * ⚠ `from`을 앞으로 당겨 과거 휴일을 지우면 그 구간이 무방비가 된다. 지우지 말 것.
+ */
+export function isOutsideCalendarCoverage(assetClass: AssetClass, marketDate: string): boolean {
+  if (assetClass === 'CRYPTO') return false; // 24시간 거래라 휴장일 개념이 없다
+  return marketDate > CALENDAR_COVERAGE[assetClass].to;
+}

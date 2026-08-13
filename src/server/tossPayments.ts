@@ -15,6 +15,8 @@ export const TOSS_CLIENT_KEY = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY ?? DOCS_T
 const TOSS_SECRET_KEY = process.env.TOSS_SECRET_KEY ?? DOCS_TEST_SECRET_KEY;
 
 const CONFIRM_URL = 'https://api.tosspayments.com/v1/payments/confirm';
+const CANCEL_URL = (paymentKey: string) =>
+  `https://api.tosspayments.com/v1/payments/${encodeURIComponent(paymentKey)}/cancel`;
 
 export class TossPaymentError extends Error {
   constructor(
@@ -73,6 +75,38 @@ export async function confirmTossPayment(params: {
   const body = await res.json();
   if (!res.ok) {
     throw new TossPaymentError(body.message ?? '결제 승인에 실패했습니다', body.code);
+  }
+  return body as TossPaymentResult;
+}
+
+/**
+ * 결제 취소(승인 취소) API — 승인된 결제를 되돌린다.
+ *
+ * 쓰이는 자리가 둘이다:
+ *  ① **보상 트랜잭션** — PG 승인은 됐는데 구매 생성이 실패했을 때 즉시 되돌린다
+ *     (server/paymentIntentService). 이게 없으면 "돈은 빠졌는데 리포트가 없다"가 남는다
+ *  ② 판정 실패 시의 구매자 환불 (아직 수동 — settlementOpsService)
+ *
+ * **이 호출이 실패하면 조용히 넘어가면 안 된다.** 호출자가 REQUIRES_MANUAL_VOID로
+ * 남겨 사람이 처리하게 해야 한다 — 실패를 삼키면 그 돈은 아무도 모르게 사라진다.
+ */
+export async function cancelTossPayment(params: {
+  paymentKey: string;
+  /** 취소 사유 — 토스 콘솔·정산 내역에 그대로 남는다 */
+  cancelReason: string;
+}): Promise<TossPaymentResult> {
+  const auth = Buffer.from(`${TOSS_SECRET_KEY}:`).toString('base64');
+  const res = await fetch(CANCEL_URL(params.paymentKey), {
+    method: 'POST',
+    headers: {
+      Authorization: `Basic ${auth}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ cancelReason: params.cancelReason }),
+  });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new TossPaymentError(body.message ?? '결제 취소에 실패했습니다', body.code);
   }
   return body as TossPaymentResult;
 }

@@ -428,7 +428,12 @@ model PaymentIntent {
   reportId  String
   report    Report   @relation(fields: [reportId], references: [id])
   amountKrw Int
-  status    String   @default("PENDING") // PENDING | CONFIRMED | FAILED
+  // PENDING            승인 전
+  // CONFIRMED          승인 + 구매 생성 완료
+  // FAILED             승인 전에 막힘 (금액 불일치 등) — 돈이 빠지지 않았다
+  // CANCELLED          승인은 됐으나 구매 생성이 실패해 **자동 취소됨**
+  // REQUIRES_MANUAL_VOID  자동 취소마저 실패 — **PG에 돈이 잡혀 있다. 사람이 취소해야 한다**
+  status    String   @default("PENDING")
   createdAt DateTime @default(now())
 
   @@index([buyerId])

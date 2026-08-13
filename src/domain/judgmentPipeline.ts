@@ -12,6 +12,7 @@ import {
   type ProviderRegistry,
   type SecurityStatus,
 } from './marketData';
+import { isOutsideCalendarCoverage } from './marketCalendar';
 import { EQUITY_REGULAR_CLOSE } from './publishReport';
 
 // 예측 카드 1건의 판정 파이프라인: 데이터 조회 → 스냅샷 조립 → 판정.
@@ -62,6 +63,64 @@ export interface PipelineResult {
 const BASE_LOOKBACK_DAYS = 10;
 
 /**
+ * 하루 만에 이 폭을 넘는 종가 변화는 **데이터 사고로 본다** — 판정하지 않고 이월한다.
+ *
+ * ── 왜 필요한가 ──────────────────────────────────────────────
+ * 판정은 게시일~시한의 종가 **극값**이 목표를 넘었는지로 정한다. 공급자가 하루치를
+ * 잘못 주면(0, 자릿수 오류, 통화 혼동) **그 한 줄로 카드가 적중 판정**되고 구매자는
+ * 환불을 못 받는다. 권리 사건은 앵커 방식이 이미 막지만(domain/corporateAction),
+ * 그것은 **과거 종가가 소급해 바뀌는 것**을 잡는 장치라 하루짜리 튀는 값은 못 거른다.
+ *
+ * ── 값의 근거 (scripts/calibrateQuoteOutlier.ts, 실일봉 2019~2023) ──
+ * σ 배수로 잡으려 했는데 **자산군마다 진짜 급변의 크기가 달라** 하나로 덮이지 않았다:
+ * 국내 최대 6.9σ · 미국 7.1σ · 코인 **16.4σ**(2020-03-12 −33%, 2023-07-13 XRP +69%).
+ * 그래서 자산군별 절대 폭으로 둔다.
+ *
+ *   · 국내 30% — **거래소 가격제한폭**이다. 규칙이라 고를 필요가 없고, 실측
+ *     일봉 6,672개에서 초과가 **0건**으로 확인됐다(최대 +19.4%)
+ *   · 미국 60% — 상한 제도가 없다. 실측 최대 +24.4%(NVDA 2023-05-25)의 2.5배
+ *   · 코인 150% — 실측 최대 +68.6%(XRP)의 2.2배. 24시간 거래라 폭이 가장 크다
+ *
+ * ── 무엇을 잡고 무엇을 놓치나 ────────────────────────────────
+ * 이것은 **"물리적으로 불가능한 값"** 필터지 "놀라운 값" 필터가 아니다. 실제 사고는
+ * 대부분 자릿수 단위(0, ×10, 통화 혼동 ×1300)라 이 문턱이면 전부 걸린다. 반대로
+ * 5% 어긋난 값 같은 미묘한 오류는 **통과한다** — 그건 이 장치로 잡을 수 없고,
+ * 잡으려 문턱을 조이면 진짜 급변이 무더기로 이월돼 운영 부담만 는다.
+ */
+export const IMPLAUSIBLE_DAILY_MOVE: Record<AssetClass, number> = {
+  KR_EQUITY: 0.3,
+  US_EQUITY: 0.6,
+  CRYPTO: 1.5,
+};
+
+/**
+ * 판정 구간에서 **불가능한 변동폭**을 가진 첫 일봉을 찾는다 (없으면 null).
+ * 기준가가 있으면 그것을 첫 비교 대상으로 삼는다 — 구간 첫 종가가 튄 경우도 잡으려면
+ * 앞이 있어야 하기 때문이다.
+ */
+function findImplausibleBar(
+  assetClass: AssetClass,
+  basePrice: number | null,
+  quotes: DailyQuote[],
+): { date: string; close: number; prev: number; movePct: number } | null {
+  const limit = IMPLAUSIBLE_DAILY_MOVE[assetClass];
+  let prev = basePrice != null && basePrice > 0 ? basePrice : null;
+  for (const q of quotes) {
+    if (!(q.close > 0)) {
+      return { date: q.date, close: q.close, prev: prev ?? 0, movePct: -1 };
+    }
+    if (prev !== null) {
+      const move = q.close / prev - 1;
+      if (Math.abs(move) > limit) {
+        return { date: q.date, close: q.close, prev, movePct: move };
+      }
+    }
+    prev = q.close;
+  }
+  return null;
+}
+
+/**
  * 카드 1건을 판정한다.
  * @throws JudgmentDeferredError 시한 미도래 또는 시한 당일 데이터 미공개 시 (배치 이월)
  */
@@ -81,6 +140,17 @@ export async function runJudgment(
   // 거래일 날짜는 자산군의 시간대 기준 (미국주식 시한이 KST 새벽이면 ET 전일로 환산)
   const publishDate = toMarketDateString(card.publishedAt, card.assetClass);
   const deadlineDate = toMarketDateString(card.deadline, card.assetClass);
+
+  // **달력이 책임지지 않는 날짜는 판정하지 않는다.**
+  // 구간 밖에서 이 달력은 "휴일이 없다"고 답한다 — 연휴에 판정을 시도하고, 늦은 마감을
+  // 모른 채 장중에 판정한다. 둘 다 조용히 틀리는 방향이라 이월이 낫다:
+  // 판정이 늦는 것은 되돌릴 수 있지만 잘못된 판정은 정산까지 흘러가 되돌릴 수 없다.
+  if (isOutsideCalendarCoverage(card.assetClass, deadlineDate)) {
+    throw new JudgmentDeferredError(
+      `${card.ticker}: 시한 ${deadlineDate}가 거래일 달력 범위 밖이라 판정을 보류합니다 — 달력을 갱신해야 합니다`,
+      'DATA_NOT_AVAILABLE',
+    );
+  }
   // 직전 종가 소급 카드는 게시일 이전 종가도 필요하므로 조회 범위를 과거로 넓힌다
   const from =
     card.baseMode === 'PREV_CLOSE_AT_JUDGMENT'
@@ -134,6 +204,17 @@ export async function runJudgment(
     if (windowQuotes.length === 0) {
       throw new JudgmentDeferredError(
         `${card.ticker}: ${publishDate}~${deadlineDate} 판정 구간 시세 없음 (소스 지연 가능)`,
+        'DATA_NOT_AVAILABLE',
+      );
+    }
+
+    // **불가능한 일봉이 섞여 있으면 판정하지 않는다** (IMPLAUSIBLE_DAILY_MOVE).
+    // 판정은 종가 극값을 보므로 튀는 값 한 줄이 곧 오적중이고, 그러면 구매자가 환불을
+    // 못 받는다. 되돌릴 수 없는 방향이라 이월하고 사람이 보게 남긴다.
+    const bad = findImplausibleBar(card.assetClass, basePrice, windowQuotes);
+    if (bad) {
+      throw new JudgmentDeferredError(
+        `${card.ticker}: ${bad.date} 종가 ${bad.close}이 직전값 ${bad.prev} 대비 ${(bad.movePct * 100).toFixed(0)}% 변동 — 시세 오류로 보고 판정을 보류합니다`,
         'DATA_NOT_AVAILABLE',
       );
     }
