@@ -91,7 +91,7 @@ type Mode = 'NONE' | 'CHAIN' | 'ANCHOR' | 'DEGREE' | 'OVERLAP';
  * 스쳐 지나가는 카드는 거의 깎지 않고, 긴 앵커 카드는 **자기 몫만 0에 가까워질 뿐**
  * 남의 몫을 삼키지 않는다.
  */
-function overlapEvidence(cards: readonly EvidenceCard[]): number {
+function overlapEvidence(cards: readonly EvidenceCard[], rhoBar = 1): number {
   let sum = 0;
   for (const a of cards) {
     let load = 1;
@@ -101,7 +101,7 @@ function overlapEvidence(cards: readonly EvidenceCard[]): number {
       const ov = Math.min(a.closedAt, b.closedAt) - Math.max(a.openedAt, b.openedAt);
       if (ov <= 0) continue;
       const shorter = Math.min(a.closedAt - a.openedAt, b.closedAt - b.openedAt);
-      load += ov / Math.max(1, shorter);
+      load += (rhoBar * ov) / Math.max(1, shorter);
     }
     sum += a.info / load;
   }
@@ -316,6 +316,126 @@ console.log(
 );
 GROUP = 1;
 RHO = 0.6;
+
+// ── ⑧ 과보정을 얼마나 되돌릴 수 있나 ──────────────────────────
+// 하중식의 "완전히 겹치면 상관 1"을 상수 ρ̄로 빼서 낮춘다:
+//     하중_i = 1 + ρ̄ · Σ 겹친비율
+// ρ̄를 낮추면 덜 깎아 탐지력이 오르지만, 진짜 상관이 ρ̄를 넘으면 보장이 깨진다.
+// **진짜 ρ를 최악(1.0)으로 두고** 오작동이 어디서 5%를 넘는지 본다.
+const RHOBAR = [1.0, 0.7, 0.5, 0.3, 0.15] as const;
+function overlapRate(pTrue: number, c: number, rhoBar: number, thresh = THRESH): number {
+  let hit = 0;
+  for (let i = 0; i < N; i++) {
+    const pHat = claimedProbability(P0, c);
+    const z = invNcdf(1 - pTrue);
+    const totalDays = Math.ceil(SEASON_DAYS + H) + 2;
+    const shocks: number[] = [];
+    for (let t = 0; t < totalDays; t++) shocks.push(gauss());
+    const all: (EvidenceCard & { order: number })[] = [];
+    for (let k = 0; k < CARDS; k++) {
+      const a = Math.round(k * gap);
+      const b = a + H;
+      let s = 0;
+      for (let t = a; t < b; t++) s += shocks[t];
+      const x = Math.sqrt(RHO) * (s / Math.sqrt(H)) + Math.sqrt(1 - RHO) * gauss();
+      all.push({
+        assetClass: A,
+        direction: 'UP',
+        openedAt: a * DAY,
+        closedAt: b * DAY,
+        info: infoOf(pHat, x > z),
+        order: b,
+      });
+    }
+    all.sort((p, q) => p.order - q.order);
+    const judged: EvidenceCard[] = [];
+    let fired = false;
+    for (const card of all) {
+      judged.push(card);
+      if (overlapEvidence(judged, rhoBar) <= thresh) {
+        fired = true;
+        break;
+      }
+    }
+    if (fired) hit++;
+  }
+  return (hit / N) * 100;
+}
+
+console.log('■ ⑧ 하중을 ρ̄로 완화했을 때 (20장 × 30일) — 진짜 상관은 최악 ρ=1.0으로 둔다');
+console.log(
+  `  ${'ρ̄'.padEnd(8)}${'오작동'.padStart(10)}${'c=10'.padStart(8)}${'c=7'.padStart(8)}${'c=5'.padStart(8)}`,
+);
+CARDS = 20;
+H = 30;
+gap = SEASON_DAYS / CARDS;
+P0 = noSkillTouchProbability('UP', MAG, A, H, SIG);
+RHO = 1.0; // 최악 상관
+for (const rb of RHOBAR) {
+  console.log(
+    `  ${rb.toFixed(2).padEnd(8)}` +
+      `${(overlapRate(claimedProbability(P0, 5), 5, rb).toFixed(2) + '%').padStart(10)}` +
+      `${(overlapRate(P0, 10, rb).toFixed(0) + '%').padStart(8)}` +
+      `${(overlapRate(P0, 7, rb).toFixed(0) + '%').padStart(8)}` +
+      `${(overlapRate(P0, 5, rb).toFixed(0) + '%').padStart(8)}`,
+  );
+}
+console.log('');
+
+// ── ⑨ ρ̄ 후보를 시나리오 전체에서 확인 ────────────────────────
+// 한 시나리오에서 5%에 걸치는 값은 다른 시나리오에서 넘을 수 있다.
+console.log('■ ⑨ ρ̄ 후보의 시나리오별 안전성 — 오작동(진짜 ρ=1.0) / c=7 탐지 / c=5 탐지');
+console.log(
+  `  ${'장수×기한'.padEnd(12)}` +
+    ([1.0, 0.7, 0.5] as const).map((r) => `ρ̄=${r.toFixed(1)}`.padStart(20)).join(''),
+);
+for (const [cards, h] of [
+  [8, 30],
+  [12, 30],
+  [20, 30],
+  [30, 30],
+  [20, 60],
+] as const) {
+  CARDS = cards;
+  H = h;
+  gap = SEASON_DAYS / CARDS;
+  P0 = noSkillTouchProbability('UP', MAG, A, H, SIG);
+  RHO = 1.0;
+  const cells = ([1.0, 0.7, 0.5] as const).map((rb) => {
+    const fa = overlapRate(claimedProbability(P0, 5), 5, rb).toFixed(1) + '%';
+    const d7 = overlapRate(P0, 7, rb).toFixed(0) + '%';
+    const d5 = overlapRate(P0, 5, rb).toFixed(0) + '%';
+    return `${fa}/${d7}/${d5}`.padStart(20);
+  });
+  console.log(`  ${`${cards}장 × ${h}일`.padEnd(12)}${cells.join('')}`);
+}
+console.log('');
+
+// ── ⑩ rigor를 지키는 길: 하중은 그대로, 문턱의 α를 올린다 ─────
+// ρ̄를 낮추면 보장이 "구성"에서 "실측"으로 강등된다. 반면 α는 어떤 값이든
+// Ville 부등식이 **구성으로** 성립하므로, 하중을 최악(ρ̄=1)으로 둔 채 α만 올리면
+// 보장을 잃지 않고 남는 여유를 쓸 수 있다. 문턱 = −ln(1/α).
+console.log('■ ⑩ ρ̄=1.0 고정, 1단 α를 올렸을 때 (20장 × 30일, 진짜 ρ=1.0)');
+console.log(
+  `  ${'α'.padEnd(8)}${'문턱'.padStart(8)}${'실측 오작동'.padStart(12)}${'c=10'.padStart(8)}${'c=7'.padStart(8)}${'c=5'.padStart(8)}`,
+);
+CARDS = 20;
+H = 30;
+gap = SEASON_DAYS / CARDS;
+P0 = noSkillTouchProbability('UP', MAG, A, H, SIG);
+RHO = 1.0;
+for (const alpha of [0.05, 0.1, 0.2, 0.3] as const) {
+  const th = -Math.log(1 / alpha);
+  console.log(
+    `  ${(alpha * 100).toFixed(0).padEnd(2)}%${''.padEnd(5)}${th.toFixed(2).padStart(8)}` +
+      `${(overlapRate(claimedProbability(P0, 5), 5, 1, th).toFixed(2) + '%').padStart(12)}` +
+      `${(overlapRate(P0, 10, 1, th).toFixed(0) + '%').padStart(8)}` +
+      `${(overlapRate(P0, 7, 1, th).toFixed(0) + '%').padStart(8)}` +
+      `${(overlapRate(P0, 5, 1, th).toFixed(0) + '%').padStart(8)}`,
+  );
+}
+RHO = 0.6;
+console.log('');
 
 console.log('\n  NONE 보정없음 · CHAIN 현행(묶음 끝을 민다) · ANCHOR 첫 카드가 끝을 정한다');
 console.log('  DEGREE 겹치면 한 장으로 세어 나눈다 · OVERLAP 겹친 비율만큼만 나눈다\n');
