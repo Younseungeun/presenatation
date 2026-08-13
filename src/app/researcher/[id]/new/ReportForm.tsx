@@ -453,7 +453,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
       <div className={styles.row}>
         <div className={styles.field}>
           <label className={styles.label}>
-            신뢰도 (점수 증폭 {CONFIDENCE_RANGE.min}~{CONFIDENCE_RANGE.max})
+            신뢰도 (적중 확률 신고 {CONFIDENCE_RANGE.min}~{CONFIDENCE_RANGE.max})
           </label>
           <select
             className={styles.select}
@@ -537,7 +537,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
               </span>
             ) : (
               <span className={styles.hint}>
-                <StarRating stars={stabilityPreview} label="안정성" /> — 최근 60거래일
+                <StarRating stars={stabilityPreview} label="안정성" /> — 최근 120거래일
                 실현 변동성(하루 {(sigmaDaily! * 100).toFixed(1)}%) 기준입니다. 점수에는
                 반영되지 않고, 같은 값이 위 도달 확률 계산에 쓰입니다
               </span>

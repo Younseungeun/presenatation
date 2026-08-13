@@ -9,7 +9,7 @@ import { CONFIDENCE_RANGE, confidenceOddsMultiple, PROFITABILITY_BOUNDS } from '
 // ── 세 축이 서로 다른 질문을 맡는다 ─────────────────────────────
 //   · 수익성  = 맞으면 얼마나 버나  (예측 크기 → 5구간, profitability.ts)
 //   · 안정성  = 가는 길이 얼마나 출렁이나 (종목 실현 변동성, stability.ts)
-//   · 신뢰도  = 얼마나 맞을 것 같나 (리서처가 건 승산 → 함의 승률)
+//   · 신뢰도  = 얼마나 맞을 것 같나 (리서처가 신고한 적중 확률)
 
 /**
  * 신뢰도 c → 별 (★1 ~ ★5).
@@ -21,7 +21,7 @@ import { CONFIDENCE_RANGE, confidenceOddsMultiple, PROFITABILITY_BOUNDS } from '
  * 예전(승률×5)을 버린 이유: 함의 승률은 이제 p₀에 따라 달라져(같은 c라도 카드마다
  * 다른 확률을 뜻한다) 카드 목록에 고정된 별로 그릴 수 없다. 게다가 목표 크기가
  * 가려진 화면에서 승률 기반 별을 그리면 p₀를 통해 크기가 역산될 여지가 생긴다.
- * 정확한 함의 승률은 **구매자가 그 카드의 사양을 아는 자리**(리포트 상세·작성 화면)에서
+ * 정확한 신고 확률은 **구매자가 그 카드의 사양을 아는 자리**(리포트 상세·작성 화면)에서
  * 각주로 싣는다.
  */
 export function confidenceStars(confidence: number): number {

@@ -252,7 +252,7 @@ export function planBaseMode(
 function magnitudeFloorMessage(floor: number, requested: number): string {
   return (
     `이 종목·기간의 예측 크기 하한은 ${floor.toFixed(1)}%입니다 (요청: ${requested}%). ` +
-    '하한은 종목의 최근 60거래일 변동성과 검증 기한으로 정해집니다 — ' +
+    '하한은 종목의 최근 120거래일 변동성과 검증 기한으로 정해집니다 — ' +
     '변동성이 큰 종목일수록 저절로 닿을 확률이 높아 더 큰 크기를 요구합니다.'
   );
 }
