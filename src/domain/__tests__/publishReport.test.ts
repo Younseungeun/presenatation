@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  LONG_HORIZON_DAYS,
+  MAX_ACTIVE_CARDS,
+  MAX_ACTIVE_LONG_CARDS,
   preparePublish,
   REPORT_TEXT_LIMITS,
   validateCardDraft,
@@ -194,6 +197,32 @@ describe('preparePublish', () => {
         NOW,
       ).feeRateBp,
     ).toBe(1500);
+  });
+
+  it('장기 카드 슬롯: 시한 90일 초과는 활성 상한의 절반까지만', () => {
+    // validCard는 시한 92일 = 장기 카드. 무표기 상한 5건의 절반 → 2건
+    expect(MAX_ACTIVE_LONG_CARDS.BRONZE).toBe(2);
+    expect(() =>
+      preparePublish(validCard, { ...validCond, activeLongCardCount: 2 }, 70_000, NOW),
+    ).toThrow(new RegExp(`시한 ${LONG_HORIZON_DAYS}일 초과`));
+    expect(
+      preparePublish(validCard, { ...validCond, activeLongCardCount: 1 }, 70_000, NOW).feeRateBp,
+    ).toBe(2000);
+  });
+
+  it('단기 카드는 장기 슬롯이 차 있어도 낼 수 있다 — 회전이 계속돼야 증거가 쌓인다', () => {
+    const short = { ...validCard, deadline: new Date('2026-08-12T00:00:00Z') }; // 31일
+    expect(
+      preparePublish(short, { ...validCond, activeLongCardCount: 99 }, 70_000, NOW).feeRateBp,
+    ).toBe(2000);
+  });
+
+  it('장기 슬롯은 활성 상한에서 유도된다 — 두 곳에 적어 두면 갈라진다', () => {
+    for (const [tier, n] of Object.entries(MAX_ACTIVE_CARDS)) {
+      expect(MAX_ACTIVE_LONG_CARDS[tier as keyof typeof MAX_ACTIVE_CARDS]).toBe(
+        Math.max(1, Math.floor(n / 2)),
+      );
+    }
   });
 
   it('기준가를 확정할 수 없으면 게시 실패', () => {

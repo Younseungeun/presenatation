@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { PrepaymentRatio, Tier } from '@/domain/constants';
 import { resolveProvider, toMarketDateString, type ProviderRegistry } from '@/domain/marketData';
 import {
+  LONG_HORIZON_DAYS,
   planBaseMode,
   preparePublish,
   PublishValidationError,
@@ -291,12 +292,18 @@ async function finalizePublish(
   const seasonTotals = await researcherSeasonTotals(prisma, report.researcherId, now);
 
   // 동시 활성 카드 상한 입력: 같은 자산군에서 게시됐고 아직 판정·철회되지 않은 카드 수
-  const activeCardCount = await prisma.predictionCard.count({
+  const activeWhere = {
+    assetClass: cardDraft.assetClass,
+    withdrawnAt: null,
+    judgment: null,
+    report: { researcherId: report.researcherId, status: 'PUBLISHED' as const },
+  };
+  const activeCardCount = await prisma.predictionCard.count({ where: activeWhere });
+  // 그중 장기 카드 — 미판정이라 증거에 안 들어가므로 따로 상한을 건다
+  const activeLongCardCount = await prisma.predictionCard.count({
     where: {
-      assetClass: cardDraft.assetClass,
-      withdrawnAt: null,
-      judgment: null,
-      report: { researcherId: report.researcherId, status: 'PUBLISHED' },
+      ...activeWhere,
+      deadline: { gt: new Date(now.getTime() + LONG_HORIZON_DAYS * 86_400_000) },
     },
   });
 
@@ -311,6 +318,7 @@ async function finalizePublish(
       promoActive: isPromoActive(report.researcher.promoFeeUntil, now),
       assetClassEvidence: seasonTotals.evidence[cardDraft.assetClass],
       activeCardCount,
+      activeLongCardCount,
     },
     basePrice,
     now,

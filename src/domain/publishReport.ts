@@ -86,6 +86,29 @@ export const MAX_ACTIVE_CARDS: Record<Tier, number> = {
   CHALLENGER: 15,
 };
 
+/** 이 시한(일)을 넘으면 **장기 카드** — 한 시즌(91일) 안에 판정이 끝나지 않는다 */
+export const LONG_HORIZON_DAYS = 90;
+
+/**
+ * 그중 **장기 카드**가 차지할 수 있는 슬롯 — 활성 상한의 절반(내림, 최소 1).
+ *
+ * ── 왜 따로 막나 (2026-08-13) ─────────────────────────────────
+ * 위 상한은 **물량**을 막지만 **기간**을 막지 않는다. 슬롯 전부를 365일 카드로
+ * 채우면 한 해 내내 ★5 카드가 진열대에 남는데 **판정이 하나도 나오지 않는다** —
+ * 미판정 카드는 증거(Judgment.info)에 들어가지 않으므로 규율 래더가 볼 것이
+ * 없다. 물량은 막혔지만 노출 기간은 무제한인 셈이다.
+ *
+ * 절반인 이유: 나머지 절반이 계속 회전하면 판정이 꾸준히 나와 래더가 볼 표본이
+ * 생긴다. 무표기(슬롯 5)라면 장기 2 + 회전 3인데, 30일 카드로 3슬롯을 돌리면
+ * 연 36장이 판정된다 — 래더가 표적을 잡는 데 충분한 크기다(1년 74장에서 표적
+ * 발동 67.6%, scripts/simDisciplineRealtime.ts).
+ *
+ * 상한에서 유도한다 — 두 곳에 적어 두면 한쪽을 고칠 때 다른 쪽이 조용히 어긋난다.
+ */
+export const MAX_ACTIVE_LONG_CARDS: Record<Tier, number> = Object.fromEntries(
+  Object.entries(MAX_ACTIVE_CARDS).map(([tier, n]) => [tier, Math.max(1, Math.floor(n / 2))]),
+) as Record<Tier, number>;
+
 /**
  * 검증 시한 최소(자산군별, 초안 단계)·최대.
  * 최소 시한은 기술 제약이 아니라 조작 방지 장치다: EOD 기준가로 초단기 예측을 허용하면
@@ -169,6 +192,12 @@ export interface PublishConditions {
   assetClassEvidence?: number;
   /** 해당 자산군의 현재 활성(게시·미판정·미철회) 카드 수 — 동시 게시 상한 판단용 */
   activeCardCount?: number;
+  /**
+   * 그중 **장기 카드**(시한 > LONG_HORIZON_DAYS)의 수 — 판정 유예 악용 방지용.
+   * 미판정 카드는 증거에 들어가지 않으므로, 장기 카드로 슬롯을 다 채우면
+   * 래더가 볼 표본이 영영 생기지 않는다 (MAX_ACTIVE_LONG_CARDS 주석).
+   */
+  activeLongCardCount?: number;
 }
 
 export class PublishValidationError extends Error {
@@ -360,6 +389,19 @@ export function preparePublish(
     issues.push(
       `${card.assetClass} 동시 활성 카드가 상한(${TIER_NAME[cond.tier]} 등급 ${maxActive}건)에 도달했습니다 — 기존 카드가 판정되거나 철회되면 다시 게시할 수 있습니다`,
     );
+  }
+
+  // 장기 카드 슬롯: 판정이 영영 안 나오는 ★5 진열대를 막는다 (MAX_ACTIVE_LONG_CARDS)
+  // 초안 검증(validateCardDraft)과 같은 식으로 잰다 — 두 곳이 갈라지면
+  // 경계에서 "게시는 되는데 장기로 안 세어지는" 카드가 생긴다
+  const horizonDays = (card.deadline.getTime() - now.getTime()) / 86_400_000;
+  if (horizonDays > LONG_HORIZON_DAYS) {
+    const maxLong = MAX_ACTIVE_LONG_CARDS[cond.tier];
+    if ((cond.activeLongCardCount ?? 0) >= maxLong) {
+      issues.push(
+        `${card.assetClass} 시한 ${LONG_HORIZON_DAYS}일 초과 카드가 상한(${TIER_NAME[cond.tier]} 등급 ${maxLong}건)에 도달했습니다 — 장기 카드는 판정이 늦어 실적이 쌓이지 않으므로 동시에 여는 수를 제한합니다`,
+      );
+    }
   }
 
   // 규율 래더: 게시 정지 또는 신뢰도 **상한** (자산군별)

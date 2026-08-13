@@ -50,6 +50,13 @@ const GAP = SEASON_DAYS / CARDS;
 let WINDOW_DAYS = SEASON_DAYS;
 let WINDOW_CARDS = CARDS;
 
+/**
+ * 정직한 리서처의 **과신 편향** — EV 최적 신뢰도보다 이만큼 위를 부른다.
+ * 0이면 완벽 보정(지금까지의 가정). 실제 리서처는 자기 분석을 과신한다.
+ * 이것이 오작동을 터뜨리면 α 보장이 실전에서 성립하지 않는다는 뜻이다.
+ */
+let OVERCONFIDENCE = 0;
+
 type Behavior =
   | { kind: 'EV' } // 기대 점수 최대 = 정직 신고
   | { kind: 'CLAIM'; c: number } // 실력과 무관하게 c를 고정으로 부른다
@@ -207,6 +214,8 @@ interface Person {
   judgedCount: number;
   /** 유효 장수 = 보정 없는 합 / 보정된 합 */
   effective: number;
+  /** 발동 후 문턱 위로 돌아오기까지 낸 카드 수 (끝까지 못 돌아오면 −1) */
+  recoveredAfter: number;
 }
 
 const RUNG2 = evidenceThreshold(DISCIPLINE_ALPHA[1]); // −4.61
@@ -279,6 +288,7 @@ function runSeason(
     let deep2 = false;
     let suspended = false;
     let firedAt = -1;
+    let recoveredAfter = -1;
 
     for (let t = 0; t < WINDOW_CARDS; t++) {
       const openDay = track === 'INSTANT' ? t : Math.round(t * GAP);
@@ -299,6 +309,8 @@ function runSeason(
         fired = true;
         firedAt = t;
       }
+      // 회복 — 발동한 뒤 처음으로 문턱 위로 올라온 시점
+      if (fired && recoveredAfter < 0 && evidence > rung1) recoveredAfter = t - firedAt;
       if (evidence <= RUNG2) deep2 = true;
       if (d.publishSuspended) {
         suspended = true;
@@ -310,7 +322,8 @@ function runSeason(
       if (co.behavior.kind === 'EV') {
         const s = bestStrategy(co.k, d.maxConfidence);
         M = s.M;
-        c = s.c;
+        // 과신 편향 — 정직하지만 자기 분석을 실제보다 높게 본다
+        c = Math.min(d.maxConfidence, s.c + OVERCONFIDENCE);
       } else if (co.behavior.kind === 'ADAPTIVE') {
         // 문턱까지 margin 안쪽이면 몸을 사린다 — 낮은 c는 정보량이 0에 가까워
         // D가 더 내려가지 않는다(얼어붙는다). 여유가 생기면 다시 크게 부른다
@@ -358,6 +371,7 @@ function runSeason(
       suspended,
       loudCards: loud,
       firedAt,
+      recoveredAfter,
       finalEvidence: corrected,
       judgedCount: finalJudged.length,
       effective: raw === 0 ? 0 : corrected / (raw / Math.max(1, finalJudged.length)),
@@ -695,4 +709,72 @@ COHORTS.push(...FIXED.filter((c) => c.name !== '적응형'));
 COHORTS[COHORTS.findIndex((c) => c.name === '허위c10')].behavior = { kind: 'CLAIM', c: 10 };
 WINDOW_DAYS = D_SAVE;
 WINDOW_CARDS = C_SAVE;
+console.log('');
+
+// ── ⑨ 정직한데 과신하는 사람 ────────────────────────────────
+// 지금까지 정직 코호트는 **전부 EV 최적**을 골랐다. 적정 점수법이라 그것이 곧
+// 정직한 신고지만, 실제 리서처는 자기 분석을 과신한다. 평생 누적으로 표본이
+// 늘어난 만큼 **오작동도 함께 커질 수 있다** — α 보장이 실전에서 성립하는지 본다.
+console.log('■ ⑨ 정직한 리서처의 과신 편향 (EV 최적보다 +N칸을 부른다) — 오작동률');
+console.log(
+  `  ${'편향'.padEnd(8)}` + (['1분기', '1년', '2년'] as const).map((s) => s.padStart(11)).join('') +
+    `${'  ← 목표 ≤10%'}`,
+);
+const OC_D = WINDOW_DAYS;
+const OC_C = WINDOW_CARDS;
+for (const bias of [0, 1, 2, 3] as const) {
+  OVERCONFIDENCE = bias;
+  const cells = ([[91, 20], [364, 80], [728, 160]] as const).map(([days, cards]) => {
+    WINDOW_DAYS = days;
+    WINDOW_CARDS = cards;
+    const people = runSeason('TIMED');
+    let falseFire = 0;
+    let falseN = 0;
+    for (let i = 0; i < COHORTS.length; i++) {
+      if (COHORTS[i].target) continue;
+      const g = people.filter((p) => p.cohort === i);
+      falseFire += g.filter((p) => p.fired).length;
+      falseN += g.length;
+    }
+    return `${((falseFire / falseN) * 100).toFixed(2)}%`.padStart(11);
+  });
+  console.log(`  ${`+${bias}칸`.padEnd(8)}${cells.join('')}`);
+}
+OVERCONFIDENCE = 0;
+WINDOW_DAYS = OC_D;
+WINDOW_CARDS = OC_C;
+console.log('');
+
+// ── ⑩ 억울하게 걸린 사람의 회복 ─────────────────────────────
+// 평생 누적이면 하중도 커져서 회복이 느려질 수 있다. 발동한 정직 코호트가
+// 문턱 위로 돌아오기까지 몇 장을 더 내야 하는지 본다.
+console.log('■ ⑩ 발동한 정직 코호트의 회복 — 문턱 위로 돌아오기까지 낸 카드 수');
+console.log(
+  `  ${'창'.padEnd(8)}${'편향'.padStart(7)}${'발동'.padStart(9)}${'회복함'.padStart(9)}${'중앙'.padStart(7)}${'p90'.padStart(7)}`,
+);
+for (const [days, cards, label] of [
+  [364, 80, '1년'],
+  [728, 160, '2년'],
+] as const) {
+  WINDOW_DAYS = days;
+  WINDOW_CARDS = cards;
+  for (const bias of [0, 2] as const) {
+    OVERCONFIDENCE = bias;
+    const people = runSeason('TIMED');
+    const firedHonest = people.filter((p) => !COHORTS[p.cohort].target && p.fired);
+    const recovered = firedHonest.filter((p) => p.recoveredAfter >= 0).map((p) => p.recoveredAfter);
+    recovered.sort((a, b) => a - b);
+    const q = (f: number) => (recovered.length ? recovered[Math.floor(recovered.length * f)] : NaN);
+    console.log(
+      `  ${label.padEnd(8)}${`+${bias}칸`.padStart(7)}` +
+        `${String(firedHonest.length).padStart(9)}` +
+        `${(firedHonest.length ? ((recovered.length / firedHonest.length) * 100).toFixed(0) + '%' : '—').padStart(9)}` +
+        `${(Number.isNaN(q(0.5)) ? '—' : q(0.5) + '장').padStart(7)}` +
+        `${(Number.isNaN(q(0.9)) ? '—' : q(0.9) + '장').padStart(7)}`,
+    );
+  }
+}
+OVERCONFIDENCE = 0;
+WINDOW_DAYS = OC_D;
+WINDOW_CARDS = OC_C;
 console.log('');

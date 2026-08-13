@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { Tier } from "@/domain/constants";
 import { MAX_ACTIVE_CARDS } from "@/domain/publishReport";
+import { CONFIDENCE_RANGE, disciplineFor } from "@/domain/scoring";
+import { confidenceStars } from "@/domain/ratingStars";
 import { prisma } from "@/server/db";
 import {
   getBuyerPurchases,
@@ -10,7 +12,7 @@ import {
 import { countCart } from "@/server/cartService";
 import { getFollowerList, getFollowingList } from "@/server/followService";
 import { getResearcherDashboard, type DashboardReport } from "@/server/reportQueries";
-import { researcherSeasonScores } from "@/server/scoreService";
+import { researcherSeasonTotals } from "@/server/scoreService";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
 import { EmptyState } from "../EmptyState";
@@ -232,7 +234,7 @@ async function loadMe(mode: Mode) {
     purchases,
     dashboard,
     finance,
-    seasonScores,
+    seasonTotals,
     following,
     followers,
   ] = await Promise.all([
@@ -241,7 +243,7 @@ async function loadMe(mode: Mode) {
     getBuyerPurchases(prisma, userId),
     sellerMode ? getResearcherDashboard(prisma, researcherId!) : Promise.resolve(null),
     sellerMode ? getResearcherFinance(prisma, researcherId!) : Promise.resolve(null),
-    sellerMode ? researcherSeasonScores(prisma, researcherId!) : Promise.resolve(null),
+    sellerMode ? researcherSeasonTotals(prisma, researcherId!) : Promise.resolve(null),
     // 팔로잉은 누구나 가질 수 있다 (구매자 관점) — '내 구매'에서 본다
     sellerMode ? Promise.resolve([]) : getFollowingList(prisma, userId),
     // 팔로워는 리서처만 가진다 (Follow는 사용자→리서처) — '내 리서치'에서 본다
@@ -295,9 +297,26 @@ async function loadMe(mode: Mode) {
       activeCount: activeCards.length,
       maxActive: MAX_ACTIVE_CARDS[tier],
       // 자산군별로 나뉜 시즌 점수의 합 — 타일에는 총합만 보여준다
-      seasonScore: seasonScores
-        ? Object.values(seasonScores).reduce((a, b) => a + b, 0)
+      seasonScore: seasonTotals
+        ? Object.values(seasonTotals.score).reduce((a, b) => a + b, 0)
         : 0,
+      /**
+       * 지금 걸려 있는 **확신 상한** — 자산군 중 가장 낮은 것.
+       *
+       * 왜 보여주나: 규율 래더는 게시가 거부되는 순간에만 드러났다. 그런데 이 상한에
+       * 걸리는 사람 중 상당수는 거짓말이 아니라 **자기 분석을 과신한 정직한 리서처**다
+       * (실측: EV 최적보다 두 칸 위를 부르면 1년 18.9%가 걸린다 —
+       * scripts/simDisciplineRealtime.ts). 그들에게 필요한 것은 처분이 아니라 신호다.
+       * 회복도 빠르다(적중 중앙 3장이면 문턱 위로 돌아온다).
+       */
+      confidenceCap: seasonTotals
+        ? Math.min(
+            ...Object.values(seasonTotals.evidence).map((e) => disciplineFor(e).maxConfidence),
+          )
+        : CONFIDENCE_RANGE.max,
+      publishSuspended: seasonTotals
+        ? Object.values(seasonTotals.evidence).some((e) => disciplineFor(e).publishSuspended)
+        : false,
       publishedCount: authored.filter((r) => r.status === "PUBLISHED").length,
       judgedCount: myJudged.length,
     },
@@ -595,6 +614,23 @@ export default async function MyPage({
                   value={Math.round(me.seller.seasonScore).toLocaleString()}
                   label="시즌 점수"
                 />
+                {/* 확신 상한 — 제한이 걸렸을 때만 띄운다. 평상시에는 ★5가 열려 있는 것이
+                    기본이라 타일 한 칸을 쓸 값이 아니고, 걸렸을 때는 왜 게시가 막히는지
+                    게시 화면에 가서야 알게 되던 것을 여기서 미리 알린다 */}
+                {(me.seller.publishSuspended ||
+                  me.seller.confidenceCap < CONFIDENCE_RANGE.max) && (
+                  <Tile
+                    href="/score"
+                    icon={<ScoreIcon />}
+                    value={
+                      me.seller.publishSuspended
+                        ? "정지"
+                        : `★${confidenceStars(me.seller.confidenceCap)}`
+                    }
+                    label="확신 상한"
+                    dot
+                  />
+                )}
                 <Tile
                   href={`/researcher/${me.researcherId}/new`}
                   icon={<PenIcon />}
