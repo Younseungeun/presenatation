@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeReachScore,
+  confidenceOddsMultiple,
+  magnitudeWeight,
+  SCORE_SCALE,
   CONFIDENCE_RANGE,
   DISCIPLINE_LADDER,
   disciplineFor,
   honestConfidence,
-  lossAmplifier,
+
   magnitudePctToTargetPrice,
   maxMagnitudePct,
   minMagnitudePct,
@@ -14,7 +17,7 @@ import {
   noSkillTouchProbability,
   scoreJudgedCard,
   targetPriceToMagnitudePct,
-  winAmplifier,
+
 } from '../scoring';
 
 // 점수 모델 v4 (공정배당 이항) — 수학적 성질을 코드로 고정한다.
@@ -121,13 +124,23 @@ describe('정직한 신뢰도 — c* = 무정보 대비 승산 배수', () => {
 });
 
 describe('배당 구조', () => {
-  it('적중 = +B·c·(1−p₀), 실패 = −B·c(c+1)/2·p₀', () => {
+  it('적중 = +ln(p̂/p₀), 실패 = +ln((1−p̂)/(1−p₀)) — 기준 대비 정보량', () => {
     const m = 10;
     const c = 4;
-    const { p0, score: hit } = computeReachScore('UP', m, c, 'CRYPTO', 30, true);
-    const { score: miss } = computeReachScore('UP', m, c, 'CRYPTO', 30, false);
-    expect(hit).toBeCloseTo(10 * m * winAmplifier(c) * (1 - p0), 6);
-    expect(miss).toBeCloseTo(-10 * m * lossAmplifier(c) * p0, 6);
+    const hit = computeReachScore('UP', m, c, 'CRYPTO', 30, true);
+    const miss = computeReachScore('UP', m, c, 'CRYPTO', 30, false);
+    const w = SCORE_SCALE * magnitudeWeight('CRYPTO', m);
+    expect(hit.score).toBeCloseTo(w * Math.log(hit.claimed / hit.p0), 9);
+    expect(miss.score).toBeCloseTo(w * Math.log((1 - miss.claimed) / (1 - miss.p0)), 9);
+    // 적중은 이득, 실패는 손해 — 신고가 무정보보다 위일 때(c > 1)
+    expect(hit.score).toBeGreaterThan(0);
+    expect(miss.score).toBeLessThan(0);
+  });
+
+  it('신고 확률 p̂는 무정보 승산을 사다리 배수만큼 증폭한 값이다', () => {
+    const { p0, claimed } = computeReachScore('UP', 10, 5, 'CRYPTO', 30, true);
+    const odds = (p: number) => p / (1 - p);
+    expect(odds(claimed) / odds(p0)).toBeCloseTo(confidenceOddsMultiple(5), 6);
   });
 
   it('실패 벌점은 게시 사양만의 함수 — 같은 사양이면 항상 같다 (하방 확정)', () => {

@@ -6,10 +6,11 @@ import {
   computeReachScore,
   DAILY_SIGMA,
   honestConfidence,
-  lossAmplifier,
+
+  CONFIDENCE_RANGE,
   minMagnitudePct,
   noSkillTouchProbability,
-  winAmplifier,
+
 } from "@/domain/scoring";
 import { cardStabilityLevel } from "@/domain/stability";
 import styles from "./score.module.css";
@@ -39,7 +40,7 @@ export function ScoreCalculator() {
   const [up, setUp] = useState(true);
   const [magnitude, setMagnitude] = useState(10);
   const [horizonDays, setHorizonDays] = useState(30);
-  const [confidence, setConfidence] = useState(3);
+  const [confidence, setConfidence] = useState(4);
   /** 종목 변동성(하루 %) — 자산군 평균에서 출발하되 사용자가 움직인 뒤에는 그 값을 쓴다 */
   const [sigmaPct, setSigmaPct] = useState<number | null>(null);
 
@@ -57,11 +58,10 @@ export function ScoreCalculator() {
     const p0 = noSkillTouchProbability(direction, size, assetClass, horizonDays, s);
     const hit = computeReachScore(direction, size, confidence, assetClass, horizonDays, true, s);
     const miss = computeReachScore(direction, size, confidence, assetClass, horizonDays, false, s);
-    // 손익분기 승률: p·win = (1−p)·|loss| 를 푼 값 — 이보다 자주 맞힐 자신이 있어야 이 신뢰도가 남는다
-    const w = winAmplifier(confidence) * (1 - p0);
-    const l = lossAmplifier(confidence) * p0;
-    const breakEven = l / (w + l);
-    return { p0, hit: hit.score, miss: miss.score, breakEven };
+    // 손익분기 승률 = **신고 확률 그 자체**다. 적정 점수법이라 기대 정보량이
+    // p̂ = 진짜 확률에서 0을 넘어서므로, "이 신뢰도가 남으려면 그만큼 믿어야 한다"가
+    // 곧 신고 확률이다. v4에서는 증폭 비율을 풀어야 나오던 값이 여기선 정의로 나온다
+    return { p0, claimed: hit.claimed, hit: hit.score, miss: miss.score, breakEven: hit.claimed };
   }, [direction, size, assetClass, horizonDays, confidence, sigma]);
 
   return (
@@ -162,8 +162,8 @@ export function ScoreCalculator() {
           <input
             className={styles.range}
             type="range"
-            min={1}
-            max={10}
+            min={CONFIDENCE_RANGE.min}
+            max={CONFIDENCE_RANGE.max}
             step={1}
             value={confidence}
             onChange={(e) => setConfidence(Number(e.target.value))}
@@ -186,22 +186,23 @@ export function ScoreCalculator() {
             <span className={styles.partKey}>적중하면</span>
             <span className={styles.partVal}>{fmt(r.hit)}점</span>
             <span className={styles.partNote}>
-              10 × 크기 × 신뢰도 × (1 − {(r.p0 * 100).toFixed(0)}%) — 쉬운 목표일수록,
-              그리고 거친 종목일수록 적게 받습니다
+              ln({(r.claimed * 100).toFixed(0)}% ÷ {(r.p0 * 100).toFixed(0)}%) — 신고한 확률이
+              무정보보다 얼마나 위였는지, 그 **정보량**만큼 받습니다. 쉬운 목표일수록,
+              거친 종목일수록 무정보 확률이 커져 적게 받습니다
             </span>
           </div>
           <div className={styles.part}>
             <span className={styles.partKey}>실패하면</span>
             <span className={styles.partVal}>{fmt(r.miss)}점</span>
             <span className={styles.partNote}>
-              게시하는 순간 확정되는 값입니다 — 얼마나 크게 빗나갔는지는 점수에 들어가지
-              않습니다 (주장이 &quot;닿는다/못 닿는다&quot;라서)
+              게시하는 순간 확정되는 값입니다. 확신을 크게 신고할수록 틀렸을 때 더 잃습니다 —
+              얼마나 크게 빗나갔는지는 들어가지 않습니다 (주장이 &quot;닿는다/못 닿는다&quot;라서)
             </span>
           </div>
         </div>
 
         <div className={styles.totalRow}>
-          <span className={styles.totalLabel}>이 신뢰도의 손익분기 적중률</span>
+          <span className={styles.totalLabel}>이 신뢰도가 신고하는 적중 확률</span>
           <span className={styles.total}>{(r.breakEven * 100).toFixed(0)}%</span>
         </div>
         <p className={styles.hint}>

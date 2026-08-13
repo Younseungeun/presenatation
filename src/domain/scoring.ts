@@ -59,8 +59,12 @@ import { type AssetClass, type Direction, type Outcome, type TargetType } from '
  */
 export const CONFIDENCE_RANGE = { min: 2, max: 10 } as const;
 
-/** 방향·크기 점수 스케일 — 크기 1%p당 기본 지분 (v3 스케일 계승) */
-export const DIRECTION_SCALE = 10;
+/**
+ * 정보량(내추럴 로그)을 사람이 읽는 점수로 옮기는 배수.
+ * 분리력에는 영향이 없다 — 단조 변환일 뿐이라 순위도 등급 비율도 그대로다.
+ * 100인 이유는 카드 한 장이 대략 −200 ~ +500 범위에 들어와 읽기 좋기 때문이다.
+ */
+export const SCORE_SCALE = 100;
 
 /**
  * 수익성 5구간의 기준 단위 F (domain/profitability.ts) — **하한이 아니다.**
@@ -232,14 +236,29 @@ export function minMagnitudePct(
   );
 }
 
-/** 적중 시 증폭 배율 */
-export function winAmplifier(confidence: number): number {
-  return confidence;
+/**
+ * 수익성 5구간의 경계 — 자산군 기준 단위 F의 배수.
+ * (profitability.ts가 이 값을 읽는다. 여기 두는 이유는 점수의 크기 가중이 같은
+ *  구간을 쓰기 때문 — 두 곳에 적어 두면 언젠가 갈라진다.)
+ */
+export const PROFITABILITY_BOUNDS = [1.5, 2, 3, 5] as const;
+
+/** 예측 크기 → 수익성 구간 1~5 */
+export function magnitudeLevel(assetClass: AssetClass, magnitudePct: number): 1 | 2 | 3 | 4 | 5 {
+  const multiple = magnitudePct / PROFITABILITY_BASE_PCT[assetClass];
+  return (1 + PROFITABILITY_BOUNDS.filter((b) => multiple >= b).length) as 1 | 2 | 3 | 4 | 5;
 }
 
-/** 실패 시 증폭 배율 — 신뢰도에 초선형 (proper scoring: 정직한 승산 신고가 최적) */
-export function lossAmplifier(confidence: number): number {
-  return (confidence * (confidence + 1)) / 2;
+/**
+ * 수익성이 점수에 실리는 무게 — 구간 1에서 1.00, 구간 5에서 2.00.
+ *
+ * **완만한 이유**: 목표가 클수록 어렵다는 사실은 이미 p₀에 들어 있다(큰 목표 = 작은 p₀
+ * = 적중 시 큰 로그비). 여기서 크기를 다시 곱하면 v4의 "크게 걸면 점수도 크다"가
+ * 되살아나 아래 꼬리가 깊어진다. 시뮬에서 가중을 1~2로 두든 1~5로 두든 분리력은
+ * 같았으므로(AUC 0.954 vs 0.950), 부작용이 작은 쪽을 고른다.
+ */
+export function magnitudeWeight(assetClass: AssetClass, magnitudePct: number): number {
+  return 1 + 0.25 * (magnitudeLevel(assetClass, magnitudePct) - 1);
 }
 
 // ── 표준정규 CDF (Abramowitz–Stegun 7.1.26, |오차| < 1.5e−7) ──────────
@@ -301,26 +320,83 @@ export function noSkillTouchProbability(
   return Math.min(P0_MAX, Math.max(P0_MIN, p));
 }
 
+// ══ 신뢰도 사다리 — 승산 증폭 ═══════════════════════════════════════
+//
+// 신뢰도 c의 뜻은 그대로다: **"내 승산이 무정보의 몇 배인가."**
+// 바뀐 것은 칸의 간격이다. 예전에는 c배(선형, 꼭대기 10배)였는데, 실측한 실력 분포가
+// 그 범위를 한참 넘는다 (scripts/simConfidenceLevels.ts):
+//   정밀 ×137.6 / 우수 ×31.5 / 준수 ×5.5 / 하위 ×2.0 / 무실력 ×1.0
+// 꼭대기 10배로는 **최상위 실력자가 자기 우위의 1/14도 신고하지 못해** 우수형과
+// 구별되지 않았다. 신고 해상도(진짜 승산과 신고 승산의 로그 오차)로 재면
+// 꼭대기가 ×16일 때 0.58, ×140일 때 0.08 — 일곱 배 차이다.
+//
+// **칸 수는 10으로 유지한다.** 칸 수를 바꿀 근거가 없었다: 범위를 고정하고 칸 수만
+// 흔들면 분리력이 잡음(±0.002)의 수십 배로 튀고, 연속 신고(무한 칸)가 7칸보다 낮게
+// 나오는 모순까지 생긴다 — 격자 정렬의 우연이다. 같은 범위에서는 칸이 많을수록
+// 신고가 정확해지므로(이론과 실측 일치) 10칸이 7칸보다 못할 이유가 없다.
+
+/** 신뢰도 최고 칸의 승산 배수 — 실측 최상위 실력(×137.6)을 덮는다 */
+export const CONFIDENCE_ODDS_TOP = 140;
+
+/** 신뢰도 c → 승산 배수. 등비 사다리(칸당 약 ×1.71)라 별점이 c에 선형이 된다 */
+export function confidenceOddsMultiple(confidence: number): number {
+  const { min, max } = CONFIDENCE_RANGE;
+  void min;
+  return Math.pow(CONFIDENCE_ODDS_TOP, (confidence - 1) / (max - 1));
+}
+
+const oddsOf = (p: number) => p / Math.max(1e-9, 1 - p);
+const probOf = (o: number) => o / (1 + o);
+
+/** 신고 확률의 상한 — ln(p̂/p₀)가 무한대로 가지 않게 (100% 신고는 허용하지 않는다) */
+export const CLAIMED_PROB_CAP = 0.97;
+
 /**
- * 정직한 신뢰도 — 자기 승산이 무정보의 몇 배인지.
- * c → c+1 이득 조건 odds(p) ≥ (c+1)·odds(p₀)에서 바로 나온다:
- *   c* = clamp(⌊odds(p)/odds(p₀)⌋, 1, 10)
- * 화면(점수 계산기)이 "이 확신이면 신뢰도 몇이 정직한가"를 보여줄 때 쓴다.
+ * 신뢰도 c가 함의하는 적중 확률 p̂ — 무정보 승산을 c칸만큼 증폭한 값.
+ * 이것이 리서처가 사실상 신고하는 확률이고, 점수는 이 신고의 정확도를 잰다.
+ */
+export function claimedProbability(p0: number, confidence: number): number {
+  return Math.min(CLAIMED_PROB_CAP, probOf(oddsOf(p0) * confidenceOddsMultiple(confidence)));
+}
+
+/**
+ * 정직한 신뢰도 — 자기 승산이 무정보의 몇 배인지를 사다리 칸으로 되돌린다.
+ * 화면(점수 계산기·작성 화면)이 "이 확신이면 신뢰도 몇이 정직한가"를 보여줄 때 쓴다.
  */
 export function honestConfidence(pTrue: number, p0: number): number {
-  const odds = (x: number) => x / Math.max(1e-9, 1 - x);
-  const multiple = odds(pTrue) / Math.max(1e-9, odds(p0));
-  return Math.min(CONFIDENCE_RANGE.max, Math.max(CONFIDENCE_RANGE.min, Math.floor(multiple)));
+  const multiple = oddsOf(pTrue) / Math.max(1e-9, oddsOf(p0));
+  const c = 1 + ((CONFIDENCE_RANGE.max - 1) * Math.log(Math.max(1, multiple))) / Math.log(CONFIDENCE_ODDS_TOP);
+  return Math.min(CONFIDENCE_RANGE.max, Math.max(CONFIDENCE_RANGE.min, Math.round(c)));
 }
 
 export interface ReachScore {
   /** 무정보 도달 확률 — 게시 사양(방향·크기·기간·자산군)만의 함수 */
   p0: number;
-  /** 적중 시 +B·c·(1−p₀) / 실패 시 −B·c(c+1)/2·p₀ */
+  /** 신뢰도가 함의하는 적중 확률 */
+  claimed: number;
+  /** 기준 대비 정보량 (스케일·가중 적용 전) */
+  info: number;
+  /** 최종 점수 */
   score: number;
 }
 
-/** v4 본체 — 공정배당 이항 점수 */
+/**
+ * v5 본체 — **기준 대비 로그 점수(정보량)**.
+ *
+ *   적중:  ln( p̂ / p₀ )        실패:  ln( (1−p̂) / (1−p₀) )
+ *
+ * 이 양은 "이 예보가 무정보 대비 정보를 얼마나 더했는가"다. 성질:
+ *  · **적정(proper)**: 기대값이 p̂ = 진짜 확률에서 최대 — 정직 신고가 유일한 최적
+ *  · **무실력자의 기대값 = −D(p₀‖p̂) ≤ 0**, 등호는 p̂ = p₀(=신뢰도 최저)일 때뿐.
+ *    확신을 신고하는 순간 음수가 되므로 "은신처"를 따로 막을 필요가 없다
+ *  · **실력자의 기대값 = D(p‖p₀)** — 그 사람이 시장에 더한 정보량 그 자체
+ *  · **카드당 점수가 유계다.** v4는 벌점이 c(c+1)/2·B로 폭발해 크게 거는 사람의
+ *    아래 꼬리가 깊어졌고, 그래서 "점수가 낮다"가 "실력이 없다"를 뜻하지 못했다
+ *    (실측: 준수형 하위 5%가 −3,354인데 무실력자의 최악은 −189였다)
+ *
+ * 수익성(크기)은 정보량에 **완만한 가중**으로만 들어간다 — 난이도는 이미 p₀에 반영돼
+ * 있어 크기를 다시 곱하면 v4의 "크게 걸면 점수도 크다"가 되살아난다.
+ */
 export function computeReachScore(
   direction: Direction,
   magnitudePct: number,
@@ -328,16 +404,15 @@ export function computeReachScore(
   assetClass: AssetClass,
   horizonDays: number,
   hit: boolean,
-  /** 그 종목의 실현 변동성 — 없으면 자산군 σ̄ (변동성 차익이 남는 폴백) */
+  /** 그 종목의 실현 변동성 — 없으면 자산군 σ̄ */
   sigmaDaily?: number | null,
 ): ReachScore {
   assertConfidence(confidence);
   const p0 = noSkillTouchProbability(direction, magnitudePct, assetClass, horizonDays, sigmaDaily);
-  const stake = DIRECTION_SCALE * magnitudePct;
-  const score = hit
-    ? stake * winAmplifier(confidence) * (1 - p0)
-    : -stake * lossAmplifier(confidence) * p0;
-  return { p0, score };
+  const claimed = claimedProbability(p0, confidence);
+  const info = hit ? Math.log(claimed / p0) : Math.log((1 - claimed) / (1 - p0));
+  const weight = magnitudeWeight(assetClass, magnitudePct);
+  return { p0, claimed, info, score: SCORE_SCALE * weight * info };
 }
 
 // ── 마이너스 점수 규율 (자산군별 적용) ─────────────────────────────

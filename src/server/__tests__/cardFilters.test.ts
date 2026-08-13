@@ -70,10 +70,8 @@ describe('별점 평균 — 수익성·신뢰도를 점수 기여 가중으로 �
     expect(confUp - base).toBeGreaterThan(profUp - base);
   });
 
-  it('별 5개는 도달 불가 — 신뢰도 별의 상한(승률 100%)이 5 미만이라 평균도 그렇다', () => {
-    const top = ratingAverage(card({ profitability: 5, confidence: 10 }));
-    expect(top).toBeGreaterThan(4.5);
-    expect(top).toBeLessThan(5);
+  it('두 축 모두 꼭대기면 별 5개에 닿는다 — 사다리 꼭대기가 실재하는 자리가 됐다', () => {
+    expect(ratingAverage(card({ profitability: 5, confidence: 10 }))).toBeCloseTo(5, 6);
   });
 
   it('일부만 있으면 있는 별만으로 (분모도 그 무게만)', () => {
@@ -102,7 +100,7 @@ describe('별점 정렬', () => {
     const groups = groupCards(
       [
         card({ profitability: 5, confidence: 9 }), // ★4점 이상
-        card({ profitability: 1, confidence: 5 }), // ★3점대
+        card({ profitability: 3, confidence: 7 }), // ★3점대
         card({ profitability: 1, confidence: 2 }), // ★3점 미만 — 두 축 모두 하한
         card({ profitability: null, confidence: null }),
       ],

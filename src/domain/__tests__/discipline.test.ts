@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   CONFIDENCE_RANGE,
   disciplineFor,
-  lossAmplifier,
-  winAmplifier,
+  computeReachScore,
+  noSkillTouchProbability,
+
+
 } from '../scoring';
 import { preparePublish, type CardDraft, type PublishConditions } from '../publishReport';
 
@@ -54,17 +56,21 @@ describe('disciplineFor — 마이너스 점수 규율 래더', () => {
 });
 
 describe('규율의 경제적 효과 — 저품질 대량 게시 차단', () => {
-  it('승률 55% 스패머: 신뢰도 1에서는 기대 점수 +, 강제 신뢰도 2에서도 −', () => {
-    const p = 0.55;
-    const evAt = (c: number) => p * winAmplifier(c) - (1 - p) * lossAmplifier(c);
-    expect(evAt(1)).toBeGreaterThan(0); // 규율 전: 은신처 존재
-    expect(evAt(2)).toBeLessThan(0); // 완화된 1단(c≥2)만으로도 시행할수록 손해
+  /** 진짜 적중 확률 p인 사람이 신뢰도 c로 게시했을 때의 기대 점수 */
+  const evAt = (p: number, c: number) =>
+    p * computeReachScore('UP', 10, c, 'KR_EQUITY', 30, true, 0.02).score +
+    (1 - p) * computeReachScore('UP', 10, c, 'KR_EQUITY', 30, false, 0.02).score;
+
+  it('무실력자는 신뢰도를 올릴수록 손해가 커진다 — 적정 점수법이 스스로 막는다', () => {
+    const p0 = noSkillTouchProbability('UP', 10, 'KR_EQUITY', 30, 0.02);
+    // 진짜 확률이 p₀인 사람(= 무실력)이 확신을 신고하면 기대 정보량이 음수다
+    expect(evAt(p0, CONFIDENCE_RANGE.min)).toBeLessThan(0);
+    expect(evAt(p0, 5)).toBeLessThan(evAt(p0, CONFIDENCE_RANGE.min));
+    expect(evAt(p0, 10)).toBeLessThan(evAt(p0, 5));
   });
 
-  it('실력자(승률 85%)는 강제 신뢰도 5에서도 기대 점수 + (하한의 선별성)', () => {
-    const p = 0.85;
-    const evAt = (c: number) => p * winAmplifier(c) - (1 - p) * lossAmplifier(c);
-    expect(evAt(5)).toBeGreaterThan(0);
+  it('실력자는 강제 신뢰도 5에서도 기대 점수 + (하한의 선별성)', () => {
+    expect(evAt(0.85, 5)).toBeGreaterThan(0);
   });
 });
 

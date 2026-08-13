@@ -7,23 +7,23 @@ import { convictionStars } from "../starSummary";
 // 함의 승률 별점 — 다이얼값이 정직하려면 걸어야 하는 최소 확률 × 5 (ratingStars 주석).
 describe("함의 승률 매핑", () => {
   it("신뢰도: 함의 승률 × 5 — 별이 곧 승률이다", () => {
-    // 신뢰도 하한이 2로 오른 뒤에도 이 식을 바꾸지 않는다. 쓸 수 있는 구간이
-    // ★3.33~4.55로 좁아지지만, c=2를 ★1로 다시 펴면 **승률 66.7%짜리 신고가
-    // 별 한 개**로 보인다 — 압축보다 그쪽이 더 나쁜 거짓말이다
-    expect(confidenceStars(CONFIDENCE_RANGE.min)).toBeCloseTo(10 / 3, 10);
-    expect(confidenceStars(3)).toBeCloseTo(3.75, 10);
-    expect(confidenceStars(CONFIDENCE_RANGE.max)).toBeCloseTo(50 / 11, 10);
+    // 사다리가 등비(칸당 승산 ×1.71, 꼭대기 ×140)라 로그 승산이 c에 선형이다.
+    // 별도 c에 선형으로 두어야 "별 한 칸"이 어느 구간에서든 같은 뜻이 된다
+    expect(confidenceStars(CONFIDENCE_RANGE.min)).toBeCloseTo(1, 10);
+    expect(confidenceStars(6)).toBeCloseTo(3, 10);
+    expect(confidenceStars(CONFIDENCE_RANGE.max)).toBeCloseTo(5, 10);
   });
 
-  it("별 5개(승률 100%)는 도달 불가 — 정직한 천장", () => {
-    expect(confidenceStars(10)).toBeLessThan(5);
+  it("★5는 최고 신뢰도 신고에서 닿는다 — 예전의 '도달 불가 천장'은 사라졌다", () => {
+    // 별이 승률이던 시절에는 ★5 = 승률 100%라 원리적으로 못 닿았다. 이제 별은
+    // 사다리 칸이라 꼭대기가 실재한다 — 대신 그 신고는 틀리면 가장 크게 잃는다
+    expect(confidenceStars(CONFIDENCE_RANGE.max)).toBe(5);
   });
 
-  it("위로 갈수록 촘촘해진다 — 한 단계의 별 증가폭이 단조 감소", () => {
-    for (let v = CONFIDENCE_RANGE.min + 1; v < CONFIDENCE_RANGE.max; v++) {
-      expect(confidenceStars(v + 1) - confidenceStars(v)).toBeLessThan(
-        confidenceStars(v) - confidenceStars(v - 1),
-      );
+  it("칸 간격이 일정하다 — 등비 사다리라 별 증가폭도 균등", () => {
+    const step = confidenceStars(4) - confidenceStars(3);
+    for (let v = CONFIDENCE_RANGE.min; v < CONFIDENCE_RANGE.max; v++) {
+      expect(confidenceStars(v + 1) - confidenceStars(v)).toBeCloseTo(step, 10);
     }
   });
 });
@@ -75,10 +75,8 @@ describe("convictionStars — 점수 기여 가중", () => {
     expect(convictionStars("CRYPTO", 3)).toBeCloseTo(confidenceStars(3), 10);
   });
 
-  it("만점 카드도 별 5개에 닿지 않는다 — 승률 100%는 없다", () => {
-    const top = convictionStars("KR_EQUITY", 10, 5)!;
-    expect(top).toBeLessThan(5);
-    expect(top).toBeGreaterThan(4.5);
+  it("두 축 모두 꼭대기면 별 5개에 닿는다", () => {
+    expect(convictionStars("KR_EQUITY", 10, 5)!).toBeCloseTo(5, 6);
   });
 
   it("자산군이 없으면 null", () => {

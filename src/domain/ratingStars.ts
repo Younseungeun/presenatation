@@ -1,5 +1,5 @@
-import { PROFITABILITY_BOUNDS, type ProfitabilityLevel } from './profitability';
-import { CONFIDENCE_RANGE, lossAmplifier, winAmplifier } from './scoring';
+import { type ProfitabilityLevel } from './profitability';
+import { CONFIDENCE_RANGE, confidenceOddsMultiple, PROFITABILITY_BOUNDS } from './scoring';
 
 // 별점의 단일 기준 — 표시·정렬·융합 별점이 모두 여기서 나온다.
 //
@@ -12,18 +12,22 @@ import { CONFIDENCE_RANGE, lossAmplifier, winAmplifier } from './scoring';
 //   · 신뢰도  = 얼마나 맞을 것 같나 (리서처가 건 승산 → 함의 승률)
 
 /**
- * 신뢰도 c → 별. **함의 승률 × 5** — 다이얼은 선형이 아니라 승산 사다리라,
- * c가 c−1보다 유리할 조건 p ≥ c/(c+1)의 그 확률을 그대로 별로 옮긴다.
- * c=2 → ★3.33 (승률 66.7%), c=10 → ★4.55 (90.9%). ★5는 승률 100%라 도달 불가.
+ * 신뢰도 c → 별 (★1 ~ ★5).
  *
- * **신뢰도 하한이 2로 오른 뒤에도 이 식을 그대로 둔다** (2026-08-13 판단).
- * 한때 "쓸 수 있는 구간이 ★3.33~4.55로 좁으니 눈금을 다시 펴자"고 바꿨다가 되돌렸다 —
- * c=2를 ★1로 그리면 **함의 승률 66.7%짜리 신고가 별 한 개로 보인다.** 압축된 것보다
- * 그쪽이 더 나쁜 거짓말이다. 별의 뜻이 "승률"인 것이 이 스케일의 전부이고,
- * 정확한 수치는 각주가 따로 싣는다(작성 화면·리포트 상세·/score).
+ * 사다리가 **등비**(칸당 승산 ×1.71, 꼭대기 ×140)로 바뀌면서 별도 따라 바뀐다:
+ * 로그 승산이 c에 선형이므로 **별도 c에 선형**으로 두는 것이 눈금과 일치한다.
+ * 별 한 칸 = 승산 ×1.71 — 어느 구간에서든 같은 뜻이다.
+ *
+ * 예전(승률×5)을 버린 이유: 함의 승률은 이제 p₀에 따라 달라져(같은 c라도 카드마다
+ * 다른 확률을 뜻한다) 카드 목록에 고정된 별로 그릴 수 없다. 게다가 목표 크기가
+ * 가려진 화면에서 승률 기반 별을 그리면 p₀를 통해 크기가 역산될 여지가 생긴다.
+ * 정확한 함의 승률은 **구매자가 그 카드의 사양을 아는 자리**(리포트 상세·작성 화면)에서
+ * 각주로 싣는다.
  */
 export function confidenceStars(confidence: number): number {
-  return (5 * confidence) / (confidence + 1);
+  const { min, max } = CONFIDENCE_RANGE;
+  const t = (confidence - min) / (max - min);
+  return 1 + 4 * Math.min(1, Math.max(0, t));
 }
 
 /**
@@ -75,14 +79,14 @@ export function profitabilityPayoutStars(level: ProfitabilityLevel): number {
  * 안정성은 여기 없다: 점수 기여가 0이므로 무게도 0 (종목 변동성 표시 전용).
  */
 export const RATING_WEIGHT: { profitability: number; confidence: number } = (() => {
-  const profitSlope =
-    Math.log(PROFITABILITY_PAYOUT_MULTIPLE[5] / PROFITABILITY_PAYOUT_MULTIPLE[1]) / 4;
+  // 수익성: 점수에 곱해지는 무게가 구간 1→5에서 1.00 → 2.00 (scoring.magnitudeWeight)
+  const profitSlope = Math.log(2) / (profitabilityPayoutStars(5) - profitabilityPayoutStars(1));
 
+  // 신뢰도: 별 1→5가 승산 ×1 → ×140 (scoring의 등비 사다리)
   const { min, max } = CONFIDENCE_RANGE;
-  const winSpan = Math.log(winAmplifier(max) / winAmplifier(min));
-  const lossSpan = Math.log(lossAmplifier(max) / lossAmplifier(min));
-  const starSpan = confidenceStars(max) - confidenceStars(min);
-  const confidenceSlope = (winSpan + lossSpan) / 2 / starSpan;
+  const confidenceSlope =
+    Math.log(confidenceOddsMultiple(max) / confidenceOddsMultiple(min)) /
+    (confidenceStars(max) - confidenceStars(min));
 
   const total = profitSlope + confidenceSlope;
   return { profitability: profitSlope / total, confidence: confidenceSlope / total };

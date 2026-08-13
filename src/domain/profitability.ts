@@ -23,7 +23,8 @@ import { PROFITABILITY_BASE_PCT, targetPriceToMagnitudePct } from './scoring';
 //  · 역산 방지: 구간 폭 최소 주식 2.5%p / 코인 5%p — 라벨에서 원값 복원 불가
 
 /** 구간 경계 — F 배수. [1.5, 2, 3, 5] → 5구간 */
-export const PROFITABILITY_BOUNDS = [1.5, 2, 3, 5] as const;
+export { PROFITABILITY_BOUNDS } from './scoring';
+import { PROFITABILITY_BOUNDS } from './scoring';
 
 export type ProfitabilityLevel = 1 | 2 | 3 | 4 | 5;
 

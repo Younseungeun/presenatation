@@ -4,12 +4,15 @@ import {
   disciplineFor,
   minMagnitudePct,
   maxMagnitudePct,
+  claimedProbability,
+  magnitudeWeight,
   noSkillTouchProbability,
+  SCORE_SCALE,
   scoreJudgedCard,
   type Discipline,
 } from '../src/domain/scoring';
 
-// 실력 분리력 최적화 — npx tsx scripts/simSkillSeparation.ts
+// 실력 분리력 측정 (점수 v5 정보량 모델) — npx tsx scripts/simSkillSeparation.ts
 //
 // 묻는 것: **점수가 실력을 얼마나 잘 가르는가.** 그리고 신뢰도 하한·규율 래더·등급
 // 임계값을 어떻게 잡아야 그 분리가 가장 좋아지는가.
@@ -91,8 +94,9 @@ function touchProb(mPct: number, k: number): number {
  */
 function cardScore(M: number, c: number, hit: boolean): number {
   const p0 = noSkillTouchProbability('UP', M, ASSET, H, SIGMA);
-  const B = 10 * M;
-  return hit ? B * c * (1 - p0) : -B * ((c * (c + 1)) / 2) * p0;
+  const pHat = claimedProbability(p0, c);
+  const info = hit ? Math.log(pHat / p0) : Math.log((1 - pHat) / (1 - p0));
+  return SCORE_SCALE * magnitudeWeight(ASSET, M) * info;
 }
 
 // 옮겨 적은 공식이 정산과 같은 값을 내는지 — 갈라지면 이 시뮬의 결론이 전부 무효다

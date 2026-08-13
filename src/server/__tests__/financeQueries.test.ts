@@ -113,13 +113,13 @@ describe('getBuyerPurchases — 구매 내역', () => {
 });
 
 describe('getLeaderboard — 판정 기반 집계', () => {
-  it('판정된 자산군만 집계: HIT +495.0, MISS −15.0 → 시즌 점수 +480.0', async () => {
+  it('판정된 자산군만 집계: HIT +212, MISS −8 → 시즌 점수 +204', async () => {
     const rows = await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW);
     expect(rows).toHaveLength(1);
     expect(rows[0].researcherId).toBe(researcherId);
     expect(rows[0].sampleSize).toBe(2);
-    // v4: HIT +495.0 (p₀ 공제), MISS −15.0 — judgmentBatch.test와 같은 카드 사양
-    expect(rows[0].seasonScore).toBeCloseTo(480, 0);
+    // v4: HIT +212 (정보량), MISS −8 — judgmentBatch.test와 같은 카드 사양
+    expect(rows[0].seasonScore).toBeCloseTo(204, 0);
 
     // 판정 없는 자산군은 빈 리더보드
     expect(await getLeaderboard(prisma, 'KR_EQUITY', BATCH_NOW)).toEqual([]);
@@ -140,12 +140,12 @@ describe('종목별 리더보드', () => {
     expect(hitOnly).toHaveLength(1);
     expect(hitOnly[0].sampleSize).toBe(1);
     expect(hitOnly[0].hitRate).toBe(1);
-    expect(hitOnly[0].seasonScore).toBeCloseTo(495, 0); // HIT 건만
+    expect(hitOnly[0].seasonScore).toBeCloseTo(212, 0); // HIT 건만
 
     const missOnly = await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW, 'KRW-BBB');
     expect(missOnly[0].sampleSize).toBe(1);
     expect(missOnly[0].hitRate).toBe(0);
-    expect(missOnly[0].seasonScore).toBeCloseTo(-15, 0); // MISS 건만
+    expect(missOnly[0].seasonScore).toBeCloseTo(-8, 0); // MISS 건만
 
     // 판정 없는 종목은 빈 리더보드
     expect(await getLeaderboard(prisma, 'CRYPTO', BATCH_NOW, 'KRW-CCC')).toEqual([]);
@@ -158,14 +158,14 @@ describe('getAllTimeRanking — 전 기간·전 자산군 통합 랭킹', () => 
     expect(byScore).toHaveLength(1);
     expect(byScore[0].researcherId).toBe(researcherId);
     // 시즌 필터가 없을 뿐 같은 판정 2건이므로 리더보드 시즌 점수와 동일
-    expect(byScore[0].totalScore).toBeCloseTo(480, 0);
+    expect(byScore[0].totalScore).toBeCloseTo(204, 0);
     expect(byScore[0].sampleSize).toBe(2);
     expect(byScore[0].hitRate).toBe(0.5);
 
     // 정렬 기준만 바뀌고 집계값은 같다
     const byHitRate = await getAllTimeRanking(prisma, 'HIT_RATE', BATCH_NOW);
     expect(byHitRate[0].hitRate).toBe(0.5);
-    expect(byHitRate[0].totalScore).toBeCloseTo(480, 0);
+    expect(byHitRate[0].totalScore).toBeCloseTo(204, 0);
   });
 });
 

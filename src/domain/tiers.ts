@@ -31,9 +31,9 @@ export type TierThresholds = Record<Exclude<Tier, 'BRONZE' | 'CHALLENGER'>, numb
 //   · 순위상관(실력↔점수) 0.79
 //   · 도달률: 준수 41% 시니어 / 우수 88% 마스터 / 정밀 95% 펠로우
 export const DEFAULT_TIER_THRESHOLDS: TierThresholds = {
-  SILVER: 5_300,
-  GOLD: 13_900,
-  PLATINUM: 25_000,
+  SILVER: 1_330,
+  GOLD: 2_770,
+  PLATINUM: 5_250,
 };
 
 /**
