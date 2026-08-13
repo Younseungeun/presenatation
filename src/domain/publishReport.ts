@@ -366,7 +366,7 @@ export function preparePublish(
   const discipline = disciplineFor(cond.assetClassEvidence ?? 0);
   if (discipline.publishSuspended) {
     issues.push(
-      `${card.assetClass} 신규 게시가 정지되었습니다 (시즌 종료까지) — 신고한 확신이 실제 적중과 거듭 어긋났습니다. 진행 중인 카드는 정상 판정·정산됩니다`,
+      `${card.assetClass} 신규 게시가 정지되었습니다 — 신고한 확신이 실제 적중과 거듭 어긋났습니다. 이후 적중이 쌓이면 자동으로 풀립니다. 진행 중인 카드는 정상 판정·정산됩니다`,
     );
   } else if (card.confidence > discipline.maxConfidence) {
     issues.push(

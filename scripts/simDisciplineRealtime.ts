@@ -50,7 +50,12 @@ const GAP = SEASON_DAYS / CARDS;
 let WINDOW_DAYS = SEASON_DAYS;
 let WINDOW_CARDS = CARDS;
 
-type Behavior = { kind: 'EV' } | { kind: 'CLAIM'; c: number };
+type Behavior =
+  | { kind: 'EV' } // 기대 점수 최대 = 정직 신고
+  | { kind: 'CLAIM'; c: number } // 실력과 무관하게 c를 고정으로 부른다
+  // 래더를 보면서 피한다 — 증거가 문턱에 다가오면 c를 낮춰 얼어붙게 하고,
+  // 여유가 생기면 다시 크게 부른다. 외부 검토가 위험도 高로 꼽은 공격.
+  | { kind: 'ADAPTIVE'; loud: number; safe: number; margin: number };
 interface Cohort {
   name: string;
   k: number;
@@ -306,6 +311,12 @@ function runSeason(
         const s = bestStrategy(co.k, d.maxConfidence);
         M = s.M;
         c = s.c;
+      } else if (co.behavior.kind === 'ADAPTIVE') {
+        // 문턱까지 margin 안쪽이면 몸을 사린다 — 낮은 c는 정보량이 0에 가까워
+        // D가 더 내려가지 않는다(얼어붙는다). 여유가 생기면 다시 크게 부른다
+        const b = co.behavior;
+        M = CLAIM_M;
+        c = Math.min(d.maxConfidence, evidence <= rung1 + b.margin ? b.safe : b.loud);
       } else {
         M = CLAIM_M;
         c = Math.min(d.maxConfidence, co.behavior.c);
@@ -539,6 +550,50 @@ for (const rb of [1.0, 0.7, 0.5] as const) {
 }
 console.log('');
 
+// ── 리셋을 없애면 큰 목표 회피도 닫히는가 ────────────────────
+// ⑤에서 목표를 키우는 것만으로 탐지가 67.5% → 0.0%가 됐다. 그 회피가 증거를
+// 이어 쌓아도 남는지 본다. 남는다면 별도 장치(신뢰도 상한 등)가 필요하다.
+console.log('■ ⑤-2 큰 목표 회피 × 증거 창 (표적 발동률 / 20장당 ★4+ 카드)');
+console.log(
+  `  ${'목표 M'.padEnd(9)}${'실패 정보량'.padStart(12)}` +
+    (['1분기', '1년', '2년'] as const).map((s) => s.padStart(16)).join(''),
+);
+const M_SAVE2 = CLAIM_M;
+const D2 = WINDOW_DAYS;
+const C2 = WINDOW_CARDS;
+for (const frac of [0, 0.4, 0.6, 1.0]) {
+  CLAIM_M = M_GRID[Math.min(M_GRID.length - 1, Math.floor(M_GRID.length * frac))];
+  evCache.clear();
+  const p0 = noSkillTouchProbability('UP', CLAIM_M, ASSET, H, SIGMA);
+  const missInfo = Math.log((1 - claimedProbability(p0, 10)) / (1 - p0));
+  const cells = ([[91, 20], [364, 80], [728, 160]] as const).map(([days, cards]) => {
+    WINDOW_DAYS = days;
+    WINDOW_CARDS = cards;
+    const people = runSeason('TIMED');
+    let harm = 0;
+    let hitFire = 0;
+    let targetN = 0;
+    for (let i = 0; i < COHORTS.length; i++) {
+      const g = people.filter((p) => p.cohort === i);
+      harm += g.reduce((a, p) => a + p.loudCards, 0);
+      if (COHORTS[i].target) {
+        hitFire += g.filter((p) => p.fired).length;
+        targetN += g.length;
+      }
+    }
+    const per20 = (harm / people.length) * (20 / cards);
+    return `${((hitFire / targetN) * 100).toFixed(0)}% / ${per20.toFixed(2)}`.padStart(16);
+  });
+  console.log(
+    `  ${(CLAIM_M.toFixed(1) + '%').padEnd(9)}${missInfo.toFixed(2).padStart(12)}${cells.join('')}`,
+  );
+}
+CLAIM_M = M_SAVE2;
+WINDOW_DAYS = D2;
+WINDOW_CARDS = C2;
+evCache.clear();
+console.log('');
+
 // ── 시즌 리셋이 래더를 죽이는가 ──────────────────────────────
 // D는 시즌마다 0에서 시작한다. 유효 장수가 2.6인 창에서 리셋하면 증거가 쌓일 자리가
 // 없다. 게시 간격을 그대로 두고 **창만 늘려** 본다 (리셋 없이 이어 쌓는 경우).
@@ -590,6 +645,54 @@ for (const [days, cards, label] of [
       `${per20.toFixed(2).padStart(11)}`,
   );
 }
+WINDOW_DAYS = D_SAVE;
+WINDOW_CARDS = C_SAVE;
+console.log('');
+
+// ── 적응형 표적 — 래더를 보면서 피한다 ───────────────────────
+// 외부 검토가 위험도 高로 꼽았다: 증거가 문턱에 다가오면 c를 낮춰 얼어붙게 하고,
+// 여유가 생기면 다시 크게 부른다. 고정 c 표적과 나란히 놓고 본다.
+console.log('■ ⑧ 적응형 표적 (문턱 0.8 안쪽이면 c=2로 몸을 사린다)');
+COHORTS.push({
+  name: '적응형',
+  k: 0,
+  weight: 0,
+  behavior: { kind: 'ADAPTIVE', loud: 10, safe: 2, margin: 0.8 },
+  target: true,
+});
+// 표적 셋을 적응형으로 바꿔 같은 비중에서 비교한다
+const FIXED = COHORTS.map((c) => ({ ...c }));
+console.log(
+  `  ${'창'.padEnd(10)}${'표적'.padStart(10)}${'발동'.padStart(9)}${'★4+/20장'.padStart(11)}${'게시'.padStart(8)}`,
+);
+for (const [days, cards, label] of [
+  [91, 20, '1분기'],
+  [364, 80, '1년'],
+  [728, 160, '2년'],
+] as const) {
+  WINDOW_DAYS = days;
+  WINDOW_CARDS = cards;
+  for (const mode of ['고정 c10', '적응형'] as const) {
+    // 허위c10 코호트의 행동만 갈아 끼운다
+    const idx = COHORTS.findIndex((c) => c.name === '허위c10');
+    COHORTS[idx].behavior =
+      mode === '적응형'
+        ? { kind: 'ADAPTIVE', loud: 10, safe: 2, margin: 0.8 }
+        : { kind: 'CLAIM', c: 10 };
+    const people = runSeason('TIMED');
+    const g = people.filter((p) => p.cohort === idx);
+    const per20 = (g.reduce((a, p) => a + p.loudCards, 0) / g.length) * (20 / cards);
+    console.log(
+      `  ${label.padEnd(10)}${mode.padStart(10)}` +
+        `${((g.filter((p) => p.fired).length / g.length) * 100).toFixed(0).padStart(8)}%` +
+        `${per20.toFixed(2).padStart(11)}` +
+        `${(g.reduce((a, p) => a + p.cards, 0) / g.length).toFixed(1).padStart(8)}`,
+    );
+  }
+}
+COHORTS.length = 0;
+COHORTS.push(...FIXED.filter((c) => c.name !== '적응형'));
+COHORTS[COHORTS.findIndex((c) => c.name === '허위c10')].behavior = { kind: 'CLAIM', c: 10 };
 WINDOW_DAYS = D_SAVE;
 WINDOW_CARDS = C_SAVE;
 console.log('');

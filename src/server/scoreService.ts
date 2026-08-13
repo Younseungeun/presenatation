@@ -4,10 +4,34 @@ import { aggregateEvidence, type EvidenceCard } from '@/domain/evidence';
 
 // 점수 집계: Judgment.score를 시즌·자산군별로 합산한다. 시즌 = 분기 (KST 기준).
 //
-// **점수와 규율 증거는 집계 방법이 다르다.**
-//  · 점수(등급·리더보드의 입력)는 단순 합산이다 — 보상이므로 카드마다 온전히 센다
-//  · 증거(규율 래더의 입력)는 상관 보정을 거친다 — 통계적 검정이라 동시에 열려
-//    있던 상관 카드를 독립 시행으로 세면 정직한 사람이 걸린다 (domain/evidence.ts)
+// **점수와 규율 증거는 집계 방법도, 기간도 다르다.**
+//  · 점수(등급·리더보드의 입력)는 **시즌 단순 합산**이다 — 보상이자 경쟁이라
+//    분기마다 새로 시작하는 것이 상품 설계다
+//  · 증거(규율 래더의 입력)는 **평생 누적**이고 상관 보정을 거친다 —
+//    통계적 검정이라 표본을 버릴 이유가 없다 (아래 researcherSeasonTotals)
+//
+// ── 증거를 시즌마다 리셋하지 않는 이유 (2026-08-13, scripts/simDisciplineRealtime.ts) ──
+// 원래는 증거도 시즌 범위였다. 그런데 상관 보정을 넣은 뒤 한 시즌의 **유효 장수가
+// 2.6장**이 됐다 — 20장을 내도 겹친 기간만큼 하중이 나뉘고, 기한 30일 카드는 시즌
+// 91일 중 61일 이후 게시분이 다음 시즌에 판정되어 14장만 남는다. 그 크기로는
+// 아무것도 결정할 수 없어서 **래더가 한 번도 발동하지 못했다** (표적 발동 0.0%,
+// 실력 없이 ★4+로 팔린 카드가 규율 없을 때와 같은 0.90장/인).
+//
+// 창을 늘리면 되살아난다 (게시 간격 고정, 20장당 피해로 환산):
+//
+//   증거 창      유효 장수   표적 발동   정직한 사람 오작동   ★4+/20장
+//   1분기          2.6        0.0%          0.00%            0.84
+//   1년           11.6       66.0%          0.14%            0.36
+//   2년           23.8       92.0%          0.17%            0.17
+//
+// **rigor도 함께 좋아진다.** Ville 부등식은 anytime-valid라 창을 늘려도 보장이
+// 그대로인 반면, 분기마다 리셋하면 1년에 네 번 독립적으로 문턱을 시험하는 셈이라
+// 합집합 상한으로 연간 오작동이 최대 4α가 된다. 리셋하지 않으면 **평생에 걸쳐
+// 단 하나의 α**다. 탐지력과 보장을 동시에 개선하는 유일한 방향이었다
+// (α 상향도, 하중 완화도 이 문제를 풀지 못했다 — docs/score-discipline-sim.md).
+//
+// 회복은 여전히 자동이다. D는 현재값의 함수라 적중의 정보량(양수)이 쌓이면
+// 문턱에서 멀어진다 — 과거가 지워지는 것이 아니라 상쇄된다.
 
 const KST_OFFSET_MS = 9 * 3600_000;
 
@@ -49,20 +73,25 @@ export async function researcherSeasonScores(
 }
 
 /**
- * 기준 시각이 속한 시즌의 자산군별 **점수와 정보량**.
+ * 자산군별 **시즌 점수**와 **평생 증거**.
  *
  * 둘을 함께 내는 이유: 쓰는 곳이 다르다. 등급·리더보드는 점수(수익성 가중 포함)를 보고,
  * 규율 래더는 정보량(가중 없는 로그우도비)을 본다 — 증거는 목표 크기에 비례하지 않는다.
  * 한 번의 조회로 둘 다 내야 두 값이 서로 다른 시점의 데이터를 보는 일이 없다.
+ *
+ * **기간이 다르다**: 점수는 `at`이 속한 시즌만, 증거는 그 시즌 끝까지의 전체 이력이다.
+ * (`at`을 과거로 주는 재산정에서도 미래 판정이 새어 들어오지 않게 상한을 건다)
  */
 export async function researcherSeasonTotals(
   prisma: PrismaClient,
   researcherId: string,
   at = new Date(),
 ): Promise<{ score: Record<AssetClass, number>; evidence: Record<AssetClass, number> }> {
+  const from = seasonStart(at);
+  const until = nextSeasonStart(at);
   const judgments = await prisma.judgment.findMany({
     where: {
-      judgedAt: { gte: seasonStart(at), lt: nextSeasonStart(at) },
+      judgedAt: { lt: until },
       score: { not: null },
       predictionCard: { report: { researcherId } },
     },
@@ -84,7 +113,9 @@ export async function researcherSeasonTotals(
   const cards: EvidenceCard[] = [];
   for (const j of judgments) {
     const a = j.predictionCard.assetClass as AssetClass;
-    score[a] += j.score!;
+    // 점수는 이번 시즌 판정분만 — 등급은 분기마다 새로 겨룬다
+    if (j.judgedAt >= from) score[a] += j.score!;
+    // 증거는 기간 제한이 없다 (파일 상단 주석)
     // info는 v5 이전 판정에 없다(null) — 그 카드는 증거로 세지 않는다.
     // 규율이 옛 데이터로 소급 발동하지 않는 편이 안전하다(불리한 처분은 소급하지 않는다)
     if (j.info == null) continue;
