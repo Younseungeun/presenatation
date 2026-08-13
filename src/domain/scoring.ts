@@ -415,34 +415,72 @@ export function computeReachScore(
   return { p0, claimed, info, score: SCORE_SCALE * weight * info };
 }
 
-// ── 마이너스 점수 규율 (자산군별 적용) ─────────────────────────────
-// 누적 점수가 깊은 마이너스로 갈수록 작성 가능한 최소 신뢰도가 올라간다.
-// v4에서 무정보 EV는 c=1에서 0, c≥2부터 −B·p₀(1−p₀)·c(c−1)/2로 가속 음수 —
-// 래더가 c≥2를 강제하는 순간 스팸의 하강이 구조적으로 보장된다.
-// 최하단은 강제 탈퇴 대신 해당 자산군 신규 게시 정지(시즌 종료까지).
+// ── 규율 래더 (자산군별·시즌별 적용) ──────────────────────────────
+//
+// **v5 재설계 (2026-08-13, scripts/simDisciplineLadder.ts).** 래더 자체는 v3 이후
+// 손대지 않았는데, 그 아래의 점수 모델이 두 번 바뀌면서 두 곳이 동시에 어긋나 있었다.
+//
+// ① 처방이 거꾸로였다 — 옛 래더는 **최소 신뢰도를 올렸다.** v4에서는 벌점이 c(c+1)/2로
+//    커져 "자신 없으면 아예 내지 마라"는 억제였지만, v5에서 그것은 **플랫폼이 거짓 신고를
+//    요구하는 것**이 된다(적정 점수법에서 신뢰도는 곧 확률 신고다). 게다가 표적인
+//    과장 신고자는 이미 c를 높게 부르고 있어 하한이 아무 제약도 되지 못한다 —
+//    실측: 발동해도 그들이 파는 ★4+ 카드가 20.0장 그대로였다(규율 없을 때와 동일).
+//    그래서 **상한**으로 뒤집었다. 낮게 부르는 것은 언제나 가능하므로 거짓말을 강요하지
+//    않고, 표적의 판매 신호(별점)를 정확히 겨눈다.
+//
+// ② 문턱이 임의였다 — 이제는 고를 필요가 없다. **v5 점수는 이미 로그우도비다:**
+//    카드의 정보량 합 D = ln( L(신고한 확률) / L(무정보) ). 신고가 정직하면 1/Λ는
+//    평균 1의 비음 마팅게일이라 Ville 부등식이 그대로 온다:
+//
+//        P( 시즌 중 언젠가라도 D ≤ −ln(1/α) )  ≤  α          (신고가 정직할 때)
+//
+//    **표본 수와 무관하게, 어느 시점에 봐도** 성립한다 — 최소 표본도, 다중 검정 보정도
+//    필요 없다. 문턱이 곧 오작동 확률의 상한이라, 각 단이 "정직한 사람을 잘못 잡을
+//    확률"을 이름으로 달고 있다. 시뮬레이션은 이 값을 고르는 데 쓰이지 않았고
+//    **검증에만** 쓰였다(실측 오작동 3.7% / 0.5% — 각 단의 α 이내).
+//
+// 쓰는 값이 점수(score)가 아니라 **정보량(info)**인 이유: 수익성 가중 w는 상품의
+// 값어치지 증거가 아니다. 큰 목표를 걸었다고 같은 적중이 더 강한 증거가 되지는 않는다.
+//
+// 회복은 자동이다 — D는 현재값의 함수라 이후 적중으로 올라오면 상한이 풀린다.
+// 시즌이 바뀌면 D도 0에서 시작한다.
 
 export interface Discipline {
-  /** 작성 가능한 최소 신뢰도 (1이면 제약 없음) */
-  minConfidence: number;
+  /** 작성 가능한 **최대** 신뢰도 (CONFIDENCE_RANGE.max면 제약 없음) */
+  maxConfidence: number;
   /** 해당 자산군 신규 게시 정지 여부 */
   publishSuspended: boolean;
 }
 
-export const DISCIPLINE_LADDER: ReadonlyArray<{ scoreBelow: number } & Discipline> = [
-  { scoreBelow: -10_000, minConfidence: 10, publishSuspended: true },
-  { scoreBelow: -6_000, minConfidence: 7, publishSuspended: false },
-  { scoreBelow: -3_000, minConfidence: 5, publishSuspended: false },
-  { scoreBelow: -1_000, minConfidence: 2, publishSuspended: false },
+/** 각 단의 오작동 상한 α — 문턱은 −ln(1/α)로 유도된다 */
+export const DISCIPLINE_ALPHA = [0.05, 0.01, 0.001, 0.0001] as const;
+
+/** α → 증거 문턱. Ville 부등식의 경계 그 자체다 */
+export function evidenceThreshold(alpha: number): number {
+  return -Math.log(1 / alpha);
+}
+
+export const DISCIPLINE_LADDER: ReadonlyArray<
+  { evidenceBelow: number; alpha: number } & Discipline
+> = [
+  // 깊은 단부터 — disciplineFor가 위에서부터 훑는다
+  { alpha: 0.0001, evidenceBelow: evidenceThreshold(0.0001), maxConfidence: 2, publishSuspended: true },
+  { alpha: 0.001, evidenceBelow: evidenceThreshold(0.001), maxConfidence: 2, publishSuspended: false },
+  { alpha: 0.01, evidenceBelow: evidenceThreshold(0.01), maxConfidence: 4, publishSuspended: false },
+  { alpha: 0.05, evidenceBelow: evidenceThreshold(0.05), maxConfidence: 6, publishSuspended: false },
 ];
 
-/** 자산군별 누적 점수 → 현재 적용되는 규율 */
-export function disciplineFor(assetClassScore: number): Discipline {
+/**
+ * 자산군별 시즌 누적 **정보량** → 현재 적용되는 규율.
+ * (점수가 아니라 정보량이다 — Judgment.info의 합)
+ */
+export function disciplineFor(assetClassEvidence: number): Discipline {
   for (const rung of DISCIPLINE_LADDER) {
-    if (assetClassScore <= rung.scoreBelow) {
-      return { minConfidence: rung.minConfidence, publishSuspended: rung.publishSuspended };
+    if (assetClassEvidence <= rung.evidenceBelow) {
+      return { maxConfidence: rung.maxConfidence, publishSuspended: rung.publishSuspended };
     }
   }
-  return { minConfidence: CONFIDENCE_RANGE.min, publishSuspended: false };
+  return { maxConfidence: CONFIDENCE_RANGE.max, publishSuspended: false };
 }
 
 function assertConfidence(confidence: number, label = '신뢰도'): void {
@@ -504,6 +542,8 @@ export interface JudgedCardScoreInput {
 export function scoreJudgedCard(input: JudgedCardScoreInput): {
   realizedReturnPct: number | null;
   score: number;
+  /** 가중 전 정보량 = 로그우도비 기여분 — 규율 래더가 이것을 합산한다 */
+  info: number;
   /** 방향·크기 성분 = v4 총점 (감사·화면 표시용) */
   directionScore: number;
   /** @deprecated v4에서 항상 0 — 경로 안정성 배팅 재설계 전까지 */
@@ -515,14 +555,14 @@ export function scoreJudgedCard(input: JudgedCardScoreInput): {
     !input.basePrice ||
     input.horizonDays == null
   ) {
-    return { realizedReturnPct: null, score: 0, directionScore: 0, stabilityScore: 0 };
+    return { realizedReturnPct: null, score: 0, info: 0, directionScore: 0, stabilityScore: 0 };
   }
   const realizedReturnPct = ((input.settledPrice - input.basePrice) / input.basePrice) * 100;
   const predictedMagnitudePct =
     input.targetType === 'RETURN_PCT'
       ? input.targetValue
       : targetPriceToMagnitudePct(input.targetValue, input.basePrice);
-  const { score } = computeReachScore(
+  const { score, info } = computeReachScore(
     input.direction,
     predictedMagnitudePct,
     input.confidence,
@@ -531,5 +571,5 @@ export function scoreJudgedCard(input: JudgedCardScoreInput): {
     input.outcome === 'HIT',
     input.sigmaDaily,
   );
-  return { realizedReturnPct, score, directionScore: score, stabilityScore: 0 };
+  return { realizedReturnPct, score, info, directionScore: score, stabilityScore: 0 };
 }

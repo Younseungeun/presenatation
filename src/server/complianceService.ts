@@ -637,6 +637,7 @@ export async function forceWithdrawReport(
         result: { outcome: 'UNDECIDABLE', undecidableReason: 'WITHDRAWN' },
         realizedReturnPct: null,
         score: 0, // 판정 불가는 표본 제외 (§2.2)
+        info: 0, // 증거도 없다 — 규율 래더에 들어가면 안 된다
         dataSource: `takedown:${input.operatorUserId}`,
         audit,
       },

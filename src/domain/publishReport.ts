@@ -159,10 +159,11 @@ export interface PublishConditions {
   tier: Tier;
   promoActive: boolean;
   /**
-   * 해당 자산군의 리서처 누적 점수 — 마이너스 규율(최소 신뢰도 상승·게시 정지) 판단용.
-   * 점수 집계 배치가 붙기 전까지는 0 (규율 미발동).
+   * 해당 자산군의 시즌 누적 **정보량**(Judgment.info의 합) — 규율 래더 판단용.
+   * 점수가 아니라 정보량인 이유는 scoring.ts의 래더 주석에 있다(증거 ≠ 값어치).
+   * 판정 이력이 없으면 0 — 규율 미발동.
    */
-  assetClassScore?: number;
+  assetClassEvidence?: number;
   /** 해당 자산군의 현재 활성(게시·미판정·미철회) 카드 수 — 동시 게시 상한 판단용 */
   activeCardCount?: number;
 }
@@ -358,15 +359,15 @@ export function preparePublish(
     );
   }
 
-  // 마이너스 점수 규율: 게시 정지 또는 최소 신뢰도 상승 (자산군별)
-  const discipline = disciplineFor(cond.assetClassScore ?? 0);
+  // 규율 래더: 게시 정지 또는 신뢰도 **상한** (자산군별)
+  const discipline = disciplineFor(cond.assetClassEvidence ?? 0);
   if (discipline.publishSuspended) {
     issues.push(
-      `${card.assetClass} 누적 점수 미달로 신규 게시가 정지되었습니다 (시즌 종료까지). 진행 중인 카드는 정상 판정·정산됩니다`,
+      `${card.assetClass} 신규 게시가 정지되었습니다 (시즌 종료까지) — 신고한 확신이 실제 적중과 거듭 어긋났습니다. 진행 중인 카드는 정상 판정·정산됩니다`,
     );
-  } else if (card.confidence < discipline.minConfidence) {
+  } else if (card.confidence > discipline.maxConfidence) {
     issues.push(
-      `현재 ${card.assetClass} 누적 점수에서는 신뢰도 ${discipline.minConfidence} 이상만 게시할 수 있습니다 (입력: ${card.confidence}) — 낮은 신뢰도로 시행 횟수를 늘리는 것을 막기 위한 규율입니다`,
+      `현재 ${card.assetClass} 실적에서는 신뢰도 ${discipline.maxConfidence} 이하로만 게시할 수 있습니다 (입력: ${card.confidence}) — 신고한 확신이 적중으로 뒷받침되지 않는 동안 확신 표시를 제한합니다. 적중이 쌓이면 자동으로 풀립니다`,
     );
   }
 

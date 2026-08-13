@@ -9,7 +9,6 @@ import {
   noSkillTouchProbability,
   SCORE_SCALE,
   scoreJudgedCard,
-  type Discipline,
 } from '../src/domain/scoring';
 
 // 실력 분리력 측정 (점수 v5 정보량 모델) — npx tsx scripts/simSkillSeparation.ts
@@ -92,11 +91,14 @@ function touchProb(mPct: number, k: number): number {
  * c=1을 거부하는데, 이 시뮬은 "하한을 1로 뒀다면 어땠을까"라는 **반사실**을 재야 한다.
  * 옮겨 적은 공식이 갈라지지 않도록 아래에서 허용 구간 전체를 도메인 함수와 대조한다.
  */
-function cardScore(M: number, c: number, hit: boolean): number {
+function cardInfo(M: number, c: number, hit: boolean): number {
   const p0 = noSkillTouchProbability('UP', M, ASSET, H, SIGMA);
   const pHat = claimedProbability(p0, c);
-  const info = hit ? Math.log(pHat / p0) : Math.log((1 - pHat) / (1 - p0));
-  return SCORE_SCALE * magnitudeWeight(ASSET, M) * info;
+  return hit ? Math.log(pHat / p0) : Math.log((1 - pHat) / (1 - p0));
+}
+
+function cardScore(M: number, c: number, hit: boolean): number {
+  return SCORE_SCALE * magnitudeWeight(ASSET, M) * cardInfo(M, c, hit);
 }
 
 // 옮겨 적은 공식이 정산과 같은 값을 내는지 — 갈라지면 이 시뮬의 결론이 전부 무효다
@@ -132,15 +134,20 @@ interface Strategy {
   p: number;
   ev: number;
 }
-/** 그 실력에서, 주어진 최소 신뢰도 아래에서 기대 점수가 가장 큰 전략 */
-function bestStrategy(k: number, minC: number, cache = new Map<string, Strategy>()): Strategy {
-  const key = `${k}:${minC}`;
+/** 그 실력에서, 주어진 신뢰도 구간 안에서 기대 점수가 가장 큰 전략 */
+function bestStrategy(
+  k: number,
+  minC: number,
+  maxC: number = CONFIDENCE_RANGE.max,
+  cache = new Map<string, Strategy>(),
+): Strategy {
+  const key = `${k}:${minC}:${maxC}`;
   const hit = cache.get(key);
   if (hit) return hit;
   let best: Strategy = { M: FLOOR, c: minC, p: 0, ev: -Infinity };
   for (const M of M_GRID) {
     const p = touchProb(M, k);
-    for (let c = minC; c <= CONFIDENCE_RANGE.max; c++) {
+    for (let c = minC; c <= maxC; c++) {
       const ev = p * cardScore(M, c, true) + (1 - p) * cardScore(M, c, false);
       if (ev > best.ev) best = { M, c, p, ev };
     }
@@ -149,42 +156,10 @@ function bestStrategy(k: number, minC: number, cache = new Map<string, Strategy>
   return best;
 }
 
-// ── 규율 래더 변형 ────────────────────────────────────────────
-type Ladder = ReadonlyArray<{ scoreBelow: number } & Discipline>;
-const LADDERS: Array<{ name: string; ladder: Ladder | null }> = [
-  { name: '현행', ladder: null }, // domain의 disciplineFor 그대로
-  {
-    name: '1단 상향(c≥3)',
-    ladder: [
-      { scoreBelow: -10_000, minConfidence: 10, publishSuspended: true },
-      { scoreBelow: -6_000, minConfidence: 7, publishSuspended: false },
-      { scoreBelow: -3_000, minConfidence: 5, publishSuspended: false },
-      { scoreBelow: -1_000, minConfidence: 3, publishSuspended: false },
-    ],
-  },
-  {
-    name: '조기 개입',
-    ladder: [
-      { scoreBelow: -6_000, minConfidence: 10, publishSuspended: true },
-      { scoreBelow: -3_000, minConfidence: 7, publishSuspended: false },
-      { scoreBelow: -1_500, minConfidence: 5, publishSuspended: false },
-      { scoreBelow: -500, minConfidence: 3, publishSuspended: false },
-    ],
-  },
-];
-
-function disciplineWith(ladder: Ladder | null, score: number, minC: number): Discipline {
-  if (!ladder) {
-    const d = disciplineFor(score);
-    return { ...d, minConfidence: Math.max(d.minConfidence, minC) };
-  }
-  for (const rung of ladder) {
-    if (score <= rung.scoreBelow) {
-      return { minConfidence: Math.max(rung.minConfidence, minC), publishSuspended: rung.publishSuspended };
-    }
-  }
-  return { minConfidence: minC, publishSuspended: false };
-}
+// 규율 래더 변형 비교는 **scripts/simDisciplineLadder.ts로 옮겼다.**
+// 그쪽은 정직하지 않은 코호트(과장 신고자)를 모집단에 넣어야 하는데, 이 스크립트의
+// 질문("점수가 실력을 가르는가")에는 그 코호트가 들어오면 안 된다 — 실력과 행동이
+// 섞여 무엇을 재는지 흐려진다. 여기서는 도메인의 래더를 그대로 쓴다.
 
 // ── 시즌 시뮬 ─────────────────────────────────────────────────
 interface Person {
@@ -193,7 +168,7 @@ interface Person {
   cards: number;
 }
 
-function runSeason(minC: number, ladder: Ladder | null): Person[] {
+function runSeason(minC: number): Person[] {
   const cache = new Map<string, Strategy>();
   const people: Person[] = [];
   for (let i = 0; i < N; i++) {
@@ -207,13 +182,17 @@ function runSeason(minC: number, ladder: Ladder | null): Person[] {
     const k = COHORTS[ci].k;
 
     let score = 0;
+    let evidence = 0;
     let cards = 0;
     for (let t = 0; t < CARDS; t++) {
-      const d = disciplineWith(ladder, score, minC);
+      // 규율 래더는 시즌 **도중에** 발동한다 — 판정될 때마다 다시 본다.
+      // 입력은 점수가 아니라 정보량이다 (scoring.ts 래더 주석)
+      const d = disciplineFor(evidence);
       if (d.publishSuspended) break; // 게시 정지 — 시즌 끝
-      const s = bestStrategy(k, d.minConfidence, cache);
+      const s = bestStrategy(k, minC, d.maxConfidence, cache);
       const hit = rand() < s.p;
       score += cardScore(s.M, s.c, hit);
+      evidence += cardInfo(s.M, s.c, hit);
       cards++;
     }
     people.push({ cohort: ci, score, cards });
@@ -340,12 +319,9 @@ for (const co of COHORTS) {
   console.log(`  ${co.name.padEnd(6)}${cells.join('')}`);
 }
 
+// 신뢰도 하한을 축으로 비교한다 — 1은 반사실(폐지된 값), 2가 현행
 for (const minC of [1, 2, 3]) {
-  for (const { name, ladder } of LADDERS) {
-    // 래더 변형은 현행 하한(2)에서만 비교 — 축을 하나씩 움직인다
-    if (minC !== CONFIDENCE_RANGE.min && name !== '현행') continue;
-    evaluate(`신뢰도 하한 ${minC} · 래더 ${name}`, runSeason(minC, ladder));
-  }
+  evaluate(`신뢰도 하한 ${minC}`, runSeason(minC));
 }
 
 console.log('');

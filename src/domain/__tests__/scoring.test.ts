@@ -227,22 +227,27 @@ describe('기간 반영 크기 상한', () => {
   });
 });
 
-describe('마이너스 점수 규율', () => {
-  it('점수가 깊어질수록 최소 신뢰도가 오르고 최하단은 게시 정지', () => {
-    expect(disciplineFor(0).minConfidence).toBe(CONFIDENCE_RANGE.min);
-    expect(disciplineFor(-1_000).minConfidence).toBe(2);
-    expect(disciplineFor(-3_000).minConfidence).toBe(5);
-    expect(disciplineFor(-6_000).minConfidence).toBe(7);
-    expect(disciplineFor(-10_000).publishSuspended).toBe(true);
+describe('규율 래더', () => {
+  it('증거가 깊어질수록 신뢰도 상한이 내려가고 최하단은 게시 정지', () => {
+    expect(disciplineFor(0).maxConfidence).toBe(CONFIDENCE_RANGE.max);
+    expect(disciplineFor(-3).maxConfidence).toBe(6);
+    expect(disciplineFor(-4.7).maxConfidence).toBe(4);
+    expect(disciplineFor(-7).maxConfidence).toBe(2);
+    expect(disciplineFor(-9.3).publishSuspended).toBe(true);
   });
 
-  it('래더가 c를 더 올리면 하강이 가속된다', () => {
-    // 하한 2로 무정보 EV는 이미 음수다. 래더는 그 음수를 더 깊게 만든다
-    // (EV = −B·p₀(1−p₀)·c(c−1)/2 — c에 대해 이차로 커진다)
-    const { p0, score: hit } = computeReachScore('UP', 5, 2, 'KR_EQUITY', 30, true);
-    const { score: miss } = computeReachScore('UP', 5, 2, 'KR_EQUITY', 30, false);
-    expect(p0 * hit + (1 - p0) * miss).toBeLessThan(0);
-    expect(DISCIPLINE_LADDER.some((r) => r.minConfidence >= 2)).toBe(true);
+  it('처방이 상한인 이유 — 하한을 올리면 플랫폼이 거짓 신고를 요구하게 된다', () => {
+    // 적정 점수법에서 신뢰도는 확률 신고다. 무실력자에게 "더 높게 부르라"고 하면
+    // 그의 기대 정보량은 **더 깊게** 음수가 된다 — 처벌이 아니라 함정이다.
+    const p0 = noSkillTouchProbability('UP', 5, 'KR_EQUITY', 30);
+    const evAt = (c: number) =>
+      p0 * computeReachScore('UP', 5, c, 'KR_EQUITY', 30, true).info +
+      (1 - p0) * computeReachScore('UP', 5, c, 'KR_EQUITY', 30, false).info;
+    expect(evAt(CONFIDENCE_RANGE.min)).toBeLessThan(0);
+    expect(evAt(10)).toBeLessThan(evAt(CONFIDENCE_RANGE.min));
+    // 그래서 래더는 상한만 내린다 — 어느 단도 하한을 건드리지 않는다
+    expect(DISCIPLINE_LADDER.every((r) => r.maxConfidence <= CONFIDENCE_RANGE.max)).toBe(true);
+    expect(DISCIPLINE_LADDER.every((r) => r.maxConfidence >= CONFIDENCE_RANGE.min)).toBe(true);
   });
 });
 

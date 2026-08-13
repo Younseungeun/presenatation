@@ -20,6 +20,8 @@ export interface JudgmentRecordInput {
   result: JudgmentResult;
   realizedReturnPct: number | null;
   score: number;
+  /** 가중 전 정보량 — 규율 래더의 입력. scoreJudgedCard가 점수와 함께 낸다 */
+  info: number;
   dataSource: string;
   /** 감사·분쟁 재현용 스냅샷 (JSON 직렬화 가능한 객체) */
   audit: unknown;
@@ -48,6 +50,7 @@ export function buildJudgmentWrites(
         settledPrice: result.settledPrice ?? null,
         realizedReturnPct: input.realizedReturnPct,
         score: input.score,
+        info: input.info,
         dataSource: input.dataSource,
         marketSnapshotJson: JSON.stringify(input.audit),
         judgedAt: now,

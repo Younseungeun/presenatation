@@ -23,7 +23,7 @@ import { buildNewCardNotificationWrites } from './followService';
 import { validateListedInstrument } from './instrumentService';
 import { captureBaseAnchor } from './corporateActionService';
 import { getInstrumentSigma } from './instrumentSigma';
-import { researcherSeasonScores } from './scoreService';
+import { researcherSeasonTotals } from './scoreService';
 
 // 리포트 생명주기: DRAFT → PUBLISHED → (철회 시) CLOSED
 // 게시 시점에 수수료·기준가가 고정되고 예측 카드가 잠긴다.
@@ -287,8 +287,8 @@ async function finalizePublish(
   // 그 배수가 곧 조정 배수다 (domain/corporateAction.ts). 실패해도 게시는 진행한다
   const anchor = await captureBaseAnchor(registry, cardDraft.assetClass, cardDraft.ticker, now);
 
-  // 마이너스 규율(§2.2) 입력: 해당 자산군의 현재 시즌 누적 점수
-  const seasonScores = await researcherSeasonScores(prisma, report.researcherId, now);
+  // 규율 래더(§2.2) 입력: 해당 자산군의 현재 시즌 누적 정보량
+  const seasonTotals = await researcherSeasonTotals(prisma, report.researcherId, now);
 
   // 동시 활성 카드 상한 입력: 같은 자산군에서 게시됐고 아직 판정·철회되지 않은 카드 수
   const activeCardCount = await prisma.predictionCard.count({
@@ -309,7 +309,7 @@ async function finalizePublish(
       prepaymentRatio: report.prepaymentRatio as PrepaymentRatio,
       tier: report.researcher.tier as Tier,
       promoActive: isPromoActive(report.researcher.promoFeeUntil, now),
-      assetClassScore: seasonScores[cardDraft.assetClass],
+      assetClassEvidence: seasonTotals.evidence[cardDraft.assetClass],
       activeCardCount,
     },
     basePrice,

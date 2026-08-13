@@ -99,7 +99,7 @@ export async function judgeAndSettleDueCards(
       );
       const basePrice = resolvedBasePrice ?? card.basePrice;
 
-      const { realizedReturnPct, score } = scoreJudgedCard({
+      const { realizedReturnPct, score, info } = scoreJudgedCard({
         direction: card.direction as Direction,
         targetType: card.targetType as TargetType,
         targetValue: card.targetValue,
@@ -118,7 +118,7 @@ export async function judgeAndSettleDueCards(
       const writes = buildJudgmentWrites(
         prisma,
         card,
-        { result, realizedReturnPct, score, dataSource: audit.dataSource, audit, resolvedBasePrice },
+        { result, realizedReturnPct, score, info, dataSource: audit.dataSource, audit, resolvedBasePrice },
         now,
       );
       await prisma.$transaction(writes);
@@ -145,6 +145,7 @@ export async function judgeAndSettleDueCards(
                 result,
                 realizedReturnPct: null,
                 score: 0, // 판정 불가는 표본에서 빠진다 (§2.2)
+                info: 0, // 증거도 없다 — 규율 래더에 들어가면 안 된다
                 dataSource: 'instrument-master',
                 audit: {
                   delisted: true,

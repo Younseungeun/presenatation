@@ -190,7 +190,7 @@ export async function manualJudgeCard(
     }
   }
 
-  const { realizedReturnPct, score } = scoreJudgedCard({
+  const { realizedReturnPct, score, info } = scoreJudgedCard({
     direction: card.direction as Direction,
     targetType: card.targetType as TargetType,
     targetValue: card.targetValue,
@@ -212,6 +212,7 @@ export async function manualJudgeCard(
       result,
       realizedReturnPct,
       score,
+      info,
       dataSource: `manual:${input.operatorUserId}`,
       audit: {
         manual: true,

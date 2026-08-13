@@ -1,4 +1,4 @@
-import { DISCIPLINE_LADDER, MAGNITUDE_FLOOR_K } from "@/domain/scoring";
+import { DISCIPLINE_ALPHA, MAGNITUDE_FLOOR_K } from "@/domain/scoring";
 import { AppHeader } from "../AppHeader";
 import { Disclaimer } from "../Disclaimer";
 import { ScoreCalculator } from "./ScoreCalculator";
@@ -17,8 +17,6 @@ export const metadata = { title: "점수 계산기 — INTOVILL" };
 // 로그인 없이 열린다 — 구매자에게도 "이 순위가 조작 가능한가"를 확인시켜야 한다.
 
 export default function ScorePage() {
-  const ladderTop = DISCIPLINE_LADDER[DISCIPLINE_LADDER.length - 1];
-
   return (
     <>
       <AppHeader title="점수 계산기" backHref="/ranking" />
@@ -79,10 +77,14 @@ export default function ScorePage() {
               <p className={s.ruleText}>
                 무정보 예측의 기대 점수는 어떤 크기·기간·자산군·<strong>종목</strong>을
                 골라도 0 이하입니다 (수식으로 보장됩니다 — 종목이 거칠면 p₀가 그만큼 커져
-                보상이 줄기 때문에 변동성만 노리는 선택으로는 이 부등호를 뒤집을 수 없습니다). 누적 점수가 내려가면 쓸 수 있는 최소 신뢰도가
-                강제로 올라가 하강이 가속되고,{" "}
-                {Math.abs(ladderTop.scoreBelow).toLocaleString()}점 아래로 내려가면 해당
-                자산군의 신규 게시가 시즌 종료까지 정지됩니다.
+                보상이 줄기 때문에 변동성만 노리는 선택으로는 이 부등호를 뒤집을 수 없습니다).
+                여기에 더해, 신고한 확신이 실제 적중과 거듭 어긋나면{" "}
+                <strong>쓸 수 있는 신뢰도의 상한이 내려갑니다</strong>{" "}— 확신을 크게 부르는
+                것으로 카드를 돋보이게 하는 길이 닫힙니다. 문턱은 통계 검정에서 나옵니다:
+                각 단은 &quot;정직하게 신고하는 사람이 잘못 걸릴 확률&quot;이 각각{" "}
+                {DISCIPLINE_ALPHA.map((a) => `${a * 100}%`).join(" · ")} 이하가 되도록
+                잡혀 있고, 가장 깊은 단에서는 해당 자산군의 신규 게시가 시즌 종료까지
+                정지됩니다. 적중이 쌓이면 자동으로 풀립니다.
               </p>
             </div>
           </li>

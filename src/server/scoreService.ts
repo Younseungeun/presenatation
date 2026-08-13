@@ -40,21 +40,40 @@ export async function researcherSeasonScores(
   researcherId: string,
   at = new Date(),
 ): Promise<Record<AssetClass, number>> {
+  return (await researcherSeasonTotals(prisma, researcherId, at)).score;
+}
+
+/**
+ * 기준 시각이 속한 시즌의 자산군별 **점수와 정보량**.
+ *
+ * 둘을 함께 내는 이유: 쓰는 곳이 다르다. 등급·리더보드는 점수(수익성 가중 포함)를 보고,
+ * 규율 래더는 정보량(가중 없는 로그우도비)을 본다 — 증거는 목표 크기에 비례하지 않는다.
+ * 한 번의 조회로 둘 다 내야 두 값이 서로 다른 시점의 데이터를 보는 일이 없다.
+ */
+export async function researcherSeasonTotals(
+  prisma: PrismaClient,
+  researcherId: string,
+  at = new Date(),
+): Promise<{ score: Record<AssetClass, number>; evidence: Record<AssetClass, number> }> {
   const judgments = await prisma.judgment.findMany({
     where: {
       judgedAt: { gte: seasonStart(at), lt: nextSeasonStart(at) },
       score: { not: null },
       predictionCard: { report: { researcherId } },
     },
-    select: { score: true, predictionCard: { select: { assetClass: true } } },
+    select: { score: true, info: true, predictionCard: { select: { assetClass: true } } },
   });
 
-  const scores = Object.fromEntries(ASSET_CLASSES.map((a) => [a, 0])) as Record<
-    AssetClass,
-    number
-  >;
+  const zero = () =>
+    Object.fromEntries(ASSET_CLASSES.map((a) => [a, 0])) as Record<AssetClass, number>;
+  const score = zero();
+  const evidence = zero();
   for (const j of judgments) {
-    scores[j.predictionCard.assetClass as AssetClass] += j.score!;
+    const a = j.predictionCard.assetClass as AssetClass;
+    score[a] += j.score!;
+    // info는 v5 이전 판정에 없다(null) — 그 카드는 증거로 세지 않는다.
+    // 규율이 옛 데이터로 소급 발동하지 않는 편이 안전하다(불리한 처분은 소급하지 않는다)
+    evidence[a] += j.info ?? 0;
   }
-  return scores;
+  return { score, evidence };
 }

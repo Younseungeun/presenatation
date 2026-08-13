@@ -250,6 +250,7 @@ model Judgment {
   settledPrice       Float? // 판정에 사용된 시장가
   realizedReturnPct  Float? // 기준가 대비 실현 등락률(%) — 점수·트랙레코드 입력
   score              Float? // 카드 점수 (§2.2, UNDECIDABLE은 0) — 시즌·자산군별 합산의 원천
+  info               Float? // 가중 전 정보량 = 로그우도비 기여분 — 규율 래더가 이것을 합산한다 (score와 달리 수익성 가중이 없다: 증거는 목표 크기에 비례하지 않는다)
   dataSource         String? // 판정 데이터 소스 식별자 (예: fsc-data.go.kr, manual)
   marketSnapshotJson String? // 판정에 사용한 원천 시세 스냅샷 (감사·분쟁 재현용, JudgmentAudit 직렬화)
   judgedAt           DateTime       @default(now())

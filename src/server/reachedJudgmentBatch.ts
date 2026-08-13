@@ -110,7 +110,7 @@ export async function runReachedJudgmentBatch(
       }
 
       const basePrice = resolvedBasePrice ?? card.basePrice;
-      const { realizedReturnPct, score } = scoreJudgedCard({
+      const { realizedReturnPct, score, info } = scoreJudgedCard({
         direction: card.direction as Direction,
         targetType: card.targetType as TargetType,
         targetValue: card.targetValue,
@@ -129,7 +129,7 @@ export async function runReachedJudgmentBatch(
       const writes = buildJudgmentWrites(
         prisma,
         card,
-        { result, realizedReturnPct, score, dataSource: audit.dataSource, audit, resolvedBasePrice },
+        { result, realizedReturnPct, score, info, dataSource: audit.dataSource, audit, resolvedBasePrice },
         now,
       );
       await prisma.$transaction(writes);
