@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { ASSET_CLASSES, type AssetClass, type Direction } from '@/domain/constants';
-import { clusterEvidence, type EvidenceCard } from '@/domain/evidence';
+import { aggregateEvidence, type EvidenceCard } from '@/domain/evidence';
 
 // 점수 집계: Judgment.score를 시즌·자산군별로 합산한다. 시즌 = 분기 (KST 기준).
 //
@@ -100,5 +100,5 @@ export async function researcherSeasonTotals(
     });
   }
   // 동시에 열려 있던 같은 자산군·방향 카드는 독립 증거가 아니다 (domain/evidence.ts)
-  return { score, evidence: clusterEvidence(cards) };
+  return { score, evidence: aggregateEvidence(cards) };
 }

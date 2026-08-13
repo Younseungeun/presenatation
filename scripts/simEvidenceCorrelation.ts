@@ -3,7 +3,7 @@ import {
   DAILY_SIGMA,
   noSkillTouchProbability,
 } from '../src/domain/scoring';
-import { CORRELATION_CORRECTION, clusterEvidence, type EvidenceCard } from '../src/domain/evidence';
+import { CORRELATION_CORRECTION, aggregateEvidence, type EvidenceCard } from '../src/domain/evidence';
 
 // 규율 증거의 상관 보정 검증 — npx tsx scripts/simEvidenceCorrelation.ts
 //
@@ -117,7 +117,7 @@ function season(
       });
       // 파도 단위로 문턱을 확인한다 — 시즌 중 언제라도 닿으면 발동이다
     }
-    const d = clusterEvidence(cards, mode)[A];
+    const d = aggregateEvidence(cards, mode)[A];
     if (d <= -3.0) return true;
   }
   return false;
