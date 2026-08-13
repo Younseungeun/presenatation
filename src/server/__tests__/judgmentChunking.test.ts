@@ -3,7 +3,12 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
-import { JUDGE_BATCH_SIZE, judgeAndSettleDueCards } from '../judgmentBatch';
+import {
+  JUDGE_BATCH_SIZE,
+  MAX_DEFER_ATTEMPTS,
+  judgeAndSettleDueCards,
+} from '../judgmentBatch';
+import { getManualJudgmentQueue } from '../manualJudgmentService';
 import { createDraftReport, publishReport } from '../reportService';
 
 // **판정 배치는 한 회차 JUDGE_BATCH_SIZE장으로 끊는다.**
@@ -103,7 +108,7 @@ describe('판정 배치 청킹', () => {
     expect(first.deferred).toBe(JUDGE_BATCH_SIZE);
     expect(first.judged).toBe(0);
     expect(first.hasMore).toBe(true);
-    expect(first.lastId).not.toBeNull();
+    expect(first.cursor).not.toBeNull();
   });
 
   it('**커서가 이월 카드를 넘어간다** — 없으면 뒤의 카드가 영원히 판정되지 않는다', async () => {
@@ -119,7 +124,7 @@ describe('판정 배치 청킹', () => {
       withQuotes(rest),
       BATCH_NOW,
       undefined,
-      first.lastId!,
+      first.cursor!,
     );
     expect(second.judged).toBe(rest.length);
     expect(second.hasMore).toBe(false);
@@ -127,5 +132,30 @@ describe('판정 배치 청킹', () => {
     // 실제로 정산까지 끝났는지 — 개수만 세면 "돌긴 돌았다"에 속을 수 있다
     const judged = await prisma.judgment.count();
     expect(judged).toBe(rest.length);
+  });
+
+  // **반복해서 실패하는 카드는 뒤로 미룬다.** 이월은 Judgment를 안 만들어 다음 조회에도
+  // 그대로 잡히므로, 미루지 않으면 매 회차 KIS 호출을 갉아먹는다(100건이면 110초를
+  // 아무 성과 없이 쓴다). 첫 실패는 미루지 않는다 — 벌해야 하는 것은 반복이다
+  it('이월이 쌓이면 백오프로 뜨거운 큐에서 빠지고, 다 쓰면 사람에게 넘어간다', async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({
+      where: { judgment: null },
+      orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
+    });
+    expect(card.deferCount).toBeGreaterThan(0); // 앞선 시험들이 이미 이월시켰다
+
+    // 자동 재시도를 다 쓴 상태로 만들면 배치가 더는 손대지 않는다
+    await prisma.predictionCard.update({
+      where: { id: card.id },
+      data: { deferCount: MAX_DEFER_ATTEMPTS, nextAttemptAt: null },
+    });
+    const after = await judgeAndSettleDueCards(prisma, noQuotes, BATCH_NOW);
+    const touched = await prisma.predictionCard.findUniqueOrThrow({ where: { id: card.id } });
+    expect(touched.deferCount).toBe(MAX_DEFER_ATTEMPTS); // 손대지 않았다
+    expect(after.deferred).toBeGreaterThanOrEqual(0);
+
+    // 대신 운영자 큐에 뜬다 — 여기 안 뜨면 그 카드는 영원히 아무도 안 본다
+    const queue = await getManualJudgmentQueue(prisma, BATCH_NOW);
+    expect(queue.some((q) => q.cardId === card.id)).toBe(true);
   });
 });

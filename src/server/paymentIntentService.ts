@@ -29,6 +29,16 @@ export interface PreparedPayment {
   amountKrw: number;
 }
 
+/**
+ * 결제 의도의 유효기간.
+ *
+ * 1시간인 이유: 결제창을 띄워 놓고 고민하는 시간은 넉넉히 덮으면서, "몇 달 전에 열어둔
+ * 창으로 지금 승인"이 성립하지 않게 한다. 그 사이 카드의 시세·판매 상태가 완전히 달라져
+ * 있어서, 승인이 나더라도 `purchaseIntentItems`가 어차피 막고 되돌린다 — 그런데 그건
+ * **돈이 빠진 뒤에 되돌리는 것**이다. 만료로 먼저 끊으면 돈이 아예 안 나간다.
+ */
+export const INTENT_TTL_MS = 60 * 60_000;
+
 /** 의도에 박아 두는 한 줄 — 결제창을 연 **그 순간**의 리포트와 가격 */
 export interface IntentItem {
   reportId: string;
@@ -97,6 +107,7 @@ export async function createPaymentIntent(
       itemsJson: JSON.stringify([{ reportId: input.reportId, priceKrw: report.priceKrw }]),
       amountKrw: report.priceKrw,
       status: 'PENDING',
+      expiresAt: new Date(now.getTime() + INTENT_TTL_MS),
     },
   });
 
@@ -135,6 +146,20 @@ export async function confirmPaymentIntent(
     });
     if (existing) return existing;
   }
+  // **만료된 의도로는 승인하지 않는다** — 돈이 빠진 뒤에 되돌리는 것보다 안 나가는 게 낫다
+  if (intent.status === 'PENDING' && intent.expiresAt !== null && now > intent.expiresAt) {
+    await prisma.paymentIntent.update({
+      where: { orderId: input.orderId },
+      data: { status: 'EXPIRED' },
+    });
+    throw new TossPaymentError(
+      '결제 유효시간이 지났습니다. 결제를 다시 시작해주세요 — 그 사이 시세와 판매 상태가 달라졌을 수 있습니다.',
+    );
+  }
+  if (intent.status === 'EXPIRED') {
+    throw new TossPaymentError('만료된 결제입니다. 결제를 다시 시작해주세요.');
+  }
+
   // 클라이언트가 돌려준 금액과 우리가 서버에 미리 저장해둔 금액을 대조 —
   // 이 값이 아니라 intent.amountKrw(서버 신뢰 값)로 토스에 승인 요청한다
   if (intent.amountKrw !== input.clientAmount) {
@@ -197,6 +222,34 @@ export async function confirmPaymentIntent(
 
   await prisma.paymentIntent.update({ where: { orderId: input.orderId }, data: { status: 'CONFIRMED' } });
   return purchase;
+}
+
+/**
+ * 만료된 결제 의도를 **지운다** (스케줄러가 부른다).
+ *
+ * 남겨 두면 안 되는 이유가 용량이 아니라 **마스킹**이다. `orderId`에 리다이렉트용
+ * `reportId`가 박혀 있어, 이 표는 "누가 무엇을 사려다 말았는지"의 목록이 된다.
+ * 구매 전에는 종목·제목·목표를 감추는 것이 이 앱의 핵심 규칙인데(§2.1) 이 표만
+ * 그 밖에 있었다.
+ *
+ * **PENDING·EXPIRED만 지운다.** 나머지는 전부 돈이 움직인 흔적이다 —
+ * CONFIRMED는 구매의 근거, FAILED는 조작 시도의 기록, CANCELLED는 보상 트랜잭션의
+ * 증거, REQUIRES_MANUAL_VOID는 **아직 안 끝난 사고**다. 하나라도 지우면 분쟁에서
+ * 우리 쪽 근거가 사라진다.
+ */
+export async function purgeExpiredPaymentIntents(
+  prisma: PrismaClient,
+  now = new Date(),
+): Promise<number> {
+  const cutoff = new Date(now.getTime() - INTENT_TTL_MS);
+  const { count } = await prisma.paymentIntent.deleteMany({
+    where: {
+      status: { in: ['PENDING', 'EXPIRED'] },
+      // expiresAt이 없는 행(이 규칙 이전)은 createdAt으로 판단한다
+      OR: [{ expiresAt: { lt: now } }, { expiresAt: null, createdAt: { lt: cutoff } }],
+    },
+  });
+  return count;
 }
 
 /**

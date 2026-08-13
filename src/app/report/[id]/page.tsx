@@ -71,13 +71,22 @@ export default async function ReportDetail({
   // 환불 색은 판정 결과를 따른다 (실패 → 빨강, 판정 불가 → 주황)
   const refundStatus: StatusKind =
     judgment?.outcome === "UNDECIDABLE" ? "UNDECIDABLE" : "MISS";
+  // **"보내는 중"이 "아직 시작 안 함"과 같은 말로 보이면 안 된다.** 환불은 실행을
+  // 눌러도 카드사·은행을 거쳐 며칠이 걸리는데, 그 구간에 "지급 준비 중"만 뜨면
+  // 구매자는 아무도 손대지 않은 줄 알고 문의한다 — 판정 결과는 이미 실패로 보이는데
+  // 돈은 안 들어온 상태라 불신이 그대로 쌓인다
+  const refundStarted = purchase?.settlement?.refundAttempts.some(
+    (a) => a.status === "PENDING" || a.status === "SUCCEEDED",
+  );
   const purchaseStatus: { label: string; status: StatusKind } | null = purchase
     ? purchase.escrowStatus === "HELD"
       ? { label: "판정 대기 · 에스크로 보관 중", status: "VERIFYING" }
       : purchase.escrowStatus === "REFUNDED"
         ? purchase.settlement?.refundExecutedAt
           ? { label: "환불 완료", status: refundStatus }
-          : { label: "환불 확정 · 지급 준비 중", status: refundStatus }
+          : refundStarted
+            ? { label: "환불 처리 중 (3~5영업일 소요)", status: refundStatus }
+            : { label: "환불 확정 · 지급 준비 중", status: refundStatus }
         : { label: "적중 · 정산 완료", status: "HIT" }
     : null;
 

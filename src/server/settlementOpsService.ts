@@ -372,20 +372,40 @@ export const STUCK_REFUND_MINUTES = 30;
 export async function sweepStuckRefundAttempts(
   prisma: PrismaClient,
   now = new Date(),
-): Promise<{ stuck: number; notified: boolean }> {
+): Promise<{ stuck: number; notified: boolean; reconciled: number }> {
   const cutoff = new Date(now.getTime() - STUCK_REFUND_MINUTES * 60_000);
-  const stuck = await prisma.refundAttempt.findMany({
+  const candidates = await prisma.refundAttempt.findMany({
     where: { status: 'PENDING', createdAt: { lt: cutoff }, escalatedAt: null },
+    include: { settlement: { select: { refundExecutedAt: true } } },
     orderBy: { createdAt: 'asc' },
   });
-  if (stuck.length === 0) return { stuck: 0, notified: false };
+
+  // **먼저 스스로 맞춘다.** 정산이 이미 실행된 건의 PENDING 시도는 "돈은 나갔는데
+  // 시도 행만 안 닫힌" 상태다 — 알릴 일이 아니라 닫을 일이다.
+  //
+  // 이걸 알림으로 올리면 더 나쁘다: 알림은 /admin/settlements를 가리키는데 그 화면은
+  // **미실행 환불만** 보여준다(refundExecutedAt: null). 운영자는 알림을 받고 들어가
+  // 아무것도 없는 목록을 보게 되고, 그 다음부터 이 알림을 믿지 않는다.
+  const settled = candidates.filter((a) => a.settlement.refundExecutedAt !== null);
+  if (settled.length > 0) {
+    await prisma.refundAttempt.updateMany({
+      where: { id: { in: settled.map((a) => a.id) } },
+      data: { status: 'SUCCEEDED', finishedAt: now },
+    });
+  }
+
+  const stuck = candidates.filter((a) => a.settlement.refundExecutedAt === null);
+  if (stuck.length === 0) return { stuck: 0, notified: false, reconciled: settled.length };
 
   const total = stuck.reduce((a, r) => a + r.amountKrw, 0);
   await notifyOperators(prisma, {
     title: `[확인 필요] 끝나지 않은 환불 시도 ${stuck.length}건 · ${total.toLocaleString()}원`,
     body: [
-      `${STUCK_REFUND_MINUTES}분 넘게 PENDING으로 남아 있습니다 — 취소가 나갔는지 확인되지 않은 상태입니다.`,
-      `정산 콘솔에서 **재시도**를 눌러주세요(같은 키로 나가므로 두 번 빠지지 않습니다).`,
+      `${STUCK_REFUND_MINUTES}분 넘게 PENDING으로 남아 있습니다 — 돈이 나갔는지 확인되지 않은 상태입니다.`,
+      // **수단마다 할 일이 다르다.** PG는 멱등키가 있어 재시도가 안전하지만,
+      // 계좌이체는 재시도가 곧 이중 송금이라 은행 앱 확인이 먼저다
+      `· PG 취소: 정산 콘솔에서 **재시도** (같은 키로 나가므로 두 번 빠지지 않습니다)`,
+      `· 계좌이체: **은행 앱에서 이체 여부를 먼저 확인**한 뒤 상태를 확정해주세요`,
       ...stuck
         .slice(0, 10)
         .map((r) => `· ${r.method} ${r.amountKrw.toLocaleString()}원 · 시도 ${r.id}`),
@@ -399,7 +419,7 @@ export async function sweepStuckRefundAttempts(
     where: { id: { in: stuck.map((r) => r.id) } },
     data: { escalatedAt: now },
   });
-  return { stuck: stuck.length, notified: true };
+  return { stuck: stuck.length, notified: true, reconciled: settled.length };
 }
 
 /** 리서처 지급 실행 기록 + 리서처 알림. 이미 실행된 건은 거부 */

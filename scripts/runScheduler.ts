@@ -15,6 +15,8 @@ import { runSalesCloseBatch } from '../src/server/salesCloseService';
 import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
+import { purgeOldNotifications } from '../src/server/opsAlert';
+import { purgeExpiredPaymentIntents } from '../src/server/paymentIntentService';
 import { sweepStuckRefundAttempts } from '../src/server/settlementOpsService';
 import { recalcSeasonTiers } from '../src/server/seasonRecalcService';
 import { syncKrCardInstrumentRisk } from '../src/server/krRiskSync';
@@ -85,19 +87,19 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
   // 다음 조회에도 그대로 잡히기 때문이다. 그러면 뒤의 멀쩡한 카드가 영영 판정되지 않는다
   const due = await judgeAndSettleDueCards(prisma, registry, new Date(), assetClass);
   let chunks = 1;
-  while (due.hasMore && due.lastId && chunks < MAX_JUDGE_CHUNKS) {
+  while (due.hasMore && due.cursor && chunks < MAX_JUDGE_CHUNKS) {
     const next = await judgeAndSettleDueCards(
       prisma,
       registry,
       new Date(),
       assetClass,
-      due.lastId,
+      due.cursor,
     );
     due.judged += next.judged;
     due.deferred += next.deferred;
     due.failed += next.failed;
     due.staleDeferred.push(...next.staleDeferred);
-    due.lastId = next.lastId ?? due.lastId;
+    due.cursor = next.cursor ?? due.cursor;
     due.hasMore = next.hasMore;
     chunks += 1;
   }
@@ -267,9 +269,26 @@ function tick(): void {
     if (onceADay(`refund-sweep:${kstClock}`, kstNow)) {
       enqueue('방치된 환불 시도 점검', async () => {
         const s = await sweepStuckRefundAttempts(prisma);
+        if (s.reconciled > 0) console.log(`  이미 실행된 정산의 시도 ${s.reconciled}건 정리`);
         if (s.stuck > 0) console.log(`  끝나지 않은 환불 시도 ${s.stuck}건 — 운영자에게 알림`);
       });
+      // 결제 의도 정리도 같은 주기에 얹는다 — 둘 다 가볍고 DB만 만진다.
+      // 만료 의도를 남기면 orderId에 박힌 reportId가 "누가 무엇을 사려다 말았는지"의
+      // 목록이 된다 — 구매 전 마스킹 규칙 밖에 있는 유일한 표였다
+      enqueue('만료 결제 의도 정리', async () => {
+        const purged = await purgeExpiredPaymentIntents(prisma);
+        if (purged > 0) console.log(`  만료 결제 의도 ${purged}건 삭제`);
+      });
     }
+  }
+
+  // ── 오래된 알림 정리 (매일 04:30 KST — 백업 직후) ────────
+  // 읽은 것만, 운영 경보는 남긴다. 목적은 용량이 아니라 P0 경보가 묻히지 않게 하는 것
+  if (kstClock >= '04:30' && kstClock < '05:30' && onceADay('noti-purge', kstNow)) {
+    enqueue('오래된 알림 정리', async () => {
+      const purged = await purgeOldNotifications(prisma);
+      if (purged > 0) console.log(`  읽은 알림 ${purged}건 삭제`);
+    });
   }
 
   // ── 국내 시장경보·거래정지 (매일 07:10 KST) ─────────────

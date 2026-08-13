@@ -288,7 +288,9 @@ export async function getReportDetail(
   const purchase = viewerUserId
     ? await prisma.purchase.findUnique({
         where: { reportId_buyerId: { reportId, buyerId: viewerUserId } },
-        include: { settlement: true },
+        // 환불 시도까지 — 구매자 화면이 "확정됐지만 아직 안 보냄"과 "보내는 중"을
+        // 구별하려면 필요하다. 그 구별이 없으면 며칠짜리 대기가 방치로 읽힌다
+        include: { settlement: { include: { refundAttempts: true } } },
       })
     : null;
 

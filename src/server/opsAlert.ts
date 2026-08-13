@@ -67,6 +67,25 @@ export async function notifyOperators(prisma: PrismaClient, alert: OpsAlert): Pr
   await Promise.all([writeInAppNotifications(prisma, alert), postWebhook(alert)]);
 }
 
+/**
+ * 오래된 알림을 지운다 (스케줄러가 하루 한 번 부른다).
+ *
+ * **읽은 것만, 그리고 운영 경보는 남긴다.** 안 읽은 알림을 지우면 그 사람이 결국
+ * 못 본 것이 되고, `OPS_ALERT`는 사고 이력이라 지우면 "언제부터 이랬나"를 못 센다.
+ * 지우는 목적은 용량이 아니라 **P0 경보가 잡음에 묻히지 않게** 하는 것이다.
+ */
+export async function purgeOldNotifications(
+  prisma: PrismaClient,
+  now = new Date(),
+  keepDays = 90,
+): Promise<number> {
+  const cutoff = new Date(now.getTime() - keepDays * 86_400_000);
+  const { count } = await prisma.notification.deleteMany({
+    where: { readAt: { not: null }, createdAt: { lt: cutoff }, type: { not: 'OPS_ALERT' } },
+  });
+  return count;
+}
+
 async function writeInAppNotifications(prisma: PrismaClient, alert: OpsAlert): Promise<void> {
   try {
     const operators = await prisma.user.findMany({

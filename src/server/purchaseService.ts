@@ -219,24 +219,17 @@ async function assertNotSuspendedIntraday(
     );
   }
   // ② 물어봤는데 답이 없다 — 장중이면 막고, 장이 닫혔으면 잴 이유가 없으므로 통과
-  if (price === null) {
+  // ③ 값은 있는데 **장중의 낡은 종가**다 — 어제 종가로 q를 재면 방어선이 사실상 꺼진다.
+  //    당일 5% 변동이 흔한 시장에서 하루치 오차는 q<0.5 판정을 그냥 뒤집는다.
+  //    (프로덕션 공급자 KIS·업비트는 둘 다 실시간을 준다 — 여기 걸리면 소스 장애다)
+  if (price === null || (!live && open)) {
     if (open) {
+      recordPriceGateBlock(prisma, assetClass, card.ticker, price === null ? 'NO_QUOTE' : 'STALE');
       throw new Error(
         '거래소 시세를 확인할 수 없어 구매가 일시 중단되었습니다. 시세가 복구되면 다시 구매할 수 있습니다.',
       );
     }
-    return 'MARKET_CLOSED';
-  }
-  // ③ 값은 있는데 **장중의 낡은 종가**다 — 어제 종가로 q를 재면 방어선이 사실상 꺼진다.
-  //    당일 5% 변동이 흔한 시장에서 하루치 오차는 q<0.5 판정을 그냥 뒤집는다.
-  //    (프로덕션 공급자 KIS·업비트는 둘 다 실시간을 준다 — 여기 걸리면 소스 장애다)
-  if (!live && open) {
-    console.warn(
-      `[가격관문] 장중 실시간 시세 없음 — 결제 차단 ${assetClass}:${card.ticker} (소스 장애 빈도 관측용)`,
-    );
-    throw new Error(
-      '거래소 실시간 시세를 확인할 수 없어 구매가 일시 중단되었습니다. 시세가 복구되면 다시 구매할 수 있습니다.',
-    );
+    if (price === null) return 'MARKET_CLOSED';
   }
   const gate: PriceGate = live ? 'LIVE' : 'MARKET_CLOSED';
 
@@ -284,6 +277,52 @@ async function assertNotSuspendedIntraday(
     );
   }
   return gate;
+}
+
+/**
+ * 장중 시세 실패로 결제를 막았다 — 세고, 쌓이면 알린다.
+ *
+ * **이건 지표가 아니라 사건이다.** 막았다는 것은 그 순간 매출이 멈췄다는 뜻이라,
+ * 일주일 뒤에 로그를 세어 "빈도가 이렇더라" 하는 것으로는 늦다. 장중 몇 분만
+ * 이어져도 그 시간의 판매가 통째로 사라진다.
+ *
+ * 그렇다고 차단마다 DB를 쓰지는 않는다 — 결제 직전은 가장 뜨거운 경로고, 시세 소스가
+ * 죽은 상황은 정의상 **동시에 많이 발생**한다. 거기서 DB 쓰기를 걸면 커넥션 풀을
+ * 잡아먹어 장애를 키운다. 그래서 **메모리로 세고 문턱을 넘을 때만** 알린다
+ * (알림 자체도 dedupeKey로 10분에 한 번).
+ *
+ * 구조화된 한 줄 로그도 함께 남긴다 — pm2가 이미 stdout을 파일로 잡고 있어
+ * 별도 로거 없이 `grep PRICE_GATE_BLOCK`으로 사후 집계가 된다.
+ */
+const gateBlockCounts = new Map<string, { count: number; since: number }>();
+const GATE_ALERT_WINDOW_MS = 5 * 60_000;
+const GATE_ALERT_THRESHOLD = 5;
+
+function recordPriceGateBlock(
+  prisma: PrismaClient,
+  assetClass: AssetClass,
+  ticker: string,
+  kind: 'NO_QUOTE' | 'STALE',
+): void {
+  console.warn(
+    JSON.stringify({ event: 'PRICE_GATE_BLOCK', kind, assetClass, ticker, at: new Date().toISOString() }),
+  );
+  const now = Date.now();
+  const hit = gateBlockCounts.get(assetClass);
+  if (!hit || now - hit.since > GATE_ALERT_WINDOW_MS) {
+    gateBlockCounts.set(assetClass, { count: 1, since: now });
+    return;
+  }
+  hit.count += 1;
+  if (hit.count !== GATE_ALERT_THRESHOLD) return; // 문턱을 **넘는 순간** 한 번만
+  void notifyOperators(prisma, {
+    title: `[P0] ${assetClass} 장중 시세 실패로 결제가 막히고 있습니다`,
+    body: [
+      `최근 ${GATE_ALERT_WINDOW_MS / 60_000}분 안에 ${hit.count}건이 막혔습니다 — 그동안의 매출이 멈춘 상태입니다.`,
+      `시세 소스(KIS·업비트) 상태를 확인해주세요. 마지막 사례: ${ticker} (${kind})`,
+    ].join('\n'),
+    dedupeKey: `price-gate-block:${assetClass}`,
+  });
 }
 
 /**

@@ -2,7 +2,12 @@ import type { PrismaClient } from '@prisma/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
-import { confirmPaymentIntent, createPaymentIntent } from '../paymentIntentService';
+import {
+  confirmPaymentIntent,
+  createPaymentIntent,
+  INTENT_TTL_MS,
+  purgeExpiredPaymentIntents,
+} from '../paymentIntentService';
 import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import { createDraftReport, publishReport } from '../reportService';
 
@@ -119,12 +124,13 @@ describe('confirmPaymentIntent', () => {
   it('금액이 다르면 승인하지 않고 FAILED로 남긴다', async () => {
     const prepared = await createPaymentIntent(prisma, { reportId, buyerId }, PUBLISH_NOW);
     await expect(
-      confirmPaymentIntent(prisma, {
-        orderId: prepared.orderId,
-        paymentKey: 'k',
-        clientAmount: 99_999,
-        buyerId,
-      }),
+      // now를 넘긴다 — 의도에 유효기간이 생겨(INTENT_TTL_MS) 픽스처 시각으로 만든 의도를
+      // 실제 시계로 승인하려 하면 만료로 먼저 걸린다
+      confirmPaymentIntent(
+        prisma,
+        { orderId: prepared.orderId, paymentKey: 'k', clientAmount: 99_999, buyerId },
+        PUBLISH_NOW,
+      ),
     ).rejects.toThrow('결제 금액이 일치하지 않습니다');
 
     expect(fetch).not.toHaveBeenCalled(); // 금액이 어긋나면 토스 승인 API를 아예 부르지 않는다
@@ -132,15 +138,51 @@ describe('confirmPaymentIntent', () => {
     expect(stored?.status).toBe('FAILED');
   });
 
+  // **만료된 의도로는 승인하지 않는다.** 돈이 빠진 뒤 되돌리는 것보다 안 나가는 게 낫다 —
+  // 결제창을 열어둔 채 시간이 흐르면 그 사이 시세·판매 상태가 완전히 달라져 있다
+  it('유효시간이 지난 의도는 승인하지 않고 EXPIRED로 닫는다', async () => {
+    const prepared = await createPaymentIntent(prisma, { reportId, buyerId }, PUBLISH_NOW);
+    const tooLate = new Date(PUBLISH_NOW.getTime() + INTENT_TTL_MS + 1_000);
+
+    await expect(
+      confirmPaymentIntent(
+        prisma,
+        { orderId: prepared.orderId, paymentKey: 'k', clientAmount: prepared.amountKrw, buyerId },
+        tooLate,
+      ),
+    ).rejects.toThrow(/유효시간이 지났습니다/);
+
+    expect(fetch).not.toHaveBeenCalled(); // 토스 승인 API를 아예 부르지 않는다 = 돈이 안 나간다
+    const stored = await prisma.paymentIntent.findUnique({ where: { orderId: prepared.orderId } });
+    expect(stored?.status).toBe('EXPIRED');
+
+    // 정리 배치가 지운다 — orderId에 reportId가 박혀 있어 "누가 무엇을 사려다 말았는지"가
+    // 남으면 구매 전 마스킹 규칙 밖에 있는 표가 된다
+    expect(await purgeExpiredPaymentIntents(prisma, tooLate)).toBeGreaterThan(0);
+    expect(await prisma.paymentIntent.findUnique({ where: { orderId: prepared.orderId } })).toBeNull();
+  });
+
+  it('돈이 움직인 흔적은 정리 대상이 아니다 — 지우면 분쟁에서 근거가 사라진다', async () => {
+    const prepared = await createPaymentIntent(prisma, { reportId, buyerId }, PUBLISH_NOW);
+    await prisma.paymentIntent.update({
+      where: { orderId: prepared.orderId },
+      data: { status: 'REQUIRES_MANUAL_VOID' },
+    });
+    const muchLater = new Date(PUBLISH_NOW.getTime() + 365 * 86_400_000);
+
+    await purgeExpiredPaymentIntents(prisma, muchLater);
+    const kept = await prisma.paymentIntent.findUnique({ where: { orderId: prepared.orderId } });
+    expect(kept?.status).toBe('REQUIRES_MANUAL_VOID'); // 아직 안 끝난 사고다
+  });
+
   it('본인 결제가 아니면 거부한다', async () => {
     const prepared = await createPaymentIntent(prisma, { reportId, buyerId }, PUBLISH_NOW);
     await expect(
-      confirmPaymentIntent(prisma, {
-        orderId: prepared.orderId,
-        paymentKey: 'k',
-        clientAmount: 15_000,
-        buyerId: otherBuyerId,
-      }),
+      confirmPaymentIntent(
+        prisma,
+        { orderId: prepared.orderId, paymentKey: 'k', clientAmount: 15_000, buyerId: otherBuyerId },
+        PUBLISH_NOW,
+      ),
     ).rejects.toThrow('본인의 결제가 아닙니다');
   });
 
