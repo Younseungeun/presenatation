@@ -1,8 +1,13 @@
 import type { PrismaClient } from '@prisma/client';
-import { ASSET_CLASSES, type AssetClass } from '@/domain/constants';
+import { ASSET_CLASSES, type AssetClass, type Direction } from '@/domain/constants';
+import { clusterEvidence, type EvidenceCard } from '@/domain/evidence';
 
-// 점수 집계: Judgment.score를 시즌·자산군별로 합산한다.
-// 등급(§3.1)과 마이너스 규율(§2.2)의 입력이 된다. 시즌 = 분기 (KST 기준).
+// 점수 집계: Judgment.score를 시즌·자산군별로 합산한다. 시즌 = 분기 (KST 기준).
+//
+// **점수와 규율 증거는 집계 방법이 다르다.**
+//  · 점수(등급·리더보드의 입력)는 단순 합산이다 — 보상이므로 카드마다 온전히 센다
+//  · 증거(규율 래더의 입력)는 상관 보정을 거친다 — 통계적 검정이라 동시에 열려
+//    있던 상관 카드를 독립 시행으로 세면 정직한 사람이 걸린다 (domain/evidence.ts)
 
 const KST_OFFSET_MS = 9 * 3600_000;
 
@@ -61,19 +66,39 @@ export async function researcherSeasonTotals(
       score: { not: null },
       predictionCard: { report: { researcherId } },
     },
-    select: { score: true, info: true, predictionCard: { select: { assetClass: true } } },
+    select: {
+      score: true,
+      info: true,
+      judgedAt: true,
+      predictionCard: {
+        select: {
+          assetClass: true,
+          direction: true,
+          report: { select: { publishedAt: true } },
+        },
+      },
+    },
   });
 
-  const zero = () =>
-    Object.fromEntries(ASSET_CLASSES.map((a) => [a, 0])) as Record<AssetClass, number>;
-  const score = zero();
-  const evidence = zero();
+  const score = Object.fromEntries(ASSET_CLASSES.map((a) => [a, 0])) as Record<AssetClass, number>;
+  const cards: EvidenceCard[] = [];
   for (const j of judgments) {
     const a = j.predictionCard.assetClass as AssetClass;
     score[a] += j.score!;
     // info는 v5 이전 판정에 없다(null) — 그 카드는 증거로 세지 않는다.
     // 규율이 옛 데이터로 소급 발동하지 않는 편이 안전하다(불리한 처분은 소급하지 않는다)
-    evidence[a] += j.info ?? 0;
+    if (j.info == null) continue;
+    const publishedAt = j.predictionCard.report.publishedAt;
+    cards.push({
+      assetClass: a,
+      direction: j.predictionCard.direction as Direction,
+      // 게시 시각이 없으면(이론상 없다) 판정 시각으로 둔다 — 겹침이 안 잡혀
+      // 그 카드는 혼자 한 묶음이 된다. 과소 보정이 아니라 그 카드만 온전히 세는 쪽이다
+      openedAt: (publishedAt ?? j.judgedAt).getTime(),
+      closedAt: j.judgedAt.getTime(),
+      info: j.info,
+    });
   }
-  return { score, evidence };
+  // 동시에 열려 있던 같은 자산군·방향 카드는 독립 증거가 아니다 (domain/evidence.ts)
+  return { score, evidence: clusterEvidence(cards) };
 }

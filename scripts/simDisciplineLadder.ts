@@ -29,6 +29,11 @@ import {
 // 구매 신호라, 실력 없이 c를 크게 불러도 **팔린다.** 점수를 잃는 것은 그들에게 비용이 아니다.
 // 그래서 EV를 최적화하지 않는 코호트를 넣는다 — 이들이 래더의 존재 이유다.
 
+// ⚠ 이 시뮬은 카드가 **서로 독립**이라고 둔다. 실제로는 같은 기간에 열린 상관 카드가
+// Ville 보장을 깨뜨리는데(정직한 사람 오작동 3.6% → 41.3%), 그 문제와 보정은
+// scripts/simEvidenceCorrelation.ts + domain/evidence.ts에서 따로 다룬다.
+// 여기 나오는 오작동률은 **보정 후 독립 카드 기준**으로 읽어야 한다.
+
 const ASSET = 'KR_EQUITY' as const;
 const SIGMA = DAILY_SIGMA[ASSET];
 const H = 30;
