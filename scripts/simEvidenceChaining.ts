@@ -29,6 +29,8 @@ let CARDS = 20; // 시즌 게시 수
 const SEASON_DAYS = 91; // 분기
 let RHO = 0.6; // 완전히 겹칠 때의 상관
 let GROUP = 1; // 한 번에 몇 장씩 내나 (파도)
+/** 게시 간격 — FIXED는 일정, POISSON은 지수분포(폭풍 게시가 섞인다) */
+let ARRIVAL: 'FIXED' | 'POISSON' = 'FIXED';
 const N = 40_000;
 const MAG = 15;
 const THRESH = -3.0; // 1단 (α = 5%)
@@ -192,10 +194,21 @@ function season(pTrue: number, c: number, mode: Mode): boolean {
   const shocks: number[] = [];
   for (let t = 0; t < totalDays; t++) shocks.push(gauss());
 
+  // 게시 시각 — POISSON이면 지수 간격을 누적한다(폭풍과 공백이 섞인다)
+  const opens: number[] = [];
+  if (ARRIVAL === 'POISSON') {
+    let t = 0;
+    for (let i = 0; i < CARDS; i++) {
+      t += -gap * Math.log(Math.max(1e-12, rand()));
+      opens.push(Math.min(SEASON_DAYS, Math.round(t)));
+    }
+  }
+
   const all: (EvidenceCard & { order: number })[] = [];
   for (let i = 0; i < CARDS; i++) {
     // GROUP장씩 같은 순간에 낸다 (GROUP=1이면 연속 게시)
-    const a = Math.round(Math.floor(i / GROUP) * gap * GROUP);
+    const a =
+      ARRIVAL === 'POISSON' ? opens[i] : Math.round(Math.floor(i / GROUP) * gap * GROUP);
     const b = a + H;
     let s = 0;
     for (let t = a; t < b; t++) s += shocks[t];
@@ -331,9 +344,17 @@ function overlapRate(pTrue: number, c: number, rhoBar: number, thresh = THRESH):
     const totalDays = Math.ceil(SEASON_DAYS + H) + 2;
     const shocks: number[] = [];
     for (let t = 0; t < totalDays; t++) shocks.push(gauss());
+    const opens: number[] = [];
+    if (ARRIVAL === 'POISSON') {
+      let acc = 0;
+      for (let k = 0; k < CARDS; k++) {
+        acc += -gap * Math.log(Math.max(1e-12, rand()));
+        opens.push(Math.min(SEASON_DAYS, Math.round(acc)));
+      }
+    }
     const all: (EvidenceCard & { order: number })[] = [];
     for (let k = 0; k < CARDS; k++) {
-      const a = Math.round(k * gap);
+      const a = ARRIVAL === 'POISSON' ? opens[k] : Math.round(k * gap);
       const b = a + H;
       let s = 0;
       for (let t = a; t < b; t++) s += shocks[t];
@@ -434,6 +455,41 @@ for (const alpha of [0.05, 0.1, 0.2, 0.3] as const) {
       `${(overlapRate(P0, 5, 1, th).toFixed(0) + '%').padStart(8)}`,
   );
 }
+RHO = 0.6;
+console.log('');
+
+// ── ⑪ 불균일 게시 (Poisson 도착) ─────────────────────────────
+// 지금까지는 간격이 일정했다. 실제로는 악재가 터지면 몰아서 내고 한동안 비운다.
+// 폭풍 게시는 하중을 키우므로 카드당 기여가 **줄어든다** — 위험은 과잉 처벌이
+// 아니라 **탐지 회피**다. 새 문턱(α=10%, −2.30)에서 확인한다.
+console.log('■ ⑪ 불균일 게시 — 지수 간격(Poisson) vs 일정 간격 · 1단 α=10%(−2.30), 진짜 ρ=1.0');
+console.log(
+  `  ${'장수×기한'.padEnd(12)}${'게시'.padStart(9)}${'오작동'.padStart(10)}${'c=10'.padStart(8)}${'c=7'.padStart(8)}${'c=5'.padStart(8)}`,
+);
+const TH10 = -Math.log(1 / 0.1);
+RHO = 1.0;
+for (const [cards, h] of [
+  [12, 30],
+  [20, 30],
+  [30, 30],
+  [20, 60],
+] as const) {
+  CARDS = cards;
+  H = h;
+  gap = SEASON_DAYS / CARDS;
+  P0 = noSkillTouchProbability('UP', MAG, A, H, SIG);
+  for (const arr of ['FIXED', 'POISSON'] as const) {
+    ARRIVAL = arr;
+    console.log(
+      `  ${`${cards}장 × ${h}일`.padEnd(12)}${arr.padStart(9)}` +
+        `${(overlapRate(claimedProbability(P0, 5), 5, 1, TH10).toFixed(2) + '%').padStart(10)}` +
+        `${(overlapRate(P0, 10, 1, TH10).toFixed(0) + '%').padStart(8)}` +
+        `${(overlapRate(P0, 7, 1, TH10).toFixed(0) + '%').padStart(8)}` +
+        `${(overlapRate(P0, 5, 1, TH10).toFixed(0) + '%').padStart(8)}`,
+    );
+  }
+}
+ARRIVAL = 'FIXED';
 RHO = 0.6;
 console.log('');
 

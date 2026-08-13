@@ -37,10 +37,19 @@ const cond: PublishConditions = {
 
 describe('문턱은 고른 값이 아니라 유도된 값이다', () => {
   it('각 단의 문턱 = −ln(1/α) — 오작동 상한이 곧 문턱이다', () => {
-    expect(evidenceThreshold(0.05)).toBeCloseTo(-2.9957, 3);
+    expect(evidenceThreshold(0.1)).toBeCloseTo(-2.3026, 3);
     expect(evidenceThreshold(0.01)).toBeCloseTo(-4.6052, 3);
     expect(evidenceThreshold(0.001)).toBeCloseTo(-6.9078, 3);
     expect(evidenceThreshold(0.0001)).toBeCloseTo(-9.2103, 3);
+  });
+
+  it('1단만 α가 10%다 — 상관 보정이 남긴 여유를 처분이 가장 가벼운 단에서 쓴다', () => {
+    // α를 올려도 Ville 부등식은 구성으로 성립하므로 보장을 잃지 않는다.
+    // 깊은 단은 처분이 무거워 그대로 둔다 (scoring.DISCIPLINE_ALPHA 주석).
+    expect(DISCIPLINE_ALPHA).toEqual([0.1, 0.01, 0.001, 0.0001]);
+    const first = DISCIPLINE_LADDER[DISCIPLINE_LADDER.length - 1];
+    expect(first.alpha).toBe(0.1);
+    expect(first.publishSuspended).toBe(false); // 가장 가벼운 처분이어야 α를 올릴 수 있다
   });
 
   it('래더의 모든 문턱이 α에서 유도된다 — 손으로 적은 숫자가 없어야 한다', () => {
@@ -66,11 +75,11 @@ describe('disciplineFor — 신뢰도 상한 래더', () => {
       maxConfidence: CONFIDENCE_RANGE.max,
       publishSuspended: false,
     });
-    expect(disciplineFor(-2.9).maxConfidence).toBe(CONFIDENCE_RANGE.max);
+    expect(disciplineFor(-2.0).maxConfidence).toBe(CONFIDENCE_RANGE.max);
   });
 
   it('증거가 쌓일수록 **상한이 내려간다** (올라가지 않는다)', () => {
-    expect(disciplineFor(evidenceThreshold(0.05)).maxConfidence).toBe(6);
+    expect(disciplineFor(evidenceThreshold(0.1)).maxConfidence).toBe(6);
     expect(disciplineFor(evidenceThreshold(0.01)).maxConfidence).toBe(4);
     expect(disciplineFor(evidenceThreshold(0.001)).maxConfidence).toBe(2);
   });
@@ -118,11 +127,11 @@ describe('규율의 표적 — 거짓 신고', () => {
 
   it('크게 부르고 틀리면 한 장으로도 1단에 닿는다', () => {
     // c=10은 적중 확률 97%를 신고하는 것이다 — 한 번의 실패가 이미 강한 증거다
-    expect(infoAt(10, false)).toBeLessThanOrEqual(evidenceThreshold(0.05));
+    expect(infoAt(10, false)).toBeLessThanOrEqual(evidenceThreshold(0.1));
   });
 
   it('정직하게 낮게 부르면 한두 번 틀려도 걸리지 않는다', () => {
-    expect(infoAt(CONFIDENCE_RANGE.min, false) * 2).toBeGreaterThan(evidenceThreshold(0.05));
+    expect(infoAt(CONFIDENCE_RANGE.min, false) * 2).toBeGreaterThan(evidenceThreshold(0.1));
   });
 
   it('적중 한 번이 실패 여러 번을 되돌린다 — 확신이 맞으면 증거가 그만큼 강하다', () => {

@@ -489,8 +489,35 @@ export interface Discipline {
   publishSuspended: boolean;
 }
 
-/** 각 단의 오작동 상한 α — 문턱은 −ln(1/α)로 유도된다 */
-export const DISCIPLINE_ALPHA = [0.05, 0.01, 0.001, 0.0001] as const;
+/**
+ * 각 단의 오작동 상한 α — 문턱은 −ln(1/α)로 유도된다.
+ *
+ * ── 1단이 10%인 이유 (2026-08-13, scripts/simEvidenceChaining.ts ⑧⑩) ──
+ * 상관 보정(evidence.ts)을 넣은 뒤 정직한 신고자의 실측 오작동이 **전 시나리오
+ * 0.00%** 가 됐다. 진짜 상관을 최악(ρ=1.0)까지 올려도 0.00%다. 목표가 5%인데
+ * 0%라는 것은 **쓰지 않는 α를 지불하고 있다**는 뜻이고, 대가가 한 자리에 몰린다:
+ *
+ *     유효 3.5장 × 카드당 −0.806 = −2.82   >   1단 문턱 −3.00
+ *
+ * 경미한 과장(무실력 + c=5)이 **한 눈금 차이로** 문턱에 닿지 못해 탐지 0%였다.
+ * c=7·c=10은 잡히는데 c=5만 구조적으로 못 잡는 자리였다.
+ *
+ * 여유를 쓰는 길은 둘인데, 수학적으로는 같은 일이고 **말할 수 있는 보장이 다르다**:
+ *  · 하중식을 완화(ρ̄<1) — 실측 1.50%로 안전하지만 보장이 **구성에서 실측으로 강등**된다
+ *  · **α를 올린다** — Ville은 어떤 α에서도 구성으로 성립하므로 보장을 잃지 않는다
+ * 실측이 사실상 같은 지점이라(오작동 1.50% vs 1.54%, c=5 45% vs 45%) 후자를 골랐다.
+ *
+ *   1단 α    문턱     실측 오작동   c=10   c=7   c=5
+ *     5%    −3.00       0.00%       98%   79%    0%
+ *    10%    −2.30       1.54%       99%   89%   45%   ← 채택
+ *    20%    −1.61       5.89%       99%   96%   68%
+ *
+ * **1단만 올린다.** 1단은 처분이 가장 가볍고(게시 정지가 아니라 신뢰도 상한 6 —
+ * 여전히 팔 수 있다) 탐지의 관문이다. 깊은 단은 처분이 무거우므로 증거 요구가
+ * 강해야 한다 — 시장 충격 국면에서 정직한 리서처가 게시 정지를 당하는 것이
+ * 이 사다리에서 가장 비싼 오작동이다.
+ */
+export const DISCIPLINE_ALPHA = [0.1, 0.01, 0.001, 0.0001] as const;
 
 /** α → 증거 문턱. Ville 부등식의 경계 그 자체다 */
 export function evidenceThreshold(alpha: number): number {
@@ -504,7 +531,7 @@ export const DISCIPLINE_LADDER: ReadonlyArray<
   { alpha: 0.0001, evidenceBelow: evidenceThreshold(0.0001), maxConfidence: 2, publishSuspended: true },
   { alpha: 0.001, evidenceBelow: evidenceThreshold(0.001), maxConfidence: 2, publishSuspended: false },
   { alpha: 0.01, evidenceBelow: evidenceThreshold(0.01), maxConfidence: 4, publishSuspended: false },
-  { alpha: 0.05, evidenceBelow: evidenceThreshold(0.05), maxConfidence: 6, publishSuspended: false },
+  { alpha: 0.1, evidenceBelow: evidenceThreshold(0.1), maxConfidence: 6, publishSuspended: false },
 ];
 
 /**
