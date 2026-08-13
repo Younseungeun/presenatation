@@ -39,10 +39,12 @@ export default function ScorePage() {
               <p className={s.ruleText}>
                 어떤 목표든 아무 정보 없이 찍어도 우연히 닿을 확률(p₀)이 있습니다 — 쉬운
                 목표일수록, 그리고 <strong>잘 출렁이는 종목일수록</strong> 큽니다(그 종목의
-                최근 60거래일 실현 변동성을 게시 시점에 재서 카드에 고정합니다). 적중
-                보상은 (1 − p₀)에 비례해서, 우연의 몫을 빼고 실력의 몫만 지급합니다.
+                최근 120거래일 실현 변동성을 게시 시점에 재서 카드에 고정합니다). 점수는
+                신고한 확률이 <strong>이 p₀보다 얼마나 위였는지</strong>만 셉니다.
                 그래서 &quot;쉬운 목표로 적중률만 쌓는&quot; 전략도, &quot;거친 종목만
                 골라 얻어걸리길 노리는&quot; 전략도 점수가 거의 늘지 않습니다.
+                예측 크기의 하한도 그 종목의 변동성에 맞춰 움직입니다 — 거친 종목일수록
+                더 큰 목표를 걸어야 합니다.
               </p>
             </div>
           </li>
@@ -51,22 +53,25 @@ export default function ScorePage() {
             <div className={s.ruleBody}>
               <div className={s.ruleTitle}>잃는 양은 게시하는 순간 확정된다</div>
               <p className={s.ruleText}>
-                실패 벌점은 p₀에 비례하는 고정값이라, 카드를 게시하는 순간 하방이
-                정해집니다. 얼마나 크게 빗나갔는지는 점수에 들어가지 않습니다 — 주장이
-                &quot;닿는다/못 닿는다&quot;이기 때문입니다. 실현 등락은 기록으로 남아
-                프로필에 그대로 표시됩니다.
+                실패 벌점은 게시 사양만으로 정해지는 고정값이라, 카드를 올리는 순간 하방이
+                확정됩니다. 얼마나 크게 빗나갔는지는 점수에 들어가지 않습니다 — 주장이
+                &quot;닿는다/못 닿는다&quot;이기 때문입니다. 한 장이 얻거나 잃을 수 있는
+                양에도 <strong>천장이 있습니다</strong> — 카드 한 장이 시즌 성적을 통째로
+                뒤엎지 못합니다. 실현 등락은 기록으로 남아 프로필에 그대로 표시됩니다.
               </p>
             </div>
           </li>
           <li className={s.rule}>
             <span className={s.ruleNum}>3</span>
             <div className={s.ruleBody}>
-              <div className={s.ruleTitle}>신뢰도는 &quot;무정보 대비 몇 배 확신하나&quot;다</div>
+              <div className={s.ruleTitle}>신뢰도는 확률 신고다</div>
               <p className={s.ruleText}>
-                맞으면 신뢰도 배(×c)만큼 늘지만 틀리면 그보다 가파르게(×c(c+1)/2)
-                깎입니다. 수학적으로 신뢰도 c가 남는 장사가 되려면 자기 승산이 무정보
-                승산의 c배는 되어야 합니다 — 자기 확신을 정직하게 적는 것이 기대 점수를
-                최대로 만듭니다.
+                신뢰도 한 칸은 무정보 대비 승산 ×1.73, 꼭대기(10)는 ×140입니다. 즉 신뢰도를
+                고르는 것은 <strong>&quot;나는 이 확률로 맞힌다&quot;고 신고하는 것</strong>이고,
+                점수는 그 신고가 맞았는지를 잽니다. <strong>믿는 그대로 적는 것이 유일한
+                최적</strong>입니다 — 부풀리면 틀렸을 때 더 잃고, 낮추면 맞았을 때 덜 받습니다.
+                남기려면 신고한 확률보다 자주 맞히면 됩니다. 그래서 이 화면의 손익분기
+                승률은 계산 결과가 아니라 <strong>신고한 확률 그 자체</strong>입니다.
               </p>
             </div>
           </li>
@@ -102,13 +107,13 @@ export default function ScorePage() {
           <li className={s.rule}>
             <span className={s.ruleNum}>6</span>
             <div className={s.ruleBody}>
-              <div className={s.ruleTitle}>화면의 별점은 승률로 읽는다</div>
+              <div className={s.ruleTitle}>별 한 칸은 어디서나 같은 뜻이다</div>
               <p className={s.ruleText}>
-                신뢰도 별점은 다이얼값(1~10)을 반으로 접은 것이 아니라, 그 신고가 손해가
-                아니려면 리서처가 스스로 믿어야 하는 최소 승률 × 별 5개입니다 (기준
-                상황에서 신뢰도 c → c/(c+1); 실제 문턱은 카드의 난이도 p₀에 따라
-                움직입니다). 별 5개는 승률 100%라 존재하지 않습니다. 이 규칙은 표시일 뿐
-                점수 계산에는 영향이 없습니다.
+                신뢰도 별점은 다이얼값에 선형입니다 (2 → ★1 … 10 → ★5). 사다리가 등비라
+                <strong> 별 한 칸이 어느 구간에서든 승산 ×1.73</strong>을 뜻합니다 — ★1과
+                ★2의 차이가 ★4와 ★5의 차이와 같습니다. 그 칸이 실제로 몇 %인지는 카드
+                난이도(p₀)에 따라 달라지므로, 정확한 확률은 리포트 상세와 작성 화면에
+                카드마다 따로 적습니다. 이 규칙은 표시일 뿐 점수 계산에는 영향이 없습니다.
               </p>
             </div>
           </li>
@@ -125,7 +130,13 @@ export default function ScorePage() {
           <div className={styles.cardRow}>
             <span className={styles.cardKey}>적중 / 실패</span>
             <span className={styles.cardVal}>
-              +10×크기×c×(1−p₀) / −10×크기×c(c+1)/2×p₀
+              100×가중×ln(p̂/p₀) / 100×가중×ln((1−p̂)/(1−p₀))
+            </span>
+          </div>
+          <div className={styles.cardRow}>
+            <span className={styles.cardKey}>신고 확률 p̂</span>
+            <span className={styles.cardVal}>
+              무정보 승산 × 140^((c−1)/9) — 신뢰도 한 칸이 ×1.73
             </span>
           </div>
           <div className={styles.cardRow}>

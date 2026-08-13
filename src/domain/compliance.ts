@@ -147,7 +147,7 @@ export interface ScreeningInput {
   magnitudePct?: number | null;
   /** 검증 시한까지 남은 일수 — 크기의 현실성은 기간과 함께 봐야 판단된다 */
   horizonDays?: number | null;
-  /** 자기 신고 신뢰도 1~10 (점수 증폭 배율) */
+  /** 자기 신고 신뢰도 2~10 (적중 확률 신고 — scoring.claimedProbability) */
   confidence?: number | null;
   /**
    * 종목의 실현 변동성 — 크기의 현실성은 **그 종목이 실제로 얼마나 움직이는가**로 봐야 한다.

@@ -10,15 +10,24 @@ import {
   type RiskLevel,
 } from "@/domain/instrumentRisk";
 import { salesWindowEnd } from "@/domain/salesWindow";
-import { CONFIDENCE_RANGE, minMagnitudePct } from "@/domain/scoring";
+import {
+  claimedProbability,
+  CONFIDENCE_RANGE,
+  minMagnitudePct,
+  noSkillTouchProbability,
+} from "@/domain/scoring";
 import { ScoreCalculatorEntry } from "../../../score/ScoreCalculatorEntry";
-import { noSkillTouchProbability } from "@/domain/scoring";
 import { cardStabilityLevel } from "@/domain/stability";
 import { confidenceStars, StarRating } from "../../../StarRating";
 import styles from "../../researcher.module.css";
 import { ComplianceHints } from "./ComplianceHints";
 
-/** 신뢰도 선택지 — 하한이 2다 (c=1은 무정보 기대 점수가 0이라 은신처가 된다) */
+/**
+ * 신뢰도 선택지 — 하한이 2다.
+ * c=1은 승산 배수가 ×1.00, 즉 "내 확률 = 무정보 확률"이라는 신고라 정보량이 정확히 0이다:
+ * 맞아도 0점, 틀려도 0점. 점수도 규율 래더도 닿지 못하는데 팔리기만 하는 칸이 된다
+ * (§2.2 — 팔려면 점수를 걸어야 한다).
+ */
 const RATING = Array.from(
   { length: CONFIDENCE_RANGE.max - CONFIDENCE_RANGE.min + 1 },
   (_, i) => CONFIDENCE_RANGE.min + i,
@@ -459,11 +468,13 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             ))}
           </select>
           <span className={styles.hint}>
-            맞으면 ×c, 틀리면 ×c(c+1)/2 — 신뢰도 c는 &quot;내 승산이 무정보의 c배&quot;라는
-            신고입니다 (점수 v4)
+            신뢰도는 <b>적중 확률 신고</b>입니다 — 한 칸 올릴 때마다 무정보 대비 승산이
+            ×1.73, 꼭대기(10)가 ×140. 믿는 그대로 적는 것이 기대 점수가 가장 큽니다
+            (부풀려도 낮춰도 손해입니다)
           </span>
-          {/* 정직 신뢰도 가이드 — 지금 적은 사양(방향·크기·기간)의 무정보 도달 확률을
-              그 자리에서 보여준다. 이 확률의 c배 승산이 없으면 c는 손해 보는 신고다 */}
+          {/* 정직 신뢰도 가이드 — 지금 적은 사양(방향·크기·기간)의 무정보 도달 확률과
+              그 위에서 이 신뢰도가 신고하게 되는 확률을 그 자리에서 보여준다.
+              채점이 쓰는 claimedProbability를 그대로 부른다 */}
           {(() => {
             const m = targetType === "RETURN_PCT" ? toNumber(targetValue) : null;
             const h = toHorizonDays(deadline);
@@ -480,9 +491,12 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             return (
               <span className={styles.hint}>
                 이 사양은 아무 정보 없이 찍어도 {Math.round(p0 * 100)}% 확률로 닿습니다 —
-                적중 보상은 이 공짜 몫을 뺀 나머지({Math.round((1 - p0) * 100)}%)에
-                비례합니다. 신뢰도 {toNumber(confidence)}이 남는 신고가 되려면 자기 승산이
-                무정보의 {toNumber(confidence)}배여야 합니다
+                지금 고른 신뢰도 {toNumber(confidence)}이면{" "}
+                <b>
+                  적중 확률{" "}
+                  {Math.round(claimedProbability(p0, toNumber(confidence)!) * 100)}%
+                </b>
+                를 신고하는 것과 같습니다. 이보다 자주 맞힐 자신이 있을 때만 남는 장사입니다
                 {sigmaDaily !== null ? (
                   <>
                     {" "}
@@ -497,15 +511,14 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
               </span>
             );
           })()}
-          {/* 별점 미리보기 — "3을 골랐는데 왜 별 3.75개?"라는 물음이 생기기 전에,
-              고르는 바로 그 자리에서 표시 규칙(함의 승률 × 5)을 보여준다 */}
+          {/* 별점 미리보기 — 고르는 바로 그 자리에서 구매자가 볼 별을 보여준다.
+              v5에서 별은 다이얼값에 선형이라 규칙 설명이 짧아졌다(별 한 칸 = 승산 ×1.73) */}
           {(() => {
             const c = toNumber(confidence)!;
             return (
               <span className={styles.hint}>
                 구매자 화면 표시: <StarRating stars={confidenceStars(c)} label="신뢰도" />{" "}
-                {confidenceStars(c).toFixed(2)}개 — 별점은 다이얼값이 아니라 이 신고가
-                함의하는 최소 승률({Math.round((100 * c) / (c + 1))}%)입니다
+                {confidenceStars(c).toFixed(1)}개 — 별 한 칸이 승산 ×1.73입니다
               </span>
             );
           })()}

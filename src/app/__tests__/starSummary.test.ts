@@ -4,9 +4,9 @@ import { CONFIDENCE_RANGE } from "@/domain/scoring";
 import { confidenceStars } from "../StarRating";
 import { convictionStars } from "../starSummary";
 
-// 함의 승률 별점 — 다이얼값이 정직하려면 걸어야 하는 최소 확률 × 5 (ratingStars 주석).
-describe("함의 승률 매핑", () => {
-  it("신뢰도: 함의 승률 × 5 — 별이 곧 승률이다", () => {
+// 신뢰도 별점 — 다이얼값에 선형 (ratingStars 주석).
+describe("신뢰도 별점 매핑", () => {
+  it("신뢰도: c에 선형 — 별 한 칸이 어디서나 같은 뜻이다", () => {
     // 사다리가 등비(칸당 승산 ×1.71, 꼭대기 ×140)라 로그 승산이 c에 선형이다.
     // 별도 c에 선형으로 두어야 "별 한 칸"이 어느 구간에서든 같은 뜻이 된다
     expect(confidenceStars(CONFIDENCE_RANGE.min)).toBeCloseTo(1, 10);

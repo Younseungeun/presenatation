@@ -247,8 +247,8 @@ export const TAG_GROUPS: readonly TagGroup[] = [
     axis: 'confidence',
     multi: false,
     tags: [
-      { tag: '#신뢰도 3이상', hint: '점수 증폭을 중간 이상 건 카드' },
-      { tag: '#신뢰도 4이상', hint: '크게 건 카드 — 틀리면 그만큼 크게 깎인다' },
+      { tag: '#신뢰도 3이상', hint: '중간 이상의 적중 확률을 신고한 카드' },
+      { tag: '#신뢰도 4이상', hint: '높은 확률을 신고한 카드 — 틀리면 그만큼 크게 깎인다' },
     ],
   },
   {

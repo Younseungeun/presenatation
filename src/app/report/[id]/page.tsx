@@ -15,7 +15,11 @@ import { prisma } from "@/server/db";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getResearcherCallout } from "@/server/marketQueries";
 import { PAYMENT_METHOD_LABEL, type PaymentMethod } from "@/server/purchaseService";
-import { magnitudePctToTargetPrice, noSkillTouchProbability } from "@/domain/scoring";
+import {
+  claimedProbability,
+  magnitudePctToTargetPrice,
+  noSkillTouchProbability,
+} from "@/domain/scoring";
 import { fetchCachedPrice } from "@/server/priceCache";
 import { isFreeReport } from "@/server/freeReportService";
 import { getSessionUserId } from "@/server/session";
@@ -89,9 +93,11 @@ export default async function ReportDetail({
   const stabilityStars = cardStabilityLevel(card?.sigmaDaily);
   const now = new Date();
 
-  // 카드별 함의 승률 — 별점 각주가 이 카드의 난이도(p₀)로 정확한 문턱을 말하게 한다.
+  // 카드별 신고 확률 — 별점 각주가 이 카드의 난이도(p₀)로 정확한 값을 말하게 한다.
+  // v5에서 이것은 "손해가 아니려면 믿어야 하는 최소 확률"이자 곧 **신고한 확률 그 자체**다
+  // (적정 점수법이라 둘이 같은 값이다 — v4에서는 승산 조건을 풀어야 나오던 값이었다).
   // 게시 전(기간 미확정)이나 기준가 없는 소급 카드는 계산하지 않는다
-  let cardImpliedWinRate: { p0: number; minWinRate: number } | null = null;
+  let cardClaimed: { p0: number; claimed: number } | null = null;
   if (card && report.publishedAt) {
     const magnitudePct =
       card.targetType === "RETURN_PCT"
@@ -111,9 +117,7 @@ export default async function ReportDetail({
           // 채점과 같은 σ를 쓴다 — 각주가 말하는 문턱이 실제 배당과 어긋나면 안 된다
           card.sigmaDaily,
         );
-        const odds0 = p0 / (1 - p0);
-        const minOdds = card.confidence * odds0;
-        cardImpliedWinRate = { p0, minWinRate: minOdds / (1 + minOdds) };
+        cardClaimed = { p0, claimed: claimedProbability(p0, card.confidence) };
       }
     }
   }
@@ -219,20 +223,20 @@ export default async function ReportDetail({
           <StarRating stars={confidenceStars(card.confidence)} label="신뢰도" />
         </span>
       </div>
-      {/* 별점 읽는 법 — 구매자의 알 권리 (점수 v4 기준).
-          함의 승률의 문턱은 카드 난이도(무정보 도달 확률 p₀)에 따라 움직이므로,
-          고정 문구("별 4개=80%") 대신 **이 카드의 p₀로 계산한 값**을 적는다.
-          정직 조건: odds(p) ≥ c·odds(p₀) → 최소 p = c·odds₀/(1+c·odds₀) */}
+      {/* 별점 읽는 법 — 구매자의 알 권리 (점수 v5 기준).
+          별은 다이얼값에 선형이지만(별 한 칸 = 승산 ×1.73), 그 칸이 **몇 %를 뜻하는지**는
+          카드 난이도(무정보 도달 확률 p₀)에 따라 달라진다. 그래서 고정 문구가 아니라
+          이 카드의 p₀로 계산한 신고 확률을 적는다 — 채점이 쓰는 claimedProbability 그대로 */}
       <p className={styles.cardFootnote}>
-        {cardImpliedWinRate !== null ? (
+        {cardClaimed !== null ? (
           <>
-            이 카드 기준: 아무 정보 없이 찍어도 {Math.round(cardImpliedWinRate.p0 * 100)}%
-            확률로 닿는 사양이라, 신뢰도 {card.confidence}이 손해가 아니려면 리서처
-            스스로 적중 확률을 {Math.round(cardImpliedWinRate.minWinRate * 100)}% 이상으로
-            믿어야 합니다.
+            이 카드 기준: 아무 정보 없이 찍어도 {Math.round(cardClaimed.p0 * 100)}%
+            확률로 닿는 사양입니다. 리서처가 신고한 적중 확률은{" "}
+            <strong>{Math.round(cardClaimed.claimed * 100)}%</strong>이고(신뢰도{" "}
+            {card.confidence}), 이보다 자주 맞혀야 점수가 남습니다.
           </>
         ) : (
-          <>신뢰도 별점은 리서처 신고가 함의하는 최소 승률입니다.</>
+          <>신뢰도 별점은 리서처가 신고한 적중 확률입니다.</>
         )}{" "}
         안정성 별점은 리서처 입력이 아니라 종목의 최근 변동성으로 시스템이
         매기며, 점수·정산과 무관합니다.{" "}
