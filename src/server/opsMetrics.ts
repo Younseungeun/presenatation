@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 
-// 운영 초기(거래 100건·리서처 10명 구간)에 **매일 눈으로 보는 다섯 숫자.**
+// 운영 초기(거래 100건·리서처 10명 구간)에 **매일 눈으로 보는 여섯 숫자.**
 //
 // 기존 계측(에스크로 잔액·스케줄러 심박·이월 건수)은 전부 **"인프라가 죽었는가"**를
 // 본다. 그것들이 전부 초록이어도 서비스는 조용히 죽을 수 있다 — 카드가 안 팔리고,
@@ -25,6 +25,14 @@ export interface OpsMetric {
 
 const pct = (n: number, d: number) => (d === 0 ? '—' : `${((n / d) * 100).toFixed(1)}%`);
 const days = (ms: number) => (ms / 86_400_000).toFixed(1);
+
+/** 중앙값 — 표본이 작을 때 한 사람의 6개월이 평균을 통째로 끌고 가는 것을 막는다 */
+function median(xs: number[]): number | null {
+  if (xs.length === 0) return null;
+  const s = [...xs].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 === 1 ? s[m] : (s[m - 1] + s[m]) / 2;
+}
 
 /**
  * ① 결제 → 판정까지 걸린 실제 일수.
@@ -130,6 +138,9 @@ async function repurchaseAfterJudgment(prisma: PrismaClient) {
   let returned = 0;
   let refundedCohort = 0;
   let refundedReturned = 0;
+  // ⑥의 입력 — **되돌아온 사람이 얼마나 뜸을 들였나** (아래 timeToReturn 주석)
+  const gapRefunded: number[] = [];
+  const gapHit: number[] = [];
   for (const list of byBuyer.values()) {
     // 그 사람이 **처음 겪은 판정**의 시각 — 그 뒤에 또 샀는지를 본다
     const firstJudged = list
@@ -139,8 +150,9 @@ async function repurchaseAfterJudgment(prisma: PrismaClient) {
     if (!firstJudged) continue;
 
     cohort++;
-    const again = list.some((p) => p.paidAt > firstJudged);
-    if (again) returned++;
+    // 정렬이 paidAt 오름차순이라 첫 원소가 곧 "판정 뒤 처음 산 것"이다
+    const next = list.find((p) => p.paidAt > firstJudged);
+    if (next) returned++;
 
     // 첫 판정이 환불로 끝난 사람만 따로 — 환불 경험의 값어치를 재는 자리
     const wasRefunded = list.some(
@@ -150,10 +162,50 @@ async function repurchaseAfterJudgment(prisma: PrismaClient) {
     );
     if (wasRefunded) {
       refundedCohort++;
-      if (again) refundedReturned++;
+      if (next) refundedReturned++;
+    }
+    if (next) {
+      const gap = next.paidAt.getTime() - firstJudged.getTime();
+      (wasRefunded ? gapRefunded : gapHit).push(gap);
     }
   }
-  return { cohort, returned, refundedCohort, refundedReturned };
+  return { cohort, returned, refundedCohort, refundedReturned, gapRefunded, gapHit };
+}
+
+/**
+ * ⑥ 판정을 겪은 뒤 **다시 사기까지 걸린 시간** — 환불 코호트 vs 적중 코호트.
+ *
+ * ④(재구매율)는 사후 지표다. 떨어진 것을 알았을 때는 그 사람들이 이미 떠난 뒤라
+ * 손쓸 시점이 지나 있다. **떠나기 전에 잡히는 신호**가 필요한데, 이탈은 "안 온다"로
+ * 오기 전에 **"점점 늦게 온다"**로 먼저 온다.
+ *
+ * 그래서 두 코호트의 재구매 간격을 견준다. 환불받은 사람의 간격이 적중한 사람보다
+ * 계통적으로 벌어지기 시작하면 그건 **"돈은 돌려받았지만 시간을 낭비했다"**가
+ * 행동에 나타나기 시작한 것이다. 아직 재구매율은 안 떨어졌을 때 보인다.
+ *
+ * **후보로 검토한 "리포트 완독률"은 쓰지 않는다.** 스크롤·체류 추적을 새로 붙여야
+ * 하는데다, 이 상황에서는 **거꾸로 작동한다** — 끝까지 읽고 기다렸다가 실패한 사람이
+ * 기회비용을 가장 크게 잃은 사람이라 완독률이 높을수록 이탈 위험군이 커진다.
+ * 여기 있는 값은 이미 가진 결제·판정 시각만으로 나와 새 계측이 0이다.
+ *
+ * ⚠ **되돌아온 사람만 센다(우측 절단).** 영영 안 온 사람은 간격이 없어 이 숫자에
+ * 들어가지 않는다 — 코호트가 통째로 떠나면 간격이 오히려 **짧아 보인다.**
+ * 그래서 분모(코호트 인원)를 반드시 함께 싣고, 이 지표는 ④와 **같이** 읽어야 한다.
+ */
+function timeToReturn(r: {
+  cohort: number;
+  refundedCohort: number;
+  gapRefunded: number[];
+  gapHit: number[];
+}) {
+  const refunded = median(r.gapRefunded);
+  const hit = median(r.gapHit);
+  return {
+    refunded,
+    hit,
+    ratio: refunded !== null && hit !== null && hit > 0 ? refunded / hit : null,
+    hitCohort: r.cohort - r.refundedCohort,
+  };
 }
 
 /**
@@ -185,6 +237,13 @@ export const OPS_THRESHOLDS = {
   disputeRate: 0.03,
   /** 판정 경험자의 재구매가 이 아래면 상품 경험 자체가 실패다 */
   repurchaseRate: 0.2,
+  /**
+   * 환불 코호트의 재구매 간격이 적중 코호트의 이 배를 넘으면 ④가 무너지기 시작한 것이다.
+   * 1.5배는 초안 — 되돌아온 사람만 세는 지표라 코호트가 얇을 때는 흔들린다
+   */
+  returnGapRatio: 1.5,
+  /** 그 아래 표본에서는 경보를 울리지 않는다 — 두 사람의 변덕이 배율을 만든다 */
+  returnGapMinSample: 3,
   /** 판정 100건당 수동 개입이 이보다 많으면 사람 속도가 병목이 된다 */
   interventionsPer100: 5,
 } as const;
@@ -199,6 +258,7 @@ export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Pro
   ]);
 
   const per100 = manual.judged === 0 ? 0 : (manual.total / manual.judged) * 100;
+  const gap = timeToReturn(repurchase);
 
   return [
     {
@@ -245,6 +305,25 @@ export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Pro
       alert:
         repurchase.cohort > 0 &&
         repurchase.returned / repurchase.cohort < OPS_THRESHOLDS.repurchaseRate,
+    },
+    {
+      key: 'returnGap',
+      label: '판정 후 재구매까지 (환불 / 적중)',
+      value:
+        gap.refunded === null || gap.hit === null
+          ? '—'
+          : `${days(gap.refunded)}일 / ${days(gap.hit)}일` +
+            (gap.ratio === null ? '' : ` (${gap.ratio.toFixed(2)}배)`),
+      sample:
+        `되돌아온 사람만 — 환불 ${repurchase.gapRefunded.length}/${repurchase.refundedCohort}명 · ` +
+        `적중 ${repurchase.gapHit.length}/${gap.hitCohort}명. 영영 안 온 사람은 이 숫자에 없습니다`,
+      meaning:
+        '④가 무너지기 전에 먼저 움직이는 신호입니다. 이탈은 "안 온다"로 오기 전에 "점점 늦게 온다"로 옵니다. 환불 쪽이 적중 쪽보다 1.5배 이상 벌어지면 환불이 "다행"이 아니라 "시간 낭비"로 읽히기 시작한 것입니다.',
+      alert:
+        gap.ratio !== null &&
+        repurchase.gapRefunded.length >= OPS_THRESHOLDS.returnGapMinSample &&
+        repurchase.gapHit.length >= OPS_THRESHOLDS.returnGapMinSample &&
+        gap.ratio > OPS_THRESHOLDS.returnGapRatio,
     },
     {
       key: 'manual',

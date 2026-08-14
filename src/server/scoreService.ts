@@ -121,6 +121,7 @@ export async function researcherSeasonTotals(
         select: {
           assetClass: true,
           direction: true,
+          deadline: true,
           report: { select: { publishedAt: true } },
         },
       },
@@ -137,6 +138,13 @@ export async function researcherSeasonTotals(
     // info는 vmax 이전 판정에 없다(null) — 그 카드는 증거로 세지 않는다.
     // 규율이 옛 데이터로 소급 발동하지 않는 편이 안전하다(불리한 처분은 소급하지 않는다)
     if (j.info == null) continue;
+    // **증거가 아닌 카드는 남의 증거를 깎지도 못한다 (2026-08-15).**
+    // 판정 불가·철회는 info가 0이라 D에 아무것도 더하지 않는데, 배열에 남으면 겹치는
+    // 다른 카드의 **하중은 키운다**(evidence.ts의 j 루프는 info를 보지 않는다).
+    // 하중은 상관 보정이고 상관될 정보량이 0인 카드는 아무것도 상관시키지 않는다 —
+    // 남겨 두면 순수한 과보정이고, 하필 **취소당한 카드 수만큼 래더가 무뎌지는**
+    // 방향이라 "카드를 뿌리고 철회한다"가 규율을 희석하는 경로가 된다
+    if (j.info === 0) continue;
     const publishedAt = j.predictionCard.report.publishedAt;
     cards.push({
       assetClass: a,
@@ -144,7 +152,23 @@ export async function researcherSeasonTotals(
       // 게시 시각이 없으면(이론상 없다) 판정 시각으로 둔다 — 겹침이 안 잡혀
       // 그 카드는 혼자 한 묶음이 된다. 과소 보정이 아니라 그 카드만 온전히 세는 쪽이다
       openedAt: (publishedAt ?? j.judgedAt).getTime(),
-      closedAt: j.judgedAt.getTime(),
+      // **닫힌 시각은 배치가 돈 시각이 아니라 결과가 정해진 시각이다 (2026-08-15).**
+      //
+      // 겹침이 재는 것은 "B를 신고할 때 A의 결과를 알았는가"이고, 리서처는 우리 배치를
+      // 기다려 아는 것이 아니다 — 시한의 종가가 찍히는 순간 스스로 계산할 수 있다.
+      // judgedAt을 그대로 쓰면 KIS 장애·서버 재부팅·큐 정체가 카드의 "열린 기간"을
+      // 늘려 **인프라 사고가 규율 래더의 입력을 바꾼다.** 하루 밀리면 하루만큼 더
+      // 겹치고, 겹치면 하중이 커지고, 하중이 커지면 증거가 깎인다.
+      //
+      // 그렇다고 시한으로 못 박지도 않는다 — **도달 판정**(reachedJudgmentBatch)은
+      // 종가가 목표를 넘은 날 결과가 확정되므로 시한보다 훨씬 일찍 닫힌다.
+      // 시한으로 고정하면 일찍 이룬 카드가 그 뒤 몇 달을 "열린 채"로 세어진다.
+      // 둘을 함께 만족시키는 규칙은 하나다: **더 이른 쪽.**
+      //  · 기한 판정 → judgedAt > deadline → 시한 (배치 지연이 지워진다)
+      //  · 도달 판정 → judgedAt < deadline → 판정 시각 (실제로 그때 닫혔다)
+      // 스키마도 백필도 필요 없다. judgedAt이 시한보다 이른 경우는 도달 판정과
+      // 강제 철회뿐이고, 후자는 info가 0이라 위에서 이미 빠진다
+      closedAt: Math.min(j.judgedAt.getTime(), j.predictionCard.deadline.getTime()),
       info: j.info,
     });
   }

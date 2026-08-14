@@ -36,7 +36,10 @@ export default async function AdminSettlementsPage() {
         <div>
           <p className={styles.sub}>
             판정이 확정한 환불·지급을 실행하고 기록합니다. 실행 즉시 당사자에게 알림이
-            갑니다. <Link href="/admin/judgments">판정 보류 큐 →</Link>
+            갑니다. <Link href="/admin/judgments">판정 보류 큐 →</Link>{" "}
+            {/* 이의가 걸린 건은 여기 목록에서 아예 빠진다 — 왜 안 보이는지 알 길이
+                이 링크뿐이라, 없으면 "지급이 사라졌다"로 읽힌다 */}
+            <Link href="/admin/disputes">판정 이의 →</Link>
           </p>
         </div>
       </div>

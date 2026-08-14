@@ -87,7 +87,7 @@ beforeAll(async () => {
   prisma = createTestDb('judgment-revert-');
   await seedTestInstruments(
     prisma,
-    ['KRW-RV1', 'KRW-RV2', 'KRW-RV3', 'KRW-RV4', 'KRW-RV5', 'KRW-RV6'].map((ticker) => ({
+    ['KRW-RV1', 'KRW-RV2', 'KRW-RV3', 'KRW-RV4', 'KRW-RV5', 'KRW-RV6', 'KRW-RV7', 'KRW-RV8'].map((ticker) => ({
       assetClass: 'CRYPTO',
       ticker,
       name: ticker,
@@ -285,5 +285,73 @@ describe('판정 되돌리기', () => {
     // 사람에게 무엇을 해야 하는지 말해 준다 — 그냥 두면 영원히 판정되지 않는 카드다
     const r2 = await prisma.judgmentRevert.findFirstOrThrow({ where: { predictionCardId: cardId } });
     expect(r2.reason).toContain('10배');
+  });
+
+  // **이의를 인정하고 되돌리는 것이 이 두 기능을 잇는 유일한 길인데, 그 길이 막혀 있었다.**
+  //
+  // JudgmentDispute.judgmentId가 필수 관계여서 Prisma 기본 동작(Restrict)이 판정 삭제를
+  // 거부했다. 즉 "이의 접수 → 인정 → 되돌리기"에서 마지막 걸음이 외래키 오류로 죽고,
+  // 그 정산은 열린 이의에 막힌 채 DB를 직접 고치지 않으면 영원히 풀리지 않는다.
+  // 이의 창구를 만든 커밋이 만든 구멍이라 창구와 같은 자리에서 고정한다.
+  it('이의가 걸린 판정도 되돌릴 수 있다 — 인정하고 못 되돌리면 창구가 덫이 된다', async () => {
+    const { judgment, reportId } = await judgedCard('KRW-RV7', 120);
+    const purchase = await prisma.purchase.findFirstOrThrow({
+      where: { reportId, buyerId: buyerAId },
+    });
+    const dispute = await prisma.judgmentDispute.create({
+      data: {
+        judgmentId: judgment.id,
+        purchaseId: purchase.id,
+        buyerId: buyerAId,
+        category: 'PRICE_DATA',
+        observed: '8/1 종가 95원',
+        status: 'UPHELD',
+        resolvedAt: BATCH_NOW,
+        resolvedBy: operatorId,
+        resolution: '공급자 종가 오류가 확인되었습니다',
+      },
+    });
+
+    await revertJudgment(
+      prisma,
+      {
+        judgmentId: judgment.id,
+        operatorUserId: operatorId,
+        reason: '이의 인정 — 종가 오류',
+        cause: 'DATA_SOURCE',
+      },
+      BATCH_NOW,
+    );
+
+    // **이의 기록은 남는다** — 판정은 없던 일이 되어도 "누가 무엇을 문제 삼았고 우리가
+    // 어떻게 판단했나"는 남아야 한다. 지표 ③의 분자이자 분쟁 시 우리 쪽 기록이다
+    const kept = await prisma.judgmentDispute.findUniqueOrThrow({ where: { id: dispute.id } });
+    expect(kept.status).toBe('UPHELD');
+    expect(kept.resolution).toContain('종가 오류');
+    expect(kept.judgmentId).toBeNull(); // 가리키던 판정은 사라졌다
+  });
+
+  // 열린 이의를 남겨 둔 채 되돌리면 재판정 뒤에도 그 정산이 계속 막힌다 —
+  // 되돌리는 사람이 그 사실을 모르면 아무도 모른다
+  it('열린 이의가 있으면 되돌리는 사람에게 알린다', async () => {
+    const { judgment, reportId } = await judgedCard('KRW-RV8', 120);
+    const purchase = await prisma.purchase.findFirstOrThrow({
+      where: { reportId, buyerId: buyerBId },
+    });
+    await prisma.judgmentDispute.create({
+      data: {
+        judgmentId: judgment.id,
+        purchaseId: purchase.id,
+        buyerId: buyerBId,
+        category: 'TIMING',
+      },
+    });
+
+    const r = await revertJudgment(
+      prisma,
+      { judgmentId: judgment.id, operatorUserId: operatorId, reason: 'x', cause: 'PLATFORM_LOGIC' },
+      BATCH_NOW,
+    );
+    expect(r.followUps.some((f) => f.includes('이의'))).toBe(true);
   });
 });

@@ -1,0 +1,123 @@
+/* 이 화면의 전부는 **대조**다 — 두 값이 같은 높이에 나란히 서야 눈이 바로 비교한다.
+   위아래로 쌓으면 운영자가 스크롤하며 옮겨 적게 되고, 옮겨 적는 순간 틀린다 */
+.claim {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+@media (max-width: 520px) {
+  .claim {
+    grid-template-columns: 1fr;
+  }
+}
+
+.side {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.sideLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-faint);
+}
+
+.category {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-weak);
+}
+
+/* 대조할 수치는 이 화면에서 가장 진해야 한다 */
+.observed {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.none {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.snapshot {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.snapshotHead {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.table {
+  width: 100%;
+  margin-top: 6px;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.table td {
+  padding: 3px 0;
+  color: var(--text-weak);
+}
+
+/* 판정은 종가로만 정해진다 — 고·저는 참고고 이 칸이 근거다 */
+.close {
+  text-align: right;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.resolve {
+  margin-top: 12px;
+}
+
+.verdicts {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.verdict,
+.verdictOn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-weak);
+  cursor: pointer;
+}
+
+.verdictOn {
+  border-color: var(--ink, #111);
+  color: var(--text);
+}
+
+.cmd {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-radius: var(--radius);
+  background: var(--bg-weak, #f4f4f5);
+  font-size: 12px;
+  overflow-x: auto;
+  white-space: pre;
+}

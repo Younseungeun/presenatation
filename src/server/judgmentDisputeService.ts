@@ -151,17 +151,61 @@ export function getOpenDisputes(prisma: PrismaClient) {
     include: {
       judgment: {
         select: {
+          id: true,
           outcome: true,
           settledPrice: true,
+          realizedReturnPct: true,
           judgedAt: true,
           dataSource: true,
           marketSnapshotJson: true,
-          predictionCard: { select: { assetName: true, ticker: true, assetClass: true, deadline: true } },
+          predictionCard: {
+            select: {
+              assetName: true,
+              ticker: true,
+              assetClass: true,
+              deadline: true,
+              direction: true,
+              targetType: true,
+              targetValue: true,
+              basePrice: true,
+            },
+          },
         },
       },
       purchase: { select: { id: true, amountKrw: true, reportId: true } },
     },
     orderBy: { createdAt: 'asc' },
+  });
+}
+
+export type OpenDispute = Awaited<ReturnType<typeof getOpenDisputes>>[number];
+
+/**
+ * **인정했는데 아직 되돌리지 않은 이의** — 화면이 없으면 여기서 조용히 끊긴다.
+ *
+ * `resolveDispute`는 일부러 판정을 자동으로 되돌리지 않는다("인정 버튼 하나로 에스크로가
+ * 움직이는" 단축키를 만들지 않으려고). 대신 사람이 이어서 실행해야 하는데, 그 사람에게
+ * 목록이 없으면 **인정만 되고 아무 일도 안 일어난 건**이 쌓인다. 구매자에게는
+ * "오류가 확인되었습니다"라고 알린 뒤라 가장 나쁜 침묵이다.
+ *
+ * 되돌리면 판정 행이 사라지면서 `judgmentId`가 null이 되므로(SetNull), 이 목록은
+ * **스스로 비워진다** — 따로 완료 표시를 만들 필요가 없다.
+ */
+export function getUpheldPendingRevert(prisma: PrismaClient) {
+  return prisma.judgmentDispute.findMany({
+    where: { status: 'UPHELD', judgmentId: { not: null } },
+    include: {
+      judgment: {
+        select: {
+          id: true,
+          outcome: true,
+          judgedAt: true,
+          predictionCard: { select: { assetName: true, ticker: true } },
+        },
+      },
+      purchase: { select: { reportId: true } },
+    },
+    orderBy: { resolvedAt: 'asc' },
   });
 }
 

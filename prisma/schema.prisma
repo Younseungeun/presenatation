@@ -300,8 +300,13 @@ model Judgment {
 // 구매자↔리서처 소통 경로로 변질되는 순간 투자자문업 해석 위험이 생긴다.
 model JudgmentDispute {
   id         String   @id @default(cuid())
-  judgmentId String
-  judgment   Judgment @relation(fields: [judgmentId], references: [id])
+  /**
+   * 이의가 걸린 판정도 되돌릴 수 있어야 한다 — 필수 관계였을 때 Prisma 기본
+   * 동작(Restrict)이 판정 삭제를 거부해 "인정하고 못 되돌리는" 덫이 됐다.
+   * 되돌리면 링크만 끊고 **이의 기록은 남긴다**(지표 ③의 분자이자 분쟁 시 우리 기록).
+   */
+  judgmentId String?
+  judgment   Judgment? @relation(fields: [judgmentId], references: [id], onDelete: SetNull)
   /** 제기한 사람의 구매 — 산 사람만 제기할 수 있다 */
   purchaseId String   @unique
   purchase   Purchase @relation(fields: [purchaseId], references: [id])

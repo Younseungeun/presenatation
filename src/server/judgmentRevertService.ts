@@ -133,6 +133,18 @@ export async function revertJudgment(
 
   // ── 사람이 이어서 해야 하는 일 ────────────────────────────
   const followUps: string[] = [];
+  // **열린 이의는 판정이 사라져도 정산을 계속 막는다.** 막는 기준이 판정이 아니라
+  // 구매 행이라(settlementIdsWithOpenDispute) 재판정이 새 정산을 만들어도 그대로
+  // 잠긴 채다. 되돌리는 사람이 지금 모르면 아무도 모른다
+  const openDisputes = await prisma.judgmentDispute.count({
+    where: { judgmentId: judgment.id, status: 'OPEN' },
+  });
+  if (openDisputes > 0) {
+    followUps.push(
+      `이 판정에 **열려 있는 이의가 ${openDisputes}건** 있습니다 — 재판정 뒤에도 그 구매의 ` +
+        `정산은 계속 막힙니다. /admin/disputes에서 확정하세요.`,
+    );
+  }
   // 등급은 분기 재산정에서만 바뀐다. 이 판정이 이미 재산정된 시즌의 것이면 점수가
   // 사라져도 **그때 기록된 TierHistory는 그대로**다 — 자동으로 고쳐지지 않는다
   if (seasonOf(judgment.judgedAt) !== seasonOf(now)) {
