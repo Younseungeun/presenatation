@@ -4,7 +4,7 @@ import { checkoutCart } from '@/server/cartService';
 import { recordConsentEvent } from '@/server/consentService';
 import { prisma } from '@/server/db';
 import { assertAcceptedPaymentMethod } from '@/server/purchaseService';
-import { HttpError, requireUserId, toErrorResponse } from '../../_lib/http';
+import { enforceCheckoutRate, HttpError, requireUserId, toErrorResponse } from '../../_lib/http';
 
 /**
  * 장바구니 일괄 결제 — 담긴 것 중 결제 가능한 건을 구매하고 에스크로에 보관한다.
@@ -13,6 +13,7 @@ import { HttpError, requireUserId, toErrorResponse } from '../../_lib/http';
 export async function POST(req: NextRequest) {
   try {
     const userId = await requireUserId();
+    enforceCheckoutRate(req, userId);
     const body = (await req.json().catch(() => ({}))) as {
       agreedRefund?: boolean;
       paymentMethod?: string;

@@ -1,10 +1,11 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { NextResponse } from 'next/server';
+import { NextResponse, type NextRequest } from 'next/server';
 import { PublishValidationError } from '@/domain/publishReport';
 import { ComplianceTakedownError } from '@/server/complianceService';
 import { ManualJudgmentError } from '@/server/manualJudgmentService';
 import { SettlementOpsError } from '@/server/settlementOpsService';
 import { getSessionUserId } from '@/server/session';
+import { CHECKOUT_RULE, hitRateLimit, type RateLimitRule } from '@/server/rateLimit';
 
 // API 공통: 세션 인증 + 에러 매핑
 
@@ -39,6 +40,37 @@ export async function requireResearcherId(prisma: PrismaClient): Promise<string>
   const profile = await prisma.researcherProfile.findUnique({ where: { userId } });
   if (!profile) throw new HttpError(403, '리서처로 활동하려면 먼저 리서처 전환이 필요합니다');
   return profile.id;
+}
+
+/**
+ * 결제를 유발하는 엔드포인트의 호출 제한. 넘으면 429로 던진다.
+ *
+ * **사용자와 IP 둘 다 센다.** 계정 하나로 두드리는 것은 사용자 키가 막고, 계정을
+ * 여러 개 만들어 두드리는 것은 IP 키가 막는다 — 카드 테스팅은 보통 후자다.
+ * (본인 인증이 1인 1계정을 강제하고 있지만, 인증 공급자가 아직 스텁이라
+ *  그 방어선 하나에 기대면 안 된다)
+ */
+export function enforceCheckoutRate(
+  req: NextRequest,
+  userId: string,
+  rule: RateLimitRule = CHECKOUT_RULE,
+): void {
+  const ip =
+    req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+    req.headers.get('x-real-ip') ||
+    'unknown';
+  for (const [bucket, key] of [
+    ['checkout:user', userId],
+    ['checkout:ip', ip],
+  ] as const) {
+    const r = hitRateLimit(bucket, key, rule);
+    if (!r.ok) {
+      throw new HttpError(
+        429,
+        `결제 요청이 너무 잦습니다. ${Math.ceil(r.retryAfterMs / 1000)}초 후 다시 시도해주세요.`,
+      );
+    }
+  }
 }
 
 const PRISMA_STATUS: Record<string, { status: number; message: string }> = {

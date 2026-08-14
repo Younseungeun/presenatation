@@ -271,6 +271,34 @@ model Judgment {
   judgedAt           DateTime       @default(now())
 }
 
+// 되돌린 판정의 묘비 — **지운 것을 지웠다는 사실까지 지우면 안 된다.**
+//
+// 판정을 되돌리려면 Judgment 행을 지워야 한다(predictionCardId가 unique라 남겨 두면
+// 다시 판정할 수 없다). 그런데 판정은 돈(에스크로)과 점수(규율 래더의 영구 증거)를
+// 동시에 움직인 사건이라, 행만 조용히 사라지면 **"왜 이 카드가 두 번 판정됐나"에
+// 답할 수 없다.** 그래서 지우기 전에 통째로 여기 옮겨 적는다.
+//
+// 추가만 하고 고치거나 지우지 않는다 (append-only).
+model JudgmentRevert {
+  id               String   @id @default(cuid())
+  predictionCardId String
+  /** 지워진 Judgment의 원래 id — 로그·감사 스냅샷과 이어 붙이는 열쇠 */
+  judgmentId       String
+  outcome          String
+  score            Float?
+  info             Float?
+  judgedAt         DateTime
+  /** 지워진 Judgment 행 전체 (JSON) — 형태가 바뀌어도 그때의 값이 남는다 */
+  judgmentJson     String
+  /** 함께 지운 Settlement 행들 (JSON 배열) — 금액을 나중에 재현할 수 있어야 한다 */
+  settlementsJson  String
+  reason           String
+  operatorUserId   String
+  revertedAt       DateTime @default(now())
+
+  @@index([predictionCardId])
+}
+
 // 구매: PG 웹 결제 → 에스크로 보관 → 판정 후 정산
 model Purchase {
   id            String   @id @default(cuid())

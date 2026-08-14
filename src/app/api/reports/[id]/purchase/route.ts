@@ -3,7 +3,12 @@ import { LEGAL_DOCS } from '@/domain/legalDocs';
 import { recordConsentEvent } from '@/server/consentService';
 import { prisma } from '@/server/db';
 import { assertAcceptedPaymentMethod, purchaseReport } from '@/server/purchaseService';
-import { HttpError, requireUserId, toErrorResponse } from '../../../_lib/http';
+import {
+  enforceCheckoutRate,
+  HttpError,
+  requireUserId,
+  toErrorResponse,
+} from '../../../_lib/http';
 
 /**
  * 리포트 구매 — 결제(PG 스텁) 후 에스크로 보관.
@@ -13,6 +18,7 @@ import { HttpError, requireUserId, toErrorResponse } from '../../../_lib/http';
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const buyerId = await requireUserId();
+    enforceCheckoutRate(req, buyerId);
     const { id } = await ctx.params;
     const body = (await req.json().catch(() => ({}))) as {
       agreedRefund?: boolean;

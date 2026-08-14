@@ -4,7 +4,7 @@ import { LEGAL_DOCS } from '@/domain/legalDocs';
 import { recordConsentEvent } from '@/server/consentService';
 import { prisma } from '@/server/db';
 import { confirmPaymentIntent } from '@/server/paymentIntentService';
-import { requireUserId, toErrorResponse } from '../../_lib/http';
+import { enforceCheckoutRate, requireUserId, toErrorResponse } from '../../_lib/http';
 
 const bodySchema = z.object({
   orderId: z.string().min(1),
@@ -16,6 +16,7 @@ const bodySchema = z.object({
 export async function POST(req: NextRequest) {
   try {
     const buyerId = await requireUserId();
+    enforceCheckoutRate(req, buyerId);
     const { orderId, paymentKey, amount } = bodySchema.parse(await req.json());
     const purchase = await confirmPaymentIntent(prisma, {
       orderId,

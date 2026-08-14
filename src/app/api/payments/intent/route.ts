@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { createPaymentIntent } from '@/server/paymentIntentService';
-import { requireUserId, toErrorResponse } from '../../_lib/http';
+import { enforceCheckoutRate, requireUserId, toErrorResponse } from '../../_lib/http';
 
 const bodySchema = z.object({ reportId: z.string().min(1) });
 
@@ -10,6 +10,7 @@ const bodySchema = z.object({ reportId: z.string().min(1) });
 export async function POST(req: NextRequest) {
   try {
     const buyerId = await requireUserId();
+    enforceCheckoutRate(req, buyerId);
     const { reportId } = bodySchema.parse(await req.json());
     const prepared = await createPaymentIntent(prisma, { reportId, buyerId });
     return NextResponse.json(prepared, { status: 201 });
