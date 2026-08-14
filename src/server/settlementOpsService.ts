@@ -185,6 +185,12 @@ export async function retryRefundAttempt(
       '계좌이체는 자동 재시도할 수 없습니다 — 은행 앱에서 이체 여부를 확인한 뒤 상태를 확정해주세요.',
     );
   }
+  // CS 환불은 매달 정산이 없다 — 되돌릴 장부가 달라 이 경로를 타면 안 된다
+  if (!attempt.settlementId) {
+    throw new SettlementOpsError(
+      'CS 환불(구매 무효화) 시도입니다 — 정산 콘솔이 아니라 `npm run cs:void -- --retry <시도 id>`로 이어받아야 합니다.',
+    );
+  }
   const s = await prisma.settlement.findUnique({
     where: { id: attempt.settlementId },
     include: PENDING_INCLUDE,
@@ -243,6 +249,12 @@ export async function resolveBankTransferAttempt(
   if (!bankReference) {
     throw new SettlementOpsError('이체를 완료했다면 은행 이체 참조번호를 입력해주세요');
   }
+  // CS 환불은 매달 정산이 없다 — 되돌릴 장부가 달라 이 경로를 타면 안 된다
+  if (!attempt.settlementId) {
+    throw new SettlementOpsError(
+      'CS 환불(구매 무효화) 시도입니다 — 정산 콘솔이 아니라 `npm run cs:void -- --retry <시도 id>`로 이어받아야 합니다.',
+    );
+  }
   const s = await prisma.settlement.findUnique({
     where: { id: attempt.settlementId },
     include: PENDING_INCLUDE,
@@ -275,6 +287,58 @@ type Attempt = { id: string; method: string; amountKrw: number; operatorId: stri
  * 실패했을 때 "환불 완료" 알림까지 나간 채로 돈은 그대로 있는 상태가 남는다. 구매자는
  * 완료됐다고 믿고, 그 건은 미실행 목록에서도 사라져 아무도 다시 보지 않는다.
  */
+/**
+ * PG 취소를 부르고 **실패의 두 종류를 갈라 기록한다.**
+ *
+ * 판정 환불과 CS 환불이 함께 쓴다. 성공 후의 장부 쓰기는 서로 다르지만(정산 vs 구매),
+ * **여기만은 한 벌이어야 한다** — "돈이 안 나갔다는 것을 아는가"의 판단이 두 벌이 되면
+ * 한쪽이 조용히 틀리고, 그 틀림은 돈이 두 번 빠지거나 영영 안 빠지는 것으로 나타난다.
+ *
+ * 던지면 호출자는 장부를 건드리지 않는다. 시도 행의 상태만 여기서 확정한다.
+ */
+export async function cancelViaPg(
+  prisma: PrismaClient,
+  attempt: { id: string; amountKrw: number },
+  paymentKey: string,
+  cancelReason: string,
+  now: Date,
+): Promise<void> {
+  try {
+    await cancelTossPayment({
+      paymentKey,
+      cancelReason,
+      // 전액이어도 명시한다 — 지시서 금액과 실제로 나간 금액을 같은 값 하나로 묶는다
+      cancelAmount: attempt.amountKrw,
+      idempotencyKey: `refund_attempt_${attempt.id}`,
+    });
+  } catch (e) {
+    // **"PG가 거절했다"와 "응답을 못 받았다"는 다르다.**
+    //
+    // TossPaymentError는 토스가 HTTP 응답으로 거절한 경우다 — 돈이 안 나갔다는 것을
+    // 우리가 **안다.** 그러면 이 시도는 끝난 것이고(FAILED), 다음 시도는 새 키로 나가야
+    // 한다. 반대로 네트워크가 끊겨 응답 자체를 못 받았으면 나갔는지 알 수 없으므로
+    // **PENDING으로 남긴다** — 같은 키로 이어받아야 두 번 빠지지 않는다.
+    const known = e instanceof TossPaymentError;
+    const detail = e instanceof Error ? e.message : String(e);
+    if (known) {
+      await prisma.refundAttempt.update({
+        where: { id: attempt.id },
+        data: { status: 'FAILED', error: detail.slice(0, 500), finishedAt: now },
+      });
+      throw new SettlementOpsError(
+        `PG 취소에 실패해 환불을 기록하지 않았습니다 (${detail}). 다시 시도하거나, 취소 기한이 지난 건이면 계좌이체로 환불해주세요.`,
+      );
+    }
+    await prisma.refundAttempt.update({
+      where: { id: attempt.id },
+      data: { error: detail.slice(0, 500) }, // PENDING 유지
+    });
+    throw new SettlementOpsError(
+      `PG 응답을 받지 못해 취소가 나갔는지 확인할 수 없습니다 (${detail}). 이 시도를 **재시도**해주세요 — 같은 키로 나가므로 두 번 빠지지 않습니다.`,
+    );
+  }
+}
+
 async function runRefundAttempt(
   prisma: PrismaClient,
   s: RefundTarget,
@@ -283,47 +347,16 @@ async function runRefundAttempt(
   operatorUserId = attempt.operatorId,
 ) {
   if (attempt.method === 'PG_CANCEL') {
-    try {
-      await cancelTossPayment({
-        paymentKey: s.purchase.paymentKey!,
-        cancelReason: refundReason(s.outcome, attempt.amountKrw),
-        // 전액이어도 명시한다 — 지시서 금액과 실제로 나간 금액을 같은 값 하나로 묶는다
-        cancelAmount: attempt.amountKrw,
-        idempotencyKey: `refund_attempt_${attempt.id}`,
-      });
-    } catch (e) {
-      // **"PG가 거절했다"와 "응답을 못 받았다"는 다르다.**
-      //
-      // TossPaymentError는 토스가 HTTP 응답으로 거절한 경우다 — 돈이 안 나갔다는 것을
-      // 우리가 **안다.** 그러면 이 시도는 끝난 것이고(FAILED), 다음 시도는 새 키로 나가야
-      // 한다. 반대로 네트워크가 끊겨 응답 자체를 못 받았으면 나갔는지 알 수 없으므로
-      // **PENDING으로 남긴다** — 같은 키로 이어받아야 두 번 빠지지 않는다.
-      const known = e instanceof TossPaymentError;
-      const detail = e instanceof Error ? e.message : String(e);
-      if (known) {
-        await prisma.refundAttempt.update({
-          where: { id: attempt.id },
-          data: { status: 'FAILED', error: detail.slice(0, 500), finishedAt: now },
-        });
-        throw new SettlementOpsError(
-          `PG 취소에 실패해 환불을 기록하지 않았습니다 (${detail}). 다시 시도하거나, 취소 기한이 지난 건이면 계좌이체로 환불해주세요.`,
-        );
-      }
-      await prisma.refundAttempt.update({
-        where: { id: attempt.id },
-        data: { error: detail.slice(0, 500) }, // PENDING 유지
-      });
-      throw new SettlementOpsError(
-        `PG 응답을 받지 못해 취소가 나갔는지 확인할 수 없습니다 (${detail}). 이 시도를 **재시도**해주세요 — 같은 키로 나가므로 두 번 빠지지 않습니다.`,
-      );
-    }
+    await cancelViaPg(
+      prisma,
+      attempt,
+      s.purchase.paymentKey!,
+      refundReason(s.outcome, attempt.amountKrw),
+      now,
+    );
   }
 
   await prisma.$transaction([
-    prisma.refundAttempt.update({
-      where: { id: attempt.id },
-      data: { status: 'SUCCEEDED', finishedAt: now },
-    }),
     prisma.refundAttempt.update({
       where: { id: attempt.id },
       data: { status: 'SUCCEEDED', finishedAt: now },
@@ -386,7 +419,9 @@ export async function sweepStuckRefundAttempts(
   // 이걸 알림으로 올리면 더 나쁘다: 알림은 /admin/settlements를 가리키는데 그 화면은
   // **미실행 환불만** 보여준다(refundExecutedAt: null). 운영자는 알림을 받고 들어가
   // 아무것도 없는 목록을 보게 되고, 그 다음부터 이 알림을 믿지 않는다.
-  const settled = candidates.filter((a) => a.settlement.refundExecutedAt !== null);
+  // CS 환불(settlement 없음)은 자가치유 대상이 아니다 — 맞춰 볼 "이미 실행됨" 표시가
+  // 없어서, 나갔는지는 사람이 PG 콘솔에서 확인해야 한다. 그대로 stuck으로 간다
+  const settled = candidates.filter((a) => a.settlement?.refundExecutedAt != null);
   if (settled.length > 0) {
     await prisma.refundAttempt.updateMany({
       where: { id: { in: settled.map((a) => a.id) } },
@@ -394,7 +429,7 @@ export async function sweepStuckRefundAttempts(
     });
   }
 
-  const stuck = candidates.filter((a) => a.settlement.refundExecutedAt === null);
+  const stuck = candidates.filter((a) => a.settlement?.refundExecutedAt == null);
   if (stuck.length === 0) return { stuck: 0, notified: false, reconciled: settled.length };
 
   const total = stuck.reduce((a, r) => a + r.amountKrw, 0);

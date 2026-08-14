@@ -326,13 +326,25 @@ model Purchase {
   // (닫힌 동안 q는 변하지 않으므로 그것이 맞는 값이다) / NO_CARD = 잴 카드가 없다.
   // 분쟁이 나면 "이 결제가 어떤 근거로 승인됐는가"의 답이 여기 있다
   priceGate     String?
-  escrowStatus  String   @default("HELD") // HELD | SETTLED | REFUNDED
+  // HELD | SETTLED | REFUNDED | DISPUTED | CANCELLED
+  //
+  // **넷째와 다섯째가 왜 따로인가** — 앞의 셋은 전부 "정상적으로 끝났다"의 갈래고,
+  // 뒤의 둘은 거래가 정상 경로를 벗어난 상태다:
+  //  · DISPUTED  — 차지백이 걸렸다. 판정은 카드 단위로 그대로 진행되지만 **이 구매만**
+  //                정산·환불에서 빠진다(배치가 HELD만 가져간다). 분쟁이 끝날 때까지
+  //                리서처에게도 구매자에게도 돈이 가지 않는다
+  //  · CANCELLED — CS 환불로 **거래 자체를 무효화**했다. REFUNDED와 다른 값을 쓰는
+  //                이유는 열람 권한 때문이다: 판정 실패 환불(REFUNDED)은 이미 읽고
+  //                결과를 기다린 거래라 본문이 남아야 하지만, 무효화는 "산 적 없는 것"이
+  //                되어야 한다. 같은 값을 쓰면 결제→열람→즉시 CS환불이 공짜 열람이 된다
+  escrowStatus  String   @default("HELD")
   paidAt        DateTime @default(now())
   // 판매 마감 확인 — 마감된 내 카드는 리더보드에 계속 보이다가, 구매자가 확인을
   // 누르면 목록에서 내려간다 (MY 구매 내역에는 계속 남는다)
   salesCloseAckAt DateTime?
 
   settlement Settlement?
+  refundAttempts RefundAttempt[] // CS 환불(판정 전)의 시도 기록 — 판정 환불은 Settlement에 매달린다
 
   @@unique([reportId, buyerId]) // 자기 구매 중복 방지 및 1인 1구매
 }
@@ -374,8 +386,21 @@ model Settlement {
 // 같은 시도의 재시도는 한 번만 나가고, 새로운 시도는 새 키를 받는다.
 model RefundAttempt {
   id           String     @id @default(cuid())
-  settlementId String
-  settlement   Settlement @relation(fields: [settlementId], references: [id])
+  /**
+   * 어떤 종류의 환불인가 — **금액을 옮기는 절차는 같지만 뜻이 다르다.**
+   *  · JUDGMENT_FAIL — 판정이 만든 환불. Settlement에 매달린다
+   *  · CS_CANCEL     — 운영자가 거래 자체를 무효화한 환불. 판정 전이라 Settlement이 없다
+   * 한 표에 담은 이유: 멱등키가 **시도 id**라(같은 키로 두 번 부르면 한 번만 나간다)
+   * 그 성질을 두 벌로 나누면 한쪽에서 조용히 어긋난다. 표를 나누면 환불 실행 로직도
+   * 두 벌이 되는데, 돈을 옮기는 코드가 두 벌인 것이 이 시스템에서 가장 위험한 중복이다
+   */
+  type         String     @default("JUDGMENT_FAIL")
+  /** JUDGMENT_FAIL이면 필수 (서비스가 강제한다 — SQLite에 조건부 제약이 없다) */
+  settlementId String?
+  settlement   Settlement? @relation(fields: [settlementId], references: [id])
+  /** CS_CANCEL이면 필수. 판정 전이라 매달 Settlement이 없어 구매를 직접 가리킨다 */
+  purchaseId   String?
+  purchase     Purchase?  @relation(fields: [purchaseId], references: [id])
   amountKrw    Int // 이 시도가 돌려주려 한 금액 (부분 취소액)
   method       String // PG_CANCEL | BANK_TRANSFER
   status       String     @default("PENDING") // PENDING | SUCCEEDED | FAILED
@@ -393,6 +418,7 @@ model RefundAttempt {
 
   @@unique([settlementId, bankReference]) // 같은 이체를 두 번 기록할 수 없다
   @@index([settlementId])
+  @@index([purchaseId])
 }
 
 // 컴플라이언스 검수: 게시 시도마다 남는 기록.

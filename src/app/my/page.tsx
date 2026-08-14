@@ -291,6 +291,7 @@ async function loadMe(mode: Mode) {
     buyHitRate: decided.length > 0 ? hits.length / decided.length : null,
     seller: {
       pendingKrw: finance?.totals.heldKrw ?? 0,
+      disputedKrw: finance?.totals.disputedKrw ?? 0,
       payoutKrw: finance?.totals.payoutKrw ?? 0,
       salesCount: finance?.totals.salesCount ?? 0,
       hitRate: myDecided.length > 0 ? myHits.length / myDecided.length : null,
@@ -580,12 +581,24 @@ export default async function MyPage({
           {me.researcherId ? (
             <>
               <div className={s.grid}>
+                {/* **분쟁 금액을 정산 대기에 섞지 않는다.** 리서처는 그것을 언젠가
+                    받을 돈으로 읽는데 실제로는 우리도 못 받은 돈이고, 분쟁에서 지면
+                    영영 안 나간다. 그렇다고 조용히 빼면 정산액이 이유 없이 줄어든
+                    것처럼 보여 "플랫폼이 떼어먹었다"가 된다. 있을 때만 타일을 띄운다 */}
                 <Tile
                   href={`/researcher/${me.researcherId}`}
                   icon={<EscrowIcon />}
                   value={formatKrw(me.seller.pendingKrw)}
                   label="정산 대기"
                 />
+                {me.seller.disputedKrw > 0 && (
+                  <Tile
+                    href={`/researcher/${me.researcherId}`}
+                    icon={<EscrowIcon />}
+                    value={formatKrw(me.seller.disputedKrw)}
+                    label="결제 분쟁 · 지급 보류"
+                  />
+                )}
                 <Tile
                   href={`/researcher/${me.researcherId}`}
                   icon={<PayoutIcon />}

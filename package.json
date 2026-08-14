@@ -22,6 +22,7 @@
     "batch:judge": "tsx scripts/runJudgmentBatch.ts",
     "op:grant": "tsx scripts/grantOperator.ts",
     "judgment:revert": "tsx scripts/revertJudgment.ts",
+    "cs:void": "tsx scripts/voidPurchase.ts",
     "risk:us": "tsx scripts/syncUsStatus.ts",
     "risk:sync": "tsx scripts/syncKrRisk.ts",
     "risk:set": "tsx scripts/setInstrumentRisk.ts",

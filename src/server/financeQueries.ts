@@ -31,6 +31,15 @@ export interface ReportFinance {
   payoutKrw: number;
   /** 구매자에게 환불된 금액 */
   refundedKrw: number;
+  /**
+   * 결제 분쟁으로 **지급이 보류된** 금액 (차지백 접수, escrowStatus=DISPUTED).
+   *
+   * "정산 대기"에 섞으면 안 된다 — 리서처는 언젠가 받을 돈으로 읽는데 실제로는
+   * 우리도 못 받은 돈이고, 분쟁에서 지면 영영 안 나간다. 그렇다고 조용히 빼면
+   * **정산액이 이유 없이 줄어든 것처럼 보여** "플랫폼이 떼어먹었다"가 된다.
+   * 따로 세어 이름을 붙이는 것이 유일하게 정직한 처리다
+   */
+  disputedKrw: number;
 }
 
 export interface ResearcherFinance {
@@ -44,7 +53,9 @@ export async function getResearcherFinance(
   researcherId: string,
 ): Promise<ResearcherFinance> {
   const purchases = await prisma.purchase.findMany({
-    where: { report: { researcherId } },
+    // **무효화된 구매는 판매가 아니다.** CS 환불은 거래 자체를 없던 것으로 되돌리는
+    // 일이라 판매 건수에도 금액에도 들어가면 안 된다 (판정 실패 환불과 다른 점)
+    where: { report: { researcherId }, escrowStatus: { not: 'CANCELLED' } },
     include: { settlement: true, report: { select: { id: true, title: true } } },
   });
 
@@ -57,11 +68,14 @@ export async function getResearcherFinance(
       heldKrw: 0,
       payoutKrw: 0,
       refundedKrw: 0,
+      disputedKrw: 0,
     };
     row.salesCount++;
     if (p.settlement) {
       row.payoutKrw += p.settlement.researcherPayoutKrw;
       row.refundedKrw += p.settlement.buyerRefundKrw;
+    } else if (p.escrowStatus === 'DISPUTED') {
+      row.disputedKrw += p.amountKrw;
     } else {
       row.heldKrw += p.amountKrw;
     }
@@ -75,8 +89,9 @@ export async function getResearcherFinance(
       heldKrw: acc.heldKrw + r.heldKrw,
       payoutKrw: acc.payoutKrw + r.payoutKrw,
       refundedKrw: acc.refundedKrw + r.refundedKrw,
+      disputedKrw: acc.disputedKrw + r.disputedKrw,
     }),
-    { salesCount: 0, heldKrw: 0, payoutKrw: 0, refundedKrw: 0 },
+    { salesCount: 0, heldKrw: 0, payoutKrw: 0, refundedKrw: 0, disputedKrw: 0 },
   );
 
   return { totals, byReport };

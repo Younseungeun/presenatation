@@ -285,9 +285,15 @@ export async function getReportDetail(
   });
   if (!report) return null;
 
+  // **열람 권한은 구매 행의 존재가 아니라 상태가 정한다.**
+  //
+  // 판정 실패로 환불(REFUNDED)된 구매자는 본문을 계속 본다 — 읽고 결과를 기다린,
+  // 약속대로 끝난 거래다. 반면 CS 환불(CANCELLED)은 **거래 자체의 무효화**라
+  // "산 적 없는 것"이 되어야 한다. 같은 값을 썼다면 결제 → 열람 → 즉시 CS환불이
+  // 공짜 열람 경로가 됐을 것이다(purchaseVoidService).
   const purchase = viewerUserId
-    ? await prisma.purchase.findUnique({
-        where: { reportId_buyerId: { reportId, buyerId: viewerUserId } },
+    ? await prisma.purchase.findFirst({
+        where: { reportId, buyerId: viewerUserId, escrowStatus: { not: 'CANCELLED' } },
         // 환불 시도까지 — 구매자 화면이 "확정됐지만 아직 안 보냄"과 "보내는 중"을
         // 구별하려면 필요하다. 그 구별이 없으면 며칠짜리 대기가 방치로 읽힌다
         include: { settlement: { include: { refundAttempts: true } } },
