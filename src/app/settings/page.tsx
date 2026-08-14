@@ -88,6 +88,8 @@ export default async function SettingsPage() {
           <>
             <div className={styles.section}>운영</div>
             <div className={styles.list}>
+              {/* 맨 위 — 매일 아침 한 번 보는 화면이라 손이 먼저 닿아야 한다 */}
+              <Row href="/admin/health" label="운영 건강" sub="매일 보는 다섯 숫자 (사업 로직)" />
               <Row href="/admin/judgments" label="판정 보류 큐" sub="수동 판정 대기 카드" />
               <Row href="/admin/settlements" label="정산 지시서" sub="환불·지급 실행 기록" />
               <Row href="/admin/abuse-reports" label="신고 검토" sub="클린 리서치 신고 확인·기각" />
