@@ -46,10 +46,27 @@ export interface RevertResult {
   followUps: string[];
 }
 
+/**
+ * 왜 되돌리나 — **사유가 그 다음에 무슨 일이 일어날지를 정한다.**
+ *
+ * 되돌리기만 하고 자동 배치에 다시 던지면, 원인이 시세 소스였을 때 **같은 소스로 같은
+ * 오답을 매긴다.** 사람이 또 되돌리고, 배치가 또 매기는 반복이 된다. 그렇다고 되돌린
+ * 카드를 전부 수동으로만 판정하게 하면 반대로 너무 세다 — 우리 판정 로직 버그였다면
+ * 고친 코드로 자동 재판정하는 것이 맞고, 그게 더 정확하다.
+ *
+ * 그래서 되돌리는 사람에게 **무엇이 틀렸는지**를 묻고 그 답으로 갈래를 정한다.
+ */
+export type RevertCause =
+  /** 시세 소스가 잘못된 값을 줬다 — 같은 소스로 다시 매기면 같은 답이 나온다 */
+  | 'DATA_SOURCE'
+  /** 우리 판정 로직이 틀렸다 — 고친 코드로 자동 재판정하는 것이 맞다 */
+  | 'PLATFORM_LOGIC';
+
 export interface RevertInput {
   judgmentId: string;
   operatorUserId: string;
   reason: string;
+  cause: RevertCause;
 }
 
 /**
@@ -132,6 +149,13 @@ export async function revertJudgment(
         `재판정도 이 값을 씁니다.`,
     );
   }
+  followUps.push(
+    input.cause === 'DATA_SOURCE'
+      ? '시세 소스가 원인이라 **자동 재판정을 막았습니다** — /admin/judgments 큐에서 ' +
+        '검증 시세를 직접 넣어 판정하세요. 그냥 두면 이 카드는 영원히 판정되지 않습니다.'
+      : '판정 로직이 원인이라 자동 배치가 다시 매깁니다 — **코드를 먼저 고친 뒤** ' +
+        '되돌렸는지 확인하세요. 안 고쳤으면 같은 답이 나옵니다.',
+  );
 
   // ── 되돌리기 (한 트랜잭션) ────────────────────────────────
   const writes: Prisma.PrismaPromise<unknown>[] = [
@@ -163,10 +187,15 @@ export async function revertJudgment(
     }),
     // ④ 판정을 지운다 — 점수와 규율 래더 증거가 여기 붙어 있어 함께 사라진다
     prisma.judgment.delete({ where: { id: judgment.id } }),
-    // ⑤ 다음 배치가 즉시 다시 보게 한다 (백오프가 걸려 있었을 수 있다)
+    // ⑤ 다음 판정을 준비한다. 백오프를 지우고, **누가 다시 매길지**를 사유가 정한다 —
+    //    시세 소스가 원인이면 자동 배치는 같은 답을 낼 뿐이라 사람에게 넘긴다
     prisma.predictionCard.update({
       where: { id: card.id },
-      data: { deferCount: 0, nextAttemptAt: null },
+      data: {
+        deferCount: 0,
+        nextAttemptAt: null,
+        manualJudgmentOnly: input.cause === 'DATA_SOURCE',
+      },
     }),
   ];
 

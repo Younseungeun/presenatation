@@ -109,6 +109,19 @@ export function tossMethodCode(result: TossPaymentResult): 'CARD' | 'TRANSFER' |
 /**
  * 결제 승인 API 호출 — 인증만 끝난 결제(IN_PROGRESS)를 최종 승인해 완료(DONE) 상태로 만든다.
  * 여기서 실제로(테스트 환경에서는 가상으로) 금액이 차감된다.
+ *
+ * **멱등키가 반드시 붙어야 하는 자리다.** 위험한 창은 "승인 호출 → 우리가 CONFIRMED를
+ * 적기까지"의 사이다. 여기서 응답을 못 받으면(타임아웃·연결 끊김) **돈은 빠졌는데
+ * 우리는 모르는** 상태가 되고, 사용자가 새로고침해 다시 승인을 부른다.
+ *
+ * 키가 없으면 토스는 두 번째 호출에 `ALREADY_PROCESSED_PAYMENT` **오류**를 준다.
+ * 돈이 두 번 빠지지는 않지만 결과가 더 나쁠 수 있다 — 우리 코드는 그 오류를 승인 실패로
+ * 읽어 던지고, **구매 행은 안 만들어지며 의도는 PENDING에 남아 아무도 그 건을 못 찾는다.**
+ * 키가 있으면 같은 키의 재요청에 **원래의 성공 응답**이 그대로 오므로, 재시도가 오류가
+ * 아니라 정상 완료가 된다 — 사용자는 자기가 낸 돈에 해당하는 리포트를 받는다.
+ *
+ * 키는 `orderId`다: 의도 하나 = 승인 하나라 자연스러운 단위이고, 결제창을 다시 열면
+ * 새 의도(새 orderId)가 생기므로 **다른 결제가 같은 키를 쓰는 일이 없다.**
  */
 export async function confirmTossPayment(params: {
   paymentKey: string;
@@ -122,6 +135,7 @@ export async function confirmTossPayment(params: {
     headers: {
       Authorization: `Basic ${auth}`,
       'Content-Type': 'application/json',
+      'Idempotency-Key': params.orderId,
     },
     body: JSON.stringify(params),
   });

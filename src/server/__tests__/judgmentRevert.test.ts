@@ -4,6 +4,7 @@ import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { judgeAndSettleDueCards } from '../judgmentBatch';
+import { getManualJudgmentQueue } from '../manualJudgmentService';
 import { JudgmentRevertBlocked, revertJudgment } from '../judgmentRevertService';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
@@ -86,7 +87,7 @@ beforeAll(async () => {
   prisma = createTestDb('judgment-revert-');
   await seedTestInstruments(
     prisma,
-    ['KRW-RV1', 'KRW-RV2', 'KRW-RV3', 'KRW-RV4', 'KRW-RV5'].map((ticker) => ({
+    ['KRW-RV1', 'KRW-RV2', 'KRW-RV3', 'KRW-RV4', 'KRW-RV5', 'KRW-RV6'].map((ticker) => ({
       assetClass: 'CRYPTO',
       ticker,
       name: ticker,
@@ -126,7 +127,7 @@ describe('판정 되돌리기', () => {
 
     const r = await revertJudgment(
       prisma,
-      { judgmentId: judgment.id, operatorUserId: operatorId, reason: '시세 소스 오류' },
+      { judgmentId: judgment.id, operatorUserId: operatorId, reason: '시세 소스 오류', cause: 'PLATFORM_LOGIC' },
       BATCH_NOW,
     );
     expect(r.settlements).toBe(2);
@@ -184,7 +185,7 @@ describe('판정 되돌리기', () => {
     await expect(
       revertJudgment(
         prisma,
-        { judgmentId: judgment.id, operatorUserId: operatorId, reason: 'x' },
+        { judgmentId: judgment.id, operatorUserId: operatorId, reason: 'x', cause: 'PLATFORM_LOGIC' },
         BATCH_NOW,
       ),
     ).rejects.toThrow(JudgmentRevertBlocked);
@@ -204,7 +205,7 @@ describe('판정 되돌리기', () => {
     await expect(
       revertJudgment(
         prisma,
-        { judgmentId: judgment.id, operatorUserId: operatorId, reason: 'x' },
+        { judgmentId: judgment.id, operatorUserId: operatorId, reason: 'x', cause: 'PLATFORM_LOGIC' },
         BATCH_NOW,
       ),
     ).rejects.toMatchObject({ code: 'REFUND_EXECUTED' });
@@ -230,7 +231,7 @@ describe('판정 되돌리기', () => {
     await expect(
       revertJudgment(
         prisma,
-        { judgmentId: judgment.id, operatorUserId: operatorId, reason: 'x' },
+        { judgmentId: judgment.id, operatorUserId: operatorId, reason: 'x', cause: 'PLATFORM_LOGIC' },
         BATCH_NOW,
       ),
     ).rejects.toMatchObject({ code: 'REFUND_IN_FLIGHT' });
@@ -244,9 +245,45 @@ describe('판정 되돌리기', () => {
 
     const r = await revertJudgment(
       prisma,
-      { judgmentId: judgment.id, operatorUserId: operatorId, reason: 'x' },
+      { judgmentId: judgment.id, operatorUserId: operatorId, reason: 'x', cause: 'PLATFORM_LOGIC' },
       nextSeason,
     );
     expect(r.followUps.some((f) => f.includes('TierHistory'))).toBe(true);
+  });
+
+  // **되돌린 카드가 같은 오답으로 되돌아오면 안 된다.** 원인이 시세 소스였다면 재판정도
+  // 같은 소스를 쓰므로 배치가 같은 답을 내고, 사람이 또 되돌리는 반복이 된다.
+  // 그렇다고 되돌린 카드를 전부 수동으로만 판정하게 하면 반대로 너무 세다 —
+  // 판정 로직 버그였다면 고친 코드로 자동 재판정하는 편이 정확하다. 사유가 갈래를 정한다
+  it('시세 소스가 원인이면 자동 판정을 막고 사람 큐로 보낸다', async () => {
+    const { cardId, judgment, registry } = await judgedCard('KRW-RV6', 120);
+
+    await revertJudgment(
+      prisma,
+      {
+        judgmentId: judgment.id,
+        operatorUserId: operatorId,
+        reason: '공급자가 종가를 10배로 줬습니다',
+        cause: 'DATA_SOURCE',
+      },
+      BATCH_NOW,
+    );
+
+    const card = await prisma.predictionCard.findUniqueOrThrow({ where: { id: cardId } });
+    expect(card.manualJudgmentOnly).toBe(true);
+
+    // 배치는 손대지 않는다 — 같은 소스로 다시 매기면 같은 답이 나온다
+    const again = await judgeAndSettleDueCards(prisma, registry, BATCH_NOW, 'CRYPTO');
+    expect(again.judged).toBe(0);
+    expect(await prisma.judgment.findUnique({ where: { predictionCardId: cardId } })).toBeNull();
+
+    // **대신 사람 큐에는 즉시 뜬다** — 자동 배치가 안 보는 카드가 여기도 없으면
+    // 아무 데도 없다(7일을 기다리게 두면 그 사이 아무 일도 일어나지 않는다)
+    const queue = await getManualJudgmentQueue(prisma, BATCH_NOW);
+    expect(queue.some((q) => q.cardId === cardId)).toBe(true);
+
+    // 사람에게 무엇을 해야 하는지 말해 준다 — 그냥 두면 영원히 판정되지 않는 카드다
+    const r2 = await prisma.judgmentRevert.findFirstOrThrow({ where: { predictionCardId: cardId } });
+    expect(r2.reason).toContain('10배');
   });
 });

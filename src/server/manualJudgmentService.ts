@@ -57,8 +57,11 @@ export async function getManualJudgmentQueue(
   const cards = await prisma.predictionCard.findMany({
     where: {
       judgment: null,
-      deadline: { lte: staleBefore },
       report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
+      // **두 갈래가 여기 모인다.** 시간이 지나 자동 판정이 안 된 카드(원래 기준)와,
+      // 되돌리면서 "사람만 판정" 표시가 붙은 카드다. 후자는 7일을 기다릴 이유가 없다 —
+      // 자동 배치가 아예 손대지 않으므로 여기 안 오면 **아무 데도 안 간다**
+      OR: [{ deadline: { lte: staleBefore } }, { manualJudgmentOnly: true }],
     },
     include: {
       report: {

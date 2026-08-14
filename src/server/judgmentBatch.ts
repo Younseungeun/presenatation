@@ -25,6 +25,12 @@ export interface BatchSummary {
   /** 반복된 판정 불가로 신규 게시를 막은 종목 — 유니버스에서 내린 것이라 사람이 알아야 한다 */
   blockedInstruments: string[];
   /**
+   * 예상 밖 오류로 판정하지 못한 카드 — **이건 데이터 문제가 아니라 우리 버그다.**
+   * 이월(staleDeferred)과 나눠 두는 이유는 처방이 다르기 때문이다: 이월은 기다리거나
+   * 운영자가 시세를 넣으면 되지만, 이쪽은 코드를 고치기 전에는 몇 번을 돌려도 같다.
+   */
+  failures: string[];
+  /**
    * 이번 회차에서 마지막으로 손댄 카드의 위치 — **다음 회차의 커서다.**
    *
    * 왜 개수가 아니라 커서인가: 이월된 카드는 Judgment 행이 안 생겨 다음 조회에도
@@ -212,6 +218,9 @@ export async function judgeAndSettleDueCards(
     judgment: null,
     ...(assetClass ? { assetClass } : {}),
     deadline: { lte: now },
+    // **사람만 판정할 카드는 자동 배치가 손대지 않는다.** 되돌린 원인이 시세 소스였다면
+    // 같은 소스로 다시 매겨 봐야 같은 오답이 나온다 (PredictionCard.manualJudgmentOnly)
+    manualJudgmentOnly: false,
     report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
     // 백오프 — 실패한 카드는 제 시각이 오기 전까지 뜨거운 큐에서 빠져 있는다.
     // **횟수로 빼지는 않는다** (MAX_DEFER_ATTEMPTS 주석 참고) — 시도 횟수는 시간이
@@ -263,6 +272,7 @@ export async function judgeAndSettleDueCards(
     staleDeferred: [],
     hardCapped: [],
     blockedInstruments: [],
+    failures: [],
     cursor:
       dueCards.length > 0
         ? {
@@ -324,7 +334,19 @@ export async function judgeAndSettleDueCards(
       await prisma.$transaction(writes);
       summary.judged++;
     } catch (e) {
-      if (e instanceof JudgmentDeferredError) {
+      // **예상 밖 오류도 이월과 같은 절차를 밟는다.**
+      //
+      // 예전에는 `else`에서 로그만 찍고 끝냈는데, 그게 **가장 조용한 구멍**이었다:
+      //  · 백오프가 안 걸려 매 회차 같은 카드를 다시 부른다 (KIS 호출을 영원히 갉아먹는다)
+      //  · 상한(Hard Cap)이 이월 경로에만 있어 **에스크로가 영원히 안 풀린다**
+      //  · 알림 경로가 없어 콘솔에만 남는다 — 이월은 정차 큐, 상한은 전용 알림이 있는데
+      //    **버그로 죽는 카드만 아무도 모른다**
+      // 판정이 안 된다는 사실은 원인과 무관하게 같으므로 절차도 같아야 한다.
+      // 다르게 다루는 것은 **알림 문구**뿐이다 — 이월은 데이터 문제, 이쪽은 우리 버그다.
+      const deferred = e instanceof JudgmentDeferredError;
+      const message = e instanceof Error ? e.message : String(e);
+
+      {
         // **상장폐지 판별** — 시세가 안 오는 것만으로는 폐지인지 일시적 결측인지 모른다.
         // 그런데 종목 마스터에서 사라진 종목은 다음 동기화에서 active=false가 되므로,
         // 두 사실이 겹치면(마스터에서 빠짐 + 시세 없음) 폐지로 본다.
@@ -332,7 +354,8 @@ export async function judgeAndSettleDueCards(
         // 둘 다 요구하는 이유: 우리가 유니버스에서 뺀 종목(ETF 필터 등)도 active=false가
         // 되는데 시세는 멀쩡히 나온다. 그때 폐지로 처리하면 멀쩡한 카드가 환불된다.
         // 반대로 시세만 없는 경우는 휴장·일시 장애일 수 있어 이월이 맞다.
-        if (await isDelisted(prisma, card.assetClass, card.ticker)) {
+        // 코드 오류는 종목에 대해 아무것도 말해 주지 않는다 — 폐지 판별은 시세 결측일 때만
+        if (deferred && (await isDelisted(prisma, card.assetClass, card.ticker))) {
           const result = {
             outcome: 'UNDECIDABLE' as const,
             undecidableReason: 'DELISTED' as const,
@@ -350,7 +373,7 @@ export async function judgeAndSettleDueCards(
                 audit: {
                   delisted: true,
                   reason: '종목 마스터에서 사라졌고 시세도 조회되지 않습니다',
-                  deferMessage: e.message,
+                  deferMessage: message,
                   judgedAt: now.toISOString(),
                 },
                 resolvedBasePrice: null,
@@ -379,13 +402,19 @@ export async function judgeAndSettleDueCards(
                 realizedReturnPct: null,
                 score: 0, // 판정 불가는 표본에서 빠진다 (§2.2)
                 info: 0, // 증거도 없다 — 규율 래더에 들어가면 안 된다
-                dataSource: 'hard-cap',
+                dataSource: deferred ? 'hard-cap' : 'hard-cap:error',
                 audit: {
                   hardCap: true,
+                  // **원인을 감사 기록에 남긴다.** 구매자에게는 똑같이 "판정 불가·전액
+                  // 환불"이지만, 나중에 "왜 못 쟀나"를 물으면 답이 달라야 한다 —
+                  // 시세를 못 구한 것과 우리 코드가 죽은 것은 다른 이야기다
+                  cause: deferred ? 'DATA' : 'ERROR',
                   overdueDays: Math.floor(overdueDays),
                   deferCount: card.deferCount,
-                  reason: `시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나도록 시세를 구하지 못했습니다`,
-                  lastDeferMessage: e.message,
+                  reason: deferred
+                    ? `시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나도록 시세를 구하지 못했습니다`
+                    : `시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나도록 판정이 오류로 실패했습니다`,
+                  lastDeferMessage: message,
                   judgedAt: now.toISOString(),
                 },
                 resolvedBasePrice: null,
@@ -411,7 +440,6 @@ export async function judgeAndSettleDueCards(
           continue;
         }
 
-        summary.deferred++;
         // **다음 시도를 뒤로 민다.** 이 한 줄이 없으면 실패하는 카드가 매 회차
         // 앞자리를 차지해 KIS 호출을 갉아먹고 뒤의 멀쩡한 카드까지 느려진다
         const deferCount = card.deferCount + 1;
@@ -419,17 +447,24 @@ export async function judgeAndSettleDueCards(
           where: { id: card.id },
           data: { deferCount, nextAttemptAt: nextAttemptAfterDefer(deferCount, now) },
         });
-        const staleDays = (now.getTime() - card.deadline.getTime()) / 86_400_000;
-        // 자동 재시도를 다 쓴 카드는 **날짜와 무관하게** 사람에게 넘긴다 —
-        // 시한 직후에 연달아 실패한 카드가 7일을 기다릴 이유가 없다
-        if (deferCount >= MAX_DEFER_ATTEMPTS || staleDays >= STALE_DEFER_DAYS) {
-          summary.staleDeferred.push(
-            `${card.ticker} (${card.id}, ${deferCount}회 이월): ${e.message}`,
-          );
+
+        if (deferred) {
+          summary.deferred++;
+          const staleDays = (now.getTime() - card.deadline.getTime()) / 86_400_000;
+          // 자동 재시도를 다 쓴 카드는 **날짜와 무관하게** 사람에게 넘긴다 —
+          // 시한 직후에 연달아 실패한 카드가 7일을 기다릴 이유가 없다
+          if (deferCount >= MAX_DEFER_ATTEMPTS || staleDays >= STALE_DEFER_DAYS) {
+            summary.staleDeferred.push(`${card.ticker} (${card.id}, ${deferCount}회 이월): ${message}`);
+          }
+        } else {
+          summary.failed++;
+          console.error(`판정 실패 ${card.ticker} (${card.id}):`, e);
+          // **첫 번째부터 알린다.** 이월은 정차 큐가, 상한은 전용 알림이 받아 주지만
+          // 예상 밖 오류에는 **다른 발견 경로가 없다.** 그리고 이건 데이터가 아니라
+          // 코드 문제라 시간이 지난다고 저절로 낫지 않는다 — 사람이 봐야 한다.
+          // 소음 걱정은 백오프가 덜어 준다(같은 카드는 1시간·6시간·하루 간격으로만 다시 온다)
+          summary.failures.push(`${card.ticker} (${card.id}, ${deferCount}회): ${message}`);
         }
-      } else {
-        summary.failed++;
-        console.error(`판정 실패 ${card.ticker} (${card.id}):`, e);
       }
     }
   }

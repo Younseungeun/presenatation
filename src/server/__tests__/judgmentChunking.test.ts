@@ -36,6 +36,18 @@ const BATCH_NOW = new Date('2026-08-02T00:00:00Z');
 /** 시세가 아예 없는 공급자 — 모든 카드가 **이월**된다 (판정도 실패도 아님) */
 const noQuotes: ProviderRegistry = { CRYPTO: new FixtureMarketDataProvider() };
 
+/**
+ * 예상 밖으로 터지는 공급자 — 이월(JudgmentDeferredError)이 아니라 **우리 버그**의 대역.
+ * 공급자가 JSON이 아닌 HTML 오류 페이지를 주거나, 응답 규격이 바뀌었을 때 실제로 이렇게 된다
+ */
+const boom: ProviderRegistry = {
+  CRYPTO: {
+    sourceId: 'boom',
+    getDailyQuotes: () => Promise.reject(new SyntaxError('Unexpected token < in JSON at position 0')),
+    getSecurityStatus: () => Promise.resolve({ halted: false, delisted: false }),
+  },
+};
+
 /** 목표 미달 종가를 주는 공급자 — 실제로 판정(MISS)된다 */
 function withQuotes(tickers: string[]): ProviderRegistry {
   const p = new FixtureMarketDataProvider();
@@ -80,12 +92,14 @@ const TOTAL = JUDGE_BATCH_SIZE + 5; // 한 회차로는 안 끝나는 양
 const TICKERS = Array.from({ length: TOTAL }, (_, i) => `KRW-CH${i}`);
 /** 같은 종목에서 판정 불가가 반복되는 것을 시험할 티커 (카드 2장을 여기에 건다) */
 const REPEAT_TICKER = 'KRW-DEAD';
+/** 예상 밖 오류 경로 전용 — 앞선 시험들이 카드를 다 소진하므로 여기서 새로 찍는다 */
+const ERROR_TICKERS = ['KRW-ERR1', 'KRW-ERR2'];
 
 beforeAll(async () => {
   prisma = createTestDb('judge-chunk-');
   await seedTestInstruments(
     prisma,
-    [...TICKERS, REPEAT_TICKER].map((ticker) => ({
+    [...TICKERS, REPEAT_TICKER, ...ERROR_TICKERS].map((ticker) => ({
       assetClass: 'CRYPTO',
       ticker,
       name: ticker,
@@ -255,6 +269,52 @@ describe('판정 배치 청킹', () => {
     expect(await searchInstruments(prisma, 'CRYPTO', REPEAT_TICKER)).toHaveLength(0);
     const check = await validateListedInstrument(prisma, 'CRYPTO', REPEAT_TICKER, 'UP');
     expect(check.issues[0]).toContain('시세 검증을 지원하지 못하는');
+  });
+
+  // **가장 조용한 구멍이었다.** 예상 밖 오류는 로그만 찍고 끝났다:
+  //  · 백오프가 안 걸려 매 회차 같은 카드를 다시 부른다 (KIS 호출을 영원히 갉아먹는다)
+  //  · 상한이 이월 경로에만 있어 **에스크로가 영원히 안 풀린다**
+  //  · 이월은 정차 큐, 상한은 전용 알림이 있는데 **버그로 죽는 카드만 아무도 몰랐다**
+  it('예상 밖 오류도 이월과 같은 절차를 밟는다 — 백오프·알림·상한', async () => {
+    await publishCard(ERROR_TICKERS[0], researcherIds[0]);
+    const card = await prisma.predictionCard.findFirstOrThrow({
+      where: { ticker: ERROR_TICKERS[0] },
+    });
+
+    const s = await judgeAndSettleDueCards(prisma, boom, BATCH_NOW);
+    expect(s.failed).toBeGreaterThan(0);
+
+    // ① 이월과 **다른 목록**으로 올라온다 — 처방이 다르기 때문이다.
+    //    이월은 기다리면 낫지만 이건 코드를 고치기 전에는 몇 번을 돌려도 같다
+    expect(s.failures.length).toBeGreaterThan(0);
+    expect(s.failures[0]).toContain('JSON');
+    expect(s.deferred).toBe(0);
+
+    // ② 백오프가 걸려 매 회차 같은 카드를 다시 부르지 않는다
+    const after = await prisma.predictionCard.findUniqueOrThrow({ where: { id: card.id } });
+    expect(after.deferCount).toBeGreaterThan(0);
+    expect(after.nextAttemptAt).not.toBeNull();
+  });
+
+  // 원인이 무엇이든 구매자가 무기한 기다릴 이유는 없다 — 상한은 이월 경로 전용이 아니다
+  it('예상 밖 오류로도 상한에 닿으면 닫고 환불한다 — 원인은 감사 기록에 남긴다', async () => {
+    await publishCard(ERROR_TICKERS[1], researcherIds[1]);
+    const card = await prisma.predictionCard.findFirstOrThrow({
+      where: { ticker: ERROR_TICKERS[1] },
+    });
+    const wayLate = new Date(card.deadline.getTime() + (JUDGMENT_HARD_CAP_DAYS + 1) * 86_400_000);
+
+    const s = await judgeAndSettleDueCards(prisma, boom, wayLate);
+    expect(s.hardCapped.length).toBeGreaterThan(0);
+
+    const judgment = await prisma.judgment.findFirstOrThrow({
+      where: { predictionCardId: card.id },
+    });
+    expect(judgment.outcome).toBe('UNDECIDABLE');
+    // 구매자에게는 똑같이 "판정 불가·전액 환불"이지만, 나중에 "왜 못 쟀나"를 물으면
+    // 답이 달라야 한다 — 시세를 못 구한 것과 우리 코드가 죽은 것은 다른 이야기다
+    expect(judgment.dataSource).toBe('hard-cap:error');
+    expect(JSON.parse(judgment.marketSnapshotJson!).cause).toBe('ERROR');
   });
 
   // 소스 전체가 하루 죽으면 수십 종목이 **한 번씩** 걸린다. 그때 종목을 무더기로

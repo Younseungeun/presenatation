@@ -190,6 +190,7 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
     due.staleDeferred.push(...next.staleDeferred);
     due.hardCapped.push(...next.hardCapped);
     due.blockedInstruments.push(...next.blockedInstruments);
+    due.failures.push(...next.failures);
     due.cursor = next.cursor ?? due.cursor;
     due.hasMore = next.hasMore;
     chunks += 1;
@@ -229,6 +230,19 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
       `같은 종목에서 판정 불가가 반복돼 신규 카드 게시를 막았습니다.\n` +
         `진행 중인 카드와 돈은 그대로입니다. 시세 소스 문제라면 고친 뒤 등급을 되돌리세요.\n` +
         due.blockedInstruments.join('\n'),
+      '/admin/judgments',
+    );
+  }
+
+  // **예상 밖 오류에는 다른 발견 경로가 없다.** 이월은 정차 큐가, 상한은 전용 알림이
+  // 받아 주지만 이건 콘솔에만 남았었다 — 그러는 동안 그 카드의 돈은 에스크로에 잠겨 있다.
+  // 데이터가 아니라 코드 문제라 기다린다고 낫지 않는다
+  if (due.failures.length > 0) {
+    await notifyOperators(
+      `[버그] 판정 오류 ${due.failures.length}건 — 코드 확인 필요`,
+      `시세 미도달이 아니라 **예상 밖 오류**로 판정하지 못한 카드입니다.\n` +
+        `기다린다고 낫지 않으니 로그를 보고 고쳐야 합니다. 고칠 때까지 에스크로가 잠깁니다.\n` +
+        due.failures.slice(0, 10).join('\n'),
       '/admin/judgments',
     );
   }
