@@ -4,6 +4,7 @@ import {
   MAX_ACTIVE_CARDS,
   MAX_ACTIVE_CARDS_TOTAL,
   MAX_ACTIVE_LONG_CARDS,
+  NEW_RESEARCHER_MAX_HORIZON_DAYS,
   preparePublish,
   REPORT_TEXT_LIMITS,
   validateCardDraft,
@@ -36,6 +37,9 @@ const validCond: PublishConditions = {
   prepaymentRatio: 0,
   tier: 'BRONZE',
   promoActive: false,
+  // 판정을 한 번은 받아 본 사람 — 대부분의 시험은 이 규칙의 대상이 아니다.
+  // **기본값을 0(미검증)으로 두는 것이 안전한 쪽**이라 fixture에서 명시한다
+  judgedCardCount: 1,
 };
 
 describe('validateCardDraft', () => {
@@ -233,6 +237,41 @@ describe('preparePublish', () => {
     const short = { ...validCard, deadline: new Date('2026-08-12T00:00:00Z') }; // 31일
     expect(
       preparePublish(short, { ...validCond, activeLongCardCount: 99 }, 70_000, NOW).feeRateBp,
+    ).toBe(2000);
+  });
+
+  // **리서처를 막는 규칙이 아니라 지키는 규칙이다.** 신규는 100% 성과 연동이라
+  // 첫 카드를 365일로 걸면 1년 동안 정산도 실적도 0인 채로 버텨야 한다 —
+  // 콜드스타트 이탈이 나는 자리가 정확히 여기다
+  it('판정을 한 번도 못 받은 사람은 아주 긴 카드를 걸 수 없다', () => {
+    // 시한 300일 — 신규가 이걸 걸면 1년 가까이 정산도 실적도 0이다
+    const veryLong = { ...validCard, deadline: new Date('2027-05-08T00:00:00Z'), targetValue: 20 };
+    expect(() =>
+      preparePublish(veryLong, { ...validCond, judgedCardCount: 0 }, 70_000, NOW),
+    ).toThrow(new RegExp(`시한 ${NEW_RESEARCHER_MAX_HORIZON_DAYS}일 초과`));
+
+    // 한 번 판정을 받으면 바로 열린다 (JUDGED_BEFORE_LONG_CARDS = 1)
+    expect(
+      preparePublish(veryLong, { ...validCond, judgedCardCount: 1 }, 70_000, NOW).feeRateBp,
+    ).toBe(2000);
+  });
+
+  // **문턱을 LONG_HORIZON_DAYS(90)와 따로 두는 이유가 이것이다.** 90일 카드는 한 시즌
+  // 안에 판정이 나 등급 평가도 받는다 — 막을 이유가 없다. 문제는 365일짜리다
+  it('한 시즌 안에 끝나는 카드는 신규도 그대로 낼 수 있다', () => {
+    // validCard는 시한 92일 — 장기 카드이긴 하지만 두 시즌 안이다
+    expect(
+      preparePublish(validCard, { ...validCond, judgedCardCount: 0 }, 70_000, NOW).feeRateBp,
+    ).toBe(2000);
+  });
+
+  // **등급이 아니라 판정 이력으로 가른다** — 무표기에는 "아직 아무것도 안 한 사람"과
+  // "판정은 여럿 받았지만 점수가 모자란 사람"이 섞여 있다. 뒤쪽의 기간 선택을 뺏으면 안 된다
+  it('무표기여도 판정 이력이 있으면 아주 긴 카드가 열린다', () => {
+    const veryLong = { ...validCard, deadline: new Date('2027-05-08T00:00:00Z'), targetValue: 20 };
+    expect(
+      preparePublish(veryLong, { ...validCond, tier: 'BRONZE', judgedCardCount: 3 }, 70_000, NOW)
+        .feeRateBp,
     ).toBe(2000);
   });
 

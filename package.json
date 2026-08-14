@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:unit": "vitest run --project unit",
+    "test:db": "vitest run --project db",
     "db:migrate": "prisma migrate dev",
     "smoke:market": "tsx scripts/smokeMarketData.ts",
     "sync:instruments": "tsx scripts/syncInstruments.ts",

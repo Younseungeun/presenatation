@@ -123,6 +123,31 @@ export const MAX_ACTIVE_CARDS_TOTAL: Record<Tier, number> = Object.fromEntries(
 export const LONG_HORIZON_DAYS = 90;
 
 /**
+ * 판정 이력이 없는 리서처가 걸 수 있는 시한의 상한 — **두 시즌.**
+ *
+ * `LONG_HORIZON_DAYS`(90)를 쓰지 않는 이유: 그 문턱은 **판정 유예 악용**을 막는
+ * 장치라 목적이 다르다. 여기서 막으려는 것은 악용이 아니라 **콜드스타트 이탈**이다.
+ * 90일 카드는 한 시즌 안에 판정이 나 등급 평가도 한 번 받는다 — 그걸 막으면
+ * 신규의 기간 선택을 이유 없이 좁힐 뿐이다. 문제가 되는 것은 365일짜리다:
+ * 신규는 100% 성과 연동이라 **1년 동안 정산도 실적도 0**인 채로 버텨야 한다.
+ *
+ * 두 시즌으로 끊으면 "첫 판정까지 최대 반년"이 보장되고, 그 사이 등급 재산정도
+ * 두 번 돈다. 콜드스타트에서 이탈이 나는 구간을 덮으면서 정상적인 중장기 예측은
+ * 그대로 살린다.
+ */
+export const NEW_RESEARCHER_MAX_HORIZON_DAYS = LONG_HORIZON_DAYS * 2;
+
+/**
+ * 그 상한이 풀리는 조건 — 판정이 끝난 카드 1건.
+ *
+ * 1인 이유: 목적이 실력 검증이 아니라 **사이클을 한 번 겪게 하는 것**이다.
+ * 판정 → 정산 또는 환불이 한 번 돌면 리서처는 이 플랫폼이 실제로 어떻게 굴러가는지
+ * 알게 되고, 그 뒤의 기간 선택은 본인 몫이다. 더 높이면 실력 문턱이 되어 버리는데
+ * 그건 이 규칙이 할 일이 아니다(그건 등급과 규율 래더가 한다).
+ */
+export const JUDGED_BEFORE_LONG_CARDS = 1;
+
+/**
  * 그중 **장기 카드**가 차지할 수 있는 슬롯 — 활성 상한의 절반(내림, 최소 1).
  *
  * ── 왜 따로 막나 (2026-08-13) ─────────────────────────────────
@@ -236,6 +261,11 @@ export interface PublishConditions {
    * 래더가 볼 표본이 영영 생기지 않는다 (MAX_ACTIVE_LONG_CARDS 주석).
    */
   activeLongCardCount?: number;
+  /**
+   * 지금까지 **판정이 끝난** 카드 수 — 0이면 아직 아무것도 증명되지 않은 사람이다.
+   * 장기 카드 금지의 기준이 된다 (JUDGED_BEFORE_LONG_CARDS).
+   */
+  judgedCardCount?: number;
 }
 
 export class PublishValidationError extends Error {
@@ -441,6 +471,27 @@ export function preparePublish(
   // 초안 검증(validateCardDraft)과 같은 식으로 잰다 — 두 곳이 갈라지면
   // 경계에서 "게시는 되는데 장기로 안 세어지는" 카드가 생긴다
   const horizonDays = (card.deadline.getTime() - now.getTime()) / 86_400_000;
+
+  // **판정을 한 번도 받아 본 적 없는 사람은 아주 긴 카드를 걸 수 없다.**
+  //
+  // 이건 리서처를 막는 규칙이 아니라 **리서처를 지키는 규칙**이다. 신규는 100% 성과
+  // 연동이라, 첫 카드를 365일로 걸면 **1년 동안 한 푼도 못 받고 실적도 0인 상태**로
+  // 버텨야 한다 — 콜드스타트에서 이탈이 나는 자리가 정확히 여기다. 한 번 판정을
+  // 받으면 정산이든 환불이든 **사이클이 돌았다는 사실**이 남고, 그때부터는 본인이 고른다.
+  //
+  // 등급이 아니라 **판정 이력**을 기준으로 삼는 이유: 무표기에는 "아직 아무것도 안 한
+  // 사람"과 "판정은 여럿 받았지만 점수가 모자란 사람"이 섞여 있다. 뒤쪽까지 묶으면
+  // 실적 있는 사람의 기간 선택을 이유 없이 뺏는다
+  if (
+    horizonDays > NEW_RESEARCHER_MAX_HORIZON_DAYS &&
+    (cond.judgedCardCount ?? 0) < JUDGED_BEFORE_LONG_CARDS
+  ) {
+    issues.push(
+      `아직 판정이 끝난 예측이 없어 시한 ${NEW_RESEARCHER_MAX_HORIZON_DAYS}일 초과 카드는 게시할 수 없습니다 — ` +
+        `첫 판정까지 1년을 기다리면 그동안 정산도 실적도 0입니다. 판정을 한 번 받으면 바로 열립니다`,
+    );
+  }
+
   if (horizonDays > LONG_HORIZON_DAYS) {
     const maxLong = MAX_ACTIVE_LONG_CARDS[cond.tier];
     if ((cond.activeLongCardCount ?? 0) >= maxLong) {

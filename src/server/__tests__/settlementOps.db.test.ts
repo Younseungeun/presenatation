@@ -140,9 +140,25 @@ describe('환불 실행', () => {
 });
 
 describe('지급 실행', () => {
+  // **아직 우리에게 안 온 돈을 내주지 않는다.** 판정은 결제 시점 기준으로 나지만
+  // 토스가 우리 계좌에 넣어 주는 것은 며칠 뒤다 — 그 사이에 지급하면 회사 돈을
+  // 먼저 내주는 것이고, 규모가 커지면 그대로 자본 잠식이다
+  it('PG 입금 전에는 거부한다 — 확인 표시가 있어야 넘어간다', async () => {
+    const [payout] = await getPendingPayouts(prisma);
+    await expect(
+      executePayout(prisma, { settlementId: payout.id, operatorUserId: OPERATOR }, new Date()),
+    ).rejects.toThrow(/PG 입금/);
+  });
+
   it('실행 기록 + 리서처 알림, 재실행은 거부', async () => {
     const [payout] = await getPendingPayouts(prisma);
-    await executePayout(prisma, { settlementId: payout.id, operatorUserId: OPERATOR }, EXEC_NOW);
+    // 운영자가 토스 콘솔에서 입금을 확인한 경우 (픽스처의 paidAt은 DB 실시각이라
+    // 가상 시각 EXEC_NOW로는 지연 방어선을 넘길 수 없다)
+    await executePayout(
+      prisma,
+      { settlementId: payout.id, operatorUserId: OPERATOR, confirmedSettled: true },
+      EXEC_NOW,
+    );
 
     const updated = await prisma.settlement.findUniqueOrThrow({ where: { id: payout.id } });
     expect(updated.payoutExecutedAt).toEqual(EXEC_NOW);

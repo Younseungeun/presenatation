@@ -458,9 +458,29 @@ export async function sweepStuckRefundAttempts(
 }
 
 /** 리서처 지급 실행 기록 + 리서처 알림. 이미 실행된 건은 거부 */
+/**
+ * PG가 우리 통장에 돈을 넣어 주기까지의 지연 — **지급의 하한선이다.**
+ *
+ * 판정은 결제 시점 기준으로 나지만 **돈은 그때 우리에게 있지 않다.** 토스가 플랫폼
+ * 계좌로 넣어 주는 것은 며칠 뒤이고, 그 사이 구매자가 차지백을 걸면 아예 안 온다.
+ * 이 간격을 모르고 "판정 났으니 지급"을 실행하면 **아직 받지도 않은 돈을 회사 돈으로
+ * 먼저 내주는 것**이 된다 — 규모가 커질수록 그대로 자본 잠식이다.
+ *
+ * 실계약 전이라 정확한 주기를 모른다. 그래서 **막지 않고 확인시킨다**: 결제가 이보다
+ * 최근이면 지급을 거부하고, 운영자가 토스 콘솔에서 입금을 눈으로 확인했으면
+ * `confirmedSettled`로 넘긴다. 대조 배치(domain/reconciliation.ts)가 붙으면
+ * 이 확인이 자동이 된다 — 그때까지의 임시 방어선이다.
+ */
+export const PG_SETTLEMENT_LAG_DAYS = 3;
+
 export async function executePayout(
   prisma: PrismaClient,
-  input: { settlementId: string; operatorUserId: string },
+  input: {
+    settlementId: string;
+    operatorUserId: string;
+    /** 토스 콘솔에서 실제 입금을 확인했다 — 지연 방어선을 넘긴다 */
+    confirmedSettled?: boolean;
+  },
   now = new Date(),
 ) {
   const s = await prisma.settlement.findUnique({
@@ -470,6 +490,16 @@ export async function executePayout(
   if (!s) throw new SettlementOpsError('정산 건을 찾을 수 없습니다');
   if (s.researcherPayoutKrw <= 0) throw new SettlementOpsError('지급액이 없는 정산 건입니다');
   if (s.payoutExecutedAt) throw new SettlementOpsError('이미 지급이 실행된 건입니다');
+
+  // **아직 우리에게 오지 않았을 수 있는 돈을 내주지 않는다** (PG_SETTLEMENT_LAG_DAYS)
+  const ageDays = (now.getTime() - s.purchase.paidAt.getTime()) / 86_400_000;
+  if (ageDays < PG_SETTLEMENT_LAG_DAYS && !input.confirmedSettled) {
+    throw new SettlementOpsError(
+      `결제한 지 ${ageDays.toFixed(1)}일밖에 안 된 건입니다 — PG 입금(약 ${PG_SETTLEMENT_LAG_DAYS}일)이 ` +
+        `끝나기 전에 지급하면 회사 돈을 먼저 내주는 것이 됩니다. ` +
+        `토스 콘솔에서 입금을 확인했다면 확인 표시를 하고 다시 실행해주세요.`,
+    );
+  }
 
   await prisma.$transaction([
     prisma.settlement.update({

@@ -33,6 +33,7 @@ const cond: PublishConditions = {
   prepaymentRatio: 0,
   tier: 'BRONZE',
   promoActive: false,
+  judgedCardCount: 1, // 이 시험의 대상은 규율 래더지 신규 리서처의 장기 카드 제한이 아니다
 };
 
 describe('문턱은 고른 값이 아니라 유도된 값이다', () => {

@@ -31,7 +31,13 @@ const bodySchema = z.discriminatedUnion('kind', [
     resolution: z.enum(['SENT', 'NOT_SENT']),
     bankReference: z.string().min(1).max(100).optional(),
   }),
-  z.object({ kind: z.literal('PAYOUT'), settlementId: z.string().min(1) }),
+  z.object({
+    kind: z.literal('PAYOUT'),
+    settlementId: z.string().min(1),
+    // **아직 우리에게 안 온 돈일 수 있다.** 결제 직후의 지급은 PG 입금 전이라 회사 돈을
+    // 먼저 내주는 것이 된다 — 토스 콘솔에서 입금을 눈으로 확인했을 때만 넘긴다
+    confirmedSettled: z.boolean().optional(),
+  }),
 ]);
 
 export async function GET() {
@@ -68,7 +74,11 @@ export async function POST(req: NextRequest) {
         bankReference: body.bankReference,
       });
     } else {
-      await executePayout(prisma, { settlementId: body.settlementId, operatorUserId });
+      await executePayout(prisma, {
+        settlementId: body.settlementId,
+        operatorUserId,
+        confirmedSettled: body.confirmedSettled,
+      });
     }
     return NextResponse.json({ ok: true });
   } catch (e) {

@@ -311,6 +311,12 @@ async function finalizePublish(
       deadline: { gt: new Date(now.getTime() + LONG_HORIZON_DAYS * 86_400_000) },
     },
   });
+  // 판정을 한 번도 안 받아 본 사람은 장기 카드를 못 건다 (JUDGED_BEFORE_LONG_CARDS).
+  // **자산군을 가리지 않는다** — 사이클을 한 번 겪었는지를 묻는 것이지 그 자산군의
+  // 실력을 묻는 것이 아니다
+  const judgedCardCount = await prisma.judgment.count({
+    where: { predictionCard: { report: { researcherId: report.researcherId } } },
+  });
 
   const snapshot = preparePublish(
     // 방금 잰 σ로 크기 하한을 다시 검증한다 — 초안은 캐시된 값으로 통과했을 수 있고,
@@ -325,6 +331,7 @@ async function finalizePublish(
       activeCardCount,
       activeCardCountTotal,
       activeLongCardCount,
+      judgedCardCount,
     },
     basePrice,
     now,
