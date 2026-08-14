@@ -34,6 +34,8 @@ import { ResearcherCallout } from "../../ResearcherCallout";
 import { confidenceStars, StarRating } from "../../StarRating";
 import { StatusChip, type StatusKind } from "../../StatusChip";
 import { JudgmentReceipt } from "./JudgmentReceipt";
+import { DisputeForm } from "./DisputeForm";
+
 import { PurchaseButton } from "./PurchaseButton";
 import { RevealedCard } from "./RevealedCard";
 import { TossCheckoutButton } from "./TossCheckoutButton";
@@ -51,7 +53,7 @@ export default async function ReportDetail({
   const data = await getReportDetail(prisma, id, viewerId);
   if (!data) notFound();
 
-  const { report, purchase, instrument } = data;
+  const { report, purchase, instrument, disputable } = data;
   const riskLevel = (instrument?.riskLevel ?? "NONE") as RiskLevel;
   const card = report.predictionCard;
   const judgment = card?.judgment;
@@ -316,7 +318,18 @@ export default async function ReportDetail({
   );
 
   // 판정 근거 영수증 — 사양표와 한 덩어리로 움직인다 (둘 다 "이 예측이 무엇이었나")
-  const receipt = card && judgment && <JudgmentReceipt card={card} judgment={judgment} />;
+  //
+  // **이의제기 입구를 영수증 바로 아래 둔다.** 판정 근거를 본 직후가 "이게 맞나?"라는
+  // 물음이 생기는 유일한 자리다. 여기 없으면 그 사람이 다음으로 가는 곳은 카드사다
+  // (차지백 — 우리가 아무것도 못 하는 자리에서 돈이 빠진다)
+  const receipt = card && judgment && (
+    <>
+      <JudgmentReceipt card={card} judgment={judgment} />
+      {purchase && (disputable || purchase.judgmentDispute) && (
+        <DisputeForm purchaseId={purchase.id} alreadyFiled={!!purchase.judgmentDispute} />
+      )}
+    </>
+  );
 
   return (
     <>

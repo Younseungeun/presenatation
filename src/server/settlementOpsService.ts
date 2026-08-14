@@ -60,10 +60,21 @@ export function getPendingRefunds(prisma: PrismaClient) {
   });
 }
 
-/** 미실행 리서처 지급 지시서 — 오래된 순 */
+/**
+ * 미실행 리서처 지급 지시서 — 오래된 순.
+ *
+ * **판정 이의가 검토 중인 건은 목록에서 뺀다.** 화면에 띄워 두면 운영자가 누르게 되고,
+ * 실행 단계에서 거부하는 것보다 **애초에 안 보이는 편**이 안전하다(환불 큐에서
+ * 실행된 건을 빼는 것과 같은 규칙 — 누를 수 없는 것은 보이지도 않아야 한다).
+ */
 export function getPendingPayouts(prisma: PrismaClient) {
   return prisma.settlement.findMany({
-    where: { researcherPayoutKrw: { gt: 0 }, payoutExecutedAt: null },
+    where: {
+      researcherPayoutKrw: { gt: 0 },
+      payoutExecutedAt: null,
+      // **열려 있는 것만** 뺀다 — 기각으로 끝난 이의까지 막으면 그 정산이 영원히 갇힌다
+      NOT: { purchase: { judgmentDispute: { status: 'OPEN' } } },
+    },
     include: PENDING_INCLUDE,
     orderBy: { settledAt: 'asc' },
   });
@@ -490,6 +501,20 @@ export async function executePayout(
   if (!s) throw new SettlementOpsError('정산 건을 찾을 수 없습니다');
   if (s.researcherPayoutKrw <= 0) throw new SettlementOpsError('지급액이 없는 정산 건입니다');
   if (s.payoutExecutedAt) throw new SettlementOpsError('이미 지급이 실행된 건입니다');
+
+  // **판정이 뒤집힐 수 있는 건에 돈을 먼저 내보내지 않는다.**
+  // 나간 뒤에는 되돌릴 방법이 없다 — revertJudgment가 지급 실행된 건을 거부하는 것과
+  // 같은 이유다. 이의가 접수되는 순간 이 정산은 멈춰야 한다
+  const openDispute = await prisma.judgmentDispute.findFirst({
+    where: { purchaseId: s.purchaseId, status: 'OPEN' },
+    select: { id: true, category: true },
+  });
+  if (openDispute) {
+    throw new SettlementOpsError(
+      `판정 이의가 검토 중인 건입니다 (${openDispute.id}) — 먼저 이의를 확정해주세요. ` +
+        '지급이 나간 뒤에는 판정을 되돌릴 수 없습니다.',
+    );
+  }
 
   // **아직 우리에게 오지 않았을 수 있는 돈을 내주지 않는다** (PG_SETTLEMENT_LAG_DAYS)
   const ageDays = (now.getTime() - s.purchase.paidAt.getTime()) / 86_400_000;

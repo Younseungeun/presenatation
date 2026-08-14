@@ -77,19 +77,25 @@ async function zeroPurchaseRate(prisma: PrismaClient, now: Date) {
 }
 
 /**
- * ③ 우리가 되돌린 판정의 비율.
+ * ③ 판정에 이의가 제기된 비율.
  *
- * ⚠ **이건 "이의제기율"의 대용품이지 이의제기율이 아니다.** 구매자가 "판정이 틀렸다"고
- * 말했지만 우리가 받아들이지 않은 건은 **어디에도 기록되지 않는다** — 지금 구조에
- * 이의를 접수하는 창구 자체가 없기 때문이다. 그래서 이 숫자는 실제보다 항상 낮다.
- * 올라가면 시세 데이터(배당락·수정주가)가 판정 로직을 부수고 있을 확률이 높다.
+ * **이제 진짜 이의제기율이다.** 처음 이 지표를 짤 때는 "우리가 되돌린 판정"만 셀 수
+ * 있었다 — 구매자가 "틀렸다"고 생각해도 말할 창구가 없어 **불만이 데이터가 되지
+ * 못했기** 때문이다. 이의제기 창구(judgmentDisputeService)가 생기면서 그 구멍이 닫혔다.
+ *
+ * 되돌린 건도 함께 센다: 우리가 스스로 발견해 고친 것도 "판정과 현실이 어긋났다"는
+ * 같은 사건이다. 올라가면 시세 데이터(배당락·수정주가)가 판정 로직을 부수고 있을
+ * 확률이 높다. **인정률을 함께 보는 이유**: 이의는 많은데 인정이 없으면 판정이 아니라
+ * 설명이 부족한 것이다(화면이 판정 근거를 못 보여주고 있다는 뜻).
  */
-async function judgmentRevertRate(prisma: PrismaClient) {
-  const [reverted, judged] = await Promise.all([
+async function judgmentDisputeRate(prisma: PrismaClient) {
+  const [filed, upheld, reverted, judged] = await Promise.all([
+    prisma.judgmentDispute.count(),
+    prisma.judgmentDispute.count({ where: { status: 'UPHELD' } }),
     prisma.judgmentRevert.count(),
     prisma.judgment.count(),
   ]);
-  return { reverted, judged: judged + reverted };
+  return { filed, upheld, reverted, judged: judged + reverted };
 }
 
 /**
@@ -175,8 +181,8 @@ export const OPS_THRESHOLDS = {
   leadTimeDays: 60,
   /** 안 팔린 카드가 절반을 넘으면 가격이나 신뢰 설득에 문제가 있다 */
   zeroPurchaseRate: 0.5,
-  /** 되돌린 판정이 이 비율을 넘으면 시세 데이터가 로직을 부수고 있다 */
-  revertRate: 0.03,
+  /** 이의·정정이 이 비율을 넘으면 시세 데이터가 판정 로직을 부수고 있다 */
+  disputeRate: 0.03,
   /** 판정 경험자의 재구매가 이 아래면 상품 경험 자체가 실패다 */
   repurchaseRate: 0.2,
   /** 판정 100건당 수동 개입이 이보다 많으면 사람 속도가 병목이 된다 */
@@ -187,7 +193,7 @@ export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Pro
   const [lead, zero, revert, repurchase, manual] = await Promise.all([
     judgmentLeadTime(prisma),
     zeroPurchaseRate(prisma, now),
-    judgmentRevertRate(prisma),
+    judgmentDisputeRate(prisma),
     repurchaseAfterJudgment(prisma),
     manualInterventions(prisma),
   ]);
@@ -215,14 +221,16 @@ export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Pro
         zero.total > 0 && zero.zero / zero.total > OPS_THRESHOLDS.zeroPurchaseRate,
     },
     {
-      key: 'revertRate',
-      label: '되돌린 판정',
-      value: pct(revert.reverted, revert.judged),
-      sample: `전체 판정 ${revert.judged}건 중 ${revert.reverted}건 (이의제기 창구가 없어 실제보다 낮게 나옵니다)`,
+      key: 'disputeRate',
+      label: '판정 이의·정정',
+      value: pct(revert.filed + revert.reverted, revert.judged),
+      sample:
+        `전체 판정 ${revert.judged}건 중 이의 ${revert.filed}건(인정 ${revert.upheld}) · 우리가 되돌린 것 ${revert.reverted}건`,
       meaning:
-        '올라가면 시세 데이터(배당락·수정주가)가 판정 로직을 부수고 있을 확률이 높습니다.',
+        '올라가면 시세 데이터(배당락·수정주가)가 판정 로직을 부수고 있을 확률이 높습니다. 이의는 많은데 인정이 없으면 판정이 아니라 판정 근거를 보여주는 화면이 부족한 것입니다.',
       alert:
-        revert.judged > 0 && revert.reverted / revert.judged > OPS_THRESHOLDS.revertRate,
+        revert.judged > 0 &&
+        (revert.filed + revert.reverted) / revert.judged > OPS_THRESHOLDS.disputeRate,
     },
     {
       key: 'repurchase',

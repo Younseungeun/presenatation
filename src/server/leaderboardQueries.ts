@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { AssetClass, Direction, Outcome } from '@/domain/constants';
 import { computeTrackRecord, type JudgedPrediction } from '@/domain/trackRecord';
+import { DISPUTE_WINDOW_DAYS } from './judgmentDisputeService';
 import { seasonStart, nextSeasonStart } from './scoreService';
 
 // 리더보드·공개 프로필용 집계 (읽기 전용).
@@ -275,6 +276,7 @@ export async function getReportDetail(
   prisma: PrismaClient,
   reportId: string,
   viewerUserId: string | null,
+  now = new Date(),
 ) {
   const report = await prisma.report.findUnique({
     where: { id: reportId },
@@ -296,7 +298,11 @@ export async function getReportDetail(
         where: { reportId, buyerId: viewerUserId, escrowStatus: { not: 'CANCELLED' } },
         // 환불 시도까지 — 구매자 화면이 "확정됐지만 아직 안 보냄"과 "보내는 중"을
         // 구별하려면 필요하다. 그 구별이 없으면 며칠짜리 대기가 방치로 읽힌다
-        include: { settlement: { include: { refundAttempts: true } } },
+        include: {
+          settlement: { include: { refundAttempts: true } },
+          // 이미 이의를 냈는지 — 화면이 접수 양식 대신 "검토 중"을 보여줘야 한다
+          judgmentDispute: { select: { id: true, status: true } },
+        },
       })
     : null;
 
@@ -314,5 +320,15 @@ export async function getReportDetail(
       })
     : null;
 
-  return { report, purchase, instrument };
+  // **이의제기 창이 열려 있나 — 판단은 여기서 한다.**
+  // 화면에서 `Date.now()`를 부르면 렌더가 순수하지 않고(같은 입력에 다른 결과),
+  // 무엇보다 "며칠까지 받을 것인가"는 화면의 취향이 아니라 **서비스의 규칙**이다
+  const judgedAt = report.predictionCard?.judgment?.judgedAt;
+  const disputable =
+    !!purchase &&
+    !!judgedAt &&
+    !purchase.judgmentDispute &&
+    (now.getTime() - judgedAt.getTime()) / 86_400_000 <= DISPUTE_WINDOW_DAYS;
+
+  return { report, purchase, instrument, disputable };
 }
