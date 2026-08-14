@@ -150,12 +150,28 @@ export interface RankingEntry {
 
 export type RankingSort = 'SCORE' | 'HIT_RATE' | 'RETURN';
 
+/**
+ * 표본 미달자는 **어느 기준에서도 뒤로 보낸다** (2026-08-15).
+ *
+ * 예전에는 점수 정렬에서만 빼 줬다. 그 구멍이 **양방향 베팅**의 착지점이다 —
+ * 계정 둘로 같은 종목에 상승·하락을 걸면 하나는 반드시 적중하고, 진 계정은 버린다.
+ * 구매자는 실패 시 전액 환불이라 항의하지 않으므로 어뷰저가 치르는 값이 거의 없다.
+ * 목적은 환불금이 아니라 **"적중률 100%"라는 화면**이고, 그 화면이 가장 잘 팔리는
+ * 자리가 랭킹 상단이다.
+ *
+ * **탐지로는 못 막는다** — 같은 종목에 반대 방향 카드가 걸리는 것은 정상적인 시장
+ * 의견 차이와 구별되지 않는다. 그래서 탐지 대신 **값어치를 없앤다**: 표본이 찰 때까지
+ * 상단에 못 올라가면, 계정을 새로 파는 방식으로는 "검증 중" 딱지를 뗄 수 없다.
+ * 점수 정렬도 예외가 아닌 이유는 vmax 점수가 카드당 유계여서 1~2장으로는 상단에
+ * 못 가지만, **표본 10장 미만끼리의 순위**는 여전히 어뷰저에게 유리하기 때문이다.
+ *
+ * ⚠ **목록에서 빼지는 않는다.** 신규 리서처가 아예 안 보이면 콜드스타트가 죽는다 —
+ * 이 서비스가 가장 두려워하는 실패다(§5 핵심 리스크 1). 순서만 뒤로 미룬다.
+ */
 function sortRanking(entries: RankingEntry[], sort: RankingSort): RankingEntry[] {
   const num = (v: number | null) => (v === null ? -Infinity : v);
   return [...entries].sort((a, b) => {
-    // 점수 외 기준에서는 표본 미달(검증 중)을 뒤로 보낸다 —
-    // 1건 100% 적중이 상위를 차지하는 왜곡 방지 (§2.2 표본 수 표시 원칙)
-    if (sort !== 'SCORE' && a.verifying !== b.verifying) return a.verifying ? 1 : -1;
+    if (a.verifying !== b.verifying) return a.verifying ? 1 : -1;
     if (sort === 'HIT_RATE') return num(b.hitRate) - num(a.hitRate);
     if (sort === 'RETURN') return num(b.hypotheticalReturnPct) - num(a.hypotheticalReturnPct);
     return b.totalScore - a.totalScore;

@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import type { AssetClass } from '../src/domain/constants';
 import { isJustAfterClose, isMarketOpen, isTradingDay, marketToday } from '../src/domain/marketHours';
 import { coverageEndsIn, holidayName } from '../src/domain/marketCalendar';
+import { BatchLockBusy, withBatchLock } from '../src/server/batchLock';
 import { backupDatabase } from '../src/server/dbBackup';
 import { createDefaultRegistry } from '../src/infra/marketData/registry';
 import { toRiskLevel, type RiskLevel } from '../src/domain/instrumentRisk';
@@ -165,7 +166,27 @@ function enqueue(label: string, fn: () => Promise<void>): void {
 /** 한 회차가 아무리 밀려도 이만큼만 — 무한 루프 방지 (20장 × 40 = 800장) */
 const MAX_JUDGE_CHUNKS = 40;
 
+/**
+ * 판정 한 시장 — **락을 쥐고 돈다.**
+ *
+ * 큐가 하나라 이 프로세스 안에서는 이미 직렬인데도 락을 거는 이유는 **밖**이다:
+ * 사람이 `npm run batch:judge`를 손으로 돌리는 순간 두 벌이 겹치고, KIS 토큰이
+ * 분당 1회라 한쪽이 통째로 죽는다. 락을 못 잡으면 기다리지 않고 이번 회차를
+ * 건너뛴다 — 판정은 멱등이고 창구가 1시간이라 다음 틱이 어차피 잡는다.
+ */
 async function judgeMarket(assetClass: AssetClass): Promise<void> {
+  try {
+    await withBatchLock(prisma, 'judge', () => judgeMarketLocked(assetClass));
+  } catch (e) {
+    if (e instanceof BatchLockBusy) {
+      console.warn(`⚠ ${e.message} — ${assetClass} 판정을 이번 회차는 건너뜁니다`);
+      return;
+    }
+    throw e;
+  }
+}
+
+async function judgeMarketLocked(assetClass: AssetClass): Promise<void> {
   const reached = await runReachedJudgmentBatch(prisma, registry, new Date(), assetClass);
 
   // **밀린 카드를 다 소진할 때까지 커서로 이어서 돈다.** 판정은 한 회차 20장으로 끊기는데

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { MIN_SAMPLE_FOR_VERIFIED } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getAllTimeRanking, type RankingSort } from "@/server/leaderboardQueries";
 import { EmptyState } from "../EmptyState";
@@ -68,7 +69,21 @@ export default async function RankingPage({
         <div className={styles.list}>
           {rows.map((r, i) => (
             <Link key={r.researcherId} href={`/r/${r.researcherId}`} className={styles.row}>
-              <span className={styles.rank}>{i + 1}</span>
+              {/* **표본 미달자에게는 등수를 주지 않는다** — 어뷰징이 노리는 것은
+                  적중률 자체가 아니라 "랭킹 N위 · 적중률 100%"라는 한 줄이다(계정 둘로
+                  반대 방향을 걸면 하나는 반드시 적중한다). 순서상 아래에 있어도 번호가
+                  붙으면 그 문장이 성립하므로, 번호는 검증된 사람에게만 준다.
+                  목록에서 빼지는 않는다 — 신규 리서처가 안 보이면 콜드스타트가 죽는다 */}
+              <span
+                className={styles.rank}
+                title={
+                  r.verifying
+                    ? `판정 표본이 ${MIN_SAMPLE_FOR_VERIFIED}건에 못 미쳐 등수를 매기지 않습니다`
+                    : undefined
+                }
+              >
+                {r.verifying ? "—" : i + 1}
+              </span>
               <div className={styles.rowMain}>
                 <div className={styles.rowName}>
                   {r.name}
