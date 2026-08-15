@@ -36,10 +36,28 @@ export type AuditActorType = 'OPERATOR' | 'SYSTEM' | 'USER';
 /**
  * 남기는 사건의 목록 — **여기 없는 것은 안 남긴다.**
  * 목록을 열어 두면 인프라 오류·조회 로그가 섞여 들어와 검색되지 않는 크기로 자란다.
+ *
+ * ── 평화로울 때 침묵한다 (2026-08-15, 외부 검토 반영) ────────
+ * 처음에는 자동 판정도 남겼다. 근거는 "에스크로가 갈라지는 순간이니 돈의 근거가
+ * 바뀐 사건"이었는데, 그 기준으로는 **정상 하루치 수백 건이 전부 여기 들어온다.**
+ * 그러면 정작 찾아야 할 개입(되돌리기·정지·권한 변경)이 소음에 묻힌다.
+ *
+ * 감사 로그가 답하는 질문은 "무슨 일이 있었나"가 아니라 **"누가 끼어들었나"**다.
+ * 도메인 표가 이미 완전한 기록인 사건(Judgment 행에는 결과·시세 스냅샷·시각이 전부
+ * 있다)을 복사하는 것은 이벤트 소싱이지 감사가 아니다.
  */
 export const AUDIT_ACTIONS = {
-  /** 판정이 생겼다 — 에스크로가 정산/환불로 갈라지는 순간 */
-  JUDGMENT_CREATED: '판정 확정',
+  /**
+   * 사람이 직접 판정을 매겼다 — 자동 배치가 아니라 운영자가 시세를 입력하거나
+   * 판정 불가로 닫은 경우 (manualJudgmentService).
+   *
+   * **자동 판정은 여기 없다** (2026-08-15, 외부 검토 반영). 아래 "평화로울 때
+   * 침묵한다"를 보라 — 다만 자르는 선은 *행위*가 아니라 **행위자**다.
+   * 같은 Judgment 행을 만드는 일이어도 배치가 하면 도메인 흐름이고 사람이 하면
+   * 개입이다. 그리고 탈취된 세션이 돈에 닿는 **가장 빠른 경로**가 정확히 이것이다:
+   * 가짜 적중을 매겨 지급 지시서를 만드는 것. 그래서 고위험 알림 목록에도 들어간다
+   */
+  MANUAL_JUDGMENT: '수동 판정',
   /** 판정을 없던 일로 되돌렸다 */
   JUDGMENT_REVERTED: '판정 되돌리기',
   /** 리서처에게 지급을 실행했다 */
@@ -108,12 +126,88 @@ export async function audit(prisma: PrismaClient, entry: AuditEntry): Promise<vo
 }
 
 /**
+ * 도메인 표에서 끌어온 줄에만 붙는 행위 — **감사 로그에는 절대 안 들어간다.**
+ * `AUDIT_ACTIONS`와 분리해 두는 것이 그 사실을 타입으로 못 박는다
+ * (auditOp의 action은 AuditAction만 받는다).
+ */
+export const DERIVED_ACTIONS = {
+  AUTO_JUDGMENT: '자동 판정',
+} as const;
+
+export const TRAIL_LABELS: Record<string, string> = { ...AUDIT_ACTIONS, ...DERIVED_ACTIONS };
+
+/** 이력 한 줄 — 감사 로그 행이거나, 도메인 표에서 끌어온 행이거나 */
+export interface TrailEntry {
+  at: Date;
+  actor: string;
+  actorType: AuditActorType;
+  action: AuditAction | keyof typeof DERIVED_ACTIONS;
+  targetType: string;
+  targetId: string;
+  reason: string | null;
+  before: string | null;
+  after: string | null;
+  /** 감사 로그 행이 아니라 도메인 표에서 합친 줄인가 */
+  derived: boolean;
+}
+
+/**
  * 한 대상의 이력 — 오래된 순.
  * 화면·조사 모두 "이 카드에 무슨 일이 있었나"를 시간 순으로 읽는다.
+ *
+ * **자동 판정은 감사 로그에 없으므로 여기서 합친다** (2026-08-15). 로그에 복사본을
+ * 두지 않는 대신, 타임라인의 첫 줄("판정이 났다")은 `Judgment` 행에서 조회 시점에
+ * 끌어온다. 기록을 두 곳에 쓰는 것과 두 곳에서 읽는 것은 다르다 — 쓰기를 나누면
+ * 어긋날 수 있지만, 읽기를 합치는 것은 어긋날 자리가 없다.
+ *
+ * 되돌려진 판정은 `Judgment` 행이 사라져 이 줄도 함께 사라진다. 그 경우의 첫 줄은
+ * 감사 로그의 `JUDGMENT_REVERTED`가 맡고, 원래 판정의 내용은 JudgmentRevert가
+ * 보관한다(그 표가 존재하는 이유다).
  */
-export function getAuditTrail(prisma: PrismaClient, targetType: string, targetId: string) {
-  return prisma.auditLog.findMany({
+export async function getAuditTrail(
+  prisma: PrismaClient,
+  targetType: string,
+  targetId: string,
+): Promise<TrailEntry[]> {
+  const rows = await prisma.auditLog.findMany({
     where: { targetType, targetId },
     orderBy: { at: 'asc' },
   });
+
+  const entries: TrailEntry[] = rows.map((r) => ({
+    at: r.at,
+    actor: r.actor,
+    actorType: r.actorType as AuditActorType,
+    action: r.action as AuditAction,
+    targetType: r.targetType,
+    targetId: r.targetId,
+    reason: r.reason,
+    before: r.before,
+    after: r.after,
+    derived: false,
+  }));
+
+  if (targetType === 'PredictionCard') {
+    const j = await prisma.judgment.findUnique({
+      where: { predictionCardId: targetId },
+      select: { outcome: true, settledPrice: true, dataSource: true, judgedAt: true },
+    });
+    // 수동 판정은 감사 로그에 이미 한 줄 있다 — 두 번 그리지 않는다
+    if (j && !j.dataSource?.startsWith('manual:')) {
+      entries.push({
+        at: j.judgedAt,
+        actor: `system:${j.dataSource ?? 'unknown'}`,
+        actorType: 'SYSTEM',
+        action: 'AUTO_JUDGMENT',
+        targetType,
+        targetId,
+        reason: null,
+        before: null,
+        after: JSON.stringify({ outcome: j.outcome, settledPrice: j.settledPrice }),
+        derived: true,
+      });
+    }
+  }
+
+  return entries.sort((a, b) => a.at.getTime() - b.at.getTime());
 }

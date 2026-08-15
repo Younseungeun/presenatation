@@ -38,6 +38,8 @@ const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 const PUBLISH_NOW = new Date('2026-07-12T00:00:00Z');
 const DEADLINE = new Date('2026-08-01T00:00:00Z');
 const BATCH_NOW = new Date('2026-08-02T00:00:00Z');
+// 판정 후 24시간은 에스크로에 묶인다 (settlementCooldown) — 실행 시험은 그 뒤에서 돈다
+const EXEC_NOW = new Date('2026-08-03T01:00:00Z');
 
 const registry = (ticker: string): ProviderRegistry => ({
   CRYPTO: new FixtureMarketDataProvider().setCurrentPrice(ticker, 100).setQuotes(ticker, [
@@ -129,7 +131,7 @@ describe('판정 이의제기', () => {
       executePayout(
         prisma,
         { settlementId: settlement.id, operatorUserId: operatorId, confirmedSettled: true },
-        BATCH_NOW,
+        EXEC_NOW,
       ),
     ).rejects.toThrow(/판정 이의/);
   });

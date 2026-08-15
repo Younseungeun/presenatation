@@ -140,35 +140,49 @@ export function buildJudgmentWrites(
     }),
   );
 
-  // **에스크로가 갈라지는 순간을 한 줄로 남긴다** (server/auditLog.ts).
+  // **사람이 매긴 판정만 감사 로그에 남긴다** (2026-08-15, 외부 검토 반영).
+  //
+  // 처음에는 자동 판정도 남겼다 — "에스크로가 갈라지는 순간이니 돈의 근거가 바뀐
+  // 사건"이라는 근거였는데, 그 기준으로는 **정상 하루치가 통째로 들어온다.** 감사
+  // 로그는 평화로울 때 침묵해야 개입이 눈에 띈다.
+  //
+  // 자르는 선을 *행위*가 아니라 **행위자**에 둔 것이 요점이다. 검토는 "판정 생성을
+  // 빼라"고 했지만 그대로 하면 **수동 판정까지 함께 사라진다** — 운영자가 시세를
+  // 직접 입력해 적중을 만드는 일은 도메인 흐름이 아니라 개입이고, 탈취된 세션이
+  // 돈에 닿는 가장 짧은 경로이기도 하다. 같은 Judgment 행을 만들어도 배치가 하면
+  // 기록이고 사람이 하면 사건이다.
+  //
+  // 빠진 자동 판정의 타임라인 첫 줄은 `getAuditTrail`이 **조회 시점에** Judgment
+  // 행에서 합쳐 준다 — 쓰기를 나누면 어긋날 수 있지만 읽기를 합치는 것은 어긋날
+  // 자리가 없다.
   //
   // 정산이 몇 건이 되든 로그는 **판정 하나에 한 줄**이다. "정산 s_1이 왜 생겼나"는
   // 도메인 외래키를 타고 올라와(Settlement → Purchase → Report → PredictionCard →
   // Judgment) targetId로 조회한다 — 하위 id를 JSON에 담아 검색하게 만들면 SQLite에는
   // JSON 인덱스가 없어 풀스캔이 된다.
-  //
-  // actor가 사람이 아닌 것이 이 사건의 성질이다. 대부분의 돈 이동은 자동 판정이
-  // 만들고, 그때 필요한 것은 "누가 눌렀나"가 아니라 **어떤 입력으로 그 결론이
-  // 나왔나**다 — 그건 Judgment.marketSnapshotJson에 이미 있으므로 여기서는
-  // dataSource만 가리키고 스냅샷을 다시 담지 않는다
-  writes.push(
-    auditOp(prisma, {
-      actor: `system:${input.dataSource}`,
-      actorType: input.dataSource.startsWith('manual:') ? 'OPERATOR' : 'SYSTEM',
-      action: 'JUDGMENT_CREATED',
-      targetType: 'PredictionCard',
-      targetId: card.id,
-      after: {
-        outcome: result.outcome,
-        settledPrice: result.settledPrice ?? null,
-        score: Math.round(input.score),
-        payoutKrw: payoutTotal,
-        refundKrw: refundTotal,
-        purchases: card.report.purchases.length,
-      },
-      at: now,
-    }),
-  );
+  const operator = input.dataSource.startsWith('manual:')
+    ? input.dataSource.slice('manual:'.length)
+    : null;
+  if (operator) {
+    writes.push(
+      auditOp(prisma, {
+        actor: operator,
+        actorType: 'OPERATOR',
+        action: 'MANUAL_JUDGMENT',
+        targetType: 'PredictionCard',
+        targetId: card.id,
+        after: {
+          outcome: result.outcome,
+          settledPrice: result.settledPrice ?? null,
+          score: Math.round(input.score),
+          payoutKrw: payoutTotal,
+          refundKrw: refundTotal,
+          purchases: card.report.purchases.length,
+        },
+        at: now,
+      }),
+    );
+  }
 
   return writes;
 }

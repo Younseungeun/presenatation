@@ -32,13 +32,19 @@ const CURSOR_KEY = 'ops.alert.cursor';
 /**
  * 밖으로 쏠 사건 — **돈이 나가거나, 되돌릴 수 없거나, 권한이 바뀌는 것**만.
  *
- * 판정 확정(JUDGMENT_CREATED)은 넣지 않는다. 하루 수십 건이 정상이라 알림이 배경 소음이
- * 되고, 소음이 되는 순간 진짜 신호도 함께 안 보게 된다.
+ * 자동 판정은 애초에 감사 로그에 들어오지 않으므로 여기서 거를 것도 없다
+ * (auditLog.ts의 "평화로울 때 침묵한다").
+ *
+ * **수동 판정은 들어간다** — 하루 몇 건이라 소음이 아니고, 무엇보다 탈취된 세션이
+ * 돈에 닿는 가장 짧은 길이 "가짜 적중을 매겨 지급 지시서를 만드는 것"이다.
+ * 정산 쿨다운(settlementCooldown)이 24시간을 벌어 주는데, 그 시간이 의미를 가지려면
+ * 그 사이에 사람이 **알아야** 한다.
  */
 export const HIGH_RISK_ACTIONS: AuditAction[] = [
   'PAYOUT_EXECUTED',
   'REFUND_EXECUTED',
   'JUDGMENT_REVERTED',
+  'MANUAL_JUDGMENT',
   'BULK_REVERT',
   'PURCHASE_VOIDED',
   'JUDGMENT_PAUSE_SET',
@@ -109,4 +115,60 @@ export async function flushOpsAlerts(
   });
 
   return { sent: rows.length };
+}
+
+/**
+ * 하루에 이만큼 넘게 상한 환불이 나가면 알린다.
+ *
+ * 상한(14일) 환불은 정상 운영에서 **거의 0건**이다 — 시세를 못 구한 카드가 2주를
+ * 채우는 일이 드물기 때문. 그래서 문턱을 낮게 잡아도 소음이 되지 않고, 반대로
+ * 이 숫자가 두 자리로 뛰는 것은 언제나 무언가 고장 났다는 뜻이다.
+ */
+const HARD_CAP_SURGE_PER_DAY = 10;
+
+/**
+ * **조용히 대량으로 나가는 환불을 잡는다** (2026-08-15).
+ *
+ * 상한 환불은 사람이 실행하는 것이 아니라 시스템이 닫는 것이라 `REFUND_EXECUTED`
+ * 감사 기록이 남지 않는다 — 지시서만 만들어진다. 그래서 위의 고위험 알림 경로에
+ * 걸리지 않고, 회차당 20장씩 매 틱 조금씩 나가면 **총량은 일일 한도 안인데 아무도
+ * 지금 무슨 일이 벌어지는지 모른다.**
+ *
+ * 특히 자동 판정을 정지해 둔 동안 이것이 유일하게 계속 도는 경로다(상한은 구매자
+ * 약속이라 정지 중에도 집행한다 — judgmentBatch.sweepHardCappedWhilePaused).
+ * 정지가 길어질수록 조용히 늘어나는 구조라, 정지를 건 사람에게 그 사실이 돌아가야 한다.
+ *
+ * **알림이 요구하는 결정은 "정지를 풀까"가 아니다** — 고장 난 시세를 다시 들이마시는
+ * 것이 답일 수는 없다. 공지를 띄울까, 개별로 연락할까 쪽이다.
+ */
+export async function flushHardCapSurgeAlert(
+  prisma: PrismaClient,
+  now = new Date(),
+): Promise<{ alerted: boolean; count: number }> {
+  const from = new Date(now);
+  from.setHours(0, 0, 0, 0);
+
+  const count = await prisma.judgment.count({
+    where: { judgedAt: { gte: from }, dataSource: { startsWith: 'hard-cap' } },
+  });
+  if (count < HARD_CAP_SURGE_PER_DAY) return { alerted: false, count };
+
+  const paused = await prisma.judgment.count({
+    where: { judgedAt: { gte: from }, dataSource: 'hard-cap:paused' },
+  });
+
+  await notifyOperators(prisma, {
+    title: `상한 환불 급증: 오늘 ${count}건`,
+    body:
+      `시한 후 14일을 넘겨 자동으로 전액 환불된 카드가 오늘 ${count}건입니다` +
+      (paused > 0 ? ` (그중 ${paused}건은 자동 판정 정지 중 발생).` : '.') +
+      `\n판정을 못 한 원인이 아직 살아 있다는 뜻이고, 구매자에게는 이미 돈이 돌아가는 중입니다.` +
+      `\n정지를 푸는 것이 아니라 **공지·개별 연락**을 결정할 자리입니다.`,
+    link: '/admin/judgments',
+    type: 'OPS_ALERT',
+    // **하루 한 번** — 매 틱 같은 사실을 반복하면 그 자체가 소음이 된다
+    dedupeKey: `hardcap-surge:${from.toISOString().slice(0, 10)}`,
+  });
+
+  return { alerted: true, count };
 }

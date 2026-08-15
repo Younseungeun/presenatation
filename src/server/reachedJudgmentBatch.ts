@@ -94,7 +94,16 @@ export async function runReachedJudgmentBatch(
         card.targetValue = rebased.targetValue;
         console.log(`권리 사건 반영 ${card.ticker} (${card.id}): ${rebased.note}`);
       } else if (rebased) {
-        console.error(`권리 사건 감지·미반영 ${card.ticker} (${card.id}): ${rebased.note}`);
+        // **눈금이 어긋난 것을 알면서 적중을 확정하지 않는다** (2026-08-15).
+        // 여기서 나는 적중은 곧 리서처 지급 지시서라 방향이 반대여도 위험하다 —
+        // 2:1 분할 뒤의 하락 예측은 −50%로 읽혀 **없던 적중이 만들어진다.**
+        // 이 배치는 적중만 확정하므로 넘기는 것으로 충분하다(실패는 어차피 여기서
+        // 확정될 수 없고, 기한 판정 배치가 같은 이유로 이월시킨다)
+        console.error(
+          `권리 사건 감지·미반영 ${card.ticker} (${card.id}): ${rebased.note} — 도달 판정 건너뜀`,
+        );
+        summary.deferred++;
+        continue;
       }
     } catch (e) {
       console.error(`권리 사건 점검 실패 ${card.ticker} (${card.id}):`, e);

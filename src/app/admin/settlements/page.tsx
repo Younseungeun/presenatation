@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/server/db";
+import {
+  getCooldownHold,
+  SETTLEMENT_COOLDOWN_HOURS,
+} from "@/server/settlementCooldown";
 import { getPendingPayouts, getPendingRefunds } from "@/server/settlementOpsService";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
@@ -21,9 +25,10 @@ export default async function AdminSettlementsPage() {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role !== "OPERATOR") notFound();
 
-  const [refunds, payouts] = await Promise.all([
+  const [refunds, payouts, hold] = await Promise.all([
     getPendingRefunds(prisma),
     getPendingPayouts(prisma),
+    getCooldownHold(prisma),
   ]);
   const refundTotal = refunds.reduce((a, s) => a + s.buyerRefundKrw, 0);
   const payoutTotal = payouts.reduce((a, s) => a + s.researcherPayoutKrw, 0);
@@ -57,7 +62,26 @@ export default async function AdminSettlementsPage() {
             {payouts.length}건 · {payoutTotal.toLocaleString()}원
           </span>
         </div>
+        {/* **큐에서 빼는 것과 숨기는 것은 다르다.** 쿨다운 건은 누를 수 없으니 목록에
+            그리지 않지만, 존재까지 안 보이면 운영자가 "오늘 나갈 돈이 없다"고 착각한다 */}
+        {hold.count > 0 && (
+          <div className={styles.stat}>
+            <span className={styles.statLabel}>대기 중 ({SETTLEMENT_COOLDOWN_HOURS}시간)</span>
+            <span className={styles.statValue}>
+              {hold.count}건 · {hold.amountKrw.toLocaleString()}원
+            </span>
+          </div>
+        )}
       </div>
+
+      {hold.count > 0 && hold.nextExecutableAt && (
+        <p className={styles.sub}>
+          판정 직후 {SETTLEMENT_COOLDOWN_HOURS}시간은 되돌릴 수 있도록 에스크로에 묶어
+          둡니다 — 잘못된 판정에 돈이 먼저 나가면 되돌릴 방법이 없습니다. 가장 빠른 건이{" "}
+          {fmtDate(hold.nextExecutableAt)}에 풀립니다.{" "}
+          <Link href="/admin/judgments">지금이 되돌릴 수 있는 시간입니다 →</Link>
+        </p>
+      )}
 
       <h3>환불 지시서 (구매자 현금 환불)</h3>
       {refunds.length === 0 ? (

@@ -17,7 +17,7 @@ import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
 import { purgeOldNotifications } from '../src/server/opsAlert';
-import { flushOpsAlerts } from '../src/server/opsAlertFeed';
+import { flushHardCapSurgeAlert, flushOpsAlerts } from '../src/server/opsAlertFeed';
 import {
   anotherSchedulerMayBeRunning,
   BEAT_INTERVAL_MS,
@@ -303,6 +303,14 @@ function tick(): void {
   enqueue('고위험 작업 알림', async () => {
     const { sent } = await flushOpsAlerts(prisma, new Date());
     if (sent > 0) console.log(`고위험 작업 알림 ${sent}건 발송`);
+  });
+
+  // **시스템이 스스로 닫은 환불은 위 경로에 안 잡힌다** — 사람이 실행한 것이 아니라
+  // 감사 기록이 없기 때문. 회차당 조금씩 나가 총량이 한도 안이면 아무도 모르는
+  // 채로 대량 환불이 진행된다 (server/opsAlertFeed.flushHardCapSurgeAlert)
+  enqueue('상한 환불 급증 확인', async () => {
+    const { alerted, count } = await flushHardCapSurgeAlert(prisma, new Date());
+    if (alerted) console.warn(`상한 환불 급증 알림 발송 — 오늘 ${count}건`);
   });
 
   // ── 마감 직후 판정 (시장별) ─────────────────────────────

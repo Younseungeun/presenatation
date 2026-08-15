@@ -397,6 +397,7 @@ export async function judgeAndSettleDueCards(
   for (const card of dueCards) {
     // 정산이 걸린 자리라 권리 사건 반영이 더 중요하다 — 옛 눈금으로 채점하면
     // 점수·환불이 한꺼번에 틀린다 (도달 판정 배치와 같은 함수를 쓴다)
+    let unappliedAction: string | null = null;
     try {
       const rebased = await rebaseIfAdjusted(prisma, quotes, card, now);
       if (rebased?.applied) {
@@ -404,6 +405,7 @@ export async function judgeAndSettleDueCards(
         card.targetValue = rebased.targetValue;
         console.log(`권리 사건 반영 ${card.ticker} (${card.id}): ${rebased.note}`);
       } else if (rebased) {
+        unappliedAction = rebased.note;
         console.error(`권리 사건 감지·미반영 ${card.ticker} (${card.id}): ${rebased.note}`);
       }
     } catch (e) {
@@ -413,6 +415,24 @@ export async function judgeAndSettleDueCards(
     const judgeable = toJudgeableCard(card, card.report.publishedAt!);
 
     try {
+      // **눈금이 어긋난 것을 알면서 채점하지 않는다** (2026-08-15).
+      //
+      // 감지는 됐는데 교차검증(원주가 대조)이 통과하지 못한 상태다. 지금까지는 이걸
+      // 로그로만 남기고 **옛 기준가 그대로 판정했다** — 2:1 분할이면 −50% 폭락으로
+      // 읽혀 실패 판정이 나가고, 환불이 집행되면 리서처가 이의를 제기해도 돌려줄
+      // 돈이 없다. 우리가 이미 "뭔가 어긋났다"를 알고 있는 자리에서 나는 사고다.
+      //
+      // 이월하면 백오프 → 7일 뒤 운영자 큐 → 그래도 안 풀리면 14일 상한(전액 환불)로
+      // 이어진다. 사람이 권리 사건을 **미리 알고 있어야** 작동하는 도구를 따로 만드는
+      // 것보다, 모르는 채로도 돈이 잘못 나가지 않는 쪽이 먼저다
+      if (unappliedAction) {
+        throw new JudgmentDeferredError(
+          `권리 사건이 감지됐지만 반영하지 못했습니다 (${unappliedAction}) — ` +
+            `기준가 눈금이 어긋난 채로는 판정하지 않습니다`,
+          'DATA_NOT_AVAILABLE',
+        );
+      }
+
       const { result, audit, resolvedBasePrice } = await runJudgmentFromRegistry(
         judgeable,
         quotes,

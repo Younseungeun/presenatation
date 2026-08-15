@@ -7,6 +7,11 @@ import { judgeAndSettleDueCards } from '../judgmentBatch';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
 import {
+  getCooldownHold,
+  SETTLEMENT_COOLDOWN_HOURS,
+  SettlementCooldownError,
+} from '../settlementCooldown';
+import {
   executePayout,
   executeRefund,
   getPendingPayouts,
@@ -101,6 +106,65 @@ describe('지시서 조회', () => {
     const payouts = await getPendingPayouts(prisma);
     expect(payouts).toHaveLength(1);
     expect(payouts[0].researcherPayoutKrw).toBe(8_000);
+  });
+});
+
+// **되돌리기 도구는 돈이 남아 있을 때만 도구다.**
+//
+// 판정이 잘못됐다는 것을 알아도 정산이 이미 실행됐으면 되돌릴 돈이 없다. 그런데
+// 지금까지 그 창의 길이는 **운영자가 얼마나 빨리 클릭하느냐**였고, 큐가 오래된
+// 순이라 방금 만들어진 잘못된 정산이 오히려 맨 앞에 왔다.
+describe('정산 쿨다운', () => {
+  const RIGHT_AFTER = new Date(BATCH_NOW.getTime() + 60 * 60_000); // 판정 1시간 뒤
+
+  it('판정 직후에는 큐에 뜨지 않는다', async () => {
+    expect(await getPendingRefunds(prisma, RIGHT_AFTER)).toHaveLength(0);
+    expect(await getPendingPayouts(prisma, RIGHT_AFTER)).toHaveLength(0);
+
+    // 24시간이 지나면 그대로 나온다
+    expect(await getPendingRefunds(prisma, EXEC_NOW)).toHaveLength(1);
+    expect(await getPendingPayouts(prisma, EXEC_NOW)).toHaveLength(1);
+  });
+
+  // **목록 필터는 화면의 편의이고 이것이 집행이다** — API를 직접 부르는 경로
+  // (스크립트·자동화·탈취된 세션)는 목록을 거치지 않는다
+  it('큐를 건너뛰고 직접 불러도 거부한다 — 지급도 환불도', async () => {
+    const [payout] = await getPendingPayouts(prisma, EXEC_NOW);
+    await expect(
+      executePayout(
+        prisma,
+        { settlementId: payout.id, operatorUserId: OPERATOR, confirmedSettled: true },
+        RIGHT_AFTER,
+      ),
+    ).rejects.toBeInstanceOf(SettlementCooldownError);
+
+    const [refund] = await getPendingRefunds(prisma, EXEC_NOW);
+    await expect(
+      executeRefund(
+        prisma,
+        { settlementId: refund.id, operatorUserId: OPERATOR, method: 'BANK_TRANSFER', bankReference: 'X1' },
+        RIGHT_AFTER,
+      ),
+    ).rejects.toBeInstanceOf(SettlementCooldownError);
+
+    // 거부는 아무것도 실행하지 않는다
+    expect(
+      (await prisma.settlement.findUniqueOrThrow({ where: { id: payout.id } })).payoutExecutedAt,
+    ).toBeNull();
+  });
+
+  // **큐에서 빼는 것과 숨기는 것은 다르다** — 존재까지 안 보이면 운영자가
+  // "오늘 나갈 돈이 없다"고 착각한 채로 퇴근한다
+  it('묶인 금액은 요약으로 알린다 — 언제 풀리는지까지', async () => {
+    const hold = await getCooldownHold(prisma, RIGHT_AFTER);
+    expect(hold.count).toBe(2);
+    expect(hold.amountKrw).toBe(18_000); // 지급 8,000 + 환불 10,000
+    expect(hold.nextExecutableAt).toEqual(
+      new Date(BATCH_NOW.getTime() + SETTLEMENT_COOLDOWN_HOURS * 3_600_000),
+    );
+
+    // 풀리고 나면 묶인 것이 없다
+    expect((await getCooldownHold(prisma, EXEC_NOW)).count).toBe(0);
   });
 });
 

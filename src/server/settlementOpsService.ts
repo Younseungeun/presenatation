@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
 import { notifyOperators } from './opsAlert';
 import { assertWithinDailyLimit } from './payoutVelocity';
+import { assertCooldownPassed, cooldownCutoff } from './settlementCooldown';
 import { cancelTossPayment, TossPaymentError } from './tossPayments';
 
 // 정산 실행 콘솔 (운영자): 판정이 만든 환불·지급 지시서를 실행하고 기록한다.
@@ -50,10 +51,19 @@ const PENDING_INCLUDE = {
  *
  * 끝나지 않은 시도(PENDING)를 함께 싣는다. **화면은 그게 있으면 "새로 실행"을 막고
  * "재시도"만 내보내야 한다** — 새 실행은 새 멱등키로 나가 두 번 빠질 수 있다.
+ *
+ * **쿨다운이 안 끝난 건은 빼고 준다** (settlementCooldown). 오래된 순 정렬이라
+ * 아무 필터가 없으면 방금 만들어진 잘못된 배치의 정산이 오히려 큐 앞자리에 오는데,
+ * 그러면 되돌릴 시간이 가장 짧은 건이 가장 먼저 실행된다. 묶여 있는 건의 존재는
+ * `getCooldownHold`가 요약으로 알린다 — 큐에서 빼는 것과 숨기는 것은 다르다.
  */
-export function getPendingRefunds(prisma: PrismaClient) {
+export function getPendingRefunds(prisma: PrismaClient, now = new Date()) {
   return prisma.settlement.findMany({
-    where: { buyerRefundKrw: { gt: 0 }, refundExecutedAt: null },
+    where: {
+      buyerRefundKrw: { gt: 0 },
+      refundExecutedAt: null,
+      settledAt: { lte: cooldownCutoff(now) },
+    },
     include: {
       ...PENDING_INCLUDE,
       refundAttempts: { where: { status: 'PENDING' }, orderBy: { createdAt: 'asc' } },
@@ -69,11 +79,12 @@ export function getPendingRefunds(prisma: PrismaClient) {
  * 실행 단계에서 거부하는 것보다 **애초에 안 보이는 편**이 안전하다(환불 큐에서
  * 실행된 건을 빼는 것과 같은 규칙 — 누를 수 없는 것은 보이지도 않아야 한다).
  */
-export function getPendingPayouts(prisma: PrismaClient) {
+export function getPendingPayouts(prisma: PrismaClient, now = new Date()) {
   return prisma.settlement.findMany({
     where: {
       researcherPayoutKrw: { gt: 0 },
       payoutExecutedAt: null,
+      settledAt: { lte: cooldownCutoff(now) },
       // **열려 있는 것만** 뺀다 — 기각으로 끝난 이의까지 막으면 그 정산이 영원히 갇힌다
       NOT: { purchase: { judgmentDispute: { status: 'OPEN' } } },
     },
@@ -119,6 +130,13 @@ export async function executeRefund(
   if (!REFUND_METHODS.includes(input.method)) {
     throw new SettlementOpsError(`환불 방법이 유효하지 않습니다: ${input.method}`);
   }
+
+  // **판정 직후의 돈은 아직 우리 손에 있어야 한다** (settlementCooldown).
+  // 큐가 이미 걸러 주지만 여기서 한 번 더 본다 — 목록을 거치지 않는 호출 경로
+  // (스크립트·자동화·탈취된 세션)에는 목록 필터가 아무것도 아니다.
+  // 환불도 되돌릴 수 없다: 잘못된 실패 판정으로 돈이 나가면 구매자에게
+  // "다시 결제해 달라"고 할 수 없다
+  assertCooldownPassed(s.settledAt, now);
 
   // **환불도 나가는 돈이다** — 한도는 지급·환불 합계에 건다 (payoutVelocity).
   // 환불만 열어 두면 "전부 환불" 한 번으로 에스크로가 통째로 비는 길이 남는다
@@ -536,6 +554,15 @@ export async function executePayout(
         '지급이 나간 뒤에는 판정을 되돌릴 수 없습니다.',
     );
   }
+
+  // **판정 직후의 돈은 아직 우리 손에 있어야 한다** (settlementCooldown).
+  // 아래 PG 입금 지연(3일)과 목적이 다르다 — 저건 "우리에게 아직 안 들어온 돈"이고
+  // 이건 "판정이 틀렸을 수 있는 돈"이다. 그래서 확인 표시로 넘길 수 없다:
+  // 운영자가 토스 콘솔에서 확인할 수 있는 것은 입금이지 판정의 정확성이 아니다.
+  //
+  // **이의 확인보다 뒤에 둔다** — 둘 다 걸리면 더 쓸모 있는 메시지가 이겨야 한다.
+  // "24시간 기다려라"를 보고 기다려 봐야 그다음에 이의 거부를 만난다
+  assertCooldownPassed(s.settledAt, now);
 
   // **아직 우리에게 오지 않았을 수 있는 돈을 내주지 않는다** (PG_SETTLEMENT_LAG_DAYS)
   // **하루에 나갈 수 있는 총액을 묶는다** (payoutVelocity).

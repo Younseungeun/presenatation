@@ -4,6 +4,8 @@ import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { createDraftReport, publishReport } from '../reportService';
 import { rebaseIfAdjusted } from '../corporateActionService';
+import { judgeAndSettleDueCards } from '../judgmentBatch';
+import { purchaseReport } from '../purchaseService';
 import { createTestDb, seedTestInstruments } from './helpers/testDb';
 
 // 액면분할 반영 — 앵커(게시일 종가)가 달라졌으면 그 배수로 카드를 옮긴다.
@@ -17,6 +19,8 @@ const DEADLINE = new Date('2026-10-01T00:00:00Z');
 
 let prisma: PrismaClient;
 let researcherId: string;
+let researcher2Id: string;
+let buyerId: string;
 
 /** 게시일 종가 100 — 앵커가 이 값으로 남는다 */
 function registry(): ProviderRegistry {
@@ -36,11 +40,15 @@ function splitRegistry(): ProviderRegistry {
   return { CRYPTO: p };
 }
 
-async function publish(targetType: 'TARGET_PRICE' | 'RETURN_PCT', targetValue: number) {
+async function publish(
+  targetType: 'TARGET_PRICE' | 'RETURN_PCT',
+  targetValue: number,
+  who = researcherId,
+) {
   const draft = await createDraftReport(
     prisma,
     {
-      researcherId,
+      researcherId: who,
       title: 't',
       summary: 's',
       content: 'c',
@@ -60,7 +68,7 @@ async function publish(targetType: 'TARGET_PRICE' | 'RETURN_PCT', targetValue: n
     },
     DRAFT,
   );
-  await publishReport(prisma, registry(), draft.id, researcherId, PUBLISH);
+  await publishReport(prisma, registry(), draft.id, who, PUBLISH);
   return prisma.predictionCard.findFirstOrThrow({ where: { reportId: draft.id } });
 }
 
@@ -76,6 +84,16 @@ beforeAll(async () => {
     include: { researcherProfile: true },
   });
   researcherId = user.researcherProfile!.id;
+  buyerId = (await prisma.user.create({ data: { email: 'b@ca.io', identityVerified: true } })).id;
+  const user2 = await prisma.user.create({
+    data: {
+      email: 'ca2@e.io',
+      identityVerified: true,
+      researcherProfile: { create: { tier: 'CHALLENGER' } },
+    },
+    include: { researcherProfile: true },
+  });
+  researcher2Id = user2.researcherProfile!.id;
 });
 
 afterAll(async () => {
@@ -164,5 +182,53 @@ describe('사건이 없으면 아무것도 하지 않는다', () => {
     } as unknown as ProviderRegistry;
     expect(await rebaseIfAdjusted(prisma, spy, noAnchor, new Date())).toBeNull();
     expect(called).toBe(false);
+  });
+});
+
+// **눈금이 어긋난 것을 알면서 채점하지 않는다** (2026-08-15).
+//
+// 지금까지 이 경로는 로그만 남기고 **옛 기준가 그대로 판정했다.** 2:1 분할이면
+// −50% 폭락으로 읽혀 실패 판정이 나가고, 환불이 집행되면 리서처가 이의를 제기해도
+// 돌려줄 돈이 없다. 우리가 이미 "뭔가 어긋났다"를 아는 자리에서 나는 사고다.
+//
+// 사람이 권리 사건을 **미리 알고 있어야** 작동하는 도구를 만드는 것보다,
+// 모르는 채로도 돈이 잘못 나가지 않는 쪽이 먼저다.
+describe('반영하지 못한 권리 사건은 판정을 멈춘다', () => {
+  /** 배수가 허용 범위 밖 — 감지는 되지만 반영하지 않는다 (applied: false) */
+  function wildRegistry(): ProviderRegistry {
+    const p = new FixtureMarketDataProvider().setCurrentPrice(TICKER, 0.5);
+    p.setQuotes(TICKER, [
+      { date: '2026-07-02', open: 0.5, high: 0.5, low: 0.5, close: 0.5, volume: 1 },
+      { date: '2026-10-01', open: 0.5, high: 0.5, low: 0.5, close: 0.5, volume: 1 },
+    ]);
+    return { CRYPTO: p };
+  }
+
+  it('감지됐지만 미반영이면 판정하지 않고 이월한다 — 환불도 지급도 없다', async () => {
+    const card = await publish('TARGET_PRICE', 130, researcher2Id);
+    await purchaseReport(prisma, card.reportId, buyerId, new Date('2026-07-03T00:00:00Z'));
+
+    const out = await rebaseIfAdjusted(prisma, wildRegistry(), card, new Date('2026-07-20T00:00:00Z'));
+    expect(out?.applied).toBe(false); // 감지는 됐다
+
+    const summary = await judgeAndSettleDueCards(
+      prisma,
+      wildRegistry(),
+      new Date('2026-10-02T00:00:00Z'),
+      'CRYPTO',
+    );
+    expect(summary.deferred).toBeGreaterThan(0);
+    expect(summary.failed).toBe(0); // 버그가 아니라 의도된 이월이다
+
+    // 판정도 정산도 만들어지지 않았다 — 에스크로는 그대로다
+    expect(await prisma.judgment.count({ where: { predictionCardId: card.id } })).toBe(0);
+    expect(
+      await prisma.settlement.count({ where: { purchase: { reportId: card.reportId } } }),
+    ).toBe(0);
+
+    // 이월이므로 백오프가 걸린다 — 7일이 지나면 운영자 큐로, 14일이면 전액 환불로 간다
+    const after = await prisma.predictionCard.findUniqueOrThrow({ where: { id: card.id } });
+    expect(after.deferCount).toBeGreaterThan(0);
+    expect(after.nextAttemptAt).not.toBeNull();
   });
 });
