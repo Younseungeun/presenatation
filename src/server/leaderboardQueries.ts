@@ -16,6 +16,8 @@ interface JudgmentRow {
     assetClass: string;
     direction: string;
     basePrice: number | null;
+    /** 팔린 카드인가 — 구매 건수로 판단 (domain/trackRecord.stakedHitRate) */
+    report?: { _count?: { purchases: number } };
   };
 }
 
@@ -26,6 +28,7 @@ function toJudgedPrediction(j: JudgmentRow): JudgedPrediction {
     basePrice: j.predictionCard.basePrice ?? 0,
     settledPrice: j.settledPrice ?? undefined,
     judgedAt: j.judgedAt,
+    sold: (j.predictionCard.report?._count?.purchases ?? 0) > 0,
   };
 }
 
@@ -86,7 +89,9 @@ export async function getLeaderboard(
           assetClass: true,
           direction: true,
           basePrice: true,
-          report: { select: { researcherId: true } },
+          report: {
+            select: { researcherId: true, _count: { select: { purchases: true } } },
+          },
         },
       },
     },
@@ -198,7 +203,9 @@ export async function getAllTimeRanking(
           assetClass: true,
           direction: true,
           basePrice: true,
-          report: { select: { researcherId: true } },
+          report: {
+            select: { researcherId: true, _count: { select: { purchases: true } } },
+          },
         },
       },
     },
@@ -251,21 +258,22 @@ export async function getPublicProfile(
       user: { select: { penName: true, email: true } },
       reports: {
         orderBy: { publishedAt: 'desc' },
-        include: { predictionCard: { include: { judgment: true } } },
+        include: {
+          predictionCard: { include: { judgment: true } },
+          // 팔린 카드를 가르는 값 — 행을 끌어오지 않고 개수만 (trackRecord.stakedHitRate)
+          _count: { select: { purchases: true } },
+        },
       },
     },
   });
   if (!profile) return null;
 
-  const judgedCards = profile.reports
-    .map((r) => r.predictionCard)
-    .filter((c) => c?.judgment) as Array<
-    NonNullable<(typeof profile.reports)[number]['predictionCard']>
-  >;
+  const judgedReports = profile.reports.filter((r) => r.predictionCard?.judgment);
 
   // 자산군별 트랙레코드
   const byAsset = new Map<AssetClass, JudgedPrediction[]>();
-  for (const c of judgedCards) {
+  for (const r of judgedReports) {
+    const c = r.predictionCard!;
     const list = byAsset.get(c.assetClass as AssetClass) ?? [];
     list.push({
       outcome: c.judgment!.outcome as Outcome,
@@ -273,6 +281,7 @@ export async function getPublicProfile(
       basePrice: c.basePrice ?? 0,
       settledPrice: c.judgment!.settledPrice ?? undefined,
       judgedAt: c.judgment!.judgedAt,
+      sold: r._count.purchases > 0,
     });
     byAsset.set(c.assetClass as AssetClass, list);
   }

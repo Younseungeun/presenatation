@@ -2,6 +2,7 @@ import Link from "next/link";
 import { hitRateLabel } from "@/domain/trackRecord";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
+import { JUDGMENT_BASIS_NOTE } from "@/domain/crossCheck";
 import { cardProfitabilityLevel } from "@/domain/profitability";
 import { cardStabilityLevel } from "@/domain/stability";
 import { prisma } from "@/server/db";
@@ -117,6 +118,19 @@ export default async function PublicProfile({
                 <div className={styles.statLabel}>표본 수</div>
                 <div className={styles.statValue}>{tr.sampleSize}</div>
               </div>
+              {/*
+                **돈이 걸린 예측만의 적중률** — 전체 적중률과 나란히 둔다 (2026-08-15).
+                안 팔린 카드는 틀려도 환불도 항의도 없다. 예측으로서는 진짜지만
+                (같은 규칙으로 자동 판정되고 점수에도 들어간다) 구매자가 "이 사람을
+                믿을까"를 판단할 때 무게가 같을 수 없다. 감추지 않고 갈라 놓는다
+              */}
+              <div className={styles.stat}>
+                <div className={styles.statLabel}>돈이 걸린 예측</div>
+                <div className={styles.statValue}>
+                  {hitRateLabel(tr.stakedHitRate, tr.stakedSampleSize, { none: "—" })}
+                </div>
+                <div className={styles.statSub}>{tr.stakedSampleSize}건 판매</div>
+              </div>
               <div className={styles.stat}>
                 <div className={styles.statLabel}>최근 12개월</div>
                 <div className={styles.statValue}>
@@ -133,6 +147,17 @@ export default async function PublicProfile({
               </div>
             </div>
             <TrackRecordChart points={pointsByAsset.get(tr.assetClass) ?? []} />
+            {/*
+              두 각주는 성격이 다르다: 앞은 **표본의 무게**, 뒤는 **판정의 원천**이다.
+              둘 다 감추면 감사 기록에만 있는 사실이 되고, 구매자는 그것을 볼 수 없다
+            */}
+            <p className={styles.footnote}>
+              적중률은 판정된 모든 카드로 셉니다. <b>돈이 걸린 예측</b>은 그중 실제로
+              팔린 카드만 따로 센 값입니다 — 팔린 카드가 틀리면 리서처는 대금을 잃습니다.
+            </p>
+            <p className={styles.footnote}>
+              판정 기준: {JUDGMENT_BASIS_NOTE[tr.assetClass as AssetClass]}
+            </p>
           </div>
         ))
       )}

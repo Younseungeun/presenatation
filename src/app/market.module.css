@@ -170,6 +170,12 @@
   margin-top: 4px;
   letter-spacing: -0.02em;
 }
+/* 값 아래 한 줄 — 값의 뜻을 좁히는 단서(표본 수 등)를 라벨과 다른 무게로 적는다 */
+.statSub {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
 
 .section {
   font-size: 15px;
@@ -235,6 +241,18 @@
 .cardRow:last-child {
   border-bottom: none;
 }
+/* 트랙레코드 각주 — 표본의 무게(팔린 카드)와 판정의 원천(자산군별 소스) */
+.footnote {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-faint);
+}
+.footnote b {
+  color: var(--text);
+  font-weight: 700;
+}
+
 /* 별점 읽는 법 각주 — 별점 줄들 바로 아래, 표의 일부처럼 낮게 */
 .cardFootnote {
   margin: 0;

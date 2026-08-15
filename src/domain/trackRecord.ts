@@ -15,6 +15,13 @@ export interface JudgedPrediction {
   basePrice: number;
   settledPrice?: number;
   judgedAt: Date;
+  /**
+   * 이 카드가 **팔렸는가** (구매 1건 이상) — 2026-08-15 추가.
+   *
+   * 없으면(undefined) 팔린 것으로 세지 않는다. 옛 호출부가 조용히 전부 "걸린 카드"로
+   * 잡히는 것보다 **덜 세는 쪽**이 안전하기 때문이다.
+   */
+  sold?: boolean;
 }
 
 export interface TrackRecord {
@@ -28,6 +35,30 @@ export interface TrackRecord {
   verifying: boolean;
   /** "전부 따라 샀을 때" 균등 비중 가상 포트폴리오 수익률 (%) */
   hypotheticalReturnPct: number | null;
+  /**
+   * **돈이 걸린 카드만의 표본·적중률** (2026-08-15 — 외부 검토 D-1의 지적을 일반화).
+   *
+   * ── 왜 나눠야 하는가 ────────────────────────────────────────
+   * 검토는 "무료 실적 카드는 틀려도 현실의 타격이 0이라 유료 카드와 같은 눈금에 두면
+   * 안 된다"고 했다. 맞는 지적인데, **범위가 틀렸다** — 그 성질은 무료 카드의 것이 아니라
+   * **안 팔린 카드**의 것이다. 지금도 아무도 안 산 유료 카드는 환불도, 구매자 항의도,
+   * 평판 손상도 **하나도 일어나지 않는다.** 값을 매겨 진열만 해 두면 무료 카드와
+   * 경제적으로 완전히 같다.
+   *
+   * 그래서 이 구멍은 실적 전용 카드가 여는 것이 아니라 **이미 열려 있다.** 가격표가
+   * 아니라 **구매 여부**로 갈라야 한다.
+   *
+   * ── 무엇이 다른가 ──────────────────────────────────────────
+   * 팔린 카드가 틀리면 리서처는 대금을 잃고(성과 연동 환불), 구매자에게 기록이 남고,
+   * 이의 제기의 대상이 된다. 안 팔린 카드가 틀리면 아무 일도 없다.
+   * **구매자가 "이 사람을 믿을까"를 판단할 때 무게가 같을 수 없다.**
+   *
+   * 전체 적중률을 없애지 않는 이유: 안 팔린 카드도 **예측으로서는 진짜다**(같은 규칙으로
+   * 자동 판정되고 점수·규율 래더에 그대로 들어간다). 숨기면 표본이 줄어 신규 리서처가
+   * 영원히 "검증 중"에 갇힌다. 나란히 놓는 것이 맞다.
+   */
+  stakedSampleSize: number;
+  stakedHitRate: number | null;
 }
 
 /** 방향 반영 실현 수익률(%): 하락 예측이 맞으면 양수가 되도록 부호를 뒤집는다 */
@@ -55,12 +86,23 @@ export function computeTrackRecord(predictions: JudgedPrediction[], now = new Da
   const hypotheticalReturnPct =
     returns.length > 0 ? returns.reduce((a, b) => a + b, 0) / returns.length : null;
 
+  // **돈이 걸린 카드만** 따로 센다 — 안 팔린 카드는 틀려도 현실의 대가가 0이라
+  // 구매자가 "이 사람을 믿을까"를 판단할 때 무게가 같을 수 없다 (TrackRecord 주석)
+  const staked = judged.filter((p) => p.sold === true);
+  const stakedSampleSize = staked.length;
+  const stakedHitRate =
+    stakedSampleSize > 0
+      ? staked.filter((p) => p.outcome === 'HIT').length / stakedSampleSize
+      : null;
+
   return {
     sampleSize,
     hitRate,
     recentHitRate,
     verifying: sampleSize < MIN_SAMPLE_FOR_VERIFIED,
     hypotheticalReturnPct,
+    stakedSampleSize,
+    stakedHitRate,
   };
 }
 
