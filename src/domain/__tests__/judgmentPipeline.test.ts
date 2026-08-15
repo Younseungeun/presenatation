@@ -45,7 +45,9 @@ describe('runJudgment', () => {
   it('정상 종목인데 시세 결측 → 소스 지연으로 보고 이월 (오판정 방지)', async () => {
     await expect(runJudgment(baseCard, providerWithQuotes([]), NOW)).rejects.toMatchObject({
       name: 'JudgmentDeferredError',
-      reason: 'DATA_NOT_AVAILABLE',
+      // 빈 배열은 DATA_NOT_AVAILABLE의 특수한 갈래로 따로 센다 — 예외가 안 나서
+      // 다른 어떤 감시에도 안 걸리는 유일한 실패 모양이라 (judgmentBatch.emptyRange)
+      reason: 'EMPTY_RANGE',
     });
   });
 

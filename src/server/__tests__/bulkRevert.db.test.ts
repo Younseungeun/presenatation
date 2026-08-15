@@ -6,6 +6,7 @@ import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { getAuditTrail } from '../auditLog';
 import {
   BulkRevertRefused,
+  clearManualOnlyForRange,
   executeBulkRevert,
   pauseAndBulkRevert,
   planBulkRevert,
@@ -387,5 +388,53 @@ describe('멈추고 되돌린다 — 한 절차', () => {
 
     expect(r.pauseScope).toBe('ALL');
     expect(await isJudgmentPaused(prisma, 'KR_EQUITY')).toBe(true); // 안 건드린 자산군도 멈춘다
+  });
+});
+
+// **되돌린 뒤 자동 판정으로 되돌아가는 길** (리허설이 찾은 두 번째 결함).
+//
+// 되돌리기는 카드에 `manualJudgmentOnly`를 세워 자동 배치에서 빼는데, 그 표시를 내리는
+// 경로가 **어디에도 없었다.** 공급자가 고쳐져도 100장을 한 장씩 손으로 판정하는 것이
+// 유일한 길이었고, 그건 되돌리기 자체가 없는 것과 같은 막다른 골목이다.
+//
+// 이 함수는 **표시만 내린다 — 판정하지 않는다.** 판정은 다음 배치의 몫이고, 그래야
+// "지금 시세가 옳은가"의 판단(사람)과 "그 시세로 매기기"(기계)가 갈라진 채로 남는다.
+describe('되돌린 카드를 자동 판정으로 되돌린다', () => {
+  const CLEAR_RANGE = {
+    revertedFrom: new Date('2026-08-01T00:00:00Z'),
+    revertedTo: new Date('2026-08-31T00:00:00Z'),
+    assetClass: 'CRYPTO' as const,
+  };
+
+  it('무엇을 확인했는지 안 적으면 거부한다 — 정지 해제와 같은 판단이다', async () => {
+    await expect(
+      clearManualOnlyForRange(prisma, CLEAR_RANGE, { operatorUserId: operatorId, reason: '  ' }),
+    ).rejects.toBeInstanceOf(BulkRevertRefused);
+  });
+
+  it('표시를 내리고 백오프도 함께 지운다 (되돌아온 카드가 하루를 더 기다리지 않게)', async () => {
+    const before = await prisma.predictionCard.findFirstOrThrow({ where: { ticker: 'KRW-BR1' } });
+    expect(before.manualJudgmentOnly).toBe(true);
+
+    const r = await clearManualOnlyForRange(prisma, CLEAR_RANGE, {
+      operatorUserId: operatorId,
+      reason: '업비트 종가가 정정된 것을 확인했습니다',
+    });
+    expect(r.cardIds).toContain(before.id);
+
+    const after = await prisma.predictionCard.findUniqueOrThrow({ where: { id: before.id } });
+    expect(after.manualJudgmentOnly).toBe(false);
+    expect(after.deferCount).toBe(0);
+    expect(after.nextAttemptAt).toBeNull();
+    // **판정하지는 않았다** — 표시를 내리는 것과 다시 매기는 것은 다른 결정이다
+    expect(await prisma.judgment.findUnique({ where: { predictionCardId: before.id } })).toBeNull();
+  });
+
+  it('두 번 돌려도 아무 일도 없다 (이미 내려간 표시를 다시 내리지 않는다)', async () => {
+    const r = await clearManualOnlyForRange(prisma, CLEAR_RANGE, {
+      operatorUserId: operatorId,
+      reason: '재실행',
+    });
+    expect(r.cleared).toBe(0);
   });
 });

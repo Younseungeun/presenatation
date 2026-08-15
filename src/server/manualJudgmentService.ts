@@ -147,9 +147,14 @@ export async function manualJudgeCard(
   if (!card.report.publishedAt || !['PUBLISHED', 'CLOSED'].includes(card.report.status)) {
     throw new ManualJudgmentError('게시된 리포트의 카드만 판정할 수 있습니다');
   }
-  // **자동 판정이 우선이다** — 배치가 아직 시도할 여지가 있으면 사람이 끼어들지 않는다
+  // **자동 판정이 우선이다** — 배치가 아직 시도할 여지가 있으면 사람이 끼어들지 않는다.
+  //
+  // 단 `manualJudgmentOnly`면 이 대기가 뜻을 잃는다 (2026-08-15): 그 카드는 자동 배치의
+  // 조회에서 통째로 빠져 있어 **기다려도 아무도 시도하지 않는다.** 시세 소스 간 판정
+  // 불일치로 올라온 카드가 특히 그렇다 — 시한 직후에 즉시 큐에 뜨는데 7일 동안 화면에서
+  // 보이기만 하고 눌리지 않았다. 우선권을 줄 상대가 없는 자리에서의 대기는 지연일 뿐이다.
   const staleDays = (now.getTime() - card.deadline.getTime()) / 86_400_000;
-  if (staleDays < STALE_DEFER_DAYS) {
+  if (!card.manualJudgmentOnly && staleDays < STALE_DEFER_DAYS) {
     throw new ManualJudgmentError(
       `자동 판정 우선 — 시한 경과 ${STALE_DEFER_DAYS}일 미만 카드는 수동 판정할 수 없습니다`,
     );

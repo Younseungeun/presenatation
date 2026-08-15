@@ -6,6 +6,11 @@ import {
   runJudgmentFromRegistry,
 } from '@/domain/judgmentPipeline';
 import type { ProviderRegistry } from '@/domain/marketData';
+import {
+  JudgmentDisagreementError,
+  resolveCrossCheckMode,
+  type CrossCheckMode,
+} from '@/domain/crossCheck';
 import { scoreJudgedCard } from '@/domain/scoring';
 import { toJudgeableCard } from './cardMapper';
 import { rebaseIfAdjusted } from './corporateActionService';
@@ -18,6 +23,16 @@ import { isJudgmentPaused } from './judgmentPause';
 // - 멱등성: Judgment.predictionCardId unique — 재실행해도 중복 판정 불가
 // - 데이터 미도달: 이월 (deferred) — 다음 배치가 다시 시도
 // - 이월이 STALE_DEFER_DAYS를 넘는 카드는 운영자 보류 큐 대상 (manualJudgmentService)
+
+/** 소스 하나에 대한 빈 배열 집계 (BatchSummary.emptyRange) */
+export interface EmptyRangeStat {
+  /** 이번 회차에 이 소스로 판정을 시도한 카드 수 */
+  attempted: number;
+  /** 그중 구간 시세가 **빈 배열**로 온 카드 수 */
+  empty: number;
+  /** 빈 배열이 반복되는 종목 (같은 종목이 계속이면 소스가 아니라 종목의 문제다) */
+  stuckTickers: string[];
+}
 
 export interface BatchSummary {
   judged: number;
@@ -47,6 +62,27 @@ export interface BatchSummary {
    */
   providerDown: Map<string, number>;
   /**
+   * **두 시세 소스가 서로 다른 판정을 냈다** (domain/crossCheck, 2026-08-15).
+   *
+   * 이월과 따로 세는 이유는 **기다려도 낫지 않기 때문**이다. 다음 회차도, 그다음 회차도
+   * 같은 두 값을 받아 같은 두 결론을 낸다. 그래서 이 카드는 백오프 사다리를 타지 않고
+   * 곧장 **수동 판정 큐**로 간다 — 사람이 두 시세를 나란히 놓고 보는 것이 유일하게
+   * 답이 있는 경로다.
+   */
+  disagreed: string[];
+  /**
+   * **공급자가 200 OK로 빈 배열을 준 카드** — 소스별 집계 (2026-08-15).
+   *
+   * 이것만 따로 세는 이유: 빈 배열은 **예외를 던지지 않는다.** 공급자 장애 감지에도,
+   * 이상값 필터에도, 실패 통계에도 걸리지 않고 그냥 "이월"로 조용히 흘러간다.
+   * 한 장이면 정상(그날 봉이 아직 안 올라옴)이고, 무더기로 나면 **판정과 정산이
+   * 통째로 선 채 아무 신호가 없는 상태**다.
+   *
+   * `attempted`를 함께 세는 이유는 비율만으로도 건수만으로도 판단이 안 되기 때문이다
+   * (scripts/runScheduler의 문턱 참고).
+   */
+  emptyRange: Map<string, EmptyRangeStat>;
+  /**
    * 이번 회차에서 마지막으로 손댄 카드의 위치 — **다음 회차의 커서다.**
    *
    * 왜 개수가 아니라 커서인가: 이월된 카드는 Judgment 행이 안 생겨 다음 조회에도
@@ -65,6 +101,41 @@ export interface BatchSummary {
 
 /** 이월이 이 일수를 넘으면 운영자 보류 큐 대상 */
 export const STALE_DEFER_DAYS = 7;
+
+/**
+ * **빈 배열 대량 발생 알림의 문턱** — 비율과 건수를 **둘 다** 넘어야 울린다 (2026-08-15).
+ *
+ * 어느 한쪽만 쓰면 둘 다 틀린다:
+ *  · **비율만** — 그날 만기가 비인기 자산군에 2장뿐이었고 둘 다 비면 100%다.
+ *    플랫폼의 위기가 아니라 그냥 조용한 날인데 P1이 울린다
+ *  · **건수만** — 만기 10,000장 중 50장이 비면 0.5%다. 문턱을 50에 두면 작은 소스의
+ *    전면 장애(20장 중 20장)를 놓치고, 5에 두면 큰 날마다 울린다
+ *
+ * 그래서 **소스별로** 비율 ≥ 50% **그리고** 건수 ≥ 5. 소스별인 이유는 사고의 단위가
+ * 소스이기 때문이다 — 업비트가 멀쩡한데 KIS가 죽은 날 전체 비율은 아무것도 말하지 않는다.
+ *
+ * 그리고 이 조건이 못 잡는 갈래가 하나 더 있다: **소수 종목이 계속 비는 경우**
+ * (0.5%의 그 50장). 비율로도 건수로도 안 걸리지만 그 종목의 카드는 영영 판정되지 않는다.
+ * → `EMPTY_RANGE_STREAK`회 이상 이월된 종목은 비율과 무관하게 이름을 올린다.
+ */
+export const EMPTY_RANGE_RATIO = 0.5;
+export const EMPTY_RANGE_MIN_CARDS = 5;
+export const EMPTY_RANGE_STREAK = 3;
+
+/** 알림을 울려야 하는 소스만 골라 낸다 (scripts/runScheduler가 쓴다) */
+export function emptyRangeAlerts(
+  emptyRange: Map<string, EmptyRangeStat>,
+): { sourceId: string; stat: EmptyRangeStat; bulk: boolean }[] {
+  const out: { sourceId: string; stat: EmptyRangeStat; bulk: boolean }[] = [];
+  for (const [sourceId, stat] of emptyRange) {
+    const bulk =
+      stat.empty >= EMPTY_RANGE_MIN_CARDS &&
+      stat.attempted > 0 &&
+      stat.empty / stat.attempted >= EMPTY_RANGE_RATIO;
+    if (bulk || stat.stuckTickers.length > 0) out.push({ sourceId, stat, bulk });
+  }
+  return out;
+}
 
 /**
  * 한 회차에 처리할 카드 수 상한.
@@ -231,9 +302,16 @@ async function isDelisted(
  * 그래서 원인 구분(DATA / ERROR)을 할 수 없고 `hard-cap:paused`로 따로 적는다.
  * 나중에 "왜 못 쟀나"를 물으면 답이 "우리가 멈춰 두는 동안 시한이 지났다"여야 한다.
  */
-async function sweepHardCappedWhilePaused(
+async function sweepHardCapped(
   prisma: PrismaClient,
   now: Date,
+  /**
+   * 어느 사각지대를 쓸는가. 둘 다 **자동 배치의 조회에서 빠져 있어** 상한이 닿지 못하던
+   * 카드다 — 원인은 다르지만 구매자 쪽에서 보면 똑같이 "돈이 묶인 채 아무 일도 안 일어남"이다.
+   *  · `PAUSED`      운영자가 판정을 멈춰 둔 동안 시한 후 14일이 지난 카드
+   *  · `MANUAL_ONLY` 사람만 판정하도록 표시됐는데 아무도 손대지 않은 카드
+   */
+  scope: 'PAUSED' | 'MANUAL_ONLY',
   assetClass?: AssetClass,
 ): Promise<BatchSummary> {
   const capBefore = new Date(now.getTime() - JUDGMENT_HARD_CAP_DAYS * 86_400_000);
@@ -242,7 +320,7 @@ async function sweepHardCappedWhilePaused(
       judgment: null,
       ...(assetClass ? { assetClass } : {}),
       deadline: { lte: capBefore },
-      manualJudgmentOnly: false,
+      manualJudgmentOnly: scope === 'MANUAL_ONLY',
       report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
     },
     include: {
@@ -266,6 +344,8 @@ async function sweepHardCappedWhilePaused(
     blockedInstruments: [],
     failures: [],
     providerDown: new Map(),
+    disagreed: [],
+    emptyRange: new Map(),
     cursor: null,
     hasMore: false,
   };
@@ -281,14 +361,17 @@ async function sweepHardCappedWhilePaused(
           realizedReturnPct: null,
           score: 0, // 판정 불가는 표본에서 빠진다 — 리서처의 적중률이 깎이지 않는다 (§2.2)
           info: 0, // 증거도 없다 — 규율 래더에 들어가면 안 된다
-          dataSource: 'hard-cap:paused',
+          dataSource: scope === 'PAUSED' ? 'hard-cap:paused' : 'hard-cap:manual-only',
           audit: {
             hardCap: true,
-            cause: 'PAUSED',
+            cause: scope,
             overdueDays: Math.floor(overdueDays),
             reason:
-              `자동 판정이 정지된 동안 시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나 ` +
-              '전액 환불로 닫았습니다 (구매자와의 시한 약속은 정지와 무관합니다)',
+              scope === 'PAUSED'
+                ? `자동 판정이 정지된 동안 시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나 ` +
+                  '전액 환불로 닫았습니다 (구매자와의 시한 약속은 정지와 무관합니다)'
+                : `사람이 판정하도록 표시된 채 시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나 ` +
+                  '전액 환불로 닫았습니다 (수동 큐에 있다는 사실은 시한 약속을 미루지 못합니다)',
             judgedAt: now.toISOString(),
           },
           resolvedBasePrice: null,
@@ -297,8 +380,9 @@ async function sweepHardCappedWhilePaused(
       ),
     );
     summary.judged++;
-    summary.hardCapped.push(`${card.ticker} (${card.id}): 정지 중 ${Math.floor(overdueDays)}일 초과`);
-    console.warn(`정지 중 판정 상한 도달 ${card.ticker} (${card.id}) — 판정 불가·전액 환불`);
+    const label = scope === 'PAUSED' ? '정지 중' : '수동 큐에서';
+    summary.hardCapped.push(`${card.ticker} (${card.id}): ${label} ${Math.floor(overdueDays)}일 초과`);
+    console.warn(`${label} 판정 상한 도달 ${card.ticker} (${card.id}) — 판정 불가·전액 환불`);
   }
 
   // **종목을 막지는 않는다** — 판정 못 한 원인이 그 종목이 아니라 우리 정지이기 때문이다.
@@ -323,6 +407,12 @@ export async function judgeAndSettleDueCards(
    * 없으면(테스트·수동 경로) 검사 없이 돈다.
    */
   fence?: () => Prisma.PrismaPromise<unknown>,
+  /**
+   * 판정 교차검증용 두 번째 소스 레지스트리 (infra/marketData/createSecondaryRegistry).
+   * 없으면 검증 없이 판정하고, 없었다는 사실만 감사 스냅샷에 남는다.
+   */
+  secondaryRegistry?: ProviderRegistry,
+  crossCheckMode: CrossCheckMode = resolveCrossCheckMode(),
 ): Promise<BatchSummary> {
   // **사람이 멈춰 뒀으면 판정하지 않는다** (server/judgmentPause).
   // 시세 오류로 되돌리는 중에 배치가 깨어나면 같은 고장 난 데이터로 다시 오판정하고,
@@ -337,8 +427,17 @@ export async function judgeAndSettleDueCards(
   // (정지 기간을 상한에서 빼는 안은 기각했다 — 그건 플랫폼 사정으로 구매자 돈을 더
   //  묶어 두는 것이고, 카드마다 유효 시간이 찢어져 "언제 끝나는가"를 아무도 못 답한다)
   if (await isJudgmentPaused(prisma, assetClass)) {
-    return sweepHardCappedWhilePaused(prisma, now, assetClass);
+    return sweepHardCapped(prisma, now, 'PAUSED', assetClass);
   }
+
+  // **수동 큐에 넣어 둔 카드에도 상한은 살아 있어야 한다** (2026-08-15).
+  //
+  // `manualJudgmentOnly`는 아래 조회에서 통째로 빠지므로, 사람이 손대지 않으면
+  // **상한이 영영 닿지 않는다** — 정지 스위치가 만들었던 결함과 정확히 같은 모양이다.
+  // 그때 내린 결론이 여기에도 그대로 적용된다: 왜 못 재는지는 구매자 사정이 아니다.
+  // 운영자에게는 시한 후 14일이 주어지고(큐 등재 + 매일 알림), 그래도 비면 시스템이
+  // 닫는다. 다르게 두면 "판정 불가로 닫힐 수도 없는 카드"라는 칸이 생긴다.
+  const manualOnlyCapped = await sweepHardCapped(prisma, now, 'MANUAL_ONLY', assetClass);
 
   // HELD 구매까지 한 번에 조회 — 카드별 개별 쿼리(N+1) 제거
   const where: Prisma.PredictionCardWhereInput = {
@@ -393,14 +492,18 @@ export async function judgeAndSettleDueCards(
   const quotes = memoizeRegistry(registry);
 
   const summary: BatchSummary = {
-    judged: 0,
+    // 수동 큐 상한 처리분을 이어받는다 — 같은 회차의 같은 종류(판정 불가·전액 환불)라
+    // 따로 보고하면 운영자가 한 회차를 두 번 읽어야 한다
+    judged: manualOnlyCapped.judged,
     deferred: 0,
     failed: 0,
     staleDeferred: [],
-    hardCapped: [],
+    hardCapped: [...manualOnlyCapped.hardCapped],
     blockedInstruments: [],
     failures: [],
     providerDown: new Map(),
+    disagreed: [],
+    emptyRange: new Map(),
     cursor:
       dueCards.length > 0
         ? {
@@ -411,7 +514,22 @@ export async function judgeAndSettleDueCards(
     hasMore: dueCards.length === JUDGE_BATCH_SIZE,
   };
 
+  /** 소스별 빈 배열 집계 — 없으면 만들어 준다 */
+  const statFor = (assetClassOfCard: string): EmptyRangeStat => {
+    const src = registry[assetClassOfCard as AssetClass]?.sourceId ?? assetClassOfCard;
+    let stat = summary.emptyRange.get(src);
+    if (!stat) {
+      stat = { attempted: 0, empty: 0, stuckTickers: [] };
+      summary.emptyRange.set(src, stat);
+    }
+    return stat;
+  };
+
   for (const card of dueCards) {
+    // 시도한 카드를 먼저 센다 — **분모가 없으면 빈 배열 몇 건이 사고인지 알 수 없다.**
+    // 시도 전에 세는 이유는 중간에 어디로 빠져나가도 분모가 빠지지 않게 하려는 것
+    statFor(card.assetClass).attempted++;
+
     // 정산이 걸린 자리라 권리 사건 반영이 더 중요하다 — 옛 눈금으로 채점하면
     // 점수·환불이 한꺼번에 틀린다 (도달 판정 배치와 같은 함수를 쓴다)
     let unappliedAction: string | null = null;
@@ -454,6 +572,8 @@ export async function judgeAndSettleDueCards(
         judgeable,
         quotes,
         now,
+        secondaryRegistry,
+        crossCheckMode,
       );
       const basePrice = resolvedBasePrice ?? card.basePrice;
 
@@ -497,6 +617,29 @@ export async function judgeAndSettleDueCards(
       const providerDown = e instanceof ProviderUnavailableError;
       const deferred = e instanceof JudgmentDeferredError;
       const message = e instanceof Error ? e.message : String(e);
+
+      // ── 두 소스가 다른 답을 냈다 → **곧장 사람에게** (2026-08-15) ──────────
+      //
+      // 아래의 이월·상한 사다리를 타지 않는다. 그 사다리는 "기다리면 데이터가 온다"를
+      // 전제로 백오프 → 7일 큐 → 14일 환불로 이어지는데, 여기서는 **기다림이 아무것도
+      // 바꾸지 않는다.** 다음 회차도 같은 두 값을 받아 같은 두 결론을 낸다. 그 길을
+      // 그대로 태우면 결말이 "판정 불가·전액 환불"로 정해져 있고, 그건 **맞혔을지도
+      // 모르는 리서처에게서 대금을 뺏는** 방향이다.
+      //
+      // 상장폐지 판별보다 먼저 오는 이유: 여기까지 왔다는 것은 **두 소스 모두 시세를
+      // 줬다**는 뜻이다. 시세 결측을 전제로 하는 판별을 돌릴 이유가 없다.
+      //
+      // 상한은 여전히 살아 있다 — 수동 큐로 옮겨도 sweepHardCapped('MANUAL_ONLY')가
+      // 14일에 닫는다. 사람에게 넘기는 것과 구매자를 무기한 기다리게 하는 것은 다르다.
+      if (e instanceof JudgmentDisagreementError) {
+        await prisma.predictionCard.update({
+          where: { id: card.id },
+          data: { manualJudgmentOnly: true },
+        });
+        summary.disagreed.push(`${card.ticker} (${card.id}): ${message}`);
+        console.error(`시세 소스 간 판정 불일치 ${card.ticker} (${card.id}):`, message);
+        continue;
+      }
 
       {
         // **상장폐지 판별** — 시세가 안 오는 것만으로는 폐지인지 일시적 결측인지 모른다.
@@ -602,6 +745,17 @@ export async function judgeAndSettleDueCards(
 
         if (deferred) {
           summary.deferred++;
+          // **200 OK + 빈 배열은 따로 센다.** 예외가 안 나서 다른 어떤 감시에도 안 걸리는
+          // 유일한 실패 모양이라, 여기서 세지 않으면 영원히 "평범한 이월"로 보인다
+          if ((e as JudgmentDeferredError).reason === 'EMPTY_RANGE') {
+            const stat = statFor(card.assetClass);
+            stat.empty++;
+            // 같은 종목이 반복해서 비면 소스 전체가 아니라 **그 종목**의 문제다
+            // (티커 변경·상장폐지 직전). 비율 알림이 못 잡는 갈래라 따로 모은다
+            if (deferCount >= EMPTY_RANGE_STREAK && !stat.stuckTickers.includes(card.ticker)) {
+              stat.stuckTickers.push(card.ticker);
+            }
+          }
           const staleDays = (now.getTime() - card.deadline.getTime()) / 86_400_000;
           // 자동 재시도를 다 쓴 카드는 **날짜와 무관하게** 사람에게 넘긴다 —
           // 시한 직후에 연달아 실패한 카드가 7일을 기다릴 이유가 없다

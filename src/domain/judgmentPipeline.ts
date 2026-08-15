@@ -14,6 +14,13 @@ import {
 } from './marketData';
 import { isOutsideCalendarCoverage } from './marketCalendar';
 import { EQUITY_REGULAR_CLOSE } from './publishReport';
+import {
+  crossCheckJudgment,
+  JudgmentDisagreementError,
+  resolveCrossCheckMode,
+  type CrossCheckMode,
+  type CrossCheckReport,
+} from './crossCheck';
 
 // 예측 카드 1건의 판정 파이프라인: 데이터 조회 → 스냅샷 조립 → 판정.
 // DB 저장·정산 실행은 호출자(배치 잡) 책임 — 이 모듈은 부수효과 없이 결과만 만든다.
@@ -46,7 +53,17 @@ export class ProviderUnavailableError extends Error {
 export class JudgmentDeferredError extends Error {
   constructor(
     message: string,
-    readonly reason: 'DEADLINE_NOT_REACHED' | 'DATA_NOT_AVAILABLE',
+    /**
+     * `EMPTY_RANGE`는 DATA_NOT_AVAILABLE의 특수한 갈래다 — **공급자가 200 OK로 빈 배열을
+     * 줬다.** 처리는 같지만(이월) **감시가 다르다**: 이건 예외가 나지 않아 공급자 장애
+     * 감지(ProviderUnavailableError)에도, 이상값 필터에도 걸리지 않는 **유일하게 조용한
+     * 실패**다. 한 장이면 "그날 봉이 아직 안 올라왔다"는 정상이지만, 한 소스에서 무더기로
+     * 나면 스펙 변경이나 부분 장애이고 그동안 판정·정산이 통째로 선다.
+     *
+     * 사유를 나누는 이유는 **문자열 매칭을 피하려는 것**이다. 메시지로 가르면 문구를
+     * 다듬는 순간 감시가 조용히 꺼진다.
+     */
+    readonly reason: 'DEADLINE_NOT_REACHED' | 'DATA_NOT_AVAILABLE' | 'EMPTY_RANGE',
   ) {
     super(message);
     this.name = 'JudgmentDeferredError';
@@ -73,6 +90,14 @@ export interface JudgmentAudit {
   fetchedAt: string;
   quotes: DailyQuote[];
   securityStatus: SecurityStatus;
+  /**
+   * 두 번째 소스가 같은 결론에 이르렀는가 (domain/crossCheck).
+   *
+   * **합의했을 때도 남긴다.** 이의가 들어온 뒤 되물어야 하는 것은 "그 판정에 증인이
+   * 있었는가"이고, 없었다는 사실 자체가 답의 일부다. 교차검증을 켜기 전에 나간 판정은
+   * 이 칸이 없으므로(undefined) 시점 구분도 여기서 된다.
+   */
+  crossCheck?: CrossCheckReport;
 }
 
 export interface PipelineResult {
@@ -144,13 +169,63 @@ function findImplausibleBar(
 }
 
 /**
+ * 두 번째 소스로 판정을 다시 매겨 결론을 대조한다. **조회 실패는 삼킨다** —
+ * 교차검증은 판정의 보조 장치라, 보조가 죽었다고 본체가 멈추면 안 된다.
+ * (주 소스의 실패는 정반대로 다룬다 — ProviderUnavailableError로 판정 자체를 멈춘다)
+ */
+async function runCrossCheck(
+  card: JudgeableCard,
+  basePrice: number,
+  result: JudgmentResult,
+  windowQuotes: DailyQuote[],
+  deadlineDate: string,
+  secondary: MarketDataProvider,
+): Promise<CrossCheckReport> {
+  const base = {
+    sourceId: secondary.sourceId,
+    primaryOutcome: result.outcome,
+    secondaryOutcome: null,
+    maxCloseDeviation: null,
+  };
+  let secondaryQuotes: DailyQuote[];
+  try {
+    // 주 소스가 **실제로 판정에 쓴 구간**을 그대로 묻는다 — 이름뿐인 게시일이 아니라
+    // 기준봉 제외까지 끝난 뒤의 첫 날짜여야 두 판정이 같은 질문에 답한다
+    secondaryQuotes = await secondary.getDailyQuotes(
+      card.ticker,
+      windowQuotes[0].date,
+      deadlineDate,
+    );
+  } catch (e) {
+    return {
+      ...base,
+      status: 'SOURCE_ERROR',
+      detail: e instanceof Error ? e.message : String(e),
+    };
+  }
+
+  return crossCheckJudgment({
+    prediction: { ...card, basePrice },
+    primaryResult: result,
+    primaryQuotes: windowQuotes,
+    secondaryQuotes,
+    secondarySourceId: secondary.sourceId,
+    deadlineDate,
+  });
+}
+
+/**
  * 카드 1건을 판정한다.
  * @throws JudgmentDeferredError 시한 미도래 또는 시한 당일 데이터 미공개 시 (배치 이월)
+ * @throws JudgmentDisagreementError 교차검증(enforce)이 결론을 뒤집었을 때 (수동 판정 큐)
  */
 export async function runJudgment(
   card: JudgeableCard,
   provider: MarketDataProvider,
   now = new Date(),
+  /** 판정 교차검증용 두 번째 소스 (없으면 검증하지 않고 그 사실을 감사에 남긴다) */
+  secondary?: MarketDataProvider,
+  mode: CrossCheckMode = resolveCrossCheckMode(),
 ): Promise<PipelineResult> {
   if (now < card.deadline) {
     throw new JudgmentDeferredError(
@@ -243,7 +318,7 @@ export async function runJudgment(
     if (windowQuotes.length === 0) {
       throw new JudgmentDeferredError(
         `${card.ticker}: ${publishDate}~${deadlineDate} 판정 구간 시세 없음 (소스 지연 가능)`,
-        'DATA_NOT_AVAILABLE',
+        'EMPTY_RANGE',
       );
     }
 
@@ -262,23 +337,72 @@ export async function runJudgment(
   const snapshot = buildMarketSnapshot(windowQuotes, securityStatus, deadlineDate);
   // basePrice가 null인 채 남는 경우(거래정지·상폐 소급 카드)는 상태 기반 UNDECIDABLE로 처리됨
   const result = judge({ ...card, basePrice: basePrice ?? 0 }, snapshot);
-  return {
-    result,
-    resolvedBasePrice: retroactive ? basePrice : null,
-    audit: {
-      dataSource: provider.sourceId,
-      fetchedAt: now.toISOString(),
-      quotes,
-      securityStatus,
-    },
+
+  // ── 두 번째 증인에게 같은 질문을 한다 (domain/crossCheck) ──────────────
+  // 판정 불가(UNDECIDABLE)는 묻지 않는다: 그 결론의 근거는 종목 상태나 결측이고,
+  // 둘 다 가격만 아는 두 번째 소스가 답할 수 있는 질문이 아니다. 그리고 판정 불가는
+  // **전액 환불**로 끝나 잘못돼도 돈이 잘못된 사람에게 가지 않는다 — 이 장치가 지키려는
+  // 것은 "적중인데 실패로", "실패인데 적중으로" 두 방향뿐이다.
+  let crossCheck: CrossCheckReport | undefined;
+  if (mode !== 'off' && result.outcome !== 'UNDECIDABLE' && windowQuotes.length > 0) {
+    crossCheck = secondary
+      ? await runCrossCheck(
+          card,
+          basePrice ?? 0,
+          result,
+          windowQuotes,
+          deadlineDate,
+          secondary,
+        )
+      : {
+          status: 'NO_SECONDARY',
+          sourceId: null,
+          primaryOutcome: result.outcome,
+          secondaryOutcome: null,
+          maxCloseDeviation: null,
+        };
+  }
+
+  const audit: JudgmentAudit = {
+    dataSource: provider.sourceId,
+    fetchedAt: now.toISOString(),
+    quotes,
+    securityStatus,
+    ...(crossCheck ? { crossCheck } : {}),
   };
+
+  // **그림자 모드에서는 기록만 하고 판정을 막지 않는다.** 검증되지 않은 두 번째 소스에
+  // 정산을 멈출 권한을 주면, 티커 표기 하나가 어긋난 날 그 자산군 전체가 보류로 간다
+  if (crossCheck?.status === 'DISAGREED') {
+    if (mode === 'enforce') throw new JudgmentDisagreementError(crossCheck);
+    console.warn(
+      `[교차검증·그림자] ${card.ticker}: 주 ${crossCheck.primaryOutcome} / ` +
+        `${crossCheck.sourceId} ${crossCheck.secondaryOutcome} — 판정은 주 소스로 진행합니다`,
+    );
+  }
+
+  return { result, resolvedBasePrice: retroactive ? basePrice : null, audit };
 }
 
-/** 배치 잡 진입점: 자산군에 맞는 공급자를 레지스트리에서 선택해 판정 */
+/**
+ * 배치 잡 진입점: 자산군에 맞는 공급자를 레지스트리에서 선택해 판정.
+ *
+ * 두 번째 레지스트리는 **자산군이 비어 있어도 된다** — resolveProvider가 아니라 직접
+ * 꺼내는 이유가 그것이다. 주 소스는 없으면 판정이 성립하지 않아 던져야 맞지만,
+ * 두 번째 소스는 없는 것이 정상 상태다(계약 전 자산군).
+ */
 export async function runJudgmentFromRegistry(
   card: JudgeableCard,
   registry: ProviderRegistry,
   now = new Date(),
+  secondaryRegistry?: ProviderRegistry,
+  mode: CrossCheckMode = resolveCrossCheckMode(),
 ): Promise<PipelineResult> {
-  return runJudgment(card, resolveProvider(registry, card.assetClass), now);
+  return runJudgment(
+    card,
+    resolveProvider(registry, card.assetClass),
+    now,
+    secondaryRegistry?.[card.assetClass],
+    mode,
+  );
 }

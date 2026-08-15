@@ -6,7 +6,7 @@ import { isJustAfterClose, isMarketOpen, isTradingDay, marketToday } from '../sr
 import { coverageEndsIn, holidayName } from '../src/domain/marketCalendar';
 import { BatchLockBusy, withBatchLock, type BatchFence } from '../src/server/batchLock';
 import { backupDatabase } from '../src/server/dbBackup';
-import { createDefaultRegistry } from '../src/infra/marketData/registry';
+import { createDefaultRegistry, createSecondaryRegistry } from '../src/infra/marketData/registry';
 import { toRiskLevel, type RiskLevel } from '../src/domain/instrumentRisk';
 import { fetchUsHalts, fetchUsListings, financialStatusRisk } from '../src/infra/marketData/nasdaqTrader';
 import { setInstrumentRisk, syncAllInstruments } from '../src/server/instrumentService';
@@ -30,7 +30,12 @@ import { sweepStuckRefundAttempts } from '../src/server/settlementOpsService';
 import { recalcSeasonTiers } from '../src/server/seasonRecalcService';
 import { syncKrCardInstrumentRisk } from '../src/server/krRiskSync';
 import { healMissingCardData } from '../src/server/cardDataHealer';
-import { JUDGMENT_HARD_CAP_DAYS, STALE_DEFER_DAYS } from '../src/server/judgmentBatch';
+import {
+  emptyRangeAlerts,
+  EMPTY_RANGE_STREAK,
+  JUDGMENT_HARD_CAP_DAYS,
+  STALE_DEFER_DAYS,
+} from '../src/server/judgmentBatch';
 
 // 배치 스케줄러 — npm run scheduler (상시 실행 프로세스)
 //
@@ -50,6 +55,10 @@ import { JUDGMENT_HARD_CAP_DAYS, STALE_DEFER_DAYS } from '../src/server/judgment
 
 const prisma = new PrismaClient();
 const registry = createDefaultRegistry();
+// 판정 교차검증용 두 번째 소스 (domain/crossCheck). 지금은 코인만 채워져 있고,
+// 기본 모드가 `shadow`라 결론이 갈려도 기록만 남는다 — 검증되지 않은 소스에
+// 정산을 멈출 권한을 주지 않는다. CROSS_CHECK_MODE=enforce로 올린다
+const secondaryRegistry = createSecondaryRegistry();
 
 const TICK_MS = 60_000;
 const QUOTE_INTERVAL_MS = 2 * 60_000;
@@ -198,7 +207,15 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
   //
   // **커서가 없으면 이월 카드가 앞자리를 영구히 막는다** — 이월은 Judgment를 안 만들어
   // 다음 조회에도 그대로 잡히기 때문이다. 그러면 뒤의 멀쩡한 카드가 영영 판정되지 않는다
-  const due = await judgeAndSettleDueCards(prisma, registry, new Date(), assetClass, undefined, lock.fence);
+  const due = await judgeAndSettleDueCards(
+    prisma,
+    registry,
+    new Date(),
+    assetClass,
+    undefined,
+    lock.fence,
+    secondaryRegistry,
+  );
   let chunks = 1;
   while (due.hasMore && due.cursor && chunks < MAX_JUDGE_CHUNKS && !stopping) {
     const next = await judgeAndSettleDueCards(
@@ -208,6 +225,7 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
       assetClass,
       due.cursor,
       lock.fence,
+      secondaryRegistry,
     );
     due.judged += next.judged;
     due.deferred += next.deferred;
@@ -216,6 +234,21 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
     due.hardCapped.push(...next.hardCapped);
     due.blockedInstruments.push(...next.blockedInstruments);
     due.failures.push(...next.failures);
+    due.disagreed.push(...next.disagreed);
+    // 빈 배열 집계는 **회차를 합쳐야 비율이 의미를 갖는다** — 20장씩 끊어 보면
+    // 분모가 작아 우연히 100%가 나오는 회차가 생긴다
+    for (const [src, stat] of next.emptyRange) {
+      const acc = due.emptyRange.get(src);
+      if (!acc) {
+        due.emptyRange.set(src, stat);
+        continue;
+      }
+      acc.attempted += stat.attempted;
+      acc.empty += stat.empty;
+      for (const t of stat.stuckTickers) {
+        if (!acc.stuckTickers.includes(t)) acc.stuckTickers.push(t);
+      }
+    }
     due.cursor = next.cursor ?? due.cursor;
     due.hasMore = next.hasMore;
     chunks += 1;
@@ -280,6 +313,53 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
         lines.join('\n'),
       '/admin/judgments',
       `judge:provider:${assetClass}`,
+    );
+  }
+
+  // **두 시세 소스가 다른 답을 냈다** (2026-08-15, domain/crossCheck).
+  //
+  // 다른 알림과 성격이 다르다: 나머지는 "판정을 못 했다"인데 이건 **"판정을 했는데
+  // 어느 쪽이 맞는지 모른다"**다. 그리고 이 상태가 뜻하는 것은 둘 중 하나이고 둘 다
+  // 나쁘다 — 한 소스가 틀렸거나(그 소스로 나간 **과거 판정들도 의심스럽다**),
+  // 값이 목표선을 사이에 두고 갈릴 만큼 아슬아슬한 카드거나.
+  //
+  // 카드는 이미 수동 판정 큐에 올라가 있고 즉시 판정할 수 있다. 방치하면 시한 후
+  // 14일에 시스템이 전액 환불로 닫는다 — 리서처가 맞혔더라도 0점이 된다.
+  if (due.disagreed.length > 0) {
+    await alertOps(
+      `[P0] 시세 소스 간 판정 불일치 ${due.disagreed.length}건 — 사람이 판정해야 합니다`,
+      `두 시세 소스가 같은 카드에 다른 결론을 냈습니다. 자동 판정을 멈추고 수동 큐에 올렸습니다.\n` +
+        `두 소스의 일봉을 나란히 놓고 어느 쪽이 맞는지 확인한 뒤 판정하세요.\n` +
+        `한쪽 소스가 틀린 것으로 드러나면 **그 소스로 나간 최근 판정들도 함께 봐야 합니다.**\n` +
+        `${JUDGMENT_HARD_CAP_DAYS}일 안에 손대지 않으면 전액 환불로 닫힙니다.\n` +
+        due.disagreed.slice(0, 10).join('\n'),
+      '/admin/judgments',
+      `judge:disagree:${assetClass}`,
+    );
+  }
+
+  // **200 OK + 빈 배열 — 예외가 없어 아무 감시에도 안 걸리던 실패** (2026-08-15).
+  //
+  // 지금까지 이건 평범한 "이월"로 흘러가 며칠 뒤 정차 알림(7일)이 잡았다. 그 7일 동안
+  // 신규 판정과 정산이 통째로 서고 에스크로가 묶인다 — 돈이 묶인 고객에게 일주일은
+  // 서비스를 떠나기에 충분한 시간이라, 인프라 장애(5xx)와 같은 등급으로 올린다.
+  for (const { sourceId, stat, bulk } of emptyRangeAlerts(due.emptyRange)) {
+    const pct = stat.attempted > 0 ? Math.round((stat.empty / stat.attempted) * 100) : 0;
+    await alertOps(
+      bulk
+        ? `[P1] ${sourceId}: 판정 대상의 ${pct}%가 빈 시세 (${stat.empty}/${stat.attempted}건)`
+        : `[확인] ${sourceId}: 같은 종목의 시세가 계속 비어 있습니다 (${stat.stuckTickers.length}종목)`,
+      (bulk
+        ? `공급자가 오류 없이 **빈 배열**을 주고 있습니다 — 장애가 아니라 스펙 변경이나 ` +
+          `부분 중단일 수 있습니다. 그동안 판정과 정산이 서고 에스크로가 묶입니다.\n` +
+          `소스의 응답을 직접 확인하세요 (npm run smoke:market).\n`
+        : `소스 전체는 정상인데 특정 종목만 계속 비어 있습니다 — 티커 변경·거래 중단·` +
+          `상장폐지 직전일 수 있습니다. 비율 알림에는 걸리지 않는 갈래입니다.\n`) +
+        (stat.stuckTickers.length > 0
+          ? `${EMPTY_RANGE_STREAK}회 이상 반복: ${stat.stuckTickers.slice(0, 20).join(', ')}`
+          : ''),
+      '/admin/judgments',
+      `judge:empty:${sourceId}:${bulk ? 'bulk' : 'stuck'}`,
     );
   }
 
