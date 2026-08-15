@@ -273,6 +273,26 @@ export const MAX_DEFER_ATTEMPTS = DEFER_BACKOFF_MS.length;
 export const JUDGMENT_HARD_CAP_DAYS = 14;
 
 /**
+ * **어떤 유예도 넘지 못하는 절대 시한** (2026-08-16, 외부 검토 E-2).
+ *
+ * ── 유예가 쌓이는 구멍 ──────────────────────────────────────────────
+ * 정지 중 상한 유예는 사고 하나당 최대 25시간이다(탐침 62분 + 하드락 24시간).
+ * 그런데 **정지가 풀렸다 다시 걸리면 유예도 새로 시작한다.** 공급자가 30분마다
+ * 흔들리면(flapping) 사고가 계속 새로 나고, 그때마다 상한이 뒤로 밀린다 —
+ * 구매자의 환불 시각이 **무한정 미뤄질 수 있는 경로**가 열려 있었다.
+ *
+ * 유예 하나하나에는 끝이 있는데 **합에는 끝이 없었다**는 것이 결함의 정확한 모양이다.
+ *
+ * ── 그래서 카드마다 절대 시한을 둔다 ────────────────────────────────
+ * 시한 후 16일이 지나면 **회복 절차와 무관하게** 상한이 집행된다. 14일이 아니라
+ * 16일인 이유는 사고 한 번이 쓸 수 있는 유예(약 하루)에 여유를 더한 값이기 때문이다 —
+ * 정상적인 사고 한 번은 유예를 다 쓰고도 이 선에 안 닿고, **반복되는 사고만** 닿는다.
+ *
+ * 원칙: **자동 회복의 권한보다 에스크로 정산 시한 약속이 위에 있다.**
+ */
+export const JUDGMENT_ABSOLUTE_CAP_DAYS = 16;
+
+/**
  * 같은 종목이 이만큼 상한에 걸리면 **그 종목의 신규 게시를 막는다**.
  *
  * 상한은 구매자를 구하지만 원인을 고치지는 않는다 — 시세를 못 구하는 종목은 다음 카드도
@@ -379,7 +399,21 @@ async function sweepHardCapped(
   scope: 'PAUSED' | 'MANUAL_ONLY',
   assetClass?: AssetClass,
 ): Promise<BatchSummary> {
-  const capBefore = new Date(now.getTime() - JUDGMENT_HARD_CAP_DAYS * 86_400_000);
+  // **유예는 상한을 건너뛰는 것이 아니라 문턱을 올린다** (2026-08-16, 외부 검토 E-2).
+  //
+  // 처음에는 유예 중이면 스윕을 통째로 건너뛰었다. 그러면 공급자가 흔들릴 때마다
+  // 사고가 새로 나고 유예도 새로 시작해 **상한이 무한정 밀린다** — 유예 하나하나에는
+  // 끝이 있는데 합에는 끝이 없었다.
+  //
+  // 지금은 유예가 살아 있어도 스윕은 돈다. 다만 문턱이 14일에서 **16일로 올라간다**:
+  //   14~16일 카드 → 회복을 기다린다 (정상적인 사고 한 번은 여기서 풀린다)
+  //   16일 초과    → 회복 절차와 무관하게 닫는다 (반복되는 사고만 여기 닿는다)
+  const delayed =
+    scope === 'PAUSED' && assetClass
+      ? await shouldDelayHardCap(prisma, assetClass, now)
+      : false;
+  const capDays = delayed ? JUDGMENT_ABSOLUTE_CAP_DAYS : JUDGMENT_HARD_CAP_DAYS;
+  const capBefore = new Date(now.getTime() - capDays * 86_400_000);
   const cards = await prisma.predictionCard.findMany({
     where: {
       judgment: null,
@@ -416,15 +450,8 @@ async function sweepHardCapped(
     hasMore: false,
   };
 
-  // **막 걸린 시스템 정지에는 짧은 유예를 준다** (crossCheckRecovery.PAUSE_GRACE_MS).
-  //
-  // 시한 13.9일째 카드가 있는데 소스 파손으로 정지가 걸리면, 2분 뒤 탐침이 성공해도
-  // 그 전에 상한이 돌아 **정상 적중할 수 있었던 카드를 전액 환불로 닫는다.**
-  // 유예의 길이는 "자동 회복이 끝까지 갈 수 있는 시간"(62분)으로 못 박혀 있어
-  // 구매자 약속은 14일 + 1시간으로 사실상 그대로다. **사람이 건 정지에는 유예가 없다.**
-  if (scope === 'PAUSED' && assetClass && (await shouldDelayHardCap(prisma, assetClass, now))) {
-    console.log(`${assetClass}: 시스템 정지 직후라 상한 집행을 잠시 미룹니다 (자동 회복 대기)`);
-    return summary;
+  if (delayed && cards.length === 0) {
+    console.log(`${assetClass}: 회복을 기다리는 중 — ${JUDGMENT_HARD_CAP_DAYS}일 상한을 미뤘습니다`);
   }
 
   for (const card of cards) {

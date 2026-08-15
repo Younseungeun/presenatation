@@ -8,6 +8,7 @@ import {
   EMPTY_RANGE_MIN_CARDS,
   EMPTY_RANGE_STREAK,
   JUDGMENT_HARD_CAP_DAYS,
+  JUDGMENT_ABSOLUTE_CAP_DAYS,
   judgeAndSettleDueCards,
   shouldHaltOnDisagreement,
   DISAGREEMENT_HALT_MIN,
@@ -913,6 +914,95 @@ describe('하드락 유예 — 하루를 주되 무기한은 아니다', () => {
     expect(r.hardLocked).toBe(true);
     expect(r.checked).toBe(0); // 두 소스가 다시 일치해도 두드리지 않는다
     expect(r.resumed).toBe(false);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
+  });
+});
+
+// **유예의 합에도 끝이 있어야 한다** (2026-08-16, 외부 검토 E-2).
+//
+// 유예 하나하나에는 끝이 있었다(탐침 62분, 하드락 24시간). 그런데 정지가 풀렸다
+// 다시 걸리면 유예도 새로 시작하므로, 공급자가 30분마다 흔들리면 **상한이 무한정
+// 밀린다** — 구매자의 환불 시각에 사실상 상한이 없었다.
+//
+// 이제 유예는 상한을 건너뛰지 않고 **문턱을 14일에서 16일로 올릴 뿐**이다.
+describe('절대 시한 — 흔들리는 소스가 상한을 무한정 밀지 못하게', () => {
+  const FLAP_TICKER = 'KRW-FL1';
+
+  it('유예 중이어도 절대 시한을 넘긴 카드는 닫힌다', async () => {
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 준비',
+    });
+    await seedTestInstruments(prisma, [
+      { assetClass: 'CRYPTO', ticker: FLAP_TICKER, name: FLAP_TICKER, shortable: true },
+    ]);
+    const reportId = await publishCard(FLAP_TICKER);
+
+    // 시한 후 17일 — 절대 시한(16일)을 넘겼다
+    const wayLate = new Date(DEADLINE.getTime() + (JUDGMENT_ABSOLUTE_CAP_DAYS + 1) * 86_400_000);
+    // 그런데 **방금** 사고가 나서 유예가 살아 있다 (소스가 계속 흔들린 결과)
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: SYSTEM_PAUSE_ACTOR,
+      reason: '시험: 방금 또 흔들림',
+    });
+    await beginRecovery(prisma, 'CRYPTO', [], wayLate);
+
+    const summary = await judgeAndSettleDueCards(
+      prisma,
+      sourceAt(FLAP_TICKER, HIT_CLOSE),
+      wayLate,
+      'CRYPTO',
+    );
+    // 유예가 살아 있어도 절대 시한을 넘겼으므로 닫는다
+    expect(summary.hardCapped.length).toBeGreaterThan(0);
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { reportId } });
+    const j = await prisma.judgment.findUniqueOrThrow({ where: { predictionCardId: card.id } });
+    expect(j.undecidableReason).toBe('DATA_UNAVAILABLE');
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
+  });
+
+  it('절대 시한 전이면 유예가 그대로 듣는다 (정상적인 사고 한 번은 여기서 풀린다)', async () => {
+    const OK_TICKER = 'KRW-FL2';
+    await seedTestInstruments(prisma, [
+      { assetClass: 'CRYPTO', ticker: OK_TICKER, name: OK_TICKER, shortable: true },
+    ]);
+    const reportId = await publishCard(OK_TICKER);
+
+    // 시한 후 15일 — 14일 상한은 넘었지만 절대 시한(16일) 전이다
+    const between = new Date(DEADLINE.getTime() + 15 * 86_400_000);
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: SYSTEM_PAUSE_ACTOR,
+      reason: '시험: 유예 중',
+    });
+    await beginRecovery(prisma, 'CRYPTO', [], between);
+
+    const summary = await judgeAndSettleDueCards(
+      prisma,
+      sourceAt(OK_TICKER, HIT_CLOSE),
+      between,
+      'CRYPTO',
+    );
+    expect(summary.hardCapped).toHaveLength(0);
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { reportId } });
+    expect(await prisma.judgment.findUnique({ where: { predictionCardId: card.id } })).toBeNull();
 
     await setJudgmentPause(prisma, {
       scope: 'CRYPTO',

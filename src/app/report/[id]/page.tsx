@@ -12,6 +12,8 @@ import {
   type SalesNoticeState,
 } from "@/domain/salesWindow";
 import { prisma } from "@/server/db";
+import { isJudgmentPaused } from "@/server/judgmentPause";
+import { JUDGMENT_ABSOLUTE_CAP_DAYS } from "@/server/judgmentBatch";
 import { getReportDetail } from "@/server/leaderboardQueries";
 import { getResearcherCallout } from "@/server/marketQueries";
 import { PAYMENT_METHOD_LABEL } from "@/server/purchaseService";
@@ -80,9 +82,28 @@ export default async function ReportDetail({
   const refundStarted = purchase?.settlement?.refundAttempts.some(
     (a) => a.status === "PENDING" || a.status === "SUCCEEDED",
   );
+  // **판정이 밀리고 있다는 사실을 감추지 않는다** (2026-08-16).
+  //
+  // 두 시세 소스가 갈려 자동 판정을 세운 동안, 구매자 화면에는 종전대로 "판정 대기"만
+  // 떴다. 그런데 이 상태는 하루가 넘을 수 있고, **에스크로에 돈이 묶인 채 아무 설명이
+  // 없는 것**이 이 서비스에서 가장 비싼 침묵이다 — 구매자가 가장 두려워하는 것이
+  // "플랫폼이 자기 사정으로 판정을 미루거나 주무르는 것"이기 때문이다.
+  //
+  // 문구는 **장애가 아니라 검증으로** 적는다. 사실이 그렇다: 우리는 한 소스가 틀렸을
+  // 가능성을 보고 멈춘 것이고, 그대로 판정하는 것보다 멈추는 편이 구매자에게 낫다.
+  // 그리고 **끝나는 시각을 함께 적는다** — "언제 끝나는가"에 답이 없는 지연이
+  // 불신을 만든다 (유예의 상한이 코드로 정해져 있으므로 지킬 수 있는 약속이다).
+  const judgmentDelayed =
+    purchase?.escrowStatus === "HELD" &&
+    card !== null &&
+    !judgment &&
+    (await isJudgmentPaused(prisma, card.assetClass as AssetClass));
+
   const purchaseStatus: { label: string; status: StatusKind } | null = purchase
     ? purchase.escrowStatus === "HELD"
-      ? { label: "판정 대기 · 에스크로 보관 중", status: "VERIFYING" }
+      ? judgmentDelayed
+        ? { label: "시세 정밀 검증 중 · 에스크로 보관 중", status: "VERIFYING" }
+        : { label: "판정 대기 · 에스크로 보관 중", status: "VERIFYING" }
       : purchase.escrowStatus === "REFUNDED"
         ? purchase.settlement?.refundExecutedAt
           ? { label: "환불 완료", status: refundStatus }
@@ -463,6 +484,25 @@ export default async function ReportDetail({
               <span className={styles.cardKey}>진행 상태</span>
               <span className={styles.cardVal}>
                 <StatusChip status={purchaseStatus!.status} label={purchaseStatus!.label} />
+                {/*
+                  끝나는 시각을 함께 적는다 — "언제 끝나는가"에 답이 없는 지연이
+                  불신을 만든다. 유예의 상한이 코드로 정해져 있어 지킬 수 있는 약속이다
+                */}
+                {judgmentDelayed && (
+                  <small
+                    style={{
+                      display: "block",
+                      marginTop: 6,
+                      fontWeight: 500,
+                      color: "var(--text-weak)",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    시세 제공사의 데이터 정합성을 재검증하고 있습니다. 검증이 끝나면
+                    판정되고, 끝나지 않으면 <b>전액 환불</b>됩니다 — 어느 쪽이든
+                    검증 시한 후 최대 {JUDGMENT_ABSOLUTE_CAP_DAYS}일 안에 확정됩니다.
+                  </small>
+                )}
               </span>
             </div>
             {purchase.settlement && (
