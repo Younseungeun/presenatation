@@ -7,6 +7,7 @@ import { getAuditTrail } from '../auditLog';
 import {
   BulkRevertRefused,
   executeBulkRevert,
+  pauseAndBulkRevert,
   planBulkRevert,
 } from '../bulkRevertService';
 import { judgeAndSettleDueCards } from '../judgmentBatch';
@@ -317,5 +318,74 @@ describe('정지 중에도 상한은 집행한다', () => {
       where: { assetClass_ticker: { assetClass: 'CRYPTO', ticker: 'KRW-BR4' } },
     });
     expect(inst.unjudgeableAt).toBeNull();
+  });
+});
+
+// **멈추고 되돌리는 것은 한 절차다** (2026-08-15, 외부 검토 반영).
+//
+// 전에는 운영자가 pause를 먼저 치고 와야 했고, 잊으면 거부당했다. 사고 한복판에서
+// 명령을 두 번 치게 만들 이유가 없다 — 되돌릴 결심을 한 사람은 이미 "지금 도는
+// 판정을 믿을 수 없다"고 판단한 것이라 정지는 그 판단의 따름정리다.
+describe('멈추고 되돌린다 — 한 절차', () => {
+  it('정지가 안 걸려 있으면 스스로 걸고 진행한다 — 거부하지 않는다', async () => {
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 준비',
+    });
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(false);
+
+    const r = await pauseAndBulkRevert(
+      prisma,
+      FILTER,
+      { operatorUserId: operatorId, reason: '공급자 종가 오류', cause: 'DATA_SOURCE' },
+      BATCH_NOW,
+    );
+
+    expect(r.pausedHere).toBe(true);
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(true);
+  });
+
+  // **해제는 따라오지 않는다** — 정지는 이미 내려진 판단의 따름정리지만 해제는
+  // 새로운 판단이고, "공급자가 고쳐졌는가"는 밖을 확인하고 온 사람만 답할 수 있다
+  it('끝나도 저절로 열리지 않는다', async () => {
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(true);
+  });
+
+  it('이미 멈춰 있었으면 그대로 둔다 — 사유를 덮어쓰지 않는다', async () => {
+    const r = await pauseAndBulkRevert(
+      prisma,
+      FILTER,
+      { operatorUserId: operatorId, reason: '두 번째', cause: 'DATA_SOURCE' },
+      BATCH_NOW,
+    );
+    expect(r.pausedHere).toBe(false);
+  });
+
+  // 범위를 안 좁혔다는 것은 **어느 자산군이 깨졌는지 모른다**는 뜻이다
+  it('자산군을 안 좁히면 전역으로 멈춘다', async () => {
+    await setJudgmentPause(prisma, {
+      scope: 'ALL',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 준비',
+    });
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 준비',
+    });
+
+    const r = await pauseAndBulkRevert(
+      prisma,
+      { judgedFrom: FILTER.judgedFrom, judgedTo: FILTER.judgedTo },
+      { operatorUserId: operatorId, reason: '어디가 깨졌는지 모름', cause: 'DATA_SOURCE' },
+      BATCH_NOW,
+    );
+
+    expect(r.pauseScope).toBe('ALL');
+    expect(await isJudgmentPaused(prisma, 'KR_EQUITY')).toBe(true); // 안 건드린 자산군도 멈춘다
   });
 });

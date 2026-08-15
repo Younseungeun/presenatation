@@ -150,3 +150,47 @@ describe('judge — 판정 불가 케이스', () => {
     });
   });
 });
+
+// **얼마나 갔었는지를 재되, 판정에는 한 톨도 쓰지 않는다** (2026-08-15).
+//
+// 외부 검토가 짚은 리서처 이탈 시나리오: "+9.8%로 끝났는데 사기꾼 취급을 받는다".
+// 처분(환불·점수·적중률)은 하나도 바꾸지 않는다 — 근접을 봐주면 "목표의 몇 %까지는
+// 맞은 셈"이라는 새 경계가 생기고, 경계가 생기면 그 경계를 노리는 신고가 생긴다.
+// 바뀌는 것은 **같은 처분을 설명하는 방식**뿐이라, 이 값은 알림에만 실린다.
+describe('peakProgress — 실패한 카드가 목표에 얼마나 가까웠나', () => {
+  const upCard: PredictionInput = {
+    direction: 'UP',
+    targetType: 'TARGET_PRICE',
+    targetValue: 120000,
+    basePrice: 100000,
+  };
+
+  it('기준가 0 · 목표가 1의 눈금 — 구매자 상황 막대와 같은 자다', () => {
+    const r = judge(upCard, traded({ maxCloseSincePublish: 118000, priceAtDeadline: 105000 }));
+    expect(r.outcome).toBe('MISS');
+    expect(r.peakProgress).toBeCloseTo(0.9, 10); // 18,000 / 20,000
+  });
+
+  it('하락 카드도 부호 분기 없이 맞는다 — 분모가 함께 뒤집힌다', () => {
+    const downCard: PredictionInput = { ...upCard, direction: 'DOWN', targetValue: 80000 };
+    const r = judge(downCard, traded({ minCloseSincePublish: 82000, priceAtDeadline: 95000 }));
+    expect(r.outcome).toBe('MISS');
+    expect(r.peakProgress).toBeCloseTo(0.9, 10); // −18,000 / −20,000
+  });
+
+  it('역방향으로 갔으면 음수 — 0으로 눌러 "조금은 갔다"로 보이게 하지 않는다', () => {
+    const r = judge(upCard, traded({ maxCloseSincePublish: 96000, priceAtDeadline: 94000 }));
+    expect(r.peakProgress).toBeCloseTo(-0.2, 10);
+  });
+
+  it('적중에는 실리지 않는다 — 도달한 카드에 "얼마나 갔나"는 뜻이 없다', () => {
+    expect(judge(upCard, traded({ maxCloseSincePublish: 121000 })).peakProgress).toBeUndefined();
+  });
+
+  it('판정 결과 자체는 달라지지 않는다 — 0.99여도 MISS다', () => {
+    const r = judge(upCard, traded({ maxCloseSincePublish: 119800, priceAtDeadline: 119800 }));
+    expect(r.outcome).toBe('MISS');
+    expect(r.settledPrice).toBe(119800); // 실패는 여전히 시한 종가로 잰다
+    expect(r.peakProgress).toBeCloseTo(0.99, 10);
+  });
+});

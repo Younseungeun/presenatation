@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { AssetClass } from '@/domain/constants';
 import { audit } from './auditLog';
-import { isJudgmentPaused } from './judgmentPause';
+import { isJudgmentPaused, setJudgmentPause } from './judgmentPause';
 import { JudgmentRevertBlocked, revertJudgment, type RevertCause } from './judgmentRevertService';
 
 // **회차 단위 롤백** — 시세 공급자가 며칠간 틀린 값을 준 것을 뒤늦게 알았을 때 (2026-08-15).
@@ -218,4 +218,46 @@ export async function executeBulkRevert(
   });
 
   return result;
+}
+
+/**
+ * **하나의 장애 대응 절차** — 멈추고, 되돌린다 (2026-08-15, 외부 검토 반영).
+ *
+ * 전에는 운영자가 `judgment:pause`를 먼저 치고 와야 했고, 잊으면 `executeBulkRevert`가
+ * 거부했다. 사고 한복판에서 명령을 두 번 치게 만들 이유가 없다 — **되돌릴 결심을 한
+ * 사람은 이미 "지금 도는 판정을 믿을 수 없다"고 판단한 것**이므로 정지는 그 판단의
+ * 따름정리지 별개의 결정이 아니다.
+ *
+ * 범위는 필터를 따라간다: `assetClass` 없이 되돌린다는 것은 **어느 자산군의 소스가
+ * 깨졌는지 모른다**는 뜻이라 전역으로 멈춘다.
+ *
+ * ── 해제는 여기에 없다 (비대칭이다) ──────────────────────────
+ * 검토는 "다시 열까요?"까지 이어 붙이라고 했다. 정지는 자동으로 걸면서 해제는 안 그러는
+ * 이유는 **판단의 성격이 다르기 때문**이다 — 정지는 이미 내려진 판단의 따름정리지만
+ * 해제는 새로운 판단이고, "공급자가 고쳐졌는가"에 답할 수 있는 것은 밖을 확인하고 온
+ * 사람뿐이다. 롤백 직후는 그 답을 아직 모르는 시점이라(방금 되돌렸다) 거기서 뜨는
+ * y/n은 확인이 아니라 관성으로 눌린다.
+ *
+ * ⚠ `setJudgmentPause` 단독 호출 경로는 그대로 둔다. 정지가 필요한 가장 흔한 순간은
+ * **아직 무엇을 되돌릴지 모를 때**다 — 정지가 롤백 안에만 있으면 그 사람은 원치 않는
+ * 롤백을 시작해야 출혈을 멈출 수 있다.
+ */
+export async function pauseAndBulkRevert(
+  prisma: PrismaClient,
+  filter: BulkRevertFilter,
+  input: { operatorUserId: string; reason: string; cause: RevertCause },
+  now = new Date(),
+): Promise<BulkRevertResult & { pausedHere: boolean; pauseScope: AssetClass | 'ALL' }> {
+  const pauseScope: AssetClass | 'ALL' = filter.assetClass ?? 'ALL';
+  const pausedHere = !(await isJudgmentPaused(prisma, filter.assetClass));
+  if (pausedHere) {
+    await setJudgmentPause(prisma, {
+      scope: pauseScope,
+      paused: true,
+      operatorUserId: input.operatorUserId,
+      reason: `일괄 되돌리기 전 자동 정지 — ${input.reason}`,
+    });
+  }
+  const result = await executeBulkRevert(prisma, filter, input, now);
+  return { ...result, pausedHere, pauseScope };
 }

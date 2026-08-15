@@ -3,7 +3,7 @@ import type { AssetClass } from '../src/domain/constants';
 import { ASSET_CLASSES } from '../src/domain/constants';
 import {
   BulkRevertRefused,
-  executeBulkRevert,
+  pauseAndBulkRevert,
   planBulkRevert,
   type BulkRevertFilter,
 } from '../src/server/bulkRevertService';
@@ -116,11 +116,19 @@ async function bulkRevertCommand() {
     return;
   }
 
-  const result = await executeBulkRevert(prisma, filter, {
+  // **멈추고 되돌리는 것은 한 절차다** (server/bulkRevertService.pauseAndBulkRevert).
+  // 명령을 두 번 치게 하지 않는다 — 근거는 그 함수의 주석에 있다
+  const result = await pauseAndBulkRevert(prisma, filter, {
     operatorUserId: await operatorByEmail(email),
     reason,
     cause: dataSource ? 'DATA_SOURCE' : 'PLATFORM_LOGIC',
   });
+  const pauseScope = result.pauseScope;
+  if (result.pausedHere) {
+    console.log(
+      `\n${pauseScope} 자동 판정을 먼저 멈췄습니다 (되돌리는 사이 새 판정이 들어오면 안 됩니다).`,
+    );
+  }
 
   console.log(`\n되돌림 ${result.reverted.length}건`);
   if (result.needsAccounting.length > 0) {
@@ -132,8 +140,18 @@ async function bulkRevertCommand() {
     console.log(`\n⚠ 실패 ${result.failed.length}건`);
     for (const f of result.failed) console.log(`    ${f.judgmentId} — ${f.reason}`);
   }
-  console.log('\n다음: 시세가 정상인지 **직접 확인한 뒤** npm run judgment:resume 으로 여세요.');
-  console.log('      (자동 해제는 없습니다 — 공급자가 고쳐졌는지 시스템은 알 수 없습니다)');
+  // **해제는 묻지 않는다 — 명령어를 한 번 더 치게 한다.**
+  //
+  // 검토는 "다시 열까요?" 프롬프트로 이어 붙이라고 했다. 정지는 자동으로 걸어 주면서
+  // 해제는 안 그러는 이유가 **비대칭이기 때문**이다: 정지는 되돌리기의 전제라 이미
+  // 내려진 판단의 따름정리지만, 해제는 **새로운 판단**이다 — "공급자가 고쳐졌는가"에
+  // 답할 수 있는 것은 시스템이 아니라 밖을 확인하고 온 사람뿐이다.
+  //
+  // 롤백 직후는 그 답을 아직 모르는 시점이고(방금 되돌렸다), 그때 뜨는 y/n은
+  // 확인이 아니라 관성으로 눌린다. 정지의 목적이 배반되는 자리가 정확히 거기다.
+  console.log(`\n다음: 시세가 정상인지 **직접 확인한 뒤** ${pauseScope} 를 여세요.`);
+  console.log(`      npm run judgment:resume -- ${pauseScope} ${email} "확인한 내용"`);
+  console.log('      (여기서 y/n으로 묻지 않습니다 — 방금 되돌린 사람은 아직 고쳐졌는지 모릅니다)');
 }
 
 async function main() {

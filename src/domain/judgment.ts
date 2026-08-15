@@ -35,6 +35,21 @@ export interface JudgmentResult {
   undecidableReason?: UndecidableReason;
   /** 판정에 사용된 가격 (판정 불가 시 undefined) */
   settledPrice?: number;
+  /**
+   * 목표까지 **가장 가까이 갔던 지점** — 기준가 0, 목표가 1 (MISS에만 실린다).
+   *
+   * 판정에는 쓰이지 않는다. 점수도 적중률도 규율 래더도 이 값을 보지 않는다 —
+   * 주장은 이항이고 "얼마나 아깝게 틀렸나"는 여전히 틀린 것이다.
+   *
+   * **오직 리서처에게 알려 주기 위해 잰다.** 실패 알림이 "점수 −N점, 정산 0원"뿐이면
+   * +9.8%로 끝난 사람과 −30%로 끝난 사람이 똑같은 문장을 받는다. 시스템이 이미
+   * 알고 있는 사실(종가 극값)을 안 알려 주는 것이고, 그 침묵이 "이 플랫폼은 내
+   * 분석을 보지 않는다"로 읽힌다.
+   *
+   * 구매자 상황 막대(domain/cardProgress)와 **같은 눈금**이다 — 판정 후에 다른
+   * 자를 들이대면 사던 날 보던 막대와 결과가 어긋난다.
+   */
+  peakProgress?: number;
 }
 
 /**
@@ -101,7 +116,16 @@ export function judge(card: PredictionInput, market: MarketSnapshot): JudgmentRe
   if (market.priceAtDeadline === undefined) {
     return { outcome: 'UNDECIDABLE', undecidableReason: 'AMBIGUOUS' };
   }
-  return { outcome: 'MISS', settledPrice: market.priceAtDeadline };
+  // 목표까지 얼마나 갔었나 — **판정에는 쓰지 않고 리서처에게만 알린다** (peakProgress).
+  // 분모는 기준가→목표가의 폭이라 방향 부호가 저절로 상쇄된다(하락 카드도 그대로 맞다).
+  const span = targetPrice - card.basePrice;
+  return {
+    outcome: 'MISS',
+    settledPrice: market.priceAtDeadline,
+    ...(span !== 0 && card.basePrice > 0
+      ? { peakProgress: (extreme - card.basePrice) / span }
+      : {}),
+  };
 }
 
 /**

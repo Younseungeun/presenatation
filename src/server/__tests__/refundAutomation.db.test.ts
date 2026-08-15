@@ -13,6 +13,7 @@ import {
   retryRefundAttempt,
   sweepStuckRefundAttempts,
 } from '../settlementOpsService';
+import { SETTLEMENT_COOLDOWN_HOURS } from '../settlementCooldown';
 
 // **환불은 이제 코드가 돈을 움직인다.**
 //
@@ -63,7 +64,9 @@ const OPERATOR = 'op-user-id';
 const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 const PUBLISH_NOW = new Date('2026-07-12T00:00:00Z');
 const BATCH_NOW = new Date('2026-08-02T00:00:00Z');
-const EXEC_NOW = new Date('2026-08-03T00:00:00Z');
+// 쿨다운이 끝난 뒤 (settlementCooldown) — **상수에서 유도한다.**
+// 시각을 손으로 적으면 쿨다운을 조정할 때마다 무관한 시험이 무더기로 깨진다
+const EXEC_NOW = new Date(BATCH_NOW.getTime() + (SETTLEMENT_COOLDOWN_HOURS + 1) * 3_600_000);
 
 function registryFor(ticker: string, closeAtDeadline: number): ProviderRegistry {
   return {

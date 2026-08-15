@@ -17,6 +17,7 @@ import { getOpsMetrics } from '../opsMetrics';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
 import { executePayout, getPendingPayouts } from '../settlementOpsService';
+import { SETTLEMENT_COOLDOWN_HOURS } from '../settlementCooldown';
 
 // **이 창구가 없으면 구매자가 갈 곳은 카드사뿐이다.**
 // 차지백은 우리가 아무것도 못 하는 자리에서 돈이 빠지는 것이라, 그 전에 우리 안에서
@@ -38,8 +39,9 @@ const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 const PUBLISH_NOW = new Date('2026-07-12T00:00:00Z');
 const DEADLINE = new Date('2026-08-01T00:00:00Z');
 const BATCH_NOW = new Date('2026-08-02T00:00:00Z');
-// 판정 후 24시간은 에스크로에 묶인다 (settlementCooldown) — 실행 시험은 그 뒤에서 돈다
-const EXEC_NOW = new Date('2026-08-03T01:00:00Z');
+// 쿨다운이 끝난 뒤 (settlementCooldown) — **상수에서 유도한다.**
+// 시각을 손으로 적으면 쿨다운을 조정할 때마다 무관한 시험이 무더기로 깨진다
+const EXEC_NOW = new Date(BATCH_NOW.getTime() + (SETTLEMENT_COOLDOWN_HOURS + 1) * 3_600_000);
 
 const registry = (ticker: string): ProviderRegistry => ({
   CRYPTO: new FixtureMarketDataProvider().setCurrentPrice(ticker, 100).setQuotes(ticker, [

@@ -127,13 +127,29 @@ export function buildJudgmentWrites(
       : payoutTotal > 0
         ? `${payoutTotal.toLocaleString()}원이 정산됩니다 (구매 ${card.report.purchases.length}건).`
         : `구매 ${card.report.purchases.length}건, ${refundTotal.toLocaleString()}원이 구매자에게 환불됩니다.`;
+
+  // **얼마나 갔었는지를 말해 준다** (2026-08-15, 외부 검토의 이탈 시나리오).
+  //
+  // 전에는 실패 알림이 "점수 −N점, 0원 정산"뿐이었다. +9.8%로 끝난 사람과 −30%로
+  // 끝난 사람이 **똑같은 문장**을 받는다. 시스템은 종가 극값을 이미 알고 있으면서
+  // 안 알려 준 것이고, 그 침묵이 "여기는 내 분석을 보지 않는다"로 읽힌다.
+  //
+  // ⚠ **처분은 하나도 바꾸지 않는다.** 환불도 점수도 적중률도 그대로다 —
+  // 근접을 봐주기 시작하면 "목표의 몇 %까지는 맞은 셈"이라는 새 경계가 생기고,
+  // 경계가 생기면 그 경계를 노리는 신고가 생긴다(수익성 가중 계단에서 이미 겪었다).
+  // 바뀌는 것은 **같은 처분을 설명하는 방식**뿐이다.
+  const peak = result.outcome === 'MISS' ? result.peakProgress : undefined;
+  const peakNote =
+    peak !== undefined && peak > 0
+      ? ` 목표까지 ${Math.min(99, Math.round(peak * 100))}% 지점(종가 기준)이 최고였습니다.`
+      : '';
   writes.push(
     prisma.notification.create({
       data: {
         userId: card.report.researcher.userId,
         type: 'JUDGMENT_RESULT',
         title: `예측 판정: ${card.assetName} ${label}`,
-        body: `점수 ${input.score > 0 ? '+' : ''}${Math.round(input.score)}점. ${settleSummary}`,
+        body: `점수 ${input.score > 0 ? '+' : ''}${Math.round(input.score)}점. ${settleSummary}${peakNote}`,
         link: `/researcher/${card.report.researcherId}`,
         createdAt: now,
       },
