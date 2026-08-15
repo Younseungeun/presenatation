@@ -16,7 +16,12 @@ import { toJudgeableCard } from './cardMapper';
 import { rebaseIfAdjusted } from './corporateActionService';
 import { buildJudgmentWrites } from './judgmentWriter';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
-import { isJudgmentPaused, setJudgmentPause } from './judgmentPause';
+import {
+  isJudgmentPaused,
+  pausedAssetClasses,
+  setJudgmentPause,
+  SYSTEM_PAUSE_ACTOR,
+} from './judgmentPause';
 
 // 판정 배치: 시한이 지난 미판정 카드를 찾아 판정 → 점수 산정 → 에스크로 정산까지
 // 하나의 트랜잭션으로 실행한다 (docs/market-data.md §4).
@@ -71,10 +76,13 @@ export interface BatchSummary {
    */
   disagreed: string[];
   /**
-   * 불일치가 무더기로 나 **이 자산군의 자동 판정을 정지시켰다** (shouldHaltOnDisagreement).
-   * 값이 있으면 다음 회차부터 판정이 서고, 사람이 소스를 확인해 풀어야 한다.
+   * 불일치가 무더기로 나 **자동 판정을 정지시킨 자산군들** (shouldHaltOnDisagreement).
+   *
+   * 배열인 이유는 스코프 없는 회차(기동 따라잡기·수동 배치)가 여러 자산군을 한 번에
+   * 돌기 때문이다. 그 경로에서 하나의 비율로 판단하면 **깨진 자산군이 멀쩡한 자산군에
+   * 희석돼 정지가 안 걸린다.**
    */
-  haltedAssetClass: AssetClass | null;
+  haltedAssetClasses: AssetClass[];
   /**
    * **공급자가 200 OK로 빈 배열을 준 카드** — 소스별 집계 (2026-08-15).
    *
@@ -141,15 +149,34 @@ export const EMPTY_RANGE_STREAK = 3;
  * 그 상태에서 나머지를 판정하는 것은 애초에 대조를 안 한 것과 같다.
  *
  * 문턱이 비율 **그리고** 건수인 이유는 빈 배열 알림과 같다(EMPTY_RANGE_RATIO 주석):
- * 대상이 2장인 조용한 날의 2/2가 100%로 울리면 안 되고, 만기가 몰린 날 3건이
- * 전체를 세워도 안 된다. 목표선 근처 카드에서 **불일치가 드물게 나는 것은 정상**이라
- * 한두 건은 수동 큐로 보내고 지나가야 한다.
+ * 대상이 2장인 조용한 날의 2/2가 100%로 울리면 안 되고, 목표선 근처 카드에서
+ * **불일치가 드물게 나는 것은 정상**이라 한두 건은 수동 큐로 보내고 지나가야 한다.
  *
- * 정지는 **자동으로 풀리지 않는다** — 사람이 소스를 확인하고 해제한다(judgmentPause).
- * 정지 중에도 14일 상한(전액 환불)은 계속 집행되므로 구매자 약속은 유지된다.
+ * ── 문턱을 50%/5건 → 30%/3건으로 내렸다 (2026-08-15, 외부 검토) ─────────
+ * 검토는 "전체 100건 중 특정 거래소 8건이 다 갈려도 8%라 안 걸린다"는 희석을 짚었다.
+ * **전제는 사실과 달랐다** — 스케줄러는 시장 마감마다 자산군을 좁혀 부르므로 비율이
+ * 이미 자산군별이다. 그런데 **결론은 두 가지 이유로 맞았다**:
+ *  ① 스코프 없이 도는 경로가 있다(기동 따라잡기·수동 배치) — 아래에서 자산군별로 나눠 센다
+ *  ② 한 자산군 안에서도 하위 묶음만 깨질 수 있다. 20장 중 8장이 갈려도 40%라 50%에 못 닿았다
+ *
+ * 그리고 비대칭이 문턱을 아래로 민다: **잘못된 정산은 비가역이고 정지는 가역이다.**
+ * 정지의 대가는 지연이지만(그동안에도 14일 상한은 집행된다), 깨진 소스로 나간 판정은
+ * 되돌려도 이미 알림이 나가고 돈이 움직인 뒤다.
+ *
+ * ── 전역 문턱은 두지 않는다 (검토의 2단계 안을 기각) ──────────────────
+ * 검토는 "전체 20% 또는 **10건 이상**이면 엔진 전체 정지"를 제안했는데 둘 다 안 쓴다:
+ *  · `OR 10건`은 **건수 단독 조건**이라, 만기 800장인 날 10건(1.25%)이 전 자산군을
+ *    세운다 — 검토 자신이 빈 배열 논의에서 지적한 그 오류다
+ *  · 자산군별 정지가 **이미 합성된다**: 진짜 전역 사고(우리 코드 버그)는 세 자산군
+ *    모두에서 문턱을 넘어 각각 선다. 별도 전역 규칙이 더하는 것은 **코인이 깨졌을 때
+ *    미국 주식을 함께 세우는 경로**뿐이고, 그건 사고를 옆으로 옮기는 일이다
+ *    (judgmentPause 머리말이 "전역만 두지 않는" 이유로 이미 적어 둔 것과 같다)
+ *
+ * 시스템이 건 정지는 **재관측으로 스스로 풀 수 있다** (server/crossCheckRecovery).
+ * 사람이 건 정지는 종전대로 사람만 푼다.
  */
-export const DISAGREEMENT_HALT_RATIO = 0.5;
-export const DISAGREEMENT_HALT_MIN = 5;
+export const DISAGREEMENT_HALT_RATIO = 0.3;
+export const DISAGREEMENT_HALT_MIN = 3;
 
 export function shouldHaltOnDisagreement(disagreed: number, attempted: number): boolean {
   return (
@@ -383,7 +410,7 @@ async function sweepHardCapped(
     providerDown: new Map(),
     disagreed: [],
     emptyRange: new Map(),
-    haltedAssetClass: null,
+    haltedAssetClasses: [],
     cursor: null,
     hasMore: false,
   };
@@ -477,10 +504,24 @@ export async function judgeAndSettleDueCards(
   // 닫는다. 다르게 두면 "판정 불가로 닫힐 수도 없는 카드"라는 칸이 생긴다.
   const manualOnlyCapped = await sweepHardCapped(prisma, now, 'MANUAL_ONLY', assetClass);
 
+  // **정지해 둔 자산군은 스코프 없는 회차에서도 빠져야 한다** (2026-08-15).
+  //
+  // `isJudgmentPaused(prisma, undefined)`는 **전역 정지만** 본다. 그래서 기동 따라잡기
+  // (catchUpOnBoot)와 `npm run batch:judge`가 자산군별 정지를 통째로 무시하고 있었다 —
+  // 코인을 멈춰 둬도 **재기동 한 번이면 그대로 판정된다.** 배포가 잦은 시기에는 정지가
+  // 사실상 없는 것과 같았고, 교차검증이 스스로 거는 정지가 생기면서 더 나빠졌다
+  // (사고가 나서 멈췄는데 그 사고를 고치려고 배포하면 정지가 풀린다).
+  //
+  // `isJudgmentPaused`의 계약은 그대로 둔다 — 스코프를 준 호출에게는 그 답이 맞고,
+  // 거기서 전 자산군을 보게 하면 코인 정지가 국내 판정을 멈추는 반대 사고가 난다.
+  // 대신 **조회 대상에서 뺀다.**
+  const paused = assetClass ? new Set<AssetClass>() : await pausedAssetClasses(prisma);
+
   // HELD 구매까지 한 번에 조회 — 카드별 개별 쿼리(N+1) 제거
   const where: Prisma.PredictionCardWhereInput = {
     judgment: null,
     ...(assetClass ? { assetClass } : {}),
+    ...(paused.size > 0 ? { assetClass: { notIn: [...paused] } } : {}),
     deadline: { lte: now },
     // **사람만 판정할 카드는 자동 배치가 손대지 않는다.** 되돌린 원인이 시세 소스였다면
     // 같은 소스로 다시 매겨 봐야 같은 오답이 나온다 (PredictionCard.manualJudgmentOnly)
@@ -542,7 +583,7 @@ export async function judgeAndSettleDueCards(
     providerDown: new Map(),
     disagreed: [],
     emptyRange: new Map(),
-    haltedAssetClass: null,
+    haltedAssetClasses: [],
     cursor:
       dueCards.length > 0
         ? {
@@ -552,6 +593,9 @@ export async function judgeAndSettleDueCards(
         : null,
     hasMore: dueCards.length === JUDGE_BATCH_SIZE,
   };
+
+  /** 자산군별 불일치 수 — 정지 판단의 분자 (분모는 dueCards의 자산군별 개수) */
+  const disagreedByClass = new Map<AssetClass, number>();
 
   /** 소스별 빈 배열 집계 — 없으면 만들어 준다 */
   const statFor = (assetClassOfCard: string): EmptyRangeStat => {
@@ -676,6 +720,10 @@ export async function judgeAndSettleDueCards(
           data: { manualJudgmentOnly: true },
         });
         summary.disagreed.push(`${card.ticker} (${card.id}): ${message}`);
+        // 정지 판단은 **자산군마다 따로** 한다 — 한 통에 담으면 깨진 자산군이
+        // 멀쩡한 자산군에 희석돼 문턱에 못 닿는다
+        const cls = card.assetClass as AssetClass;
+        disagreedByClass.set(cls, (disagreedByClass.get(cls) ?? 0) + 1);
         console.error(`시세 소스 간 판정 불일치 ${card.ticker} (${card.id}):`, message);
         continue;
       }
@@ -828,25 +876,35 @@ export async function judgeAndSettleDueCards(
   //
   // 정지는 **다음 회차부터** 듣는다(이번 회차의 판정은 이미 나갔다). 그래도 이 자리가
   // 맞다: 다음 회차를 세우지 않으면 같은 소스로 다음 20장이 그대로 나간다.
-  if (assetClass && shouldHaltOnDisagreement(summary.disagreed.length, dueCards.length)) {
+  //
+  // **자산군별로 나눠 센다.** 스코프 없는 회차(기동 따라잡기·수동 배치)는 여러 자산군을
+  // 한 번에 도는데, 거기서 하나의 비율로 판단하면 **깨진 자산군이 멀쩡한 자산군에
+  // 희석돼 정지가 안 걸린다** — 코인 8장이 다 갈려도 전체 100장 중 8%다.
+  const attemptedByClass = new Map<AssetClass, number>();
+  for (const c of dueCards) {
+    const k = c.assetClass as AssetClass;
+    attemptedByClass.set(k, (attemptedByClass.get(k) ?? 0) + 1);
+  }
+  for (const [cls, attempted] of attemptedByClass) {
+    const disagreed = disagreedByClass.get(cls) ?? 0;
+    if (!shouldHaltOnDisagreement(disagreed, attempted)) continue;
     await setJudgmentPause(
       prisma,
       {
-        scope: assetClass,
+        scope: cls,
         paused: true,
-        // 사람이 아니라 시스템이 세운 것이라는 사실이 감사 로그에 남아야 한다 —
-        // 해제할 때 "누가 왜 멈췄나"의 답이 "아무도"면 원인을 못 찾는다
-        operatorUserId: 'system:cross-check',
+        // **사람이 아니라 시스템이 세웠다**는 사실이 기록에 남아야 한다 — 해제할 때
+        // "누가 왜 멈췄나"의 답이 "아무도"면 원인을 못 찾고, 무엇보다 이 표식이
+        // **자동 해제 자격의 유일한 기준**이다 (crossCheckRecovery)
+        operatorUserId: SYSTEM_PAUSE_ACTOR,
         reason:
-          `시세 소스 간 판정 불일치 ${summary.disagreed.length}/${dueCards.length}건 — ` +
+          `시세 소스 간 판정 불일치 ${disagreed}/${attempted}건 — ` +
           '한 소스가 깨졌을 가능성이 높아 자동 판정을 정지했습니다',
       },
       now,
     );
-    summary.haltedAssetClass = assetClass;
-    console.error(
-      `[P0] ${assetClass} 자동 판정 정지 — 불일치 ${summary.disagreed.length}/${dueCards.length}건`,
-    );
+    summary.haltedAssetClasses.push(cls);
+    console.error(`[P0] ${cls} 자동 판정 정지 — 불일치 ${disagreed}/${attempted}건`);
   }
 
   return summary;

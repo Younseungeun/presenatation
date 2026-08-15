@@ -30,6 +30,7 @@ import { sweepStuckRefundAttempts } from '../src/server/settlementOpsService';
 import { recalcSeasonTiers } from '../src/server/seasonRecalcService';
 import { syncKrCardInstrumentRisk } from '../src/server/krRiskSync';
 import { healMissingCardData } from '../src/server/cardDataHealer';
+import { probeAndMaybeResume, PROBE_MAX_FAILURES } from '../src/server/crossCheckRecovery';
 import {
   emptyRangeAlerts,
   EMPTY_RANGE_STREAK,
@@ -197,6 +198,41 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
 }
 
 async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Promise<void> {
+  // **정지가 스스로 풀릴 수 있는지 먼저 본다** (server/crossCheckRecovery).
+  //
+  // 판정보다 앞에 두는 이유: 정지 중이면 아래가 통째로 건너뛰므로, 여기서 풀지 않으면
+  // **이번 회차도 못 돈다.** 순간 단절로 멈춘 자산군이 운영자 휴가 때문에 며칠 서 있으면
+  // 그동안 맞힌 카드까지 14일 상한에 닿아 전액 환불로 끝난다.
+  //
+  // 사람이 건 정지에는 아무 일도 하지 않는다 — 자격 검사가 그 안에 있다.
+  const probe = await probeAndMaybeResume(
+    prisma,
+    registry,
+    assetClass,
+    secondaryRegistry,
+    new Date(),
+  );
+  if (probe.resumed) {
+    console.log(`  ${assetClass}: 탐침 ${probe.checked}장 전원 합의 — 자동 판정 재개`);
+    await alertOps(
+      `[확인] ${assetClass} 자동 판정 재개 — 두 소스가 다시 일치합니다`,
+      `정지 중 탐침 ${probe.checked}장이 모두 같은 결론을 냈습니다 (일시 장애로 판단).\n` +
+        `판정을 재개했습니다. 원인이 궁금하면 감사 로그의 자동 해제 기록을 보세요.`,
+      '/admin/judgments',
+      `judge:resume:${assetClass}`,
+    );
+  } else if (probe.hardLocked) {
+    // **자동 해제를 포기했다** — "곧 풀리겠지"라는 기대가 개입을 늦추면 안 된다
+    await alertOps(
+      `[P0] ${assetClass} 자동 재개 포기 — 사람이 풀어야 합니다`,
+      `탐침이 ${probe.failures}회 연속으로 불일치를 봤습니다. 일시 장애가 아닙니다.\n` +
+        `이 상태로 두면 그 자산군의 카드가 차례로 14일 상한(전액 환불)에 닿습니다.\n` +
+        `두 소스를 직접 대조하고(npm run probe:sources) 원인을 고친 뒤 정지를 푸세요.`,
+      '/admin/judgments',
+      `judge:hardlock:${assetClass}`,
+    );
+  }
+
   // **자격 검사를 쓰기마다 들려 보낸다** — 락을 뺏긴 뒤 깨어난 프로세스가 남은 카드를
   // 계속 쓰는 것을 막는 유일한 장치다 (batchLock 상단 "펜싱 토큰" 주석)
   const reached = await runReachedJudgmentBatch(prisma, registry, new Date(), assetClass, lock.fence);
@@ -235,7 +271,9 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
     due.blockedInstruments.push(...next.blockedInstruments);
     due.failures.push(...next.failures);
     due.disagreed.push(...next.disagreed);
-    due.haltedAssetClass = due.haltedAssetClass ?? next.haltedAssetClass;
+    for (const c of next.haltedAssetClasses) {
+      if (!due.haltedAssetClasses.includes(c)) due.haltedAssetClasses.push(c);
+    }
     // 빈 배열 집계는 **회차를 합쳐야 비율이 의미를 갖는다** — 20장씩 끊어 보면
     // 분모가 작아 우연히 100%가 나오는 회차가 생긴다
     for (const [src, stat] of next.emptyRange) {
@@ -328,15 +366,17 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
   // 14일에 시스템이 전액 환불로 닫는다 — 리서처가 맞혔더라도 0점이 된다.
   // **자동 판정이 스스로 섰다** — 불일치가 무더기라 한 소스가 깨졌다고 본 것이다
   // (judgmentBatch.shouldHaltOnDisagreement). 다른 알림과 달리 **이미 판정이 멈춰 있다.**
-  if (due.haltedAssetClass) {
+  for (const halted of due.haltedAssetClasses) {
     await alertOps(
-      `[P0] ${due.haltedAssetClass} 자동 판정 정지 — 시세 소스가 깨진 것으로 보입니다`,
-      `한 회차에서 불일치가 무더기로 나 자동 판정을 세웠습니다 (${due.disagreed.length}건).\n` +
+      `[P0] ${halted} 자동 판정 정지 — 시세 소스가 깨진 것으로 보입니다`,
+      `한 회차에서 불일치가 무더기로 나 자동 판정을 세웠습니다 (전체 ${due.disagreed.length}건).\n` +
         `합의한 카드도 안전한 것이 아닙니다 — 목표선을 사이에 두지 않았을 뿐입니다.\n` +
-        `두 소스의 일봉을 직접 확인하고(npm run probe:sources), 원인을 고친 뒤 정지를 푸세요.\n` +
+        `두 소스의 일봉을 직접 확인하세요 (npm run probe:sources).\n` +
+        `소스가 스스로 돌아오면 탐침이 확인 후 자동으로 재개합니다 — ` +
+        `${PROBE_MAX_FAILURES}회 확인해도 계속 갈리면 사람만 풀 수 있는 상태가 됩니다.\n` +
         `정지 중에도 시한 후 ${JUDGMENT_HARD_CAP_DAYS}일 상한(전액 환불)은 계속 집행됩니다.`,
       '/admin/judgments',
-      `judge:halt:${due.haltedAssetClass}`,
+      `judge:halt:${halted}`,
     );
   }
 

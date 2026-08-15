@@ -25,12 +25,27 @@ import { auditOp } from './auditLog';
 //    카드가 이월되고, 이월은 14일 상한에 닿으면 **전액 환불**로 끝난다.
 //    사고를 고치는 것이 아니라 옆으로 옮기는 셈이다
 //
-// ── 푸는 것은 언제나 사람이다 ────────────────────────────────
-// 시간이 지났다고 자동으로 풀리지 않는다. 자동 해제는 "공급자가 고쳐졌다"를 시스템이
-// 안다고 가정하는 것인데, 그걸 아는 방법이 없어서 애초에 멈춘 것이다.
+// ── 사람이 건 정지는 사람만 푼다. 시스템이 건 정지는 다르다 (2026-08-15) ──
+// 위 문단은 원래 "시간이 지났다고 자동으로 풀리지 않는다"였고, **사람이 건 정지에
+// 대해서는 지금도 그대로다** — 자동 해제는 "공급자가 고쳐졌다"를 시스템이 안다고
+// 가정하는 것인데, 그걸 아는 방법이 없어서 애초에 사람이 멈춘 것이다.
+//
+// 그런데 교차검증이 **스스로 거는 정지**가 생기면서 사정이 갈렸다. 그쪽은
+// "두 소스가 다른 답을 냈다"는 **관측**이 근거이고, 그 관측은 **다시 할 수 있다.**
+// 순간 단절로 멈춘 자산군이 운영자 휴가 때문에 며칠 서 있으면, 그동안 맞힌 카드까지
+// 14일 상한에 닿아 전액 환불로 끝난다 — 정지가 리서처를 집단으로 벌하는 장치가 된다.
+//
+// 그래서 **누가 걸었는지를 기록하고**(AppSetting.updatedBy), 시스템이 건 것만
+// 재관측으로 풀 수 있게 한다 (server/crossCheckRecovery).
 
 const KEY_PREFIX = 'judgment.paused.';
 const GLOBAL_KEY = `${KEY_PREFIX}ALL`;
+
+/**
+ * 시스템이 스스로 건 정지의 표식 (judgmentBatch의 대량 불일치 정지).
+ * 사람이 건 정지와 갈라야 **자동 해제가 사람의 판단을 덮어쓰지 않는다.**
+ */
+export const SYSTEM_PAUSE_ACTOR = 'system:cross-check';
 
 export interface PauseState {
   /** 전 자산군 정지 */
@@ -60,6 +75,14 @@ export async function getPauseState(prisma: PrismaClient): Promise<PauseState> {
 /**
  * 이 자산군의 자동 판정이 멈춰 있는가 — **배치 진입부가 매 회차 묻는다.**
  * 자산군 스코프가 없는 호출(전 자산군 배치)은 전역 정지만 본다.
+ *
+ * ⚠ 스코프 없는 호출이 자산군별 정지를 **못 본다**는 것이 함정이었다 (2026-08-15).
+ * 기동 따라잡기(catchUpOnBoot)와 `npm run batch:judge`가 스코프 없이 도는데,
+ * 그러면 **정지해 둔 자산군이 재기동 한 번으로 그대로 판정된다** — 배포가 잦은
+ * 시기에는 정지가 사실상 무력하다. 그 경로는 `pausedAssetClasses`로 대상에서
+ * 걸러 내야 한다(judgmentBatch). 이 함수의 계약은 그대로 둔다 — 스코프를 준
+ * 호출에게는 이 답이 맞고, 여기서 전 자산군을 보게 하면 코인 정지가 국내 판정을
+ * 멈추는 반대 방향의 사고가 난다.
  */
 export async function isJudgmentPaused(
   prisma: PrismaClient,
@@ -71,6 +94,35 @@ export async function isJudgmentPaused(
     select: { value: true },
   });
   return rows.some((r) => r.value === '1');
+}
+
+/**
+ * 지금 멈춰 있는 자산군들 — **스코프 없는 배치가 대상에서 빼기 위해** 쓴다.
+ * 전역 정지는 여기 담기지 않는다(그건 배치가 통째로 서는 별개의 상태다).
+ */
+export async function pausedAssetClasses(prisma: PrismaClient): Promise<Set<AssetClass>> {
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { startsWith: KEY_PREFIX }, value: '1' },
+    select: { key: true },
+  });
+  const out = new Set<AssetClass>();
+  for (const r of rows) {
+    const scope = r.key.slice(KEY_PREFIX.length);
+    if (scope !== 'ALL') out.add(scope as AssetClass);
+  }
+  return out;
+}
+
+/** 이 자산군의 정지를 **시스템이** 걸었는가 — 자동 해제 자격의 유일한 기준 */
+export async function isSystemPaused(
+  prisma: PrismaClient,
+  assetClass: AssetClass,
+): Promise<boolean> {
+  const row = await prisma.appSetting.findUnique({
+    where: { key: keyFor(assetClass) },
+    select: { value: true, updatedBy: true },
+  });
+  return row?.value === '1' && row.updatedBy === SYSTEM_PAUSE_ACTOR;
 }
 
 /**

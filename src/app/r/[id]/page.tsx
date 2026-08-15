@@ -107,39 +107,48 @@ export default async function PublicProfile({
               {ASSET_CLASS_LABEL[tr.assetClass as AssetClass]} 트랙레코드{" "}
               {tr.verifying && <StatusChip status="VERIFYING" label="표본 부족 · 검증 중" />}
             </div>
+            {/*
+              **주 지표는 "돈이 걸린 예측"이다** (2026-08-15, 외부 검토 D-1).
+
+              위계만 바꾸는 것으로는 부족하다는 지적을 받아들였다. 안 팔린 카드
+              100장 중 80장을 맞히고 "적중률 80%"를 크게 띄우면, 그것이 유료 카드의
+              호객이 된다 — 구매자가 가장 경계하는 체리피킹의 모양 그대로다.
+
+              그래서 큰 숫자 자리를 통째로 내준다. 전체 적중률은 없애지 않되
+              (안 팔린 카드도 같은 규칙으로 판정된 진짜 예측이고, 숨기면 신규
+              리서처의 표본이 통째로 사라진다) **작게, 그리고 분모와 함께** 적는다.
+            */}
+            <div className={styles.headlineStat}>
+              <div className={styles.headlineLabel}>돈이 걸린 예측 적중률</div>
+              <div className={styles.headlineValue}>{stakedHitRateLabel(tr)}</div>
+              <div className={styles.headlineSub}>
+                판매된 {tr.stakedSampleSize}건 · {tr.stakedAmountKrw.toLocaleString("ko-KR")}원 ·
+                구매자 {tr.stakedBuyers}명
+              </div>
+            </div>
             <div className={styles.statGrid}>
-              <div className={styles.stat}>
-                <div className={styles.statLabel}>적중률</div>
-                <div className={styles.statValue}>
-                  {hitRateLabel(tr.hitRate, tr.sampleSize, { none: "—" })}
-                </div>
-              </div>
-              <div className={styles.stat}>
-                <div className={styles.statLabel}>표본 수</div>
-                <div className={styles.statValue}>{tr.sampleSize}</div>
-              </div>
               {/*
-                **돈이 걸린 예측만의 적중률** — 전체 적중률과 나란히 둔다 (2026-08-15).
-                안 팔린 카드는 틀려도 환불도 항의도 없다. 예측으로서는 진짜지만
-                (같은 규칙으로 자동 판정되고 점수에도 들어간다) 구매자가 "이 사람을
-                믿을까"를 판단할 때 무게가 같을 수 없다. 감추지 않고 갈라 놓는다
+                전체 적중률에는 **분모를 강제로 붙인다.** 숫자 하나만 떼어 놓으면
+                그것이 캡처되어 돌아다니고, 그때 "판매 0건"이라는 사실이 사라진다
               */}
               <div className={styles.stat}>
-                <div className={styles.statLabel}>돈이 걸린 예측</div>
-                <div className={styles.statValue}>{stakedHitRateLabel(tr)}</div>
+                <div className={styles.statLabel}>전체 예측 적중률</div>
+                <div className={styles.statValueSmall}>
+                  {hitRateLabel(tr.hitRate, tr.sampleSize, { none: "—" })}
+                </div>
                 <div className={styles.statSub}>
-                  {tr.stakedSampleSize}건 · {tr.stakedAmountKrw.toLocaleString("ko-KR")}원
+                  판매 {tr.stakedSampleSize}건 / 전체 {tr.sampleSize}건
                 </div>
               </div>
               <div className={styles.stat}>
                 <div className={styles.statLabel}>최근 12개월</div>
-                <div className={styles.statValue}>
+                <div className={styles.statValueSmall}>
                   {tr.recentHitRate === null ? "—" : `${(tr.recentHitRate * 100).toFixed(1)}%`}
                 </div>
               </div>
               <div className={styles.stat}>
                 <div className={styles.statLabel}>가상 수익률</div>
-                <div className={styles.statValue}>
+                <div className={styles.statValueSmall}>
                   {tr.hypotheticalReturnPct === null
                     ? "—"
                     : `${tr.hypotheticalReturnPct >= 0 ? "+" : ""}${tr.hypotheticalReturnPct.toFixed(1)}%`}

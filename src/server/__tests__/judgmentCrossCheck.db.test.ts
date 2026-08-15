@@ -14,7 +14,8 @@ import {
 } from '../judgmentBatch';
 import { createDraftReport, publishReport } from '../reportService';
 import { manualJudgeCard } from '../manualJudgmentService';
-import { isJudgmentPaused, setJudgmentPause } from '../judgmentPause';
+import { isJudgmentPaused, setJudgmentPause, SYSTEM_PAUSE_ACTOR } from '../judgmentPause';
+import { probeAndMaybeResume, PROBE_MAX_FAILURES } from '../crossCheckRecovery';
 
 // **두 시세 소스가 다른 답을 냈을 때 무엇이 일어나는가** (domain/crossCheck).
 //
@@ -340,13 +341,177 @@ describe('대량 불일치 → 자동 판정 정지', () => {
     );
 
     expect(summary.disagreed.length).toBeGreaterThanOrEqual(DISAGREEMENT_HALT_MIN);
-    expect(summary.haltedAssetClass).toBe('CRYPTO');
+    expect(summary.haltedAssetClasses).toEqual(['CRYPTO']);
     // **다음 회차는 실제로 선다** — 정지가 기록으로만 남으면 아무것도 막지 못한다
     expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(true);
 
     // 정지 중에도 상한(환불)은 계속 집행된다 — 구매자 약속은 정지와 무관하다
     const during = await judgeAndSettleDueCards(prisma, { CRYPTO: primary }, PAST_CAP, 'CRYPTO');
     expect(during.hardCapped.length).toBeGreaterThan(0);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
+  });
+});
+
+// **정지가 스스로 풀릴 수 있어야 한다** (2026-08-15, 외부 검토 D-4).
+//
+// 완전 수동 해제는 단일 고장점이다 — 순간 단절로 멈춘 자산군이 운영자 휴가 때문에
+// 며칠 서 있으면 맞힌 카드까지 14일 상한에 닿아 전액 환불로 끝난다.
+//
+// 다만 검토의 제안("정지 후 불일치율이 0%면 해제")은 그대로는 성립하지 않는다:
+// 정지 중에는 배치가 진입부에서 돌아가므로 **관측할 기회 자체가 없다.** 0%는
+// "괜찮아졌다"가 아니라 "아무것도 안 쟀다"다. 그래서 쓰지 않는 탐침을 따로 돌린다.
+describe('정지 자동 해제 — 탐침', () => {
+  const PROBE_TICKER = 'KRW-PB1';
+
+  async function pauseBySystem() {
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: SYSTEM_PAUSE_ACTOR,
+      reason: '시험: 시스템 정지',
+    });
+  }
+
+  it('사람이 건 정지는 건드리지 않는다 — 기계가 사람의 판단을 뒤집지 않는다', async () => {
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: operatorId,
+      reason: '시험: 사람 정지',
+    });
+    const r = await probeAndMaybeResume(
+      prisma,
+      sourceAt(PROBE_TICKER, HIT_CLOSE),
+      'CRYPTO',
+      sourceAt(PROBE_TICKER, HIT_CLOSE, 'second'),
+      BATCH_NOW,
+      'enforce',
+    );
+    expect(r.resumed).toBe(false);
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(true);
+  });
+
+  it('확인할 카드가 없으면 판단하지 않는다 — "불일치 0"이 "안 쟀다"인 경우', async () => {
+    await pauseBySystem();
+    // 이 시점에 CRYPTO 미판정·시한 도래 카드는 앞 시험들이 모두 소진했다
+    const r = await probeAndMaybeResume(
+      prisma,
+      sourceAt('KRW-NONE', HIT_CLOSE),
+      'CRYPTO',
+      sourceAt('KRW-NONE', HIT_CLOSE, 'second'),
+      BATCH_NOW,
+      'enforce',
+    );
+    expect(r.checked).toBe(0);
+    expect(r.resumed).toBe(false);
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(true);
+  });
+
+  it('두 소스가 다시 일치하면 풀고, 탐침은 아무것도 쓰지 않는다', async () => {
+    await seedTestInstruments(prisma, [
+      { assetClass: 'CRYPTO', ticker: PROBE_TICKER, name: PROBE_TICKER, shortable: true },
+    ]);
+    // 정지를 풀어 둔 상태에서 카드를 낸 뒤 다시 시스템 정지를 건다
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 준비',
+    });
+    const reportId = await publishCard(PROBE_TICKER);
+    await pauseBySystem();
+
+    const r = await probeAndMaybeResume(
+      prisma,
+      sourceAt(PROBE_TICKER, HIT_CLOSE),
+      'CRYPTO',
+      sourceAt(PROBE_TICKER, HIT_CLOSE, 'second'),
+      BATCH_NOW,
+      'enforce',
+    );
+    expect(r.checked).toBeGreaterThan(0);
+    expect(r.disagreed).toBe(0);
+    expect(r.resumed).toBe(true);
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(false);
+
+    // **탐침은 판정하지 않는다** — 쓰는 순간 "정지 중"이라는 상태가 거짓이 된다
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { reportId } });
+    expect(await prisma.judgment.findUnique({ where: { predictionCardId: card.id } })).toBeNull();
+    expect(card.deferCount).toBe(0);
+  });
+
+  it('계속 갈리면 실패를 세다가 자동 재개를 포기한다', async () => {
+    await pauseBySystem();
+    let last = await probeAndMaybeResume(
+      prisma,
+      sourceAt(PROBE_TICKER, HIT_CLOSE),
+      'CRYPTO',
+      sourceAt(PROBE_TICKER, MISS_CLOSE, 'second'),
+      BATCH_NOW,
+      'enforce',
+    );
+    expect(last.disagreed).toBeGreaterThan(0);
+    expect(last.resumed).toBe(false);
+
+    for (let i = 1; i < PROBE_MAX_FAILURES; i++) {
+      last = await probeAndMaybeResume(
+        prisma,
+        sourceAt(PROBE_TICKER, HIT_CLOSE),
+        'CRYPTO',
+        sourceAt(PROBE_TICKER, MISS_CLOSE, 'second'),
+        BATCH_NOW,
+        'enforce',
+      );
+    }
+    expect(last.hardLocked).toBe(true);
+    // 포기한 뒤에는 더 두드리지 않는다 — 공급자 호출만 태우고 개입을 늦춘다
+    const after = await probeAndMaybeResume(
+      prisma,
+      sourceAt(PROBE_TICKER, HIT_CLOSE),
+      'CRYPTO',
+      sourceAt(PROBE_TICKER, HIT_CLOSE, 'second'),
+      BATCH_NOW,
+      'enforce',
+    );
+    expect(after.hardLocked).toBe(true);
+    expect(after.checked).toBe(0);
+    expect(after.resumed).toBe(false);
+  });
+});
+
+// **정지가 재기동 한 번으로 풀리면 안 된다** (2026-08-15).
+//
+// `isJudgmentPaused(prisma, undefined)`는 전역 정지만 본다. 그래서 기동 따라잡기와
+// `npm run batch:judge`가 자산군별 정지를 통째로 무시하고 있었다 — 사고가 나서
+// 멈췄는데 **그 사고를 고치려고 배포하면 정지가 풀리는** 모양이었다.
+describe('스코프 없는 배치도 자산군 정지를 존중한다', () => {
+  it('정지된 자산군의 카드는 전 자산군 배치에서도 잡히지 않는다', async () => {
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 준비',
+    });
+    const reportId = await publishCard('KRW-XC2'); // 같은 종목의 새 카드
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: operatorId,
+      reason: '시험: 자산군 정지',
+    });
+
+    // 스코프 **없이** 돈다 — 예전에는 여기서 그대로 판정됐다
+    const summary = await judgeAndSettleDueCards(prisma, sourceAt('KRW-XC2', HIT_CLOSE), BATCH_NOW);
+    expect(summary.judged).toBe(0);
+
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { reportId } });
+    expect(await prisma.judgment.findUnique({ where: { predictionCardId: card.id } })).toBeNull();
 
     await setJudgmentPause(prisma, {
       scope: 'CRYPTO',
