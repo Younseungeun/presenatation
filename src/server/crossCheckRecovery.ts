@@ -2,12 +2,12 @@ import type { PrismaClient } from '@prisma/client';
 import type { AssetClass } from '@/domain/constants';
 import { resolveCrossCheckMode, type CrossCheckMode } from '@/domain/crossCheck';
 import type { ProviderRegistry } from '@/domain/marketData';
-import { runJudgmentFromRegistry } from '@/domain/judgmentPipeline';
+import { ProviderUnavailableError, runJudgmentFromRegistry } from '@/domain/judgmentPipeline';
 import { JudgmentDisagreementError } from '@/domain/crossCheck';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
 import { toJudgeableCard } from './cardMapper';
 import { auditOp } from './auditLog';
-import { isSystemPaused, setJudgmentPause, SYSTEM_PAUSE_ACTOR } from './judgmentPause';
+import { isSystemPaused, resumeIfSystemPaused, SYSTEM_PAUSE_ACTOR } from './judgmentPause';
 
 // **시스템이 스스로 건 정지를 재관측으로 푼다** (2026-08-15, 외부 검토 D-4).
 //
@@ -62,7 +62,96 @@ export const PROBE_SAMPLE_SIZE = 5;
  */
 export const PROBE_BACKOFF_MIN = [0, 2, 4, 8, 16, 32] as const;
 
+/**
+ * **자동 회복이 끝까지 갈 수 있는 시간** = 백오프 눈금의 합 (62분).
+ * 상한 유예의 길이가 이 값인 이유는 아래 `PAUSE_GRACE_MS` 주석에 있다.
+ */
+export const PROBE_TOTAL_WINDOW_MS =
+  PROBE_BACKOFF_MIN.reduce<number>((a, b) => a + b, 0) * 60_000;
+
+/**
+ * **막 걸린 시스템 정지는 14일 상한을 잠깐 미룬다** (2026-08-15, 외부 검토 F-4 ①).
+ *
+ * ── 검토가 짚은 경합 ────────────────────────────────────────────────
+ * 카드가 시한 후 13.9일인데 소스가 파손돼 정지가 걸린다. 그 직후 상한 배치가 돌아
+ * **전액 환불로 닫는다.** 2분 뒤 탐침이 성공해 소스가 돌아오지만 이미 늦었다 —
+ * 정상 적중할 수 있었던 카드가 순간 장애 하나로 무판정으로 끝난다.
+ *
+ * ── 그런데 "정지 중 상한 유예"를 통째로 받으면 안 된다 ──────────────
+ * 24차에 정지 스위치가 만든 결함이 정확히 그것이었다: 사람이 건 정지가 길어지는 동안
+ * 카드가 **환불도 못 받고 묶였다.** 상한은 판정이 아니라 구매자와의 약속이라,
+ * 사람이 언제 풀지 모르는 정지에 약속을 매달 수 없다.
+ *
+ * ── 그래서 유예의 길이를 "자동 회복이 끝까지 갈 수 있는 시간"으로 못 박는다 ──
+ * 시스템이 건 정지에는 **끝이 정해져 있다** — 탐침이 6회 실패하면 하드락이고,
+ * 거기까지가 62분이다(PROBE_TOTAL_WINDOW_MS). 그 시간만 미루면:
+ *  · 순간 장애로 상한이 헛발동하는 일이 사라진다
+ *  · 구매자 약속은 14일 + 1시간으로, 사실상 그대로다
+ *  · 하드락에 닿는 순간 유예가 끝나 상한이 즉시 집행된다 — 사람을 기다리지 않는다
+ * **사람이 건 정지에는 유예가 없다** (끝이 정해져 있지 않으므로).
+ */
+export const PAUSE_GRACE_MS = PROBE_TOTAL_WINDOW_MS;
+
+/**
+ * 이 자산군의 상한 집행을 지금 미뤄야 하는가 — **시스템 정지가 아직 젊을 때만** true.
+ * (judgmentBatch의 정지 중 상한 스윕이 카드마다 묻는다)
+ */
+export async function shouldDelayHardCap(
+  prisma: PrismaClient,
+  assetClass: AssetClass,
+  now: Date,
+): Promise<boolean> {
+  // 사람이 건 정지에는 유예가 없다 — 끝이 정해져 있지 않으므로
+  if (!(await isSystemPaused(prisma, assetClass))) return false;
+  // **정지가 시작된 시각은 우리가 적은 값을 쓴다** (AppSetting.updatedAt이 아니라).
+  // 그 칸은 DB가 붙이는 벽시계라 배치가 받는 `now`와 다른 시계를 보게 되고,
+  // 재시도로 행이 갱신되면 값이 조용히 미래로 밀린다 — 유예가 매번 새로 시작된다
+  const startedAt = await readPausedAt(prisma, assetClass);
+  if (!startedAt) return false;
+  if (now.getTime() - startedAt.getTime() >= PAUSE_GRACE_MS) return false;
+  // 이미 자동 회복을 포기했으면 기다릴 것이 없다 — 상한을 그대로 집행한다
+  const failures = await readFailures(prisma, assetClass);
+  return failures < PROBE_MAX_FAILURES;
+}
+
 const NEXT_KEY_PREFIX = 'judgment.probeNextAt.';
+const TARGET_KEY_PREFIX = 'judgment.probeTargets.';
+const PAUSED_AT_KEY_PREFIX = 'judgment.probePausedAt.';
+
+/**
+ * **정지를 일으킨 카드들** — 탐침이 먼저 봐야 할 대상 (judgmentBatch가 적어 둔다).
+ * 이것이 없으면 탐침은 "아무 카드나 5장"을 보고, 티커별 파손을 통과시킨다.
+ */
+export async function setProbeTargets(
+  prisma: PrismaClient,
+  assetClass: AssetClass,
+  cardIds: string[],
+): Promise<void> {
+  const key = TARGET_KEY_PREFIX + assetClass;
+  const value = JSON.stringify(cardIds.slice(0, PROBE_SAMPLE_SIZE));
+  await prisma.appSetting.upsert({
+    where: { key },
+    create: { key, value, updatedBy: SYSTEM_PAUSE_ACTOR },
+    update: { value, updatedBy: SYSTEM_PAUSE_ACTOR },
+  });
+}
+
+async function readProbeTargets(
+  prisma: PrismaClient,
+  assetClass: AssetClass,
+): Promise<string[]> {
+  const row = await prisma.appSetting.findUnique({
+    where: { key: TARGET_KEY_PREFIX + assetClass },
+    select: { value: true },
+  });
+  if (!row?.value) return [];
+  try {
+    const parsed: unknown = JSON.parse(row.value);
+    return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 /** 실패 횟수 → 다음 탐침 시각 */
 export function nextProbeAt(failures: number, now: Date): Date {
@@ -91,6 +180,8 @@ export interface ProbeResult {
   /** 자동 해제를 포기했는가 (사람만 풀 수 있는 상태) */
   hardLocked: boolean;
   failures: number;
+  /** 공급자가 아예 응답하지 못한 카드 수 — 불일치와 처방이 다르다 */
+  providerDown: number;
   /** 백오프 때문에 이번 틱에는 두드리지 않았다 — 실패가 아니다 */
   skipped: boolean;
 }
@@ -206,11 +297,33 @@ export function sourceInstabilityVerdict(episodes: HaltEpisode[]): {
 export async function resetProbeState(
   prisma: PrismaClient,
   assetClass: AssetClass,
+  now = new Date(),
 ): Promise<void> {
+  const startKey = PAUSED_AT_KEY_PREFIX + assetClass;
+  const startValue = String(now.getTime());
   await Promise.all([
     writeFailures(prisma, assetClass, 0),
     prisma.appSetting.deleteMany({ where: { key: NEXT_KEY_PREFIX + assetClass } }),
+    // **지난 사고의 표적도 지운다.** 남겨 두면 이번 사고의 탐침이 **저번에 깨졌던
+    // 카드**를 보게 되고, 그 카드는 이미 사람이 판정했거나 다른 종목이라 결과가
+    // 이번 사고와 무관하다 — 엉뚱한 답으로 정지를 풀거나 붙잡는다
+    prisma.appSetting.deleteMany({ where: { key: TARGET_KEY_PREFIX + assetClass } }),
+    // **이 사고가 시작된 시각** — 상한 유예의 기준이다 (shouldDelayHardCap)
+    prisma.appSetting.upsert({
+      where: { key: startKey },
+      create: { key: startKey, value: startValue, updatedBy: SYSTEM_PAUSE_ACTOR },
+      update: { value: startValue, updatedBy: SYSTEM_PAUSE_ACTOR },
+    }),
   ]);
+}
+
+async function readPausedAt(prisma: PrismaClient, assetClass: AssetClass): Promise<Date | null> {
+  const row = await prisma.appSetting.findUnique({
+    where: { key: PAUSED_AT_KEY_PREFIX + assetClass },
+    select: { value: true },
+  });
+  const t = Number(row?.value);
+  return Number.isFinite(t) && t > 0 ? new Date(t) : null;
 }
 
 async function readNextAt(prisma: PrismaClient, assetClass: AssetClass): Promise<Date | null> {
@@ -280,6 +393,7 @@ export async function probeAndMaybeResume(
     resumed: false,
     hardLocked: false,
     failures: 0,
+    providerDown: 0,
     skipped: false,
   };
 
@@ -300,18 +414,54 @@ export async function probeAndMaybeResume(
   // 그때는 자동으로 풀지 않는다 — 근거 없이 여는 것이 근거 없이 닫는 것보다 나쁘다
   if (mode === 'off' || !secondaryRegistry?.[assetClass]) return base;
 
-  const cards = await prisma.predictionCard.findMany({
-    where: {
-      judgment: null,
-      assetClass,
-      deadline: { lte: now },
-      manualJudgmentOnly: false,
-      report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
-    },
-    include: { report: { select: { publishedAt: true } } },
-    orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
-    take: PROBE_SAMPLE_SIZE,
-  });
+  // ── **깨진 것을 골라 본다** (2026-08-15, 외부 검토 F-4 ③) ────────────────
+  //
+  // 처음에는 시한 도래 카드를 오래된 순으로 5장 뽑았는데, 두 곳이 틀렸다:
+  //  ① 파손이 **특정 티커 파이프라인**에만 있으면 멀쩡한 5장이 뽑혀 전원 합의로
+  //     통과하고, 깨진 티커는 그대로인 채 정지가 풀린다
+  //  ② 더 나쁜 것 — 불일치 카드는 `manualJudgmentOnly`가 세워지므로 그 필터가
+  //     **정지를 일으킨 바로 그 카드들을 구조적으로 제외**하고 있었다.
+  //     탐침이 무엇이 고쳐졌는지 확인할 대상만 정확히 빼고 보고 있었던 셈이다
+  //
+  // 그래서 정지 시점에 **불일치 카드 id를 적어 두고** 그것을 먼저 본다.
+  // `manualJudgmentOnly`를 무시해도 되는 이유는 **탐침이 쓰지 않기 때문**이다 —
+  // 그 플래그가 막는 것은 자동 판정이지 관측이 아니다.
+  const targetIds = await readProbeTargets(prisma, assetClass);
+  const primaryTargets = targetIds.length
+    ? await prisma.predictionCard.findMany({
+        where: {
+          id: { in: targetIds },
+          judgment: null,
+          report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
+        },
+        include: { report: { select: { publishedAt: true } } },
+        take: PROBE_SAMPLE_SIZE,
+      })
+    : [];
+
+  // 표적이 모자라면 일반 대기 카드로 채운다 — 표적이 이미 사람 손에 판정됐을 수 있다
+  const fill =
+    primaryTargets.length >= PROBE_SAMPLE_SIZE
+      ? []
+      : await prisma.predictionCard.findMany({
+          where: {
+            judgment: null,
+            assetClass,
+            deadline: { lte: now },
+            manualJudgmentOnly: false,
+            // **빈 배열이면 조건 자체를 넣지 않는다** — Prisma가 `NOT IN ()`을 만들어
+            // 한 건도 안 잡는다. 표적이 없는 정지(사람이 건 것 등)에서 탐침이
+            // 조용히 "확인할 카드 0장"이 되던 자리다
+            ...(primaryTargets.length > 0
+              ? { id: { notIn: primaryTargets.map((c) => c.id) } }
+              : {}),
+            report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
+          },
+          include: { report: { select: { publishedAt: true } } },
+          orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
+          take: PROBE_SAMPLE_SIZE - primaryTargets.length,
+        });
+  const cards = [...primaryTargets, ...fill];
   // 확인할 카드가 없으면 **판단하지 않는다.** "불일치 0건"이 여기서는 "괜찮다"가
   // 아니라 "안 쟀다"이고, 그것으로 정지를 푸는 것이 검토안의 결함이었다
   if (cards.length === 0) return base;
@@ -319,6 +469,7 @@ export async function probeAndMaybeResume(
   const quotes = memoizeRegistry(registry);
   let disagreed = 0;
   let checked = 0;
+  let providerDown = 0;
   for (const card of cards) {
     try {
       await runJudgmentFromRegistry(
@@ -335,14 +486,22 @@ export async function probeAndMaybeResume(
         checked++;
         continue;
       }
-      // 이월·공급자 장애는 **불일치가 아니다.** 소스가 죽어 있으면 "돌아왔다"고
-      // 말할 수 없으므로 확인 횟수에도 넣지 않는다 (checked가 0으로 남아 판단 보류)
+      // **공급자가 응답하지 못하는 것도 실패로 센다** (2026-08-15, 외부 검토 F-1).
+      //
+      // 처음에는 "소스가 죽어 있으면 돌아왔다고 말할 수 없으니 판단 보류"로 뒀는데,
+      // 그러면 **영원히 탐침만 돈다** — 실패 카운터가 안 올라 하드락에 못 닿고,
+      // 판정이 멈춰 있으니 배치의 공급자 장애 알림도 나가지 않는다. 62분 동안
+      // 응답이 없는 것은 지터가 아니라 장애이고, 그때 필요한 것은 계속 두드리는
+      // 것이 아니라 **사람을 부르는 것**이다.
+      if (e instanceof ProviderUnavailableError) providerDown++;
+      // 이월(시한 미도래·데이터 미공개)은 세지 않는다 — 그건 소스의 상태가 아니다
     }
   }
 
-  if (checked === 0) return base;
+  // 확인도 못 했고 공급자도 멀쩡했다면(전부 이월) 판단할 근거가 없다
+  if (checked === 0 && providerDown === 0) return base;
 
-  if (disagreed > 0) {
+  if (disagreed > 0 || providerDown > 0) {
     const next = failures + 1;
     await writeFailures(prisma, assetClass, next);
     await writeNextAt(prisma, assetClass, nextProbeAt(next, now));
@@ -350,22 +509,30 @@ export async function probeAndMaybeResume(
       ...base,
       checked,
       disagreed,
+      providerDown,
       failures: next,
       hardLocked: next >= PROBE_MAX_FAILURES,
     };
   }
 
-  // 전부 합의했다 — 소스가 돌아왔다고 본다
-  await setJudgmentPause(
+  // 전부 합의했다 — 소스가 돌아왔다고 본다.
+  //
+  // **조건부 갱신을 쓴다** (F-4 ②): 위의 자격 검사부터 여기까지 네트워크로 수 초가
+  // 흘렀고, 그 사이 운영자가 직접 정지를 걸었을 수 있다. 그때 이 해제가 나가면
+  // 사람의 판단을 조용히 덮어쓴다. 0행이면 **탐침 결과를 버린다** — 이긴 쪽을
+  // 정하는 문제가 아니라 다시 재야 하는 문제다.
+  const resumed = await resumeIfSystemPaused(
     prisma,
-    {
-      scope: assetClass,
-      paused: false,
-      operatorUserId: SYSTEM_PAUSE_ACTOR,
-      reason: `탐침 ${checked}장이 모두 두 소스에서 같은 결론 — 자동 판정을 재개합니다`,
-    },
+    assetClass,
+    `탐침 ${checked}장이 모두 두 소스에서 같은 결론 — 자동 판정을 재개합니다`,
     now,
   );
+  if (!resumed) {
+    console.warn(
+      `${assetClass}: 탐침이 합의했지만 그 사이 정지 상태가 바뀌어 해제를 취소했습니다`,
+    );
+    return { ...base, checked, disagreed: 0 };
+  }
   await writeFailures(prisma, assetClass, 0);
   await writeNextAt(prisma, assetClass, now); // 다음 정지는 즉시 첫 탐침부터 시작한다
   // **자동으로 열었다는 사실 자체가 기록이어야 한다** — 사람이 나중에 "누가 열었나"를

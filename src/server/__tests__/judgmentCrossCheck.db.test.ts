@@ -14,12 +14,19 @@ import {
 } from '../judgmentBatch';
 import { createDraftReport, publishReport } from '../reportService';
 import { manualJudgeCard } from '../manualJudgmentService';
-import { isJudgmentPaused, setJudgmentPause, SYSTEM_PAUSE_ACTOR } from '../judgmentPause';
+import {
+  isJudgmentPaused,
+  resumeIfSystemPaused,
+  setJudgmentPause,
+  SYSTEM_PAUSE_ACTOR,
+} from '../judgmentPause';
 import {
   nextProbeAt,
   probeAndMaybeResume,
   resetProbeState,
+  setProbeTargets,
   sourceInstabilityVerdict,
+  PAUSE_GRACE_MS,
   PROBE_MAX_FAILURES,
 } from '../crossCheckRecovery';
 
@@ -375,13 +382,15 @@ describe('대량 불일치 → 자동 판정 정지', () => {
 describe('정지 자동 해제 — 탐침', () => {
   const PROBE_TICKER = 'KRW-PB1';
 
-  async function pauseBySystem() {
+  async function pauseBySystem(now = BATCH_NOW) {
     await setJudgmentPause(prisma, {
       scope: 'CRYPTO',
       paused: true,
       operatorUserId: SYSTEM_PAUSE_ACTOR,
       reason: '시험: 시스템 정지',
     });
+    // 배치가 정지할 때 하는 일 — 지난 사고의 표적·실패 횟수를 지운다
+    await resetProbeState(prisma, 'CRYPTO', now);
   }
 
   it('사람이 건 정지는 건드리지 않는다 — 기계가 사람의 판단을 뒤집지 않는다', async () => {
@@ -646,5 +655,169 @@ describe('소스 불안정 지표', () => {
   it('아직 안 풀린 정지도 지금까지의 시간으로 센다', () => {
     const v = sourceInstabilityVerdict([ep(null)]);
     expect(v.totalMinutes).toBe(0); // minutes가 null이면 0으로 — 지어내지 않는다
+  });
+});
+
+// **복합 경로 — 방어층끼리 어긋나던 세 자리** (2026-08-15, 외부 검토 F-4).
+//
+// 32회차 동안 방어를 하나씩 쌓았는데, 각각은 시험이 있어도 **둘이 동시에 걸리는 순간**은
+// 아무도 안 봤다. 검토가 그 조합 셋을 짚었고 전부 진짜였다.
+describe('복합 경로 ① 정지 직후의 상한 경합', () => {
+  it('막 걸린 시스템 정지는 상한을 유예한다 — 순간 장애로 헛발동하지 않게', async () => {
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 준비',
+    });
+    const RACE_TICKER = 'KRW-RC1';
+    await seedTestInstruments(prisma, [
+      { assetClass: 'CRYPTO', ticker: RACE_TICKER, name: RACE_TICKER, shortable: true },
+    ]);
+    const reportId = await publishCard(RACE_TICKER);
+
+    // 시스템이 방금 정지를 걸었다
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: SYSTEM_PAUSE_ACTOR,
+      reason: '시험: 정지 직후',
+    });
+    // 정지가 시작된 시각을 배치가 쓰는 시계에 맞춘다 (배치는 now를 넘긴다)
+    await resetProbeState(prisma, 'CRYPTO', PAST_CAP);
+
+    // 상한이 지난 시각에 배치가 돈다 — 예전에는 여기서 전액 환불로 닫혔다
+    const during = await judgeAndSettleDueCards(
+      prisma,
+      sourceAt(RACE_TICKER, HIT_CLOSE),
+      PAST_CAP,
+      'CRYPTO',
+    );
+    expect(during.hardCapped).toHaveLength(0);
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { reportId } });
+    expect(await prisma.judgment.findUnique({ where: { predictionCardId: card.id } })).toBeNull();
+
+    // 유예가 끝나면(자동 회복이 끝까지 갈 수 있는 시간) 상한이 그대로 집행된다 —
+    // **무기한 유예가 아니다.** 구매자 약속은 14일 + 1시간이지 사람이 풀 때까지가 아니다
+    const after = await judgeAndSettleDueCards(
+      prisma,
+      sourceAt(RACE_TICKER, HIT_CLOSE),
+      new Date(PAST_CAP.getTime() + PAUSE_GRACE_MS + 60_000),
+      'CRYPTO',
+    );
+    expect(after.hardCapped.length).toBeGreaterThan(0);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
+  });
+
+  it('사람이 건 정지에는 유예가 없다 — 끝이 정해져 있지 않으므로', async () => {
+    const HUMAN_TICKER = 'KRW-RC2';
+    await seedTestInstruments(prisma, [
+      { assetClass: 'CRYPTO', ticker: HUMAN_TICKER, name: HUMAN_TICKER, shortable: true },
+    ]);
+    await publishCard(HUMAN_TICKER);
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: operatorId,
+      reason: '시험: 사람 정지',
+    });
+
+    const during = await judgeAndSettleDueCards(
+      prisma,
+      sourceAt(HUMAN_TICKER, HIT_CLOSE),
+      PAST_CAP,
+      'CRYPTO',
+    );
+    expect(during.hardCapped.length).toBeGreaterThan(0);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
+  });
+});
+
+describe('복합 경로 ② 자동 해제와 사람의 정지가 겹칠 때', () => {
+  it('탐침이 재는 동안 사람이 정지를 걸면 자동 해제를 버린다', async () => {
+    // 사람이 건 정지 상태에서 조건부 갱신을 시도한다 — 0행이어야 한다
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: operatorId,
+      reason: '시험: 사람이 먼저 걸었다',
+    });
+    const ok = await resumeIfSystemPaused(prisma, 'CRYPTO', '탐침 합의');
+    expect(ok).toBe(false);
+    // **사람의 정지가 그대로 남아 있다** — 기계가 덮어쓰지 못했다
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(true);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
+  });
+});
+
+describe('복합 경로 ③ 탐침이 깨진 카드를 본다', () => {
+  it('불일치 카드는 manualJudgmentOnly인데도 탐침 표적이 된다', async () => {
+    const T = 'KRW-TG1';
+    await seedTestInstruments(prisma, [
+      { assetClass: 'CRYPTO', ticker: T, name: T, shortable: true },
+    ]);
+    const reportId = await publishCard(T);
+
+    // 불일치로 수동 큐에 올린다 (= manualJudgmentOnly)
+    await judgeAndSettleDueCards(
+      prisma,
+      sourceAt(T, HIT_CLOSE),
+      BATCH_NOW,
+      'CRYPTO',
+      undefined,
+      undefined,
+      sourceAt(T, MISS_CLOSE, 'second'),
+      'enforce',
+    );
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { reportId } });
+    expect(card.manualJudgmentOnly).toBe(true);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: SYSTEM_PAUSE_ACTOR,
+      reason: '시험: 표적',
+    });
+    await resetProbeState(prisma, 'CRYPTO');
+    await setProbeTargets(prisma, 'CRYPTO', [card.id]);
+
+    // 표적 카드가 여전히 갈리면 **정지가 안 풀려야 한다.**
+    // 예전에는 manualJudgmentOnly 필터가 이 카드를 빼서, 멀쩡한 다른 카드만 보고 풀었다
+    const stillBroken = await probeAndMaybeResume(
+      prisma,
+      sourceAt(T, HIT_CLOSE),
+      'CRYPTO',
+      sourceAt(T, MISS_CLOSE, 'second'),
+      BATCH_NOW,
+      'enforce',
+    );
+    expect(stillBroken.disagreed).toBeGreaterThan(0);
+    expect(stillBroken.resumed).toBe(false);
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(true);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
   });
 });

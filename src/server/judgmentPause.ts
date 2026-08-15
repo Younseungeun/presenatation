@@ -126,6 +126,45 @@ export async function isSystemPaused(
 }
 
 /**
+ * **시스템 정지일 때만 푼다 — 조건부 갱신** (2026-08-15, 외부 검토 F-4 ②).
+ *
+ * 탐침은 "시스템 정지인가"를 읽고 → 네트워크로 5장을 조회하고(수 초) → 해제를 쓴다.
+ * 그 사이에 운영자가 **직접 정지를 걸면**, 앞의 읽기 결과를 믿고 쓰는 해제가
+ * **사람의 판단을 조용히 덮어쓴다.** 실제로 일어날 수 있는 창이고(탐침이 수 초를 쓴다),
+ * 결과가 심각하다 — 운영자는 자기가 멈춘 자산군이 다시 도는 것을 모른다.
+ *
+ * 그래서 갱신 조건에 `updatedBy`를 넣어 **원자적으로** 확인한다. 0행이면 그 사이에
+ * 누가 손댄 것이므로 **탐침 결과를 버린다** — 다시 재는 것이 옳지, 이긴 쪽을 정하는
+ * 문제가 아니다.
+ */
+export async function resumeIfSystemPaused(
+  prisma: PrismaClient,
+  assetClass: AssetClass,
+  reason: string,
+  now = new Date(),
+): Promise<boolean> {
+  const key = keyFor(assetClass);
+  const { count } = await prisma.appSetting.updateMany({
+    where: { key, value: '1', updatedBy: SYSTEM_PAUSE_ACTOR },
+    data: { value: '0', updatedBy: SYSTEM_PAUSE_ACTOR },
+  });
+  if (count === 0) return false;
+
+  await auditOp(prisma, {
+    actor: SYSTEM_PAUSE_ACTOR,
+    actorType: 'OPERATOR',
+    action: 'JUDGMENT_PAUSE_SET',
+    targetType: 'JudgmentPause',
+    targetId: assetClass,
+    before: { paused: true },
+    after: { paused: false },
+    reason: reason.slice(0, 500),
+    at: now,
+  });
+  return true;
+}
+
+/**
  * 멈추거나 다시 연다. **사유가 필수다** — 왜 멈췄는지 모르면 언제 풀어야 하는지도 모른다.
  * 변경은 감사 로그에 남는다(돈을 움직이지는 않지만 돈의 근거를 바꾸는 행위다).
  */

@@ -259,11 +259,19 @@ async function probePausedMarkets(): Promise<void> {
       }
     } else if (probe.hardLocked) {
       // **자동 해제를 포기했다** — "곧 풀리겠지"라는 기대가 개입을 늦추면 안 된다
+      // **원인이 둘이고 처방이 다르다** — 어느 쪽인지 말해 주지 않으면 운영자가
+      // 시세를 대조하러 가는데 정작 볼 곳은 공급자 상태 페이지일 수 있다
+      const outage = probe.providerDown > 0;
       await alertOps(
         `[P0] ${assetClass} 자동 재개 포기 — 사람이 풀어야 합니다`,
-        `탐침이 ${probe.failures}회 연속으로 불일치를 봤습니다. 일시 장애가 아닙니다.\n` +
+        `탐침이 ${probe.failures}회 연속으로 실패했습니다. 일시 장애가 아닙니다.\n` +
+          (outage
+            ? `마지막 회차의 원인은 **공급자 응답 없음**입니다 (${probe.providerDown}건).\n` +
+              `시세를 대조할 것이 아니라 공급자 상태를 확인하세요.\n`
+            : `마지막 회차의 원인은 **두 소스의 결론 불일치**입니다.\n` +
+              `두 소스를 직접 대조하세요 (npm run probe:sources).\n`) +
           `이 상태로 두면 그 자산군의 카드가 차례로 14일 상한(전액 환불)에 닿습니다.\n` +
-          `두 소스를 직접 대조하고(npm run probe:sources) 원인을 고친 뒤 정지를 푸세요.`,
+          `상한 유예도 여기서 끝나므로 지금부터는 상한이 그대로 집행됩니다.`,
         '/admin/judgments',
         `judge:hardlock:${assetClass}`,
       );
