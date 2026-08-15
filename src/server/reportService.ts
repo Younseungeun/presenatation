@@ -19,6 +19,7 @@ import {
 } from '@/domain/compliance';
 import type { ComplianceScreener } from '@/infra/compliance/screener';
 import { toCardDraft } from './cardMapper';
+import { countUnjudgeableCards } from './compensationService';
 import { operatorVerdictWrites, screenAndRecord } from './complianceService';
 import { buildNewCardNotificationWrites } from './followService';
 import { validateListedInstrument } from './instrumentService';
@@ -199,6 +200,11 @@ export async function publishReport(
       // 크기 상한 규칙이 종목 변동성을 함께 본다 — 거친 종목의 큰 예측은 낚시가 아니다.
       // 작성 화면 사전 검사가 쓰는 것과 같은 캐시값이라 두 화면의 판정이 어긋나지 않는다
       sigmaDaily: instrument.sigmaDaily,
+      // **판정 불가가 반복되면 사람이 한 번 본다** (2026-08-16). 보상 원장이 생기면서
+      // "판정 불가가 실패보다 낫다"가 됐고, 그러면 판정되기 어려운 종목을 고를 유인이
+      // 생긴다. 작성 화면 사전 검사에는 넘기지 않는다 — 리서처 이력은 서버가 게시
+      // 시점에만 붙이는 사실이고, 미리 보여주면 문턱을 피해 가는 법을 알려주는 셈이다
+      unjudgeableCardCount: await countUnjudgeableCards(prisma, report.researcher.userId, now),
     },
     screener,
     now,

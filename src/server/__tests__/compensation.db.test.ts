@@ -7,11 +7,13 @@ import { compensationAmountKrw } from '@/domain/compensation';
 import { JUDGMENT_HARD_CAP_DAYS, judgeAndSettleDueCards } from '../judgmentBatch';
 import {
   CompensationError,
+  countUnjudgeableCards,
   executeCompensation,
   getPendingCompensationReviews,
   reviewCompensation,
   sweepPendingCompensations,
   COMPENSATION_REVIEW_OVERDUE_DAYS,
+  UNJUDGEABLE_LOOKBACK_DAYS,
 } from '../compensationService';
 import {
   CompensationBudgetExceeded,
@@ -373,6 +375,54 @@ describe('실행', () => {
   it('기본 예산은 초기 규모에서 장애 한 번을 덮는다', () => {
     const perCard = compensationAmountKrw({ amountKrw: 50_000, feeRateBp: FEE_RATE_BP });
     expect(MONTHLY_COMPENSATION_BUDGET_KRW / perCard).toBeGreaterThan(100);
+  });
+});
+
+// 보상 원장이 만든 새 유인 — 판정 불가가 실패보다 낫고, 점수만 보면 적중보다 안전하다.
+// 그러면 **판정되기 어려운 종목을 고를 유인**이 생긴다. 자동 규칙 대신 사람 앞에 놓는다
+describe('판정 불가 이력', () => {
+  // **구매 건수가 아니라 카드 수다.** 지시서는 구매 1건에 1행이라 그냥 세면
+  // 인기 카드 한 장이 다섯 건이 되고, 잘 팔리는 리서처가 그 이유만으로 먼저 걸린다
+  it('구매가 아니라 카드를 센다', async () => {
+    // CAPPED(구매 2건) + BUDGET(구매 1건) = 지시서 3행이지만 카드는 2장이다
+    expect(
+      await prisma.compensationInstruction.count({
+        where: { researcherUserId, cause: 'DATA_UNKNOWN' },
+      }),
+    ).toBe(3);
+    expect(await countUnjudgeableCards(prisma, researcherUserId, PAST_CAP)).toBe(2);
+  });
+
+  // 정지 중 상한·수동 큐 방치·판정 오류는 **리서처가 고른 종목과 아무 관계가 없다.**
+  // 그것까지 세면 우리 장애의 대가를 피해자에게 청구하는 규칙이 된다
+  it('시세 미확보(DATA_UNKNOWN)만 센다 — 우리 운영 실패는 세지 않는다', async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { ticker: NORMAL } });
+    const purchase = await prisma.purchase.findFirstOrThrow({ where: { reportId: card.reportId } });
+    await prisma.compensationInstruction.create({
+      data: {
+        purchaseId: purchase.id,
+        predictionCardId: card.id,
+        researcherUserId,
+        amountKrw: 8_000,
+        cause: 'SYSTEM_PAUSE', // 우리가 판정을 멈춰 둔 사이 시한이 지났다
+        status: 'PENDING_REVIEW',
+        createdAt: PAST_CAP,
+      },
+    });
+    expect(await countUnjudgeableCards(prisma, researcherUserId, PAST_CAP)).toBe(2); // 그대로
+    await prisma.compensationInstruction.deleteMany({ where: { cause: 'SYSTEM_PAUSE' } });
+  });
+
+  it('창 밖의 이력은 세지 않는다', async () => {
+    const wayLater = new Date(PAST_CAP.getTime() + (UNJUDGEABLE_LOOKBACK_DAYS + 1) * 86_400_000);
+    expect(await countUnjudgeableCards(prisma, researcherUserId, wayLater)).toBe(0);
+  });
+
+  // 판단하는 자리가 여기다 — 숫자만 띄우고 규칙은 만들지 않는다
+  it('확정 큐가 그 리서처의 이력을 함께 보여준다', async () => {
+    const queue = await getPendingCompensationReviews(prisma, PAST_CAP);
+    expect(queue.length).toBeGreaterThan(0);
+    expect(queue.every((g) => g.researcherUnjudgeableCards === 2)).toBe(true);
   });
 });
 

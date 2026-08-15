@@ -32,6 +32,7 @@ export const RISK_CATEGORIES = [
   'SCREENING_EVASION', // 검수 회피 시도 (AI에게 지시를 주입해 판정을 조작하려는 문장)
   'UNREALISTIC_TARGET', // 기간 대비 달성 불가능한 예측 크기 (규칙으로 판정)
   'CARD_MISMATCH', // 본문 결론과 예측 카드가 어긋남 (AI 판정)
+  'UNJUDGEABLE_PATTERN', // 이 리서처의 카드가 반복해서 판정되지 못했다 (귀책 미정)
 ] as const;
 export type RiskCategory = (typeof RISK_CATEGORIES)[number];
 
@@ -47,7 +48,18 @@ export const RISK_CATEGORY_LABEL: Record<RiskCategory, string> = {
   SCREENING_EVASION: '검수 회피 시도',
   UNREALISTIC_TARGET: '비현실적 예측 크기',
   CARD_MISMATCH: '본문과 예측 카드 불일치',
+  UNJUDGEABLE_PATTERN: '판정 불가 반복',
 };
+
+/**
+ * 이만큼 쌓이면 사람이 본다 (`UNJUDGEABLE_PATTERN`).
+ *
+ * 종목 단위 차단(`HARD_CAP_BLOCK_THRESHOLD` = 2)이 이미 있지만 그것은 **종목**을 막고,
+ * 리서처가 종목을 옮기면 처음부터 다시 센다. 이 눈금은 그 사각을 본다.
+ * 종목 쪽보다 느슨한(2 → 3) 이유는 처분의 대상이 다르기 때문이다 — 종목을 내리는 것은
+ * 아무의 잘못도 아니지만, 사람의 게시를 멈춰 세우는 것은 한 번 더 확실할 때 해야 한다.
+ */
+export const UNJUDGEABLE_PATTERN_THRESHOLD = 3;
 
 /** BLOCK: 게시 차단 / WARN: 게시 허용하되 운영자 검토 대상 */
 export type Severity = 'BLOCK' | 'WARN';
@@ -127,6 +139,14 @@ export interface ScreeningInput {
   delistingRisk?: boolean;
   /** 시가총액 (종목 통화 기준). 과소 시총은 게시 보류 대상 */
   marketCap?: number | null;
+  /**
+   * 이 리서처의 카드가 **시세 미확보로** 판정되지 못한 최근 건수 — 카드 단위.
+   *
+   * 구매 건수가 아니라 **카드 수**다. 인기 카드 한 장이 구매 5건이라고 사건이 다섯이
+   * 되면, 잘 팔리는 리서처가 그 이유만으로 먼저 걸린다.
+   * 작성 화면 사전 검사에서는 비어 있다(리서처 이력은 서버가 게시 시점에 붙인다).
+   */
+  unjudgeableCardCount?: number | null;
 
   // ── 예측 카드 ────────────────────────────────────────────────────────
   //
@@ -374,6 +394,38 @@ export function applyRules(input: ScreeningInput): Finding[] {
       severity: 'WARN',
       quote: input.assetName,
       reason: r.message,
+      source: 'rule',
+    });
+  }
+
+  // **판정 불가가 반복되는 리서처는 사람이 한 번 본다** (2026-08-16).
+  //
+  // 보상 원장이 생기면서 손익표가 이렇게 됐다: 적중이면 대금−수수료, 실패면 0,
+  // **판정 불가면 대금−수수료에 점수 0.** 판정 불가가 실패보다 낫고 점수만 놓고 보면
+  // 적중보다 안전하다 — 그러면 **판정되기 어려운 종목을 고를 유인**이 생긴다.
+  // 종목 마스터는 "시세를 준다"까지만 보장하지 자주 비는 종목은 통과시킨다.
+  //
+  // ── 왜 시세 미확보(DATA_UNKNOWN)만 세는가 ────────────────────
+  // 정지 중 상한·수동 큐 방치·판정 오류는 **리서처가 고른 종목과 아무 관계가 없다.**
+  // 그것까지 세면 우리 장애의 대가를 피해자에게 청구하는 규칙이 된다. 종목 선택이
+  // 결과를 바꾸는 사유는 이 하나뿐이라 여기만 센다.
+  //
+  // ── 왜 자동 차단이 아니라 보류인가 ──────────────────────────
+  // 같은 N회가 **우리 피드 장애를 반복해 겪은 정직한 리서처**의 것일 수 있다.
+  // 둘을 문자열로 구별할 방법이 없으므로 규칙은 판단하지 않고 **사람 앞에 놓기만**
+  // 한다. 문구도 그렇게 적는다 — 혐의를 전제하지 않는다.
+  if (
+    input.unjudgeableCardCount != null &&
+    input.unjudgeableCardCount >= UNJUDGEABLE_PATTERN_THRESHOLD
+  ) {
+    findings.push({
+      category: 'UNJUDGEABLE_PATTERN',
+      severity: 'WARN',
+      quote: input.assetName,
+      reason:
+        `이 리서처의 카드가 시세를 구하지 못해 판정되지 못한 일이 최근 ${input.unjudgeableCardCount}건 있었습니다. ` +
+        '우리 시세 공급 장애일 수도 있고, 판정하기 어려운 종목이 반복해 선택된 것일 수도 있습니다 — ' +
+        '어느 쪽인지 확인한 뒤 승인해주세요.',
       source: 'rule',
     });
   }

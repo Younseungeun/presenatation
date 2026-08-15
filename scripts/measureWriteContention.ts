@@ -32,7 +32,15 @@ const DURATION_MS = 6_000;
 /** 웹 서버를 몇 벌로 늘려 볼 것인가 — pm2 클러스터·다중 파드가 이 축이다 */
 const WEB_WRITER_SWEEP = [1, 2, 4, 8];
 
-/** 판정 쓰기 한 건의 모양 — buildJudgmentWrites가 내보내는 문장 수와 맞춘다 */
+/**
+ * 판정 쓰기 한 건의 모양 — `buildJudgmentWrites`가 내보내는 문장 수와 맞춘다.
+ *
+ * **6이라는 숫자가 2026-08-16부터 진짜가 됐다.** 그전에는 문장 수가 `3N+2`(N = 구매
+ * 건수)라 여기 적힌 6은 "구매 2건짜리 카드"라는 임의의 표본이었고, 잘 팔리는 카드에서
+ * 무슨 일이 일어나는지는 이 측정이 아예 못 봤다. 지금은 정산·구매 상태·알림·보상을
+ * 전부 묶어(`createMany`/`updateMany`) **N과 무관하게 7문장 이하**라, 이 상수가
+ * 최악의 경우를 그대로 대표한다 (judgmentWriteFanout.db.test.ts가 그 불변식을 고정).
+ */
 function judgmentLikeWrites(prisma: PrismaClient, slowMs: number) {
   const rows = Array.from({ length: 6 }, (_, i) => ({
     userId: TAG,

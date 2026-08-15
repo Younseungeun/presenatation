@@ -54,19 +54,56 @@ export function buildCompensationWrites(
   // 0으로 가정하면 **대금 전액이 보상액이 되어** 역유인이 그대로 부활한다
   if (feeRateBp == null) return [];
 
-  return card.report.purchases.filter(isCompensable).map((p) =>
-    prisma.compensationInstruction.create({
-      data: {
-        purchaseId: p.id,
-        predictionCardId: card.id,
-        researcherUserId: card.report.researcher.userId,
-        amountKrw: compensationAmountKrw({ amountKrw: p.amountKrw, feeRateBp }),
-        cause,
-        status: 'PENDING_REVIEW',
-        createdAt: now,
-      },
-    }),
-  );
+  const data = card.report.purchases.filter(isCompensable).map((p) => ({
+    purchaseId: p.id,
+    predictionCardId: card.id,
+    researcherUserId: card.report.researcher.userId,
+    amountKrw: compensationAmountKrw({ amountKrw: p.amountKrw, feeRateBp }),
+    cause,
+    status: 'PENDING_REVIEW',
+    createdAt: now,
+  }));
+  if (data.length === 0) return [];
+  // **구매가 몇 건이든 한 문장이다** (2026-08-16). 판정 트랜잭션은 이미 문장 수가
+  // 구매 건수에 비례해 커지는 문제를 안고 있었고, 보상이 붙으면서 구매당 4문장이
+  // 됐다 — 새 표를 만들면서 그 기울기를 더 세우지 않는다.
+  // 중복은 여전히 purchaseId unique가 막는다(skipDuplicates 기본 false)
+  return [prisma.compensationInstruction.createMany({ data })];
+}
+
+/**
+ * 판정 불가 이력을 얼마나 거슬러 세는가.
+ *
+ * 평생 누적으로 세면 오래 활동한 리서처가 그 이유만으로 먼저 걸린다. 반대로 창이
+ * 너무 짧으면 천천히 반복하는 쪽을 못 본다. 규율 래더가 증거를 평생 쌓는 것과
+ * 방향이 다른 이유는 재는 것이 다르기 때문이다 — 저쪽은 **신고의 정직성**이고
+ * 이쪽은 **지금 이 사람의 게시를 한 번 볼 것인가**다.
+ */
+export const UNJUDGEABLE_LOOKBACK_DAYS = 180;
+
+/**
+ * 이 리서처의 카드가 **시세 미확보로** 판정되지 못한 최근 건수 — **카드 단위**.
+ *
+ * 구매 건수가 아니라 카드 수를 세는 것이 요점이다. 지시서는 구매 1건에 1행이라
+ * 그냥 세면 인기 카드 한 장이 다섯 건이 되고, **잘 팔리는 리서처가 그 이유만으로**
+ * 먼저 걸린다.
+ *
+ * 검토 결과(승인/제외)로 거르지 않는다 — 제외된 건은 "리서처가 고른 종목이 그날
+ * 멈춰 있었다"는 뜻이라 오히려 이 패턴의 더 진한 신호다. 세는 것은 처분이 아니라
+ * **판정이 안 됐다는 사실**이다.
+ */
+export async function countUnjudgeableCards(
+  prisma: PrismaClient,
+  researcherUserId: string,
+  now = new Date(),
+): Promise<number> {
+  const since = new Date(now.getTime() - UNJUDGEABLE_LOOKBACK_DAYS * 86_400_000);
+  const rows = await prisma.compensationInstruction.findMany({
+    where: { researcherUserId, cause: 'DATA_UNKNOWN', createdAt: { gte: since } },
+    select: { predictionCardId: true },
+    distinct: ['predictionCardId'],
+  });
+  return rows.length;
 }
 
 /**
@@ -76,7 +113,7 @@ export function buildCompensationWrites(
  * 운영자가 같은 질문("이 카드는 왜 판정을 못 했나")에 세 번 답하게 되고, 세 번 중
  * 한 번이 다르게 나오는 날이 온다.
  */
-export async function getPendingCompensationReviews(prisma: PrismaClient) {
+export async function getPendingCompensationReviews(prisma: PrismaClient, now = new Date()) {
   const rows = await prisma.compensationInstruction.findMany({
     where: { status: 'PENDING_REVIEW' },
     include: {
@@ -100,6 +137,14 @@ export async function getPendingCompensationReviews(prisma: PrismaClient) {
       researcherUserId: string;
       createdAt: Date;
       totalKrw: number;
+      /**
+       * 이 리서처가 **시세 미확보로** 판정 못 한 최근 카드 수 (이 건 포함).
+       *
+       * 자동 규칙으로 만들지 않고 숫자만 띄우는 이유: 같은 N회가 우리 피드 장애를
+       * 반복해 겪은 정직한 리서처의 것일 수 있다. "N회 이상 자동 제외"는 **우리
+       * 장애의 대가를 피해자에게 청구하는 규칙**이 된다. 판단하는 자리는 여기다
+       */
+      researcherUnjudgeableCards: number;
       rows: typeof rows;
     }
   >();
@@ -118,10 +163,21 @@ export async function getPendingCompensationReviews(prisma: PrismaClient) {
       researcherUserId: r.researcherUserId,
       createdAt: r.createdAt,
       totalKrw: r.amountKrw,
+      researcherUnjudgeableCards: 0,
       rows: [r],
     });
   }
-  return [...byCard.values()];
+
+  // 리서처 수만큼만 센다 — 큐가 길어도 조회는 사람 수에 비례한다
+  const groups = [...byCard.values()];
+  const counts = new Map<string, number>();
+  for (const userId of new Set(groups.map((g) => g.researcherUserId))) {
+    counts.set(userId, await countUnjudgeableCards(prisma, userId, now));
+  }
+  for (const g of groups) {
+    g.researcherUnjudgeableCards = counts.get(g.researcherUserId) ?? 0;
+  }
+  return groups;
 }
 
 /**

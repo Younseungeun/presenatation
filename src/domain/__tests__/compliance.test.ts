@@ -8,6 +8,7 @@ import {
   holdUrgency,
   mergeFindings,
   resolveAction,
+  UNJUDGEABLE_PATTERN_THRESHOLD,
   type ScreeningInput,
 } from '../compliance';
 
@@ -377,5 +378,41 @@ describe('예측 카드 검수 — 크기의 현실성', () => {
     expect(
       categories(card({ targetType: undefined, magnitudePct: null, horizonDays: null })),
     ).not.toContain('UNREALISTIC_TARGET');
+  });
+});
+
+// **보상 원장이 만든 새 유인을 사람 앞에 놓는다** (2026-08-16).
+//
+// 손익표가 이렇게 됐다: 적중이면 대금−수수료, 실패면 0, **판정 불가면 대금−수수료에
+// 점수 0.** 판정 불가가 실패보다 낫고 점수만 보면 적중보다 안전하다 — 그러면
+// 판정되기 어려운 종목을 고를 유인이 생긴다.
+describe('applyRules — 판정 불가 반복', () => {
+  const cats = (over: Partial<ScreeningInput>) =>
+    applyRules(input(over)).map((f) => f.category);
+
+  it(`${UNJUDGEABLE_PATTERN_THRESHOLD}건부터 게시를 보류시킨다`, () => {
+    expect(cats({ unjudgeableCardCount: UNJUDGEABLE_PATTERN_THRESHOLD - 1 })).not.toContain(
+      'UNJUDGEABLE_PATTERN',
+    );
+    expect(cats({ unjudgeableCardCount: UNJUDGEABLE_PATTERN_THRESHOLD })).toContain(
+      'UNJUDGEABLE_PATTERN',
+    );
+  });
+
+  // **거절이 아니라 보류다.** 같은 N회가 우리 피드 장애를 반복해 겪은 정직한
+  // 리서처의 것일 수 있고, 규칙은 그 둘을 구별할 수 없다
+  it('WARN이다 — 규칙은 판단하지 않고 사람 앞에 놓기만 한다', () => {
+    const f = applyRules(input({ unjudgeableCardCount: 9 })).find(
+      (x) => x.category === 'UNJUDGEABLE_PATTERN',
+    );
+    expect(f?.severity).toBe('WARN');
+    // 혐의를 전제하지 않는다 — 우리 장애일 가능성을 문구가 먼저 말한다
+    expect(f?.reason).toContain('시세 공급 장애');
+  });
+
+  it('이력이 없으면 판단하지 않는다 (작성 화면 사전 검사)', () => {
+    expect(cats({})).not.toContain('UNJUDGEABLE_PATTERN');
+    expect(cats({ unjudgeableCardCount: null })).not.toContain('UNJUDGEABLE_PATTERN');
+    expect(cats({ unjudgeableCardCount: 0 })).not.toContain('UNJUDGEABLE_PATTERN');
   });
 });

@@ -8,6 +8,26 @@ import { buildCompensationWrites } from './compensationService';
 // 판정 결과 영속화 + 에스크로 3분기 정산 + 인앱 알림 쓰기 묶음.
 // 자동 배치(judgmentBatch)와 운영자 수동 판정(manualJudgmentService)이 공유한다 —
 // 어느 경로로 판정하든 점수·정산·감사 기록·알림의 형태는 동일해야 한다.
+//
+// ── **쓰기 개수가 구매 건수에 비례하지 않는다** (2026-08-16) ──────
+// 예전에는 구매 1건마다 정산·구매 상태·알림을 따로 썼고, 보상 지시서가 붙으면서
+// 구매당 4문장이 됐다. 구매 500건이면 **한 트랜잭션에 2,000문장**이고 그동안
+// SQLite 쓰기 락이 잡혀 있다 — 그 순간 결제가 죽는다.
+//
+// `measureWriteContention`이 실측한 것은 "트랜잭션 안에서 I/O를 하면 죽는다"가
+// 아니라 **"트랜잭션이 길면 죽는다"**였다. I/O는 길어지는 흔한 원인일 뿐이고,
+// 여기는 문장 수만으로 같은 곳에 도달한다. `noIoInTransaction` 불변식은 이쪽을
+// 보지 않으므로 아무도 막아 주지 않았다.
+//
+// ── 알림을 밖으로 빼는 대신 묶는다 ───────────────────────────────
+// 외부 검토는 알림을 트랜잭션 밖으로 빼라고 했다(락 시간 1/3). 방향은 맞지만
+// **더 나은 수가 있다**: `createMany`로 묶으면 N문장이 **1문장**이 되면서
+// 원자성도 그대로다. 알림은 환불 인지의 주 경로라(CLAUDE.md §7) 커밋 뒤로 빼면
+// 프로세스가 죽는 순간 "돈은 환불되는데 아무도 모르는" 건이 생긴다 —
+// 원자성을 파는 대가로 얻을 것이 없는데 팔 이유가 없다.
+//
+// 같은 방법을 정산·보상에도 쓰고(createMany), 구매 상태는 값이 두 가지뿐이라
+// **상태별 updateMany 두 문장**으로 접는다. 결과: **총 7문장 이하, N과 무관.**
 
 export type CardWithHeldPurchases = PredictionCard & {
   report: Report & { purchases: Purchase[]; researcher: { userId: string } };
@@ -78,6 +98,12 @@ export function buildJudgmentWrites(
   let payoutTotal = 0;
   let refundTotal = 0;
 
+  const settlements: Prisma.SettlementCreateManyInput[] = [];
+  const notifications: Prisma.NotificationCreateManyInput[] = [];
+  /** 구매 상태는 값이 둘뿐이라 id 목록만 모아 두면 updateMany 두 문장으로 끝난다 */
+  const refunded: string[] = [];
+  const settled: string[] = [];
+
   for (const p of card.report.purchases) {
     const s = settle({
       amountKrw: p.amountKrw,
@@ -87,39 +113,47 @@ export function buildJudgmentWrites(
     });
     payoutTotal += s.researcherPayoutKrw;
     refundTotal += s.buyerRefundKrw;
-    writes.push(
-      prisma.settlement.create({
-        data: {
-          purchaseId: p.id,
-          outcome: s.outcome,
-          researcherPayoutKrw: s.researcherPayoutKrw,
-          platformFeeKrw: s.platformFeeKrw,
-          buyerRefundKrw: s.buyerRefundKrw,
-          refundType: s.refundType,
-          settledAt: now,
-        },
-      }),
-      prisma.purchase.update({
-        where: { id: p.id },
-        data: { escrowStatus: s.buyerRefundKrw === p.amountKrw ? 'REFUNDED' : 'SETTLED' },
-      }),
-      // 구매자 알림: 판정 결과와 환불 여부를 즉시 통지 (환불 인지가 서비스 신뢰의 핵심)
-      prisma.notification.create({
-        data: {
-          userId: p.buyerId,
-          type: 'JUDGMENT_RESULT',
-          title: `구매 리포트 판정: ${card.assetName} ${label}`,
-          body:
-            result.outcome === 'HIT'
-              ? '예측이 적중했습니다. 결제액은 리서처에게 정산됩니다.'
-              : result.outcome === 'MISS'
-                ? `예측이 빗나갔습니다. ${s.buyerRefundKrw.toLocaleString()}원이 현금 환불됩니다.`
-                : `판정 불가 처리되었습니다. 전액(${s.buyerRefundKrw.toLocaleString()}원)이 환불됩니다.`,
-          link: `/report/${card.reportId}`,
-          createdAt: now,
-        },
-      }),
-    );
+    settlements.push({
+      purchaseId: p.id,
+      outcome: s.outcome,
+      researcherPayoutKrw: s.researcherPayoutKrw,
+      platformFeeKrw: s.platformFeeKrw,
+      buyerRefundKrw: s.buyerRefundKrw,
+      refundType: s.refundType,
+      settledAt: now,
+    });
+    (s.buyerRefundKrw === p.amountKrw ? refunded : settled).push(p.id);
+    // 구매자 알림: 판정 결과와 환불 여부를 즉시 통지 (환불 인지가 서비스 신뢰의 핵심)
+    notifications.push({
+      userId: p.buyerId,
+      type: 'JUDGMENT_RESULT',
+      title: `구매 리포트 판정: ${card.assetName} ${label}`,
+      body:
+        result.outcome === 'HIT'
+          ? '예측이 적중했습니다. 결제액은 리서처에게 정산됩니다.'
+          : result.outcome === 'MISS'
+            ? `예측이 빗나갔습니다. ${s.buyerRefundKrw.toLocaleString()}원이 현금 환불됩니다.`
+            : `판정 불가 처리되었습니다. 전액(${s.buyerRefundKrw.toLocaleString()}원)이 환불됩니다.`,
+      link: `/report/${card.reportId}`,
+      createdAt: now,
+    });
+  }
+
+  // **정산은 한 문장이다.** `createMany`는 중복을 그냥 넘기지 않으므로(skipDuplicates
+  // 기본 false) Settlement.purchaseId unique가 여전히 재실행을 막는다 — 멱등성은
+  // 판정 레코드와 정산 양쪽에서 그대로 유지된다
+  if (settlements.length > 0) {
+    writes.push(prisma.settlement.createMany({ data: settlements }));
+  }
+  // ⚠ `update`에서 `updateMany`로 바꾸면 **없는 행에 대한 예외가 사라진다.** 여기서는
+  // 구매 목록을 카드에서 함께 읽어 온 것이라 없을 수 없고, 대신 얻는 것이 크다
+  for (const [ids, escrowStatus] of [
+    [refunded, 'REFUNDED'],
+    [settled, 'SETTLED'],
+  ] as const) {
+    if (ids.length > 0) {
+      writes.push(prisma.purchase.updateMany({ where: { id: { in: ids } }, data: { escrowStatus } }));
+    }
   }
 
   // 리서처 알림: 판정 결과 + 점수 + 정산 요약
@@ -145,18 +179,17 @@ export function buildJudgmentWrites(
     peak !== undefined && peak > 0
       ? ` 목표까지 ${Math.min(99, Math.round(peak * 100))}% 지점(종가 기준)이 최고였습니다.`
       : '';
-  writes.push(
-    prisma.notification.create({
-      data: {
-        userId: card.report.researcher.userId,
-        type: 'JUDGMENT_RESULT',
-        title: `예측 판정: ${card.assetName} ${label}`,
-        body: `점수 ${input.score > 0 ? '+' : ''}${Math.round(input.score)}점. ${settleSummary}${peakNote}`,
-        link: `/researcher/${card.report.researcherId}`,
-        createdAt: now,
-      },
-    }),
-  );
+  notifications.push({
+    userId: card.report.researcher.userId,
+    type: 'JUDGMENT_RESULT',
+    title: `예측 판정: ${card.assetName} ${label}`,
+    body: `점수 ${input.score > 0 ? '+' : ''}${Math.round(input.score)}점. ${settleSummary}${peakNote}`,
+    link: `/researcher/${card.report.researcherId}`,
+    createdAt: now,
+  });
+  // 구매자 N명 + 리서처 1명이 **한 문장**으로 나간다. 알림을 커밋 뒤로 빼지 않는
+  // 이유는 위 머리글에 적었다 — 이것이 환불 인지의 주 경로다
+  writes.push(prisma.notification.createMany({ data: notifications }));
 
   // **사람이 매긴 판정만 감사 로그에 남긴다** (2026-08-15, 외부 검토 반영).
   //
