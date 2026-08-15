@@ -336,7 +336,7 @@ export interface BaseModePlan {
 /**
  * 게시 시각과 시한으로 기준가 확정 방식을 결정한다 (조작 방지 규칙의 심장부).
  *
- * 주식 단기 카드(시한 7일 미만):
+ * 주식 단기 카드(시한 `EQUITY_SHORT_HORIZON_DAYS` 미만):
  * - KR, 평일 08:00 KST 전(당일 체결 정보가 아직 없음): 당일 종가 예측부터 허용.
  *   기준가 = 직전 거래일 종가를 **게시 시점에 확정** (2026-08-16 변경 — 옛 방식은
  *   판정 시 소급이었고 근거는 금융위 D+1 지연이었는데, KIS 전환으로 사라졌다)
@@ -490,7 +490,8 @@ export interface PublishSnapshot {
 /**
  * 게시 스냅샷을 확정한다.
  * - 일반 카드: basePrice는 호출자가 시세 공급자에서 실측(실시간가 또는 직전 종가)해 넘긴다
- * - KR 단기 카드(시한 7일 미만): 개장 전 컷오프 검증 후 기준가를 판정 시 소급 확정으로 둔다
+ * - KR 단기 카드(`EQUITY_SHORT_HORIZON_DAYS` 미만): 개장 전이면 직전 거래일 종가로
+ *   **게시 시점 확정**, 그 외 시각이면 게시 이후 첫 종가로 판정 시 소급 확정
  * 검증 실패 시 PublishValidationError — 부분 게시는 없다.
  */
 export function preparePublish(
