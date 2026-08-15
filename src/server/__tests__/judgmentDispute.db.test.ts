@@ -9,8 +9,10 @@ import {
   DisputeError,
   fileDispute,
   getOpenDisputes,
+  fileResearcherDispute,
   getUpheldPendingRevert,
   resolveDispute,
+  settlementIdsWithOpenDispute,
 } from '../judgmentDisputeService';
 import { revertJudgment } from '../judgmentRevertService';
 import { getOpsMetrics } from '../opsMetrics';
@@ -103,6 +105,71 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
+// **실패 판정에서 억울한 쪽은 리서처다** (2026-08-15, 외부 검토 반영).
+//
+// 이 표를 구매자 전용으로 만든 근거는 투자자문업 경계였는데, 그것이 막으려던 것은
+// 리서처↔구매자 소통이지 리서처가 심판에게 데이터 오류를 따지는 일이 아니다.
+// 주장의 종류가 같으므로 표도 하나다 — 갈리는 것은 처분이다.
+describe('리서처 이의', () => {
+  it('맞다고 보는 가격 없이는 접수되지 않는다 — 이것이 남용 방지 장치다', async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { ticker: 'KRW-DSP' } });
+    await expect(
+      fileResearcherDispute(
+        prisma,
+        { cardId: card.id, researcherId, category: 'PRICE_DATA', claimedPrice: 0 },
+        BATCH_NOW,
+      ),
+    ).rejects.toMatchObject({ code: 'BAD_INPUT' });
+  });
+
+  it('남의 카드에는 낼 수 없다 — 없는 것과 남의 것을 같은 말로 답한다', async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { ticker: 'KRW-DSP' } });
+    await expect(
+      fileResearcherDispute(
+        prisma,
+        { cardId: card.id, researcherId: 'someone-else', category: 'PRICE_DATA', claimedPrice: 95 },
+        BATCH_NOW,
+      ),
+    ).rejects.toMatchObject({ code: 'NOT_FOUND' });
+  });
+
+  // **구매자를 리서처 분쟁의 인질로 두지 않는다** — 리서처 이의로 환불을 멈추면
+  // 틀린 판정이 아니어도 구매자 돈이 리서처의 항의만으로 묶인다
+  it('정산 흐름을 멈추지 않는다 — 구매자 이의와 갈리는 유일한 지점', async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { ticker: 'KRW-DSP' } });
+    const before = await settlementIdsWithOpenDispute(prisma);
+
+    const d = await fileResearcherDispute(
+      prisma,
+      {
+        cardId: card.id,
+        researcherId,
+        category: 'PRICE_DATA',
+        claimedPrice: 112,
+        observed: '업비트 8/1 종가',
+      },
+      BATCH_NOW,
+    );
+    expect(d.actorRole).toBe('RESEARCHER');
+    expect(d.purchaseId).toBeNull(); // 판정에 붙지 구매에 붙지 않는다
+
+    // 멈추는 정산 집합이 하나도 늘지 않는다
+    expect((await settlementIdsWithOpenDispute(prisma)).size).toBe(before.size);
+  });
+
+  it('같은 판정에 두 번은 못 낸다 — 같은 주장을 다시 낸다고 답이 달라지지 않는다', async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { ticker: 'KRW-DSP' } });
+    await expect(
+      fileResearcherDispute(
+        prisma,
+        { cardId: card.id, researcherId, category: 'PRICE_DATA', claimedPrice: 113 },
+        BATCH_NOW,
+      ),
+    ).rejects.toMatchObject({ code: 'ALREADY_FILED' });
+  });
+});
+
+
 describe('판정 이의제기', () => {
   it('산 사람만 제기할 수 있다 — 없는 것과 남의 것을 같은 말로 답한다', async () => {
     await expect(
@@ -156,7 +223,8 @@ describe('판정 이의제기', () => {
   });
 
   it('운영자 큐에 판정 근거와 함께 뜬다 — 대조할 것이 한 화면에 있어야 한다', async () => {
-    const [d] = await getOpenDisputes(prisma);
+    // 청구인이 둘이 됐으므로 어느 쪽인지 명시한다
+    const d = (await getOpenDisputes(prisma)).find((x) => x.actorRole === 'PURCHASER')!;
     expect(d.category).toBe('PRICE_DATA');
     expect(d.observed).toBe('8/1 종가 95원');
     expect(d.judgment?.marketSnapshotJson).not.toBeNull(); // 판정에 쓴 원본 시세
@@ -166,7 +234,8 @@ describe('판정 이의제기', () => {
   // **기각도 반드시 알린다.** 접수만 되고 답이 없으면 그 사람은 카드사로 간다 —
   // 이 창구를 만든 이유가 바로 그것을 막는 것이다
   it('기각해도 구매자에게 결과를 알리고, 그 뒤 지급이 다시 열린다', async () => {
-    const [d] = await getOpenDisputes(prisma);
+    // 청구인이 둘이 됐으므로 어느 쪽인지 명시한다 — 같은 시각에 접수되면 순서가 안 정해진다
+    const d = (await getOpenDisputes(prisma)).find((x) => x.actorRole === 'PURCHASER')!;
     const r = await resolveDispute(
       prisma,
       {

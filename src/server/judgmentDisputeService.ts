@@ -104,6 +104,7 @@ export async function fileDispute(
   const dispute = await prisma.judgmentDispute.create({
     data: {
       judgmentId: judgment.id,
+      actorRole: 'PURCHASER',
       purchaseId: purchase.id,
       buyerId: input.buyerId,
       category: input.category,
@@ -137,11 +138,20 @@ export async function fileDispute(
  */
 export async function settlementIdsWithOpenDispute(prisma: PrismaClient): Promise<Set<string>> {
   const open = await prisma.judgmentDispute.findMany({
-    where: { status: 'OPEN' },
+    // **구매자 이의만 정산을 멈춘다** (2026-08-15).
+    //
+    // 리서처 이의로 환불을 멈추면, 틀린 판정이 아니어도 **구매자 돈이 리서처의 항의만으로
+    // 묶인다.** 구매자를 리서처와 플랫폼 사이 분쟁의 인질로 두지 않는다 — 환불은 나가고,
+    // 이의가 인정되면 리서처 몫은 **플랫폼이 부담해서** 지급한다.
+    //
+    // 비대칭이 정당한 이유: 구매자 이의는 "이미 나갈 뻔한 남의 돈"을 멈추는 것이고
+    // 리서처 이의는 "이미 내 것이 아니게 된 돈"을 되찾는 것이다. 앞은 예방이고 뒤는 보전이라
+    // 예방만이 흐름을 멈출 자격이 있다.
+    where: { status: 'OPEN', actorRole: 'PURCHASER' },
     select: { purchase: { select: { settlement: { select: { id: true } } } } },
   });
   return new Set(
-    open.map((d) => d.purchase.settlement?.id).filter((id): id is string => id !== undefined),
+    open.map((d) => d.purchase?.settlement?.id).filter((id): id is string => id !== undefined),
   );
 }
 
@@ -169,6 +179,8 @@ export function getOpenDisputes(prisma: PrismaClient) {
               targetType: true,
               targetValue: true,
               basePrice: true,
+              // 리서처 이의는 구매에 안 붙으므로 리포트로 가는 길이 카드뿐이다
+              reportId: true,
             },
           },
         },
@@ -231,10 +243,31 @@ export async function resolveDispute(
 ) {
   const dispute = await prisma.judgmentDispute.findUnique({
     where: { id: input.disputeId },
-    include: { purchase: { select: { buyerId: true, reportId: true } } },
+    include: {
+      purchase: { select: { buyerId: true, reportId: true } },
+      judgment: { select: { predictionCard: { select: { reportId: true } } } },
+    },
   });
   if (!dispute || dispute.status !== 'OPEN') {
     throw new DisputeError('NOT_FOUND', '열려 있는 이의가 아닙니다');
+  }
+
+  // **결과는 제기한 사람에게 간다** — 청구인이 둘이라 받는 사람도 둘이다.
+  // 리서처 이의는 구매에 안 붙으므로 판정 → 카드 → 리포트로 타고 올라간다
+  let claimantUserId: string;
+  let reportId: string;
+  if (dispute.actorRole === 'RESEARCHER') {
+    const profile = await prisma.researcherProfile.findUnique({
+      where: { id: dispute.researcherId ?? '' },
+      select: { userId: true },
+    });
+    if (!profile) throw new DisputeError('NOT_FOUND', '제기한 리서처를 찾을 수 없습니다');
+    claimantUserId = profile.userId;
+    reportId = dispute.judgment?.predictionCard?.reportId ?? '';
+  } else {
+    if (!dispute.purchase) throw new DisputeError('NOT_FOUND', '구매 내역을 찾을 수 없습니다');
+    claimantUserId = dispute.purchase.buyerId;
+    reportId = dispute.purchase.reportId;
   }
 
   await prisma.$transaction([
@@ -251,7 +284,7 @@ export async function resolveDispute(
     // 이 창구를 만든 이유가 바로 그것을 막는 것이다
     prisma.notification.create({
       data: {
-        userId: dispute.purchase.buyerId,
+        userId: claimantUserId,
         type: 'OPS_ALERT',
         title:
           input.verdict === 'UPHELD'
@@ -261,7 +294,7 @@ export async function resolveDispute(
           input.verdict === 'UPHELD'
             ? `${input.resolution}\n판정을 다시 진행하며, 정산·환불도 재판정 결과에 따라 조정됩니다.`
             : `${input.resolution}\n판정에 사용된 시세와 규칙을 다시 확인했으나 오류를 발견하지 못했습니다.`,
-        link: `/report/${dispute.purchase.reportId}`,
+        link: `/report/${reportId}`,
         createdAt: now,
       },
     }),
@@ -281,4 +314,110 @@ export async function resolveDispute(
   ]);
 
   return { verdict: input.verdict, needsRevert: input.verdict === 'UPHELD' };
+}
+
+// ─────────────────────────────────────────────────────────────
+// **리서처 이의** (2026-08-15, 외부 검토 반영)
+//
+// 실패 판정에서 억울한 쪽은 리서처인데 그쪽에는 창구가 없었다. 이 표를 구매자 전용으로
+// 만든 근거는 투자자문업 경계였는데, 그것이 막으려던 것은 **리서처↔구매자 소통**이지
+// 리서처가 심판에게 데이터 오류를 따지는 일이 아니다. 후자는 구매자 이의와 완전히
+// 같은 성질이라 같은 표를 쓴다.
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * 리서처가 고를 수 있는 사유 — 구매자와 같은 축이되 **"판정이 나에게 불리하다"가 없다.**
+ * 여기 있는 것은 전부 스냅샷과 대조 가능한 주장이다.
+ */
+export const RESEARCHER_DISPUTE_CATEGORIES = {
+  PRICE_DATA: '판정에 쓰인 시세가 실제와 다릅니다',
+  CORPORATE_ACTION: '액면분할·배당락 등 권리 사건이 반영되지 않았습니다',
+  TIMING: '판정 시각·검증 시한 적용이 잘못됐습니다',
+} as const;
+
+/**
+ * **남용은 점수로 막지 않는다** (외부 검토의 "신뢰도 포인트 차감"을 받지 않은 이유).
+ *
+ * ① vmax 점수는 **적정 점수법**이라 "예측과 결과만의 함수"라는 성질에서 모든 보장이
+ *    나온다(정직 신고가 유일한 최적, 무실력자 기대값 ≤ 0). 예측이 아닌 행위로 점수를
+ *    깎으면 그 성질이 깨진다 — 점수가 더 이상 "시장에 더한 정보량"이 아니게 된다.
+ * ② 더 나쁜 것은 규율 래더다. Ville 부등식의 보장
+ *    `P(언젠가 D ≤ −ln(1/α)) ≤ α`는 D가 정직 신고 아래 마팅게일일 때만 성립한다.
+ *    이의마다 상수를 빼면 **α가 더 이상 오작동률이 아니다** — 사다리의 수학적 척추가
+ *    부러진다. 게다가 벌받는 쪽이 "플랫폼 데이터 오류의 피해자"가 된다.
+ * ③ 물량 자체가 문제가 아니다 — 판정 하나에 이의 하나이므로 활성 카드 상한(5~15장)이
+ *    이미 상한이다.
+ *
+ * 대신 **구조로 막는다**: 맞다고 보는 가격을 대야 접수된다. 그러면 "억울하다"는 낼 수
+ * 없고 "8/1 종가는 71,200원이다"만 낼 수 있으며, 그 주장은 판정 스냅샷과 기계적으로
+ * 대조되므로 운영자 시간이 거의 들지 않는다.
+ */
+export interface FileResearcherDisputeInput {
+  cardId: string;
+  researcherId: string;
+  category: keyof typeof RESEARCHER_DISPUTE_CATEGORIES;
+  /** 맞다고 주장하는 가격 — **필수**. 이것이 곧 남용 방지 장치다 */
+  claimedPrice: number;
+  /** 어디서 확인했는가 (예: "KRX 정보데이터시스템 8/1 종가") */
+  observed?: string;
+}
+
+export async function fileResearcherDispute(
+  prisma: PrismaClient,
+  input: FileResearcherDisputeInput,
+  now = new Date(),
+) {
+  if (!(input.category in RESEARCHER_DISPUTE_CATEGORIES)) {
+    throw new DisputeError('BAD_INPUT', '알 수 없는 사유입니다');
+  }
+  if (!(input.claimedPrice > 0) || !Number.isFinite(input.claimedPrice)) {
+    throw new DisputeError(
+      'BAD_INPUT',
+      '맞다고 보시는 가격을 적어주세요 — 판정 스냅샷과 대조할 수치가 있어야 검토할 수 있습니다',
+    );
+  }
+  const observed = input.observed?.trim().slice(0, OBSERVED_MAX_LEN) || null;
+
+  const card = await prisma.predictionCard.findUnique({
+    where: { id: input.cardId },
+    include: {
+      judgment: { select: { id: true, judgedAt: true, outcome: true } },
+      report: { select: { id: true, researcherId: true } },
+    },
+  });
+  // **자기 카드만** — 없는 것과 남의 것을 같은 메시지로 답한다 (구매자 쪽과 같은 규칙)
+  if (!card || card.report.researcherId !== input.researcherId) {
+    throw new DisputeError('NOT_FOUND', '카드를 찾을 수 없습니다');
+  }
+  if (!card.judgment) {
+    throw new DisputeError('NOT_JUDGED', '아직 판정되지 않은 카드입니다');
+  }
+
+  const daysSince = (now.getTime() - card.judgment.judgedAt.getTime()) / 86_400_000;
+  if (daysSince > DISPUTE_WINDOW_DAYS) {
+    throw new DisputeError(
+      'WINDOW_CLOSED',
+      `이의제기는 판정 후 ${DISPUTE_WINDOW_DAYS}일 이내에만 가능합니다 (${Math.floor(daysSince)}일 경과)`,
+    );
+  }
+
+  // 판정 하나에 리서처 이의 하나 — 같은 주장을 다시 낸다고 답이 달라지지 않는다
+  const existing = await prisma.judgmentDispute.findFirst({
+    where: { judgmentId: card.judgment.id, actorRole: 'RESEARCHER' },
+  });
+  if (existing) {
+    throw new DisputeError('ALREADY_FILED', '이미 접수된 이의가 있습니다');
+  }
+
+  return prisma.judgmentDispute.create({
+    data: {
+      judgmentId: card.judgment.id,
+      actorRole: 'RESEARCHER',
+      researcherId: input.researcherId,
+      category: input.category,
+      claimedPrice: input.claimedPrice,
+      observed,
+      createdAt: now,
+    },
+  });
 }

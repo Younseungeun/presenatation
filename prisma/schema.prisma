@@ -307,10 +307,27 @@ model JudgmentDispute {
    */
   judgmentId String?
   judgment   Judgment? @relation(fields: [judgmentId], references: [id], onDelete: SetNull)
-  /** 제기한 사람의 구매 — 산 사람만 제기할 수 있다 */
-  purchaseId String   @unique
-  purchase   Purchase @relation(fields: [purchaseId], references: [id])
-  buyerId    String
+  /**
+   * 누가 제기했는가 — PURCHASER | RESEARCHER (2026-08-15).
+   *
+   * **표를 나누지 않은 이유**: 두 쪽의 주장이 같은 종류다 — "판정에 쓰인 데이터가
+   * 실제와 다르다". 심판(플랫폼)에게 데이터 오류를 따지는 창구가 청구인마다 따로
+   * 있으면 같은 판정에 대한 두 주장이 서로를 모른 채 처리되고, 운영자는 화면 두 개를
+   * 오가며 같은 스냅샷을 두 번 대조한다.
+   *
+   * 갈리는 것은 **처분**이지 사건이 아니다 (judgmentDisputeService 참고).
+   */
+  actorRole  String   @default("PURCHASER")
+  /**
+   * 제기한 사람의 구매 — **구매자 이의에만 있다.**
+   * 리서처의 주장은 판정 자체에 붙는다(구매가 0건이어도 점수는 깎였다).
+   * SQLite의 unique는 NULL을 서로 다르게 보므로 리서처 이의가 여럿이어도 걸리지 않는다.
+   */
+  purchaseId String?  @unique
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id])
+  buyerId    String?
+  /** 리서처 이의의 제기자 — ResearcherProfile.id */
+  researcherId String?
   /**
    * 무엇이 틀렸다고 보는가 — **자유 서술을 받지 않는다.**
    * 열어 두면 "이 리서처 사기꾼이다", "종목 다시 추천해달라"가 들어와 창구의 성격이
@@ -320,6 +337,14 @@ model JudgmentDispute {
   category   String
   /** 확인한 실제 값 (예: "8/1 종가 71,200원") — 의견이 아니라 대조할 수치 */
   observed   String?
+  /**
+   * 맞다고 주장하는 가격 — **리서처 이의에는 필수** (2026-08-15).
+   *
+   * 남용 방지를 점수 차감이 아니라 **구조**로 한다: 값을 대라고 요구하면
+   * "억울하다"는 못 내고 "8/1 종가는 71,200원이다"만 낼 수 있다. 그리고 그 주장은
+   * 판정 스냅샷과 **기계적으로 대조**되므로 운영자 시간이 거의 들지 않는다.
+   */
+  claimedPrice Float?
   status     String   @default("OPEN") // OPEN | UPHELD(인정) | REJECTED(기각)
   resolvedAt DateTime?
   resolvedBy String? // 운영자 userId

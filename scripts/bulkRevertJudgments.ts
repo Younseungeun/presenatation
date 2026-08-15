@@ -3,6 +3,7 @@ import type { AssetClass } from '../src/domain/constants';
 import { ASSET_CLASSES } from '../src/domain/constants';
 import {
   BulkRevertRefused,
+  clearManualOnlyForRange,
   pauseAndBulkRevert,
   planBulkRevert,
   type BulkRevertFilter,
@@ -16,6 +17,7 @@ import { getPauseState, setJudgmentPause } from '../src/server/judgmentPause';
 //   npm run judgment:bulk-revert -- --from 2026-08-01 --to 2026-08-03 [--asset KR_EQUITY]
 //                                   [--source fsc-data.go.kr]            ← 여기까지가 드라이런
 //   npm run judgment:bulk-revert -- ... --execute <운영자 이메일> "사유" (--source|--logic)
+//   npm run judgment:rejudge -- --from 2026-08-02 --to 2026-08-02 <운영자 이메일> "확인한 내용"
 //
 // **왜 CLI인가 (2026-08-15 외부 검토 반영)**
 //
@@ -154,12 +156,40 @@ async function bulkRevertCommand() {
   console.log('      (여기서 y/n으로 묻지 않습니다 — 방금 되돌린 사람은 아직 고쳐졌는지 모릅니다)');
 }
 
+// **되돌린 카드를 자동 판정으로 돌려놓는다** — 리허설이 찾은 병목이다.
+// 100장을 되돌리면 100장을 손으로 판정해야 했고, 일괄 롤백으로 아낀 시간이 그대로 돌아왔다
+async function rejudgeCommand() {
+  const from = arg('from');
+  const to = arg('to');
+  const [email, reason] = process.argv.slice(3).filter((a) => !a.startsWith('--') && a !== from && a !== to);
+  if (!from || !to || !email || !reason) {
+    console.error('사용법: npm run judgment:rejudge -- --from 2026-08-02 --to 2026-08-02 <운영자 이메일> "확인한 내용"');
+    console.error('\n되돌린 구간을 적습니다(판정 시각이 아니라 **되돌린 시각**입니다).');
+    console.error('사유는 정지 해제와 같은 판단입니다 — 공급자가 고쳐진 것을 무엇으로 확인했습니까?');
+    process.exitCode = 1;
+    return;
+  }
+  const r = await clearManualOnlyForRange(
+    prisma,
+    {
+      revertedFrom: new Date(`${from}T00:00:00Z`),
+      revertedTo: new Date(`${to}T23:59:59Z`),
+      ...(arg('asset') ? { assetClass: arg('asset') as AssetClass } : {}),
+    },
+    { operatorUserId: await operatorByEmail(email), reason },
+  );
+  console.log(`자동 판정으로 되돌린 카드 ${r.cleared}건`);
+  console.log('\n판정은 여기서 하지 않습니다 — 다음 배치가 합니다.');
+  console.log('그 사이가 마지막 확인 창입니다(정지가 아직 걸려 있다면 먼저 judgment:resume).');
+}
+
 async function main() {
   const cmd = process.argv[2];
   if (cmd === 'pause') return pauseCommand(true);
   if (cmd === 'resume') return pauseCommand(false);
   if (cmd === 'revert') return bulkRevertCommand();
-  console.error('사용법: pause | resume | revert (package.json의 judgment:* 스크립트를 쓰세요)');
+  if (cmd === 'rejudge') return rejudgeCommand();
+  console.error('사용법: pause | resume | revert | rejudge (package.json의 judgment:* 스크립트를 쓰세요)');
   process.exitCode = 1;
 }
 

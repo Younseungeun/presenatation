@@ -63,6 +63,15 @@ export function getPendingRefunds(prisma: PrismaClient, now = new Date()) {
       buyerRefundKrw: { gt: 0 },
       refundExecutedAt: null,
       settledAt: { lte: cooldownCutoff(now) },
+      // **이의가 걸린 건은 환불도 멈춘다** (2026-08-15, 사고 리허설이 찾은 결함).
+      //
+      // 지금까지 이 검사가 지급 큐에만 있었다. 그런데 이의가 인정되면 판정이 뒤집히고,
+      // 뒤집히면 **환불도 나가지 말았어야 할 돈**이 된다(MISS→HIT면 그 돈은 리서처 몫이다).
+      // 환불이 먼저 나가면 revertJudgment가 거부하므로 되돌릴 길이 없다.
+      //
+      // 리서처 이의는 여기 안 걸린다 — `purchaseId`가 null이라 `purchase.judgmentDispute`에
+      // 애초에 나타나지 않는다. 통합 스키마가 그 비대칭을 공짜로 만들어 준다
+      NOT: { purchase: { judgmentDispute: { status: 'OPEN' } } },
     },
     include: {
       ...PENDING_INCLUDE,
@@ -129,6 +138,19 @@ export async function executeRefund(
   if (s.refundExecutedAt) throw new SettlementOpsError('이미 환불이 실행된 건입니다');
   if (!REFUND_METHODS.includes(input.method)) {
     throw new SettlementOpsError(`환불 방법이 유효하지 않습니다: ${input.method}`);
+  }
+
+  // **판정이 뒤집힐 수 있는 건에 돈을 먼저 내보내지 않는다** — 지급과 같은 규칙이다.
+  // 이의가 인정되면 환불도 나가지 말았어야 할 돈이 되는데, 나간 뒤에는 되돌릴 수 없다
+  const openDispute = await prisma.judgmentDispute.findFirst({
+    where: { purchaseId: s.purchaseId, status: 'OPEN' },
+    select: { id: true },
+  });
+  if (openDispute) {
+    throw new SettlementOpsError(
+      `판정 이의가 검토 중인 건입니다 (${openDispute.id}) — 먼저 이의를 확정해주세요. ` +
+        '환불이 나간 뒤에는 판정을 되돌릴 수 없습니다.',
+    );
   }
 
   // **판정 직후의 돈은 아직 우리 손에 있어야 한다** (settlementCooldown).

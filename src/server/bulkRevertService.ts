@@ -261,3 +261,71 @@ export async function pauseAndBulkRevert(
   const result = await executeBulkRevert(prisma, filter, input, now);
   return { ...result, pausedHere, pauseScope };
 }
+
+/**
+ * 되돌린 카드를 **다시 자동 판정 대상으로 돌려놓는다** (2026-08-15, 사고 리허설이 찾은 병목).
+ *
+ * `revertJudgment`은 사유가 `DATA_SOURCE`면 카드에 `manualJudgmentOnly`를 세운다 —
+ * 같은 소스는 같은 오답을 내므로 옳다. 그런데 리허설을 돌려 보니 **그 뒤가 없었다**:
+ * 100장을 되돌리면 100장을 사람이 한 장씩 판정해야 하고, 일괄 롤백으로 아낀 시간이
+ * 정확히 그만큼 되돌아온다. 복구 비용이 사고 크기에 비례해 남아 있었다.
+ *
+ * 여는 조건이 정지 해제와 **정확히 같다**: "공급자가 고쳐진 것을 사람이 확인했다".
+ * 그래서 이 함수는 그 확인을 사유로 요구하고, 그 사유가 감사 로그에 남는다.
+ *
+ * ⚠ **판정하지 않는다.** 자물쇠만 푼다 — 실제 판정은 다음 배치가 한다. 여기서 판정까지
+ * 하면 "버튼 하나로 100장이 다시 판정되는" 자리가 되고, 소스가 아직 안 고쳐졌으면
+ * 같은 사고가 두 번째로 난다. 배치는 시장 마감 뒤에 돌므로 그 사이가 마지막 확인 창이다.
+ */
+export async function clearManualOnlyForRange(
+  prisma: PrismaClient,
+  filter: { revertedFrom: Date; revertedTo: Date; assetClass?: AssetClass },
+  input: { operatorUserId: string; reason: string },
+  now = new Date(),
+): Promise<{ cleared: number; cardIds: string[] }> {
+  if (!input.reason.trim()) {
+    throw new BulkRevertRefused(
+      '무엇을 확인했는지 적어주세요 — 정지 해제와 같은 판단입니다(공급자가 고쳐졌는가).',
+    );
+  }
+
+  // 되돌린 기록(JudgmentRevert)에서 대상을 찾는다 — "되돌렸고 아직 사람만 판정할 수
+  // 있는 카드"가 정확히 이 작업의 대상이다
+  const reverts = await prisma.judgmentRevert.findMany({
+    where: { revertedAt: { gte: filter.revertedFrom, lte: filter.revertedTo } },
+    select: { predictionCardId: true },
+  });
+  const ids = [...new Set(reverts.map((r) => r.predictionCardId))];
+  if (ids.length === 0) return { cleared: 0, cardIds: [] };
+
+  const cards = await prisma.predictionCard.findMany({
+    where: {
+      id: { in: ids },
+      manualJudgmentOnly: true,
+      judgment: null, // 그 사이 사람이 판정한 카드는 건드리지 않는다
+      ...(filter.assetClass ? { assetClass: filter.assetClass } : {}),
+    },
+    select: { id: true },
+  });
+  if (cards.length === 0) return { cleared: 0, cardIds: [] };
+
+  const cardIds = cards.map((c) => c.id);
+  await prisma.predictionCard.updateMany({
+    where: { id: { in: cardIds } },
+    data: { manualJudgmentOnly: false, deferCount: 0, nextAttemptAt: null },
+  });
+
+  await audit(prisma, {
+    actor: input.operatorUserId,
+    actorType: 'OPERATOR',
+    action: 'BULK_REVERT',
+    targetType: 'PredictionCardRange',
+    targetId: `${filter.revertedFrom.toISOString()}~${filter.revertedTo.toISOString()}`,
+    before: { manualJudgmentOnly: cardIds.length },
+    after: { manualJudgmentOnly: 0, reopenedForAutoJudgment: cardIds.length },
+    reason: `자동 판정 재개: ${input.reason}`,
+    at: now,
+  });
+
+  return { cleared: cardIds.length, cardIds };
+}

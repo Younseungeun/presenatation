@@ -45,6 +45,28 @@ export const RETURN_HORIZON_DAYS = 14;
  * 길어지면 콜드스타트가 양쪽에서 동시에 언다: 구매자는 결과를 못 보고, 리서처는
  * "3개월 동안 한 푼도 못 받는 곳"이 된다. **A급 공급자가 조용히 이탈하는 경로가 여기다.**
  */
+/**
+ * **판정 → 지급 실행까지** (2026-08-15).
+ *
+ * 기존 leadTime(결제 → 판정)은 카드 시한이 정하므로 우리가 못 줄인다. 반면 이 구간은
+ * **전부 우리 것**이다 — 쿨다운 48시간 + 운영자가 버튼을 누르기까지.
+ *
+ * 나눠서 재는 이유: 리서처 이탈을 "정산이 느리다"로 뭉뜽그리면 손댈 곳을 못 찾는다.
+ * 시한 때문이면 상품(짧은 카드가 팔리게)을 고쳐야 하고, 실행 지연 때문이면 운영
+ * (자동 실행·알림)을 고쳐야 한다. 둘은 처방이 정반대다.
+ */
+async function payoutLatency(prisma: PrismaClient) {
+  const rows = await prisma.settlement.findMany({
+    where: { payoutExecutedAt: { not: null }, researcherPayoutKrw: { gt: 0 } },
+    select: { settledAt: true, payoutExecutedAt: true },
+  });
+  const spans = rows
+    .map((r) => (r.payoutExecutedAt ? r.payoutExecutedAt.getTime() - r.settledAt.getTime() : null))
+    .filter((v): v is number => v !== null && v >= 0);
+  const avg = spans.length > 0 ? spans.reduce((a, b) => a + b, 0) / spans.length : null;
+  return { avg, n: spans.length };
+}
+
 async function judgmentLeadTime(prisma: PrismaClient) {
   const rows = await prisma.purchase.findMany({
     where: {
@@ -248,6 +270,12 @@ async function manualInterventions(prisma: PrismaClient) {
 export const OPS_THRESHOLDS = {
   /** 결제→판정이 이보다 길면 리서처 현금흐름이 조인다 */
   leadTimeDays: 60,
+  /**
+   * 판정→지급이 이보다 길면 **우리가 늦추고 있는 것**이다.
+   * 쿨다운이 2일이므로 3일은 "쿨다운 직후 다음 영업일"까지의 여유다 — 넘으면
+   * 운영자가 큐를 안 열고 있다는 뜻이고, 그건 자동 실행을 검토할 신호다.
+   */
+  payoutLatencyDays: 3,
   /** 안 팔린 카드가 절반을 넘으면 가격이나 신뢰 설득에 문제가 있다 */
   zeroPurchaseRate: 0.5,
   /** 이의·정정이 이 비율을 넘으면 시세 데이터가 판정 로직을 부수고 있다 */
@@ -266,8 +294,9 @@ export const OPS_THRESHOLDS = {
 } as const;
 
 export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Promise<OpsMetric[]> {
-  const [lead, zero, revert, repurchase, manual] = await Promise.all([
+  const [lead, payout, zero, revert, repurchase, manual] = await Promise.all([
     judgmentLeadTime(prisma),
+    payoutLatency(prisma),
     zeroPurchaseRate(prisma, now),
     judgmentDisputeRate(prisma),
     repurchaseAfterJudgment(prisma, now),
@@ -287,6 +316,16 @@ export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Pro
       meaning:
         '구매자에게는 피드백 대기, 리서처에게는 현금전환주기(CCC) 그 자체입니다. 길어지면 A급 리서처가 조용히 이탈합니다.',
       alert: lead.avg !== null && lead.avg / 86_400_000 > OPS_THRESHOLDS.leadTimeDays,
+    },
+    {
+      key: 'payoutLatency',
+      label: '판정 → 지급 실행',
+      value: payout.avg === null ? '—' : `${days(payout.avg)}일`,
+      sample: `지급 완료 ${payout.n}건`,
+      meaning:
+        '위 지표는 카드 시한이 정하지만 이 구간은 전부 우리 것입니다 — 쿨다운 2일 + 운영자가 버튼을 누르기까지. 리서처 이탈을 "정산이 느리다"로 뭉뚱그리면 손댈 곳을 못 찾습니다.',
+      alert:
+        payout.avg !== null && payout.avg / 86_400_000 > OPS_THRESHOLDS.payoutLatencyDays,
     },
     {
       key: 'zeroPurchase',

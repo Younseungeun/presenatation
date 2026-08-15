@@ -145,21 +145,37 @@ export default async function AdminDisputesPage() {
                     />
                   )}
                 </div>
-                <div className={styles.meta}>
+<div className={styles.meta}>
                   <span>접수 {fmtDate(d.createdAt)}</span>
-                  <span>결제 {d.purchase.amountKrw.toLocaleString()}원</span>
-                  <Link href={`/report/${d.purchase.reportId}`}>리포트 →</Link>
+                  {/* 리서처 이의는 구매에 붙지 않는다 — 판정 자체에 붙는다 */}
+                  {d.purchase ? (
+                    <>
+                      <span>결제 {d.purchase.amountKrw.toLocaleString()}원</span>
+                      <Link href={`/report/${d.purchase.reportId}`}>리포트 →</Link>
+                    </>
+                  ) : (
+                    <>
+                      <span>정산 흐름 영향 없음</span>
+                      {card && <Link href={`/report/${card.reportId}`}>리포트 →</Link>}
+                    </>
+                  )}
                 </div>
 
                 {/* **대조가 이 화면의 전부다** — 우리가 쓴 값과 구매자가 본 값을 나란히 */}
                 <div className={q.claim}>
-                  <div className={q.side}>
-                    <span className={q.sideLabel}>구매자의 주장</span>
+<div className={q.side}>
+                    <span className={q.sideLabel}>
+                      {d.actorRole === "RESEARCHER" ? "리서처의 주장" : "구매자의 주장"}
+                    </span>
                     <p className={q.category}>{DISPUTE_CATEGORIES[d.category as DisputeCategory] ?? d.category}</p>
+                    {/* 리서처는 맞다고 보는 가격을 반드시 적는다 — 그것이 남용 방지 장치다 */}
+                    {d.claimedPrice != null && (
+                      <p className={q.observed}>주장 가격 {d.claimedPrice.toLocaleString()}</p>
+                    )}
                     {d.observed ? (
                       <p className={q.observed}>{d.observed}</p>
                     ) : (
-                      <p className={q.none}>확인한 값을 적지 않았습니다</p>
+                      d.claimedPrice == null && <p className={q.none}>확인한 값을 적지 않았습니다</p>
                     )}
                   </div>
                   <div className={q.side}>

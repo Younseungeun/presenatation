@@ -51,7 +51,9 @@
     "measure:contention": "tsx scripts/measureWriteContention.ts",
     "judgment:pause": "tsx scripts/bulkRevertJudgments.ts pause",
     "judgment:resume": "tsx scripts/bulkRevertJudgments.ts resume",
-    "judgment:bulk-revert": "tsx scripts/bulkRevertJudgments.ts revert"
+    "judgment:bulk-revert": "tsx scripts/bulkRevertJudgments.ts revert",
+    "drill": "tsx scripts/incidentDrill.ts",
+    "judgment:rejudge": "tsx scripts/bulkRevertJudgments.ts rejudge"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
