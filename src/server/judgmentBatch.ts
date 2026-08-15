@@ -16,11 +16,7 @@ import { toJudgeableCard } from './cardMapper';
 import { rebaseIfAdjusted } from './corporateActionService';
 import { buildJudgmentWrites } from './judgmentWriter';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
-import {
-  resetProbeState,
-  setProbeTargets,
-  shouldDelayHardCap,
-} from './crossCheckRecovery';
+import { beginRecovery, shouldDelayHardCap } from './crossCheckRecovery';
 import {
   isJudgmentPaused,
   pausedAssetClasses,
@@ -612,8 +608,8 @@ export async function judgeAndSettleDueCards(
 
   /** 자산군별 불일치 수 — 정지 판단의 분자 (분모는 dueCards의 자산군별 개수) */
   const disagreedByClass = new Map<AssetClass, number>();
-  /** 불일치를 낸 카드 id — 정지 시 탐침의 표적이 된다 */
-  const disagreedCardIds = new Map<AssetClass, string[]>();
+  /** 불일치를 낸 카드 — 정지 시 탐침의 표적이 된다 (티커별로 고르게 뽑는다) */
+  const disagreedCardIds = new Map<AssetClass, { id: string; ticker: string }[]>();
 
   /** 소스별 빈 배열 집계 — 없으면 만들어 준다 */
   const statFor = (assetClassOfCard: string): EmptyRangeStat => {
@@ -743,7 +739,10 @@ export async function judgeAndSettleDueCards(
         const cls = card.assetClass as AssetClass;
         disagreedByClass.set(cls, (disagreedByClass.get(cls) ?? 0) + 1);
         // 정지가 걸리면 탐침이 **이 카드들**을 먼저 본다 (crossCheckRecovery.setProbeTargets)
-        disagreedCardIds.set(cls, [...(disagreedCardIds.get(cls) ?? []), card.id]);
+        disagreedCardIds.set(cls, [
+          ...(disagreedCardIds.get(cls) ?? []),
+          { id: card.id, ticker: card.ticker },
+        ]);
         console.error(`시세 소스 간 판정 불일치 ${card.ticker} (${card.id}):`, message);
         continue;
       }
@@ -926,10 +925,10 @@ export async function judgeAndSettleDueCards(
     // **이번 사고의 탐침은 0회부터 센다** — 실패 횟수를 사고 너머로 이어 두면
     // 지난 사고에서 6회를 채운 자산군이 오늘 멈추는 순간 탐침 한 번 없이
     // "자동 재개 포기"로 떨어진다 (crossCheckRecovery.resetProbeState)
-    await resetProbeState(prisma, cls, now);
-    // **탐침이 봐야 할 것은 깨진 카드다.** 안 적어 두면 탐침은 "아무 카드나 5장"을
-    // 보게 되고, 파손이 특정 티커에만 있으면 멀쩡한 5장이 통과해 정지가 풀린다
-    await setProbeTargets(prisma, cls, disagreedCardIds.get(cls) ?? []);
+    // **탐침이 봐야 할 것은 깨진 카드다** — 티커별로 고르게 뽑는다(selectProbeTargets).
+    // 안 적어 두면 탐침은 아무 카드나 5장을 보게 되고, 파손이 특정 티커에만 있으면
+    // 멀쩡한 5장이 통과해 정지가 풀린다
+    await beginRecovery(prisma, cls, disagreedCardIds.get(cls) ?? [], now);
     summary.haltedAssetClasses.push(cls);
     console.error(`[P0] ${cls} 자동 판정 정지 — 불일치 ${disagreed}/${attempted}건`);
   }

@@ -12,6 +12,7 @@ import {
   shouldHaltOnDisagreement,
   DISAGREEMENT_HALT_MIN,
 } from '../judgmentBatch';
+import { writeRecovery } from '../recoveryState';
 import { createDraftReport, publishReport } from '../reportService';
 import { manualJudgeCard } from '../manualJudgmentService';
 import {
@@ -23,9 +24,9 @@ import {
 import {
   nextProbeAt,
   probeAndMaybeResume,
-  resetProbeState,
-  setProbeTargets,
+  beginRecovery,
   sourceInstabilityVerdict,
+  HARD_LOCK_GRACE_MS,
   PAUSE_GRACE_MS,
   PROBE_MAX_FAILURES,
 } from '../crossCheckRecovery';
@@ -390,7 +391,7 @@ describe('정지 자동 해제 — 탐침', () => {
       reason: '시험: 시스템 정지',
     });
     // 배치가 정지할 때 하는 일 — 지난 사고의 표적·실패 횟수를 지운다
-    await resetProbeState(prisma, 'CRYPTO', now);
+    await beginRecovery(prisma, 'CRYPTO', [], now);
   }
 
   it('사람이 건 정지는 건드리지 않는다 — 기계가 사람의 판단을 뒤집지 않는다', async () => {
@@ -576,7 +577,7 @@ describe('탐침 백오프', () => {
       operatorUserId: SYSTEM_PAUSE_ACTOR,
       reason: '시험: 백오프',
     });
-    await resetProbeState(prisma, 'CRYPTO'); // 새 사고 — 배치가 정지할 때 하는 일
+    await beginRecovery(prisma, 'CRYPTO', [], BATCH_NOW); // 새 사고 — 배치가 정지할 때 하는 일
 
     // 1회차 — 갈린다 → 실패 1, 다음 탐침은 2분 뒤
     const first = await probeAndMaybeResume(
@@ -684,7 +685,7 @@ describe('복합 경로 ① 정지 직후의 상한 경합', () => {
       reason: '시험: 정지 직후',
     });
     // 정지가 시작된 시각을 배치가 쓰는 시계에 맞춘다 (배치는 now를 넘긴다)
-    await resetProbeState(prisma, 'CRYPTO', PAST_CAP);
+    await beginRecovery(prisma, 'CRYPTO', [], PAST_CAP);
 
     // 상한이 지난 시각에 배치가 돈다 — 예전에는 여기서 전액 환불로 닫혔다
     const during = await judgeAndSettleDueCards(
@@ -796,8 +797,7 @@ describe('복합 경로 ③ 탐침이 깨진 카드를 본다', () => {
       operatorUserId: SYSTEM_PAUSE_ACTOR,
       reason: '시험: 표적',
     });
-    await resetProbeState(prisma, 'CRYPTO');
-    await setProbeTargets(prisma, 'CRYPTO', [card.id]);
+    await beginRecovery(prisma, 'CRYPTO', [{ id: card.id, ticker: T }], BATCH_NOW);
 
     // 표적 카드가 여전히 갈리면 **정지가 안 풀려야 한다.**
     // 예전에는 manualJudgmentOnly 필터가 이 카드를 빼서, 멀쩡한 다른 카드만 보고 풀었다
@@ -812,6 +812,107 @@ describe('복합 경로 ③ 탐침이 깨진 카드를 본다', () => {
     expect(stillBroken.disagreed).toBeGreaterThan(0);
     expect(stillBroken.resumed).toBe(false);
     expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(true);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
+  });
+});
+
+// **하드락 뒤에도 사람에게 하루를 준다** (2026-08-15, 외부 검토 E-1).
+//
+// 하드락은 자동 복구가 불가능한 실제 장애를 뜻하고, 그것은 밤에도 주말에도 난다.
+// 62분 뒤 곧바로 상한을 집행하면 **금요일 밤에 피드가 끊긴 것 때문에 실제로 적중한
+// 카드가 전액 환불로 끝난다** — 사람이 손쓸 시간이 0인 셈이다.
+//
+// 다만 **사람을 기다리지는 않는다.** 24시간이 지나면 아무도 안 왔어도 집행된다.
+describe('하드락 유예 — 하루를 주되 무기한은 아니다', () => {
+  const LOCK_TICKER = 'KRW-HD1';
+
+  it('하드락 직후에는 상한을 미루고, 24시간이 지나면 집행한다', async () => {
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 준비',
+    });
+    await seedTestInstruments(prisma, [
+      { assetClass: 'CRYPTO', ticker: LOCK_TICKER, name: LOCK_TICKER, shortable: true },
+    ]);
+    const reportId = await publishCard(LOCK_TICKER);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: SYSTEM_PAUSE_ACTOR,
+      reason: '시험: 하드락',
+    });
+    // 하드락 상태를 직접 만든다 (탐침 6회 실패의 결과와 같은 모양)
+    await writeRecovery(prisma, 'CRYPTO', {
+      status: 'HARD_LOCKED',
+      pausedAt: PAST_CAP.getTime(),
+      lockedAt: PAST_CAP.getTime(),
+      failures: PROBE_MAX_FAILURES,
+      cause: 'PROVIDER_DOWN',
+    });
+
+    // 하드락 직후 — 아직 하루가 안 지났으므로 미룬다
+    const soon = await judgeAndSettleDueCards(
+      prisma,
+      sourceAt(LOCK_TICKER, HIT_CLOSE),
+      new Date(PAST_CAP.getTime() + 3_600_000),
+      'CRYPTO',
+    );
+    expect(soon.hardCapped).toHaveLength(0);
+
+    // 하루가 지나면 아무도 안 왔어도 집행한다 — **사람을 기다리지 않는다**
+    const late = await judgeAndSettleDueCards(
+      prisma,
+      sourceAt(LOCK_TICKER, HIT_CLOSE),
+      new Date(PAST_CAP.getTime() + HARD_LOCK_GRACE_MS + 60_000),
+      'CRYPTO',
+    );
+    expect(late.hardCapped.length).toBeGreaterThan(0);
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { reportId } });
+    const j = await prisma.judgment.findUniqueOrThrow({ where: { predictionCardId: card.id } });
+    expect(j.undecidableReason).toBe('DATA_UNAVAILABLE');
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
+  });
+
+  it('하드락 상태에서는 탐침이 더 두드리지 않는다', async () => {
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: SYSTEM_PAUSE_ACTOR,
+      reason: '시험: 하드락 유지',
+    });
+    await writeRecovery(prisma, 'CRYPTO', {
+      status: 'HARD_LOCKED',
+      pausedAt: BATCH_NOW.getTime(),
+      lockedAt: BATCH_NOW.getTime(),
+      failures: PROBE_MAX_FAILURES,
+      cause: 'MISMATCH',
+    });
+    const r = await probeAndMaybeResume(
+      prisma,
+      sourceAt(LOCK_TICKER, HIT_CLOSE),
+      'CRYPTO',
+      sourceAt(LOCK_TICKER, HIT_CLOSE, 'second'),
+      BATCH_NOW,
+      'enforce',
+    );
+    expect(r.hardLocked).toBe(true);
+    expect(r.checked).toBe(0); // 두 소스가 다시 일치해도 두드리지 않는다
+    expect(r.resumed).toBe(false);
 
     await setJudgmentPause(prisma, {
       scope: 'CRYPTO',

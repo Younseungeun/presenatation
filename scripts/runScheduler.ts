@@ -271,7 +271,7 @@ async function probePausedMarkets(): Promise<void> {
             : `마지막 회차의 원인은 **두 소스의 결론 불일치**입니다.\n` +
               `두 소스를 직접 대조하세요 (npm run probe:sources).\n`) +
           `이 상태로 두면 그 자산군의 카드가 차례로 14일 상한(전액 환불)에 닿습니다.\n` +
-          `상한 유예도 여기서 끝나므로 지금부터는 상한이 그대로 집행됩니다.`,
+          `상한은 지금부터 24시간 더 미뤄집니다 — 그 안에 손대지 않으면 자동으로 전액 환불로 닫힙니다.`,
         '/admin/judgments',
         `judge:hardlock:${assetClass}`,
       );
