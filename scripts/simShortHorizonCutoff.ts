@@ -12,12 +12,13 @@ import { DEFAULT_TIER_THRESHOLDS } from '../src/domain/tiers';
 // 주식 단기 카드 컷오프 문턱 캘리브레이션 — npm run sim:cutoff
 //
 // ── 묻는 것 ──────────────────────────────────────────────────────
-// `EQUITY_SHORT_HORIZON_DAYS`(현재 7)는 **주식 카드가 언제 특별 취급을 받는가**를 정한다.
+// `EQUITY_SHORT_HORIZON_DAYS`(2026-08-16 실측으로 7 → 14)는 **주식 카드가 언제 특별 취급을 받는가**를 정한다.
 //   · 시한 ≥ 문턱 → FIXED_AT_PUBLISH: 기준가 = **게시 순간 가격**, 아무 때나 게시 가능
 //   · 시한 < 문턱 → 컷오프 규칙: 개장 전에 내거나(기준가 = 어제 종가), 시한을 +2일 이상으로
 //
-// 이 숫자에는 **근거가 기록돼 있지 않다.** 이 코드베이스의 다른 문턱은 전부 재서 정했다
-// (크기 하한 k=1.2, 판매 중단 α=0.5, 안정성 눈금 300종목 표집). 여기만 비어 있어 잰다.
+// 이 숫자에는 오래 **근거가 기록돼 있지 않았다**(값은 7이었다). 이 코드베이스의 다른
+// 문턱은 전부 재서 정했는데(크기 하한 k=1.2, 판매 중단 α=0.5, 안정성 눈금 300종목
+// 표집) 여기만 비어 있어 쟀고, 그 결과 **14로 올렸다**(7일은 시니어선의 7.9%였다).
 //
 // ── 무엇이 새는가 ────────────────────────────────────────────────
 // FIXED_AT_PUBLISH의 기준가는 **장중 한 순간의 가격**인데 판정은 **종가**로 한다.
@@ -173,21 +174,34 @@ function measure(sigma: number, horizonDays: number): Row {
   const floorPct = minMagnitudePct(ASSET, sigma, horizonDays);
   const weight = magnitudeWeight(ASSET, floorPct);
 
-  let hitsOpp = 0;
-  let hitsRnd = 0;
-  let n = 0;
+  // **방향을 합쳐서 재면 안 된다** (2026-08-16, 첫 판에서 실제로 틀렸다).
+  // 로그 장벽 거리가 상승은 ln(1+M), 하락은 |ln(1−M)|이라 **큰 크기에서 크게 갈린다**
+  // (M=65%면 0.50 vs 1.05 — 두 배). 두 방향을 평균 낸 실측을 상승 전용 p₀와 견주면
+  // 모델이 8%p 틀린 것처럼 보인다. 실제로는 모델이 맞고 비교가 틀린 것이다.
+  //
+  // 그리고 파머는 **유리한 쪽을 고른다.** 문턱은 최악을 기준으로 잡아야 하므로
+  // 방향별로 따로 재서 더 나쁜 쪽을 쓴다.
+  let worst: { score: number; confidence: number; pReal: number; p0: number } | null = null;
+  let pRealRandomWorst = 0;
   for (const direction of DIRECTIONS) {
+    let hitsOpp = 0;
+    let hitsRnd = 0;
     for (let i = 0; i < PATHS; i++) {
       if (runPath(direction, sigma, horizonDays, floorPct, true).hit) hitsOpp++;
       if (runPath(direction, sigma, horizonDays, floorPct, false).hit) hitsRnd++;
-      n++;
+    }
+    const pReal = hitsOpp / PATHS;
+    const p0d = noSkillTouchProbability(direction, floorPct, ASSET, horizonDays, sigma);
+    const best = bestExpectedScore(p0d, pReal, weight);
+    if (worst === null || best.score > worst.score) {
+      worst = { score: best.score, confidence: best.confidence, pReal, p0: p0d };
+      pRealRandomWorst = hitsRnd / PATHS;
     }
   }
-  const pRealOpportunistic = hitsOpp / n;
-  const pRealRandom = hitsRnd / n;
-  // 모델이 믿는 값 — 방향은 대칭이라 UP으로 대표한다
-  const p0 = noSkillTouchProbability('UP', floorPct, ASSET, horizonDays, sigma);
-  const best = bestExpectedScore(p0, pRealOpportunistic, weight);
+  const { score, confidence, pReal, p0 } = worst!;
+  const pRealOpportunistic = pReal;
+  const pRealRandom = pRealRandomWorst;
+  const best = { score, confidence };
   const scorePerCard = Math.max(0, best.score);
   const seasonScore = scorePerCard * SEASON_CARDS;
   return {

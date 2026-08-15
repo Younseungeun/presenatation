@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EQUITY_SHORT_HORIZON_DAYS,
   LONG_HORIZON_DAYS,
   MAX_ACTIVE_CARDS,
+  planBaseMode,
   MAX_ACTIVE_CARDS_TOTAL,
   MAX_ACTIVE_LONG_CARDS,
   NEW_RESEARCHER_MAX_HORIZON_DAYS,
@@ -301,6 +303,24 @@ describe('preparePublish', () => {
       targetValue: 75_000,
     };
     expect(() => preparePublish(card, validCond, 70_000, NOW)).toThrow(/목표가/);
+  });
+
+  // **문턱 자체를 못 박는다** (2026-08-16). 이 값이 7이던 동안 **아무 시험도 그 자리를
+  // 잡고 있지 않았다** — 7 → 14로 바꿔도 1,020건이 전부 통과했다. 근거가 기록되지
+  // 않은 숫자였던 것과 시험이 없던 것은 같은 구멍의 두 얼굴이다.
+  it(`주식 카드는 시한 ${EQUITY_SHORT_HORIZON_DAYS}일을 경계로 취급이 갈린다`, () => {
+    const monPreOpen = new Date('2026-07-12T22:00:00Z'); // KST 월 07:00
+    const at = (days: number) =>
+      planBaseMode('KR_EQUITY', new Date(monPreOpen.getTime() + days * 86_400_000), monPreOpen)
+        .baseMode;
+    // 문턱 미만 → 컷오프 규칙 (개장 전이므로 직전 거래일 종가)
+    expect(at(EQUITY_SHORT_HORIZON_DAYS - 1)).toBe('PREV_CLOSE_AT_PUBLISH');
+    // 문턱 이상 → 일반 카드 (게시 순간 가격)
+    expect(at(EQUITY_SHORT_HORIZON_DAYS)).toBe('FIXED_AT_PUBLISH');
+    // 코인은 문턱과 무관하게 늘 게시 시점 확정
+    expect(planBaseMode('CRYPTO', new Date(monPreOpen.getTime() + 86_400_000), monPreOpen).baseMode).toBe(
+      'FIXED_AT_PUBLISH',
+    );
   });
 
   // **개장 전 카드도 기준가를 게시 시점에 확정한다** (2026-08-16).
