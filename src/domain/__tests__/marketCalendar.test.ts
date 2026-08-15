@@ -80,7 +80,10 @@ describe('게시 규칙', () => {
   it('평일 08:00 이전이면 종전대로 당일 종가 예측을 허용한다', () => {
     const now = new Date('2026-08-11T22:00:00Z'); // 07:00 KST 화요일
     const deadline = new Date('2026-08-13T00:00:00Z');
-    expect(planBaseMode('KR_EQUITY', deadline, now).baseMode).toBe('PREV_CLOSE_AT_JUDGMENT');
+    // **소급이 아니라 게시 시점 확정** (2026-08-16) — 직전 거래일 종가는 어제 마감
+    // +5분에 이미 확정됐고 KIS가 개장 전에도 그대로 준다(실측). 미루던 이유(금융위
+    // D+1 지연)는 2026-08-10 KIS 전환으로 사라졌다
+    expect(planBaseMode('KR_EQUITY', deadline, now).baseMode).toBe('PREV_CLOSE_AT_PUBLISH');
   });
 });
 

@@ -290,7 +290,8 @@ export interface BaseModePlan {
  *
  * 주식 단기 카드(시한 7일 미만):
  * - KR, 평일 08:00 KST 전(당일 체결 정보가 아직 없음): 당일 종가 예측부터 허용.
- *   기준가 = 직전 거래일 종가, 판정 시 소급 확정 (데이터 D+1 지연 때문)
+ *   기준가 = 직전 거래일 종가를 **게시 시점에 확정** (2026-08-16 변경 — 옛 방식은
+ *   판정 시 소급이었고 근거는 금융위 D+1 지연이었는데, KIS 전환으로 사라졌다)
  * - KR 그 외 시각·주말, US 상시: 시한은 게시일로부터 2일 이상.
  *   기준가 = 게시 이후 첫 정규장 종가 소급 확정 — 게시 시점까지 실현된 등락이
  *   전부 기준가에 흡수되므로 게시 시각과 무관하게 정보 이점이 없다.
@@ -321,7 +322,10 @@ export function planBaseMode(
       clock.weekday === 'Sun' ||
       holidayName('KR_EQUITY', clock.date) !== null;
     if (!closed && clock.time < KR_PUBLISH_CUTOFF.cutoff) {
-      return { baseMode: 'PREV_CLOSE_AT_JUDGMENT', issues: [] };
+      // **소급이 아니라 게시 시점 확정이다** (2026-08-16). 직전 거래일 종가는 어제
+      // 마감 +5분에 이미 확정된 값이고, KIS는 개장 전에도 그대로 준다(실측).
+      // 미루던 이유(금융위 D+1 지연)는 2026-08-10 KIS 전환으로 사라졌다
+      return { baseMode: 'PREV_CLOSE_AT_PUBLISH', issues: [] };
     }
   }
 
@@ -449,7 +453,10 @@ export function preparePublish(
 ): PublishSnapshot {
   const issues = [...validateCardDraft(card, now), ...validateConditions(cond)];
   const plan = planBaseMode(card.assetClass, card.deadline, now);
-  const retroactive = plan.baseMode !== 'FIXED_AT_PUBLISH';
+  // **소급 = "게시 시점에 기준가를 모른다"**이지 "시장이 닫혀 있다"가 아니다.
+  // 개장 전 게시 카드(PREV_CLOSE_AT_PUBLISH)는 직전 거래일 종가를 지금 읽을 수 있으므로
+  // 여기 들어오지 않는다 — 그래서 크기 하한·방향 정합성 검증을 그대로 받고 목표가형도 쓴다
+  const retroactive = plan.baseMode === 'DAY_CLOSE_AT_JUDGMENT';
 
   // 동시 활성 카드 상한: 신뢰도 1 저품질 대량 게시 차단 (자산군별, 등급별 슬롯)
   const maxActive = MAX_ACTIVE_CARDS[cond.tier];
@@ -516,7 +523,9 @@ export function preparePublish(
   if (retroactive) {
     issues.push(...plan.issues);
     // 소급 확정 카드는 게시 시점에 기준가가 없어 목표가의 방향 정합성·크기 하한을
-    // 검증할 수 없다 → 수익률형만 허용 (크기 하한은 초안 검증에서 이미 처리됨)
+    // 검증할 수 없다 → 수익률형만 허용 (크기 하한은 초안 검증에서 이미 처리됨).
+    // **개장 전 게시 카드는 2026-08-16부터 여기 해당하지 않는다** — 기준가를 게시
+    // 시점에 확정하므로 목표가형을 쓸 수 있고 아래 정합성 검증도 그대로 받는다
     if (card.targetType === 'TARGET_PRICE') {
       issues.push(
         '기준가를 판정 시 소급 확정하는 단기 카드는 수익률형(RETURN_PCT)만 허용됩니다',

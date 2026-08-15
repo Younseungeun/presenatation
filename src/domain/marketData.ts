@@ -2,7 +2,7 @@ import type { AssetClass } from './constants';
 import type { ProviderRiskSignal } from './instrumentRisk';
 import type { MarketSnapshot } from './judgment';
 
-// 시세 데이터 공급자 추상화. 자산군별 소스(금융위/Twelve Data/업비트)를 갈아끼울 수 있도록
+// 시세 데이터 공급자 추상화. 자산군별 소스(KIS/업비트)를 갈아끼울 수 있도록
 // 판정 파이프라인은 이 인터페이스에만 의존한다. 설계: docs/market-data.md
 
 /** 일별 시세 1건. date는 KST 기준 YYYY-MM-DD */

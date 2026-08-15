@@ -156,7 +156,12 @@ describe('리포트 게시 플로우', () => {
     expect(published.basePrice).toBe(158_500_000);
   });
 
-  it('KR 당일 예측: 평일 개장 전 게시 → 기준가 소급 확정 모드', async () => {
+  // **개장 전 카드도 기준가를 게시 시점에 확정한다** (2026-08-16).
+  // 직전 거래일 종가는 어제 마감 +5분에 확정된 값이고 KIS는 개장 전에도 그대로 준다
+  // (실측). 미루던 이유는 금융위 D+1 지연이었고, 2026-08-10 KIS 전환으로 사라졌다.
+  // ⚠ 이때는 **현재가를 묻지 않는다** — 장이 닫혀 있어 현재가 응답이 공급자 구현에
+  // 달려 있고, 우리가 원하는 값은 하나로 정해져 있다(직전 거래일 종가)
+  it('KR 당일 예측: 평일 개장 전 게시 → 직전 거래일 종가를 게시 시점에 확정', async () => {
     const input = draftInput();
     input.card = {
       assetClass: 'KR_EQUITY',
@@ -171,17 +176,29 @@ describe('리포트 게시 플로우', () => {
     };
     const draft = await createDraftReport(prisma, input, DRAFT_NOW);
 
-    // KST 2026-07-13(월) 07:00 — 개장 전. 시세 조회 없이 게시된다 (빈 레지스트리)
+    // KST 2026-07-13(월) 07:00 — 개장 전. 현재가가 아니라 **일봉 마지막 종가**를 쓴다
     const monPreOpen = new Date('2026-07-12T22:00:00Z');
-    const published = await publishReport(prisma, {}, draft.id, researcherId, monPreOpen);
+    const provider = new FixtureMarketDataProvider()
+      .setQuotes('005930', [
+        { date: '2026-07-09', open: 1, high: 1, low: 1, close: 68_000, volume: 1 },
+        { date: '2026-07-10', open: 1, high: 1, low: 1, close: 70_000, volume: 1 }, // 직전 거래일
+      ])
+      .setCurrentPrice('005930', 99_999); // 장이 닫혀 있으므로 이 값은 쓰이면 안 된다
+    const published = await publishReport(
+      prisma,
+      { KR_EQUITY: provider },
+      draft.id,
+      researcherId,
+      monPreOpen,
+    );
     expect(published.status).toBe('PUBLISHED');
-    expect(published.basePrice).toBeNull();
+    expect(published.basePrice).toBe(70_000);
 
     const card = await prisma.predictionCard.findUniqueOrThrow({
       where: { reportId: draft.id },
     });
-    expect(card.baseMode).toBe('PREV_CLOSE_AT_JUDGMENT');
-    expect(card.basePrice).toBeNull();
+    expect(card.baseMode).toBe('PREV_CLOSE_AT_PUBLISH');
+    expect(card.basePrice).toBe(70_000);
   });
 
   it('KR 당일 예측: 장 시작 후에는 당일 시한 거부(+2일부터)', async () => {

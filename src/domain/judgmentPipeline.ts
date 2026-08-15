@@ -76,7 +76,7 @@ export interface JudgeableCard extends Omit<PredictionInput, 'basePrice'> {
   ticker: string;
   /** 기준가 확정 방식 (publishReport.ts) */
   baseMode: BaseMode;
-  /** FIXED_AT_PUBLISH면 필수. PREV_CLOSE_AT_JUDGMENT면 null — 여기서 소급 확정 */
+  /** 소급 확정 모드(DAY_CLOSE_AT_JUDGMENT · 구 PREV_CLOSE_AT_JUDGMENT)면 null — 여기서 확정한다 */
   basePrice: number | null;
   /** 게시 시각 */
   publishedAt: Date;
@@ -103,7 +103,7 @@ export interface JudgmentAudit {
 export interface PipelineResult {
   result: JudgmentResult;
   audit: JudgmentAudit;
-  /** PREV_CLOSE_AT_JUDGMENT 카드에서 소급 확정된 기준가 — 배치가 카드에 기록한다 */
+  /** 소급 확정 카드에서 확정된 기준가 — 배치가 카드에 기록한다 */
   resolvedBasePrice: number | null;
 }
 
@@ -286,7 +286,10 @@ export async function runJudgment(
 
   if (normalStatus) {
     if (card.baseMode === 'PREV_CLOSE_AT_JUDGMENT') {
-      // 개장 전 게시 카드: 기준가 = 게시일 직전 거래일 종가 (게시 시점엔 D+1 지연으로 알 수 없던 값)
+      // **2026-08-16 이전에 게시된 카드 전용 경로.** 개장 전 게시 카드의 기준가는
+      // 이제 게시 시점에 확정된다(PREV_CLOSE_AT_PUBLISH) — 미루던 이유였던 금융위
+      // D+1 지연이 2026-08-10 KIS 전환으로 사라졌기 때문이다. 이 분기는 그 전에
+      // 게시돼 아직 판정 안 된 카드를 위해 남긴다. **지우면 그 카드들이 판정 불가가 된다**
       const before = quotes.filter((q) => q.date < publishDate);
       basePrice = before.length > 0 ? before[before.length - 1].close : null;
       if (basePrice === null) {
@@ -328,7 +331,9 @@ export async function runJudgment(
     // 같게 만드는 것**이 요점이고, 이상값 필터도 같은 이유로 이 구간만 봐야 한다.
     windowQuotes = windowQuotes.filter((q) => q.date <= deadlineDate);
 
-    // 정상 종목인데 판정 구간 시세가 전무하면 소스 지연(D+1) 가능성 — 판정하지 않고 이월.
+    // 정상 종목인데 판정 구간 시세가 전무하면 소스 지연 가능성 — 판정하지 않고 이월.
+    // (KIS는 실시간이라 D+1 지연은 없지만, 일봉이 마감 직후 몇 분간 안 채워지거나
+    //  공급자가 그 구간만 못 주는 경우는 그대로 남는다)
     // 공휴일에 게시된 당일 카드도 여기로 오며, 이월 한도 초과 시 수동 보류 큐로 간다.
     if (windowQuotes.length === 0) {
       throw new JudgmentDeferredError(

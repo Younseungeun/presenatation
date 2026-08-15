@@ -611,7 +611,7 @@ export interface JudgedCardScoreInput {
   sigmaDaily: number | null;
   /** 기준가 (소급 확정 후 값). 없으면 점수 0 */
   basePrice: number | null;
-  /** 판정 종가 — 실현 등락 기록·표시용 (v4 점수는 적중 여부만 쓴다) */
+  /** 판정 종가 — 실현 등락 기록·표시용 (vmax 점수는 적중 여부만 쓴다) */
   settledPrice: number | null | undefined;
   /** 게시→검증 시한 일수 — p₀의 입력. 게시일이 없으면 호출자가 계산 불가 → 0점 처리 */
   horizonDays: number | null;
@@ -627,9 +627,9 @@ export function scoreJudgedCard(input: JudgedCardScoreInput): {
   score: number;
   /** 가중 전 정보량 = 로그우도비 기여분 — 규율 래더가 이것을 합산한다 */
   info: number;
-  /** 방향·크기 성분 = v4 총점 (감사·화면 표시용) */
+  /** 방향·크기 성분 = vmax 총점과 같은 값 (감사·화면 표시용) */
   directionScore: number;
-  /** @deprecated v4에서 항상 0 — 경로 안정성 배팅 재설계 전까지 */
+  /** @deprecated v4부터 항상 0 — 경로 안정성 배팅 재설계 전까지 */
   stabilityScore: number;
 } {
   if (

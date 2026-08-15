@@ -9,6 +9,9 @@ import styles from "../../market.module.css";
 
 const BASE_MODE_LABEL: Record<string, string> = {
   FIXED_AT_PUBLISH: "게시 시점 확정",
+  PREV_CLOSE_AT_PUBLISH: "직전 거래일 종가로 게시 시점 확정",
+  // 2026-08-16 이전에 게시된 카드 — 같은 값을 판정 시 소급 확정했다.
+  // 라벨을 지우면 그 카드의 영수증에 빈칸이 남는다
   PREV_CLOSE_AT_JUDGMENT: "직전 거래일 종가로 소급 확정",
   DAY_CLOSE_AT_JUDGMENT: "게시일 종가로 소급 확정",
 };

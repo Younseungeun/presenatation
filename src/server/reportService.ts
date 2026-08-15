@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import type { PrepaymentRatio, Tier } from '@/domain/constants';
+import type { BaseMode, PrepaymentRatio, Tier } from '@/domain/constants';
 import { resolveProvider, toMarketDateString, type ProviderRegistry } from '@/domain/marketData';
 import {
   LONG_HORIZON_DAYS,
@@ -272,11 +272,14 @@ async function finalizePublish(
   const card = report.predictionCard!;
   const cardDraft = toCardDraft(card);
 
-  // 소급 확정 모드(주식 단기 카드)는 시세 조회 없이 컷오프 규칙만 검증된다.
-  // 그 외에는 외부 시세 조회(트랜잭션 밖)로 기준가를 게시 시점에 확정한다.
+  // 소급 확정 모드(DAY_CLOSE_AT_JUDGMENT — 장중·장후·주말 게시 단기 카드)는 시세 조회
+  // 없이 컷오프 규칙만 검증된다. 그 외에는 외부 시세 조회(트랜잭션 밖)로 기준가를
+  // 게시 시점에 확정한다.
   const plan = planBaseMode(cardDraft.assetClass, cardDraft.deadline, now);
   const basePrice =
-    plan.baseMode === 'FIXED_AT_PUBLISH' ? await fetchBasePrice(registry, cardDraft, now) : null;
+    plan.baseMode === 'DAY_CLOSE_AT_JUDGMENT'
+      ? null
+      : await fetchBasePrice(registry, cardDraft, now, plan.baseMode);
 
   // 종목 실현 변동성을 게시 시점에 재서 카드에 고정한다 — **두 곳이 이 값을 읽는다**:
   // 안정성 별점(stability.ts)과 무정보 도달 확률 p₀(scoring.ts).
@@ -557,16 +560,20 @@ async function fetchBasePrice(
   registry: ProviderRegistry,
   card: CardDraft,
   now: Date,
+  baseMode: BaseMode = 'FIXED_AT_PUBLISH',
 ): Promise<number> {
   const provider = resolveProvider(registry, card.assetClass);
 
-  // 실시간 현재가를 주는 소스(코인=업비트)는 게시 순간의 가격을 기준가로 쓴다.
-  // 이것이 단기(1일) 예측을 허용해도 "이미 실현된 등락 가로채기"가 불가능한 이유다.
-  if (provider.getCurrentPrice) {
+  // **개장 전 게시 카드는 현재가를 묻지 않는다** (2026-08-16). 장이 닫혀 있는 시각이라
+  // 현재가 응답이 무엇인지가 공급자 구현에 달려 있다(직전 종가일 수도, 시가 0일 수도).
+  // 우리가 원하는 값은 하나로 정해져 있다 — **직전 거래일 종가**. 일봉에서 곧장 읽는다
+  if (baseMode !== 'PREV_CLOSE_AT_PUBLISH' && provider.getCurrentPrice) {
+    // 실시간 현재가를 주는 소스는 게시 순간의 가격을 기준가로 쓴다.
+    // 이것이 단기(1일) 예측을 허용해도 "이미 실현된 등락 가로채기"가 불가능한 이유다.
     return provider.getCurrentPrice(card.ticker);
   }
 
-  // EOD 소스는 직전 거래일 종가 — 이 경우 최소 시한 규칙(주식 7일)이 조작을 막는다
+  // 일봉의 마지막 종가 = 직전 거래일 종가 (장중이면 당일 종가가 아직 없다)
   const to = toMarketDateString(now, card.assetClass);
   const from = toMarketDateString(
     new Date(now.getTime() - BASE_PRICE_LOOKBACK_DAYS * 86_400_000),

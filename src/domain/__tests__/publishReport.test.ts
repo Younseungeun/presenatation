@@ -303,13 +303,29 @@ describe('preparePublish', () => {
     expect(() => preparePublish(card, validCond, 70_000, NOW)).toThrow(/목표가/);
   });
 
-  it('KR 단기 카드: 평일 개장 전 게시 → 기준가 소급 확정 모드로 게시 성공', () => {
+  // **개장 전 카드도 기준가를 게시 시점에 확정한다** (2026-08-16).
+  // 직전 거래일 종가는 어제 마감 +5분에 이미 확정된 값이고, KIS는 개장 전에도 그대로
+  // 준다(실측: KST 02:52에 직전 거래일 종가 수신). 미루던 이유는 금융위 D+1 지연이었고
+  // 2026-08-10 KIS 전환으로 사라졌는데 방식만 남아 있었다
+  it('KR 단기 카드: 평일 개장 전 게시 → 직전 거래일 종가를 게시 시점에 확정', () => {
     // KST 2026-07-13(월) 07:00 — 동시호가(08:30) 전
     const monPreOpen = new Date('2026-07-12T22:00:00Z');
     const card: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') }; // 당일 15:30 KST
-    const snap = preparePublish(card, validCond, null, monPreOpen);
-    expect(snap.baseMode).toBe('PREV_CLOSE_AT_JUDGMENT');
-    expect(snap.basePrice).toBeNull();
+    const snap = preparePublish(card, validCond, 70_000, monPreOpen);
+    expect(snap.baseMode).toBe('PREV_CLOSE_AT_PUBLISH');
+    expect(snap.basePrice).toBe(70_000);
+  });
+
+  // 기준가를 알게 된 대가로 **검증이 따라온다** — 미룰 때는 이것들을 못 했다
+  it('개장 전 카드도 방향 정합성·크기 하한 검증을 받는다', () => {
+    const monPreOpen = new Date('2026-07-12T22:00:00Z');
+    const card: CardDraft = {
+      ...validCard,
+      targetType: 'TARGET_PRICE',
+      targetValue: 60_000, // 상승 예측인데 기준가(70,000) 아래
+      deadline: new Date('2026-07-13T06:30:00Z'),
+    };
+    expect(() => preparePublish(card, validCond, 70_000, monPreOpen)).toThrow(/목표가/);
   });
 
   it('KR 단기 카드: 장 시작 후 게시는 당일·익일 시한 거부, +2일부터 허용 (기준가 = 게시일 종가)', () => {
@@ -383,15 +399,18 @@ describe('preparePublish', () => {
     expect(() => preparePublish(card, validCond, 70_000, NOW)).toThrow(/예측 크기 하한/);
   });
 
+  // 소급 확정은 이제 **장중·장후·주말 게시 단기 카드(DAY_CLOSE_AT_JUDGMENT)에만** 남는다.
+  // 그쪽은 기준가가 "게시 이후 첫 종가"라 게시 시점에 존재하지 않는 값이고, 그래서
+  // 목표가의 방향 정합성·크기 하한을 검증할 대상이 없다 (개장 전 카드와 갈리는 지점)
   it('기준가 소급 확정 단기 카드는 수익률형만 허용 (목표가형 거부)', () => {
-    const monPreOpen = new Date('2026-07-12T22:00:00Z'); // KST 월 07:00
+    const monOpen = new Date('2026-07-13T00:00:00Z'); // KST 월 09:00 — 장중
     const card: CardDraft = {
       ...validCard,
       targetType: 'TARGET_PRICE',
       targetValue: 80_000,
-      deadline: new Date('2026-07-13T06:30:00Z'),
+      deadline: new Date('2026-07-15T06:30:00Z'), // +2일
     };
-    expect(() => preparePublish(card, validCond, null, monPreOpen)).toThrow(/수익률형/);
+    expect(() => preparePublish(card, validCond, null, monOpen)).toThrow(/수익률형/);
   });
 
   it('검증 이슈는 한 번에 모아서 보고', () => {

@@ -53,11 +53,19 @@ export type UndecidableReason = (typeof UNDECIDABLE_REASONS)[number];
 
 // 기준가 확정 방식 (publishReport.ts의 컷오프 규칙과 연동):
 // - FIXED_AT_PUBLISH: 게시 시 확정 (실시간가 또는 직전 종가) — 코인·장기 카드
-// - PREV_CLOSE_AT_JUDGMENT: 직전 거래일 종가를 판정 시 소급 확정 — 개장 전 게시 단기 카드
+// - PREV_CLOSE_AT_PUBLISH: 직전 거래일 종가를 **게시 시점에** 확정 — 개장 전 게시 단기 카드
+// - PREV_CLOSE_AT_JUDGMENT: 같은 값을 판정 시 소급 확정하던 **옛 방식 (신규 게시에는 안 쓴다)**
+//   근거가 데이터 지연이었다: 국내 시세가 금융위(D+1)였을 때는 아침에 직전 거래일 종가를
+//   읽을 수 없었다. 2026-08-10에 KIS(실시간)로 갈아타면서 그 전제가 사라졌는데
+//   방식만 남아 있었다 — 실측으로 확인했다(KST 02:52에 직전 거래일 종가가 그대로 온다).
+//   미루면 대가가 있었다: 게시 관문이 기준가를 몰라 **크기 하한·방향 정합성을 검증하지
+//   못하고**(그래서 목표가형을 금지해야 했고), 판정 시 그 종가를 못 찾으면 이월됐다.
+//   **기존 카드는 이 값을 그대로 유지한다** — 판정 파이프라인의 소급 확정 경로도 남는다
 // - DAY_CLOSE_AT_JUDGMENT: 게시일(이후 첫 거래일) 종가를 판정 시 소급 확정 — 장중·장후·주말 게시
 //   단기 카드. 당일 실현 등락이 기준가에 흡수되므로 장중 게시여도 정보 이점이 없다
 export const BASE_MODES = [
   'FIXED_AT_PUBLISH',
+  'PREV_CLOSE_AT_PUBLISH',
   'PREV_CLOSE_AT_JUDGMENT',
   'DAY_CLOSE_AT_JUDGMENT',
 ] as const;
