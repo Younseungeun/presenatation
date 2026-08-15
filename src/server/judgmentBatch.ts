@@ -7,6 +7,7 @@ import { toJudgeableCard } from './cardMapper';
 import { rebaseIfAdjusted } from './corporateActionService';
 import { buildJudgmentWrites } from './judgmentWriter';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
+import { isJudgmentPaused } from './judgmentPause';
 
 // 판정 배치: 시한이 지난 미판정 카드를 찾아 판정 → 점수 산정 → 에스크로 정산까지
 // 하나의 트랜잭션으로 실행한다 (docs/market-data.md §4).
@@ -222,6 +223,23 @@ export async function judgeAndSettleDueCards(
    */
   fence?: () => Prisma.PrismaPromise<unknown>,
 ): Promise<BatchSummary> {
+  // **사람이 멈춰 뒀으면 한 장도 건드리지 않는다** (server/judgmentPause).
+  // 시세 오류로 되돌리는 중에 배치가 깨어나면 같은 고장 난 데이터로 다시 오판정하고,
+  // 구매자는 판정이 두 번 뒤집히는 것을 본다
+  if (await isJudgmentPaused(prisma, assetClass)) {
+    return {
+      judged: 0,
+      deferred: 0,
+      failed: 0,
+      staleDeferred: [],
+      hardCapped: [],
+      blockedInstruments: [],
+      failures: [],
+      cursor: null,
+      hasMore: false,
+    };
+  }
+
   // HELD 구매까지 한 번에 조회 — 카드별 개별 쿼리(N+1) 제거
   const where: Prisma.PredictionCardWhereInput = {
     judgment: null,

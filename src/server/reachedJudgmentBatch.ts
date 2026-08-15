@@ -6,6 +6,7 @@ import { scoreJudgedCard } from '@/domain/scoring';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
 import { toJudgeableCard } from './cardMapper';
 import { rebaseIfAdjusted } from './corporateActionService';
+import { isJudgmentPaused } from './judgmentPause';
 import { buildJudgmentWrites } from './judgmentWriter';
 
 // 도달 판정 배치 — 일봉 종가가 목표에 닿은 카드를 그 자리에서 판정·정산한다.
@@ -46,6 +47,12 @@ export async function runReachedJudgmentBatch(
   /** 배치 락의 자격 검사 — judgmentBatch와 같은 이유 (스플릿 브레인 방어) */
   fence?: () => Prisma.PrismaPromise<unknown>,
 ): Promise<ReachedJudgmentSummary> {
+  // 기한 판정과 같은 이유로 멈춘다 — 되돌리는 중에 도달 판정이 새 판정을 만들면
+  // 롤백 계획이 도는 사이에 대상이 늘어난다 (server/judgmentPause)
+  if (await isJudgmentPaused(prisma, assetClass)) {
+    return { checked: 0, judged: 0, notYet: 0, deferred: 0, failed: 0 };
+  }
+
   const cards = await prisma.predictionCard.findMany({
     where: {
       judgment: null,

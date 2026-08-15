@@ -5,6 +5,9 @@ import { getMarketStats } from "@/server/marketStats";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
 import { MarketTicker } from "../../MarketTicker";
+import { ASSET_CLASS_LABEL, ASSET_CLASSES } from "@/domain/constants";
+import { getPauseState } from "@/server/judgmentPause";
+import { PauseSwitch } from "./PauseSwitch";
 import { SettingToggle } from "./SettingToggle";
 import styles from "./adminSettings.module.css";
 import shell from "../../researcher/researcher.module.css";
@@ -22,6 +25,7 @@ export default async function AdminSettingsPage() {
   if (user?.role !== "OPERATOR") notFound();
 
   const settings = await getUiSettings(prisma);
+  const pause = await getPauseState(prisma);
   // 미리보기는 실제 수치로 — 지금 켜면 무엇이 흐를지 그대로 보여준다
   const preview = await getMarketStats(prisma, { includeAmounts: true });
 
@@ -33,6 +37,26 @@ export default async function AdminSettingsPage() {
           배포 없이 즉시 반영됩니다. 기본값은 모두 꺼짐이고, 켜는 것은 수치가 보여줄 만해진
           뒤의 판단입니다.
         </p>
+
+      {/* **사고 때 가장 먼저 누르는 스위치라 맨 위에 둔다.** 시세 공급자가 틀린 값을
+          주기 시작하면 되돌리기보다 멈추는 것이 먼저다 — 멈추지 않고 되돌리면
+          1.1초 뒤 배치가 같은 데이터로 다시 오판정한다 (server/judgmentPause) */}
+        <div className={styles.section}>자동 판정 정지</div>
+        <p className={styles.intro}>
+          시세가 이상할 때 판정을 멈춥니다. 멈춘 동안 판정이 밀리고, 밀린 판정은 이월
+          상한(14일)에 닿으면 전액 환불로 끝나므로 <strong>필요한 범위만</strong> 멈추세요.
+          되돌리기는 <code>npm run judgment:bulk-revert</code>입니다 — 파괴적 행위라
+          화면에 두지 않았습니다.
+        </p>
+        <PauseSwitch scope="ALL" label="전 자산군" initial={pause.global} />
+        {ASSET_CLASSES.map((a) => (
+          <PauseSwitch
+            key={a}
+            scope={a}
+            label={ASSET_CLASS_LABEL[a]}
+            initial={pause.byAssetClass[a] ?? false}
+          />
+        ))}
 
         <div className={styles.section}>시장 규모 띠지</div>
         <SettingToggle

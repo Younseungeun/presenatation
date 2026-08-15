@@ -1,0 +1,112 @@
+import type { PrismaClient } from '@prisma/client';
+import { ASSET_CLASSES, type AssetClass } from '@/domain/constants';
+import { auditOp } from './auditLog';
+
+// **자동 판정을 사람이 멈춘다** (2026-08-15).
+//
+// ── 왜 배치 락이 아니라 별도 플래그인가 ──────────────────────
+// 배치 락(`withBatchLock`)은 **프로세스가 끝나면 풀리는 임시 자물쇠**다. 롤백은
+// "멈춘다 → 무엇이 지워지는지 확인한다 → 실행한다 → **사람이 시세를 확인한 뒤**
+// 다시 연다"의 절차이고, 그 사이에 사람이 자리를 비울 수도 며칠이 걸릴 수도 있다.
+// 프로세스 수명에 묶인 락은 그 절차를 못 버틴다.
+//
+// ── 왜 멈춰야 하는가 ─────────────────────────────────────────
+// 시세 오류로 100장을 되돌려도 **1.1초 뒤 배치가 깨어나 같은 고장 난 데이터로 다시
+// 오판정한다.** 되돌리기가 무의미해지는 것이 아니라 **되돌릴수록 나빠진다** —
+// 매번 알림이 나가고 구매자는 판정이 두 번 뒤집히는 것을 본다.
+//
+// ── 범위: 자산군 + 전역 두 단계 ──────────────────────────────
+// 시세 사고는 보통 **공급자 단위**로 터지고, 공급자의 장애 반경은 자산군과 거의
+// 일치한다(국내 = 금융위·KIS / 미국 = 나스닥·KIS / 코인 = 업비트).
+//
+//  · **종목별은 두지 않는다** — 100장짜리 사고에서 종목이 30개면 30번 걸어야 하고,
+//    거는 동안 나머지가 계속 오염된다. 정확한 대신 사고 때 쓸 수 없다
+//  · **전역만 두지도 않는다** — 국내 공급자가 틀렸는데 코인 판정까지 멈추면 그쪽
+//    카드가 이월되고, 이월은 14일 상한에 닿으면 **전액 환불**로 끝난다.
+//    사고를 고치는 것이 아니라 옆으로 옮기는 셈이다
+//
+// ── 푸는 것은 언제나 사람이다 ────────────────────────────────
+// 시간이 지났다고 자동으로 풀리지 않는다. 자동 해제는 "공급자가 고쳐졌다"를 시스템이
+// 안다고 가정하는 것인데, 그걸 아는 방법이 없어서 애초에 멈춘 것이다.
+
+const KEY_PREFIX = 'judgment.paused.';
+const GLOBAL_KEY = `${KEY_PREFIX}ALL`;
+
+export interface PauseState {
+  /** 전 자산군 정지 */
+  global: boolean;
+  /** 자산군별 정지 */
+  byAssetClass: Partial<Record<AssetClass, boolean>>;
+}
+
+function keyFor(scope: AssetClass | 'ALL'): string {
+  return `${KEY_PREFIX}${scope}`;
+}
+
+export async function getPauseState(prisma: PrismaClient): Promise<PauseState> {
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { startsWith: KEY_PREFIX } },
+    select: { key: true, value: true },
+  });
+  const on = new Set(rows.filter((r) => r.value === '1').map((r) => r.key));
+  return {
+    global: on.has(GLOBAL_KEY),
+    byAssetClass: Object.fromEntries(
+      ASSET_CLASSES.map((a) => [a, on.has(keyFor(a))]),
+    ) as Partial<Record<AssetClass, boolean>>,
+  };
+}
+
+/**
+ * 이 자산군의 자동 판정이 멈춰 있는가 — **배치 진입부가 매 회차 묻는다.**
+ * 자산군 스코프가 없는 호출(전 자산군 배치)은 전역 정지만 본다.
+ */
+export async function isJudgmentPaused(
+  prisma: PrismaClient,
+  assetClass?: AssetClass,
+): Promise<boolean> {
+  const keys = assetClass ? [GLOBAL_KEY, keyFor(assetClass)] : [GLOBAL_KEY];
+  const rows = await prisma.appSetting.findMany({
+    where: { key: { in: keys } },
+    select: { value: true },
+  });
+  return rows.some((r) => r.value === '1');
+}
+
+/**
+ * 멈추거나 다시 연다. **사유가 필수다** — 왜 멈췄는지 모르면 언제 풀어야 하는지도 모른다.
+ * 변경은 감사 로그에 남는다(돈을 움직이지는 않지만 돈의 근거를 바꾸는 행위다).
+ */
+export async function setJudgmentPause(
+  prisma: PrismaClient,
+  input: {
+    scope: AssetClass | 'ALL';
+    paused: boolean;
+    operatorUserId: string;
+    reason: string;
+  },
+  now = new Date(),
+): Promise<void> {
+  const key = keyFor(input.scope);
+  const before = await prisma.appSetting.findUnique({ where: { key } });
+  const value = input.paused ? '1' : '0';
+
+  await prisma.$transaction([
+    prisma.appSetting.upsert({
+      where: { key },
+      create: { key, value, updatedBy: input.operatorUserId },
+      update: { value, updatedBy: input.operatorUserId },
+    }),
+    auditOp(prisma, {
+      actor: input.operatorUserId,
+      actorType: 'OPERATOR',
+      action: 'JUDGMENT_PAUSE_SET',
+      targetType: 'JudgmentPause',
+      targetId: input.scope,
+      before: { paused: before?.value === '1' },
+      after: { paused: input.paused },
+      reason: input.reason.slice(0, 500),
+      at: now,
+    }),
+  ]);
+}

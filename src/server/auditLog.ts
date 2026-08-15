@@ -52,6 +52,10 @@ export const AUDIT_ACTIONS = {
   DISPUTE_RESOLVED: '판정 이의 확정',
   /** 종목 위험 등급을 사람이 바꿨다 — 판매 가능 여부가 바뀐다 */
   INSTRUMENT_RISK_SET: '종목 위험 등급 변경',
+  /** 자동 판정을 멈추거나 다시 열었다 */
+  JUDGMENT_PAUSE_SET: '자동 판정 정지·해제',
+  /** 판정을 회차 단위로 일괄 되돌렸다 */
+  BULK_REVERT: '판정 일괄 되돌리기',
   /** 운영자 권한을 주거나 뺏었다 */
   ROLE_CHANGED: '운영자 권한 변경',
 } as const;
