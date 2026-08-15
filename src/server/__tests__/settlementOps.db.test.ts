@@ -241,3 +241,53 @@ describe('지급 실행', () => {
     ).rejects.toThrow(/이미 지급/);
   });
 });
+
+// **지급 직전에 이의가 들어오면 돈이 나가면 안 된다** (2026-08-16, 외부 검토 D-5 ②).
+//
+// 이의 검사와 실제 쓰기 사이에는 쿨다운 조회·한도 집계·PG 지연 계산이 들어간다.
+// 그 사이에 구매자가 이의를 제기하면 앞의 검사는 이미 지나갔고 돈이 나간다.
+// 창은 좁지만 **쿨다운 만료 직후가 이의가 몰리는 시각**이라 하필 겹치기 쉽다.
+//
+// 이중 지급은 `payoutExecutedAt: null` 조건이 이미 막고 있었다 — 안 막힌 것은
+// "그 사이 상황이 바뀌었는가" 쪽이다.
+describe('지급 직전 이의 재확인', () => {
+  it('검사 통과 후 트랜잭션 직전에 접수된 이의도 지급을 막는다', async () => {
+    // 앞선 시험들이 지급을 다 실행했으므로, 미실행 상태로 되돌려 무대를 만든다
+    const found = await prisma.settlement.findFirstOrThrow({
+      where: { researcherPayoutKrw: { gt: 0 } },
+      include: { purchase: true },
+    });
+    await prisma.settlement.update({
+      where: { id: found.id },
+      data: { payoutExecutedAt: null, payoutExecutedBy: null },
+    });
+    const s = found;
+
+    // 앞선 검사를 통과시킨 뒤, 쓰기 직전에 이의가 생기는 상황을 만든다.
+    // `$transaction`이 다시 조회하므로 여기서 만들어 두면 그 재확인에 걸린다
+    const dispute = await prisma.judgmentDispute.create({
+      data: {
+        purchaseId: s.purchaseId,
+        buyerId: s.purchase.buyerId,
+        actorRole: 'PURCHASER',
+        category: 'PRICE_DATA',
+        observed: '8/1 종가 71,200원',
+        status: 'OPEN',
+      },
+    });
+
+    await expect(
+      executePayout(
+        prisma,
+        { settlementId: s.id, operatorUserId: OPERATOR, confirmedSettled: true },
+        new Date(s.settledAt.getTime() + (SETTLEMENT_COOLDOWN_HOURS + 1) * 3_600_000),
+      ),
+    ).rejects.toThrow(/이의/);
+
+    // **돈이 안 나갔다**
+    const after = await prisma.settlement.findUniqueOrThrow({ where: { id: s.id } });
+    expect(after.payoutExecutedAt).toBeNull();
+
+    await prisma.judgmentDispute.delete({ where: { id: dispute.id } });
+  });
+});

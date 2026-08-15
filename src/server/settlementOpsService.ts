@@ -601,11 +601,42 @@ export async function executePayout(
     );
   }
 
+  // ── **이의 검사를 쓰기 조건에 넣는다** (2026-08-16, 외부 검토 D-5 ②) ────────
+  //
+  // 위의 이의 검사부터 여기까지 사이에 **쿨다운 조회·한도 집계·PG 지연 계산**이
+  // 들어간다. 그동안 구매자가 이의를 제기하면 앞의 검사는 이미 지나갔고 돈이 나간다.
+  // 창은 좁지만 **쿨다운 만료 직후가 이의가 몰리는 시각**이라(구매자도 그때 결과를
+  // 본다) 하필 겹치기 쉬운 자리다. 이중 지급은 `payoutExecutedAt: null`이 이미
+  // 원자적으로 막고 있었고, 안 막힌 것은 **"그 사이 상황이 바뀌었는가"** 쪽이었다.
+  //
+  // **대화형 트랜잭션은 쓰지 않는다** — 안에서 await이 가능해지면 언젠가 외부 호출이
+  // 쓰기 락을 쥔 채 남고, SQLite에서 그 순간 결제 쓰기가 죽는다
+  // (noIoInTransaction.test.ts가 이 규칙을 강제한다. 근거: measureWriteContention의
+  //  대조군은 트랜잭션 길이 하나로 전멸했다).
+  //
+  // 그래서 재조회 대신 **조건을 쓰기에 실어 보낸다**: 관계 필터로 "열린 이의가 없을 때만"
+  // 갱신한다. 한 문장이라 검사와 쓰기 사이에 틈이 없다.
+  const done = await prisma.settlement.updateMany({
+    where: {
+      id: s.id,
+      payoutExecutedAt: null,
+      // 구매 1건당 이의는 1건(1:1)이라 "없거나, 있어도 이미 확정됐거나"로 적는다.
+      // `is: null`만 쓰면 **확정된 이의가 있는 건까지 영영 막힌다**
+      purchase: {
+        OR: [{ judgmentDispute: { is: null } }, { judgmentDispute: { status: { not: 'OPEN' } } }],
+      },
+    },
+    data: { payoutExecutedAt: now, payoutExecutedBy: input.operatorUserId },
+  });
+  if (done.count === 0) {
+    // 여기까지 왔는데 0행이면 **그 사이에 상황이 바뀌었다** — 지급이 먼저 나갔거나
+    // 이의가 들어왔거나. 어느 쪽이든 다시 보라고 말하는 것이 맞다
+    throw new SettlementOpsError(
+      '지급 직전에 상태가 바뀌었습니다 (이의 접수 또는 다른 실행) — 목록을 새로고침한 뒤 다시 확인해주세요.',
+    );
+  }
+
   await prisma.$transaction([
-    prisma.settlement.update({
-      where: { id: s.id, payoutExecutedAt: null },
-      data: { payoutExecutedAt: now, payoutExecutedBy: input.operatorUserId },
-    }),
     auditOp(prisma, {
       actor: input.operatorUserId,
       actorType: 'OPERATOR',
