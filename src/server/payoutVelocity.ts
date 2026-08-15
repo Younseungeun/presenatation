@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { notifyOperators } from './opsAlert';
 
 // **하루에 밖으로 나갈 수 있는 돈의 상한** (2026-08-15).
 //
@@ -51,10 +52,16 @@ function startOfDay(now: Date): Date {
   return d;
 }
 
-/** 오늘 이미 실행된 지급 + 환불의 합 */
+/**
+ * 오늘 이미 실행된 **지급 + 환불 + 보상**의 합.
+ *
+ * 보상(CompensationInstruction)은 2026-08-16에 들어왔다. 돈이 나가는 네 번째 경로가
+ * 생겼는데 여기 안 세면 **한도가 그만큼 헐거워진다** — 벽의 목적이 "오늘 나간 총액"인
+ * 이상, 새 경로가 생길 때마다 여기 붙는 것이 이 함수의 계약이다.
+ */
 export async function todayOutflowKrw(prisma: PrismaClient, now = new Date()): Promise<number> {
   const from = startOfDay(now);
-  const [payouts, refunds] = await Promise.all([
+  const [payouts, refunds, compensations] = await Promise.all([
     prisma.settlement.aggregate({
       where: { payoutExecutedAt: { gte: from } },
       _sum: { researcherPayoutKrw: true },
@@ -63,8 +70,16 @@ export async function todayOutflowKrw(prisma: PrismaClient, now = new Date()): P
       where: { refundExecutedAt: { gte: from } },
       _sum: { buyerRefundKrw: true },
     }),
+    prisma.compensationInstruction.aggregate({
+      where: { executedAt: { gte: from } },
+      _sum: { amountKrw: true },
+    }),
   ]);
-  return (payouts._sum.researcherPayoutKrw ?? 0) + (refunds._sum.buyerRefundKrw ?? 0);
+  return (
+    (payouts._sum.researcherPayoutKrw ?? 0) +
+    (refunds._sum.buyerRefundKrw ?? 0) +
+    (compensations._sum.amountKrw ?? 0)
+  );
 }
 
 /**
@@ -84,4 +99,58 @@ export async function assertWithinDailyLimit(
   if (today + amountKrw > limitKrw) {
     throw new VelocityLimitExceeded(today, amountKrw, limitKrw);
   }
+}
+
+/**
+ * 한도에 **닿기 전에** 알린다 (2026-08-16, 외부 검토 C-1).
+ *
+ * ── 왜 벽에 부딪히는 것만으로는 부족한가 ─────────────────────────
+ * 한도는 벽이지 신호가 아니다. 지금까지 운영자가 한도를 아는 유일한 순간은
+ * **거부당했을 때**였다 — 그때는 이미 정상 지급이 막힌 뒤고, 급한 사람은 원인을
+ * 찾기 전에 "한도를 어떻게 올리나"부터 묻게 된다. 미리 알리면 그 순서가 뒤집힌다.
+ *
+ * ── 한도 수동 증액 모드는 만들지 않는다 ─────────────────────────
+ * 검토는 경보와 함께 "한도 수동 증액 모드"를 제안했다. **경보만 채택한다.**
+ * 이 한도가 막으려는 것은 탈취된 세션·오작동 배치인데, 그 세션이 콘솔에서 한도를
+ * 올릴 수 있으면 벽에 열쇠를 테이프로 붙여 둔 것이 된다. 그리고 우회 버튼은
+ * 두 번째로 눌리는 순간 기본 동작이 된다(쿨다운에 예외를 두지 않은 것과 같은 이유).
+ * 한도를 올리는 일은 배포로 남아야 하고, 그 배포 자체가 사람의 판단 기록이다.
+ *
+ * ── 정상 환불 폭주가 지급을 굶기는 문제(검토의 DoS 우려) ─────────
+ * 시장 급락으로 환불이 몰려 리서처 지급이 한도에 밀리는 상황은 실재한다. 다만 그건
+ * **손실이 아니라 지연**이다 — 막힌 지시서는 큐에 그대로 남아 다음 날 나가고,
+ * 판정 시한 약속(16일)은 판정까지의 약속이라 깨지지 않는다. 그래서 처방은 벽을
+ * 올리는 것이 아니라 **순서를 정하는 것**이고, 큐는 이미 `settledAt` 오래된 순이라
+ * 가장 오래 기다린 건이 먼저 나간다. 경보는 그 지연이 시작되기 전에 사람을 부른다.
+ */
+export const DAILY_OUTFLOW_ALERT_RATIO = 0.8;
+
+/**
+ * 오늘 나간 돈이 한도의 80%를 넘었으면 운영자에게 알린다 (스케줄러가 주기적으로 부른다).
+ *
+ * 실행 경로에 붙이지 않은 이유: `assertWithinDailyLimit`은 **판단**이고 알림은 곁가지다.
+ * 판단 함수에 부작용을 넣으면 "검사만 하고 싶은" 호출자가 알림을 함께 쏘게 된다.
+ */
+export async function notifyIfOutflowPressure(
+  prisma: PrismaClient,
+  now = new Date(),
+  limitKrw = DAILY_OUTFLOW_LIMIT_KRW,
+): Promise<boolean> {
+  const today = await todayOutflowKrw(prisma, now);
+  if (today < limitKrw * DAILY_OUTFLOW_ALERT_RATIO) return false;
+  const pct = Math.round((today / limitKrw) * 100);
+  await notifyOperators(prisma, {
+    title: `[주의] 오늘 나간 돈이 일일 한도의 ${pct}% — ${today.toLocaleString()}원`,
+    body: [
+      `한도 ${limitKrw.toLocaleString()}원에 ${(limitKrw - today).toLocaleString()}원 남았습니다.`,
+      '남은 지시서는 한도에 닿는 순간부터 **거부**되고 큐에 그대로 남습니다(다음 날 실행됩니다).',
+      '지금 확인할 것: 감사 로그(AuditLog)의 오늘 실행 내역이 정상 운영으로 설명되는가.',
+      '설명되지 않으면 한도를 올릴 것이 아니라 **무슨 일이 일어나는 중인지**부터 봐야 합니다.',
+    ].join('\n'),
+    link: '/admin/settlements',
+    // 하루 한 번이면 충분하다 — 넘긴 뒤로는 매 회차 조건이 참이라 키가 없으면 도배된다
+    dedupeKey: `outflow-pressure:${now.toISOString().slice(0, 10)}`,
+    dedupeMs: 24 * 3_600_000,
+  });
+  return true;
 }

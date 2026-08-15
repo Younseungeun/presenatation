@@ -422,8 +422,67 @@ model Purchase {
   settlement Settlement?
   refundAttempts RefundAttempt[] // CS 환불(판정 전)의 시도 기록 — 판정 환불은 Settlement에 매달린다
   judgmentDispute JudgmentDispute? // 판정 이의 (구매 1건당 1회)
+  compensation CompensationInstruction? // 플랫폼 귀책 보상 (판정 못 한 건에 한함)
 
   @@unique([reportId, buyerId]) // 자기 구매 중복 방지 및 1인 1구매
+}
+
+// 플랫폼 귀책 보상 지시서 — **Settlement과 같은 표를 쓰지 않는다** (2026-08-16).
+//
+// ── 왜 나누는가 ─────────────────────────────────────────────────
+// 두 표가 옮기는 돈의 **출처가 다르다.** Settlement은 구매자가 낸 돈을 나누는
+// **위탁 정산**이라 우리 자산이 아니고, 보상은 우리 자본에서 나가는 **손해 보전**이다.
+// 한 표에 섞으면 "에스크로 계좌에 있어야 할 돈"과 "회사 계좌에서 빠질 돈"이 같은
+// 합계에 들어가, 잔액 대조가 영원히 안 맞는다. 회계상 성격이 다른 돈은 표부터 다르다.
+//
+// ── 무엇을 공유하는가 ───────────────────────────────────────────
+// **이체 실행 레일만** 공유한다 — 일일 출금 한도(payoutVelocity), 감사 로그,
+// 은행 이체 참조번호, 운영자 알림. 도메인 규칙은 하나도 공유하지 않는다:
+//  · 쿨다운(48시간)   — 판정이 뒤집힐까 봐 기다리는 것인데 **뒤집힐 판정이 없다**
+//  · 이의 차단        — 이의는 판정에 거는 것이라 판정 없는 건에는 성립하지 않는다
+//  · PG 입금 지연(3일) — 구매자에게 이미 전액 환불했다. 이 돈은 PG를 거치지 않는다
+// 규칙을 억지로 공유하면 "왜 이 검사가 여기 있나"에 답할 수 없는 코드가 남는다.
+//
+// ── 금액 = 판매 대금 − 수수료 ───────────────────────────────────
+// 전액으로 하면 **장애가 나면 정상 적중보다 더 번다**(수수료를 안 떼므로). 그 역유인이
+// 남으면 언젠가 누군가 그것을 노린다. 우리는 그 건의 수수료 수익을 0으로 처리한다 —
+// 계산은 settle({outcome:'HIT'})을 그대로 부르므로 정산 공식과 갈라질 수 없다.
+model CompensationInstruction {
+  id               String   @id @default(cuid())
+  /** 구매 1건 = 보상 1건. 돈은 구매 단위로 움직이고, 차지백 걸린 건만 따로 뺄 수 있다 */
+  purchaseId       String   @unique
+  purchase         Purchase @relation(fields: [purchaseId], references: [id])
+  /** 사건은 카드 단위다 — 한 카드의 여러 구매를 사람이 한 번에 확정한다 */
+  predictionCardId String
+  /** 받는 사람. 구매를 타고 갈 수 있지만 지급 대상은 생성 시점에 못 박는다 */
+  researcherUserId String
+  amountKrw        Int
+  /** SYSTEM_PAUSE | MANUAL_QUEUE | SYSTEM_ERROR | DATA_UNKNOWN (domain/compensation.ts) */
+  cause            String
+  /**
+   * PENDING_REVIEW | APPROVED | EXCLUDED | EXECUTED
+   *
+   * **전부 PENDING_REVIEW로 태어난다.** 자동 승인 경로를 두지 않는 이유는 아래 세 가지다:
+   *  ① 이 돈이 분 단위로 나가야 할 이유가 없다 — 대상은 이미 시한 후 14~16일 기다린 건이다
+   *  ② `SYSTEM_ERROR`(우리 코드가 죽음)는 "우리 귀책이 확실"한 동시에 **시스템을 가장
+   *     못 믿을 상태**다. 버그 하나가 카드 200장을 닫으면 보상 200건이 자동 생성된다
+   *  ③ 자동 경로가 없으면 **큐 길이 자체가 사고 규모의 계기판**이 된다
+   * 예산 초과는 상태로 저장하지 않는다 — 달이 바뀌면 예산은 리셋되는데 행은 스스로
+   * 안 풀린다. 한도는 실행 시점의 함수이므로 실행 시점에 계산한다(compensationBudget).
+   */
+  status           String   @default("PENDING_REVIEW")
+  createdAt        DateTime @default(now())
+
+  reviewedAt    DateTime?
+  reviewedBy    String? // 운영자 userId
+  reviewNote    String?
+  executedAt    DateTime?
+  executedBy    String?
+  /** 계좌이체에는 멱등키가 없다 — 이 번호가 시스템 밖 현금 이동의 유일한 증명이다 */
+  bankReference String?
+
+  @@index([status, createdAt])
+  @@index([predictionCardId])
 }
 
 // 정산: 적중/실패/판정불가 3분기 결과 기록.

@@ -27,6 +27,8 @@ import {
 import { seasonOf } from '../src/server/scoreService';
 import { purgeExpiredPaymentIntents } from '../src/server/paymentIntentService';
 import { sweepStuckRefundAttempts } from '../src/server/settlementOpsService';
+import { notifyIfOutflowPressure } from '../src/server/payoutVelocity';
+import { sweepPendingCompensations } from '../src/server/compensationService';
 import { recalcSeasonTiers } from '../src/server/seasonRecalcService';
 import { syncKrCardInstrumentRisk } from '../src/server/krRiskSync';
 import { pausedAssetClasses } from '../src/server/judgmentPause';
@@ -692,7 +694,28 @@ function tick(): void {
         const purged = await purgeExpiredPaymentIntents(prisma);
         if (purged > 0) console.log(`  만료 결제 의도 ${purged}건 삭제`);
       });
+      // **한도에 닿기 전에 부른다** (2026-08-16). 한도는 벽이지 신호가 아니라,
+      // 지금까지 운영자가 그것을 아는 유일한 순간이 **거부당했을 때**였다.
+      // 그때는 이미 정상 지급이 막힌 뒤라 원인보다 "어떻게 올리나"부터 묻게 된다
+      enqueue('일일 출금 압력 점검', async () => {
+        if (await notifyIfOutflowPressure(prisma)) {
+          console.warn('  오늘 나간 돈이 일일 한도의 80%를 넘었습니다 — 운영자에게 알림');
+        }
+      });
     }
+  }
+
+  // ── 확정 안 된 귀책 보상 (매일 09:30 KST) ───────────────
+  // 보상은 **전부 사람 확정을 거친다**(자동 승인 경로 없음). 그 대가로 이 큐는
+  // 방치되면 리서처 돈이 갇히는 자리가 되므로, 검수 보류 큐와 같은 규칙을 쓴다 —
+  // 사람을 기다리는 큐는 스스로 소리를 내야 한다
+  if (kstClock >= '09:30') {
+    enqueueDaily('compensation-review', kstNow, '귀책 확정 대기 보상 점검', async () => {
+      const s = await sweepPendingCompensations(prisma);
+      if (s.pending > 0) {
+        console.log(`  귀책 확정 대기 보상 ${s.pending}건 (${s.overdue}건 지연)`);
+      }
+    });
   }
 
   // ── 오래된 알림 정리 (매일 04:30 KST — 백업 직후) ────────

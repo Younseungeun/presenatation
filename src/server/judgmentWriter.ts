@@ -1,7 +1,9 @@
 import type { Prisma, PrismaClient, PredictionCard, Purchase, Report } from '@prisma/client';
+import { causeFromDataSource } from '@/domain/compensation';
 import type { JudgmentResult } from '@/domain/judgment';
 import { settle } from '@/domain/settlement';
 import { auditOp } from './auditLog';
+import { buildCompensationWrites } from './compensationService';
 
 // 판정 결과 영속화 + 에스크로 3분기 정산 + 인앱 알림 쓰기 묶음.
 // 자동 배치(judgmentBatch)와 운영자 수동 판정(manualJudgmentService)이 공유한다 —
@@ -176,6 +178,20 @@ export function buildJudgmentWrites(
   // 도메인 외래키를 타고 올라와(Settlement → Purchase → Report → PredictionCard →
   // Judgment) targetId로 조회한다 — 하위 id를 JSON에 담아 검색하게 만들면 SQLite에는
   // JSON 인덱스가 없어 풀스캔이 된다.
+  // ── **우리 사정으로 못 쟀으면 보상 지시서도 같은 트랜잭션에서 태어난다** (2026-08-16) ──
+  //
+  // 여기에 두는 이유는 **하드캡 경로가 셋이기 때문**이다(정지 중 / 수동 큐 / 시세 미확보·
+  // 오류). 호출자마다 보상 생성을 붙이면 언젠가 한 곳이 빠지고, 빠진 자리는 **닫힌 카드가
+  // 정상 판정과 똑같이 보여** 아무도 못 찾는다. 판정을 쓰는 유일한 통로가 여기이므로
+  // 여기서 한 번 갈라 놓으면 새 경로가 생겨도 저절로 따라온다.
+  //
+  // 갈라내는 기준은 `dataSource` 하나다 — 결과(UNDECIDABLE)로 가르면 상장폐지·강제
+  // 철회처럼 **우리 탓이 아닌 판정 불가**까지 보상 대상이 된다.
+  const cause = causeFromDataSource(input.dataSource);
+  if (cause) {
+    writes.push(...buildCompensationWrites(prisma, card, cause, now));
+  }
+
   const operator = input.dataSource.startsWith('manual:')
     ? input.dataSource.slice('manual:'.length)
     : null;
