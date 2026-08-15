@@ -51,6 +51,24 @@ describe('runJudgment', () => {
     });
   });
 
+  // **공급자가 조회 범위를 무시하는 경우** (2026-08-16).
+  //
+  // 시한 이후 일봉만 돌아오면 "구간 시세 전무" 검사가 통과해 버리고, 정작 스냅샷은
+  // 시한까지로 다시 걸러 빈 구간을 받는다 → 극값도 시한 종가도 없어 `AMBIGUOUS`로
+  // **즉시 닫힌다.** 그 결말이 전액 환불·리서처 0원인데 원인은 공급자 응답이고,
+  // AMBIGUOUS는 상한 경로를 안 거쳐 **재시도도 보상 판별도 없이 한 번에 끝난다.**
+  // 검사가 보는 구간과 스냅샷이 쓰는 구간을 같게 맞춰 이월로 보낸다.
+  it('시한 이후 일봉만 돌아오면 AMBIGUOUS로 닫지 않고 이월한다', async () => {
+    const provider = providerWithQuotes([
+      ['2026-07-20', 130000], // 시한(2026-07-10) 이후
+      ['2026-07-25', 131000],
+    ]);
+    await expect(runJudgment(baseCard, provider, NOW)).rejects.toMatchObject({
+      name: 'JudgmentDeferredError',
+      reason: 'EMPTY_RANGE',
+    });
+  });
+
   it('목표가 도달 → HIT + 감사 스냅샷에 원천 데이터·소스 기록', async () => {
     const provider = providerWithQuotes([
       ['2026-06-15', 115000],
