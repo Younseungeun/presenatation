@@ -16,7 +16,7 @@ import { runSalesCloseBatch } from '../src/server/salesCloseService';
 import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
-import { purgeOldNotifications } from '../src/server/opsAlert';
+import { notifyOperators, purgeOldNotifications } from '../src/server/opsAlert';
 import { flushHardCapSurgeAlert, flushOpsAlerts } from '../src/server/opsAlertFeed';
 import {
   anotherSchedulerMayBeRunning,
@@ -238,59 +238,101 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
   // **시스템이 끝낸 건은 사람이 반드시 알아야 한다** — 전액 환불이 이미 나갔고,
   // 리서처에게는 자기 잘못이 아닌 판정 불가가 기록됐다. 조용히 지나가면 안 되는 사건이다
   if (due.hardCapped.length > 0) {
-    await notifyOperators(
+    await alertOps(
       `[확인] 판정 상한 도달 ${due.hardCapped.length}건 — 판정 불가·전액 환불 처리됨`,
       `시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나도록 시세를 구하지 못해 시스템이 닫았습니다.\n` +
         `시세 소스 문제인지 확인하고, 반복되면 소스를 바꿔야 합니다.\n` +
         due.hardCapped.slice(0, 10).join('\n'),
       '/admin/judgments',
+      `judge:hardcap:${assetClass}`,
     );
   }
 
   // **유니버스가 줄어든 사건이다.** 리서처는 다음 게시에서야 알게 되므로, 원인이
   // 시세 소스 쪽이면 사람이 먼저 풀어야 한다 (`npm run risk:set`으로 되돌린다)
   if (due.blockedInstruments.length > 0) {
-    await notifyOperators(
+    await alertOps(
       `[확인] 판정 불가 반복 종목 ${due.blockedInstruments.length}건 — 신규 게시 중단`,
       `같은 종목에서 판정 불가가 반복돼 신규 카드 게시를 막았습니다.\n` +
         `진행 중인 카드와 돈은 그대로입니다. 시세 소스 문제라면 고친 뒤 등급을 되돌리세요.\n` +
         due.blockedInstruments.join('\n'),
       '/admin/judgments',
+      `judge:blocked:${assetClass}`,
+    );
+  }
+
+  // **시세 공급자가 응답하지 못했다** (2026-08-15).
+  //
+  // 전에는 이것이 아래 "[버그]"에 함께 담겨 나갔다. 그런데 이 통에 더 흔하게 들어오는 것이
+  // 공급자 장애이고, 그건 **기다리면 낫고 우리 코드를 봐도 나올 것이 없다** —
+  // 알림이 운영자를 로그로 보내 코드를 뒤지게 만들었는데 정작 볼 곳은 공급자 상태였다.
+  //
+  // 종목이 아니라 **소스별 건수**를 싣는다: 소스가 죽으면 그 소스를 쓰는 카드가 전부
+  // 걸리므로 종목 목록은 길기만 하고 아무것도 말해 주지 않는다. "kis 43건"이면 충분하다.
+  if (due.providerDown.size > 0) {
+    const lines = [...due.providerDown].map(([src, n]) => `  ${src}: ${n}건`);
+    await alertOps(
+      `[P0] 시세 공급자 응답 없음 — ${assetClass} 판정이 멈췄습니다`,
+      `시세를 **물어보지도 못한** 카드입니다 (인증 만료·HTTP 오류·응답 실패).\n` +
+        `우리 코드 문제가 아니므로 로그를 뒤질 필요가 없습니다 — 공급자 상태를 확인하세요.\n` +
+        `소스가 살아나면 다음 회차가 스스로 잡습니다. 다만 시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 되면 ` +
+        `시스템이 전액 환불로 닫으므로, 길어지면 수동 판정을 검토해야 합니다.\n` +
+        lines.join('\n'),
+      '/admin/judgments',
+      `judge:provider:${assetClass}`,
     );
   }
 
   // **예상 밖 오류에는 다른 발견 경로가 없다.** 이월은 정차 큐가, 상한은 전용 알림이
   // 받아 주지만 이건 콘솔에만 남았었다 — 그러는 동안 그 카드의 돈은 에스크로에 잠겨 있다.
-  // 데이터가 아니라 코드 문제라 기다린다고 낫지 않는다
+  // 공급자 장애를 위에서 걷어냈으므로 **여기 남는 것은 정말로 우리 코드 문제**다.
   if (due.failures.length > 0) {
-    await notifyOperators(
+    await alertOps(
       `[버그] 판정 오류 ${due.failures.length}건 — 코드 확인 필요`,
-      `시세 미도달이 아니라 **예상 밖 오류**로 판정하지 못한 카드입니다.\n` +
+      `시세 미도달도 공급자 장애도 아닌 **예상 밖 오류**입니다.\n` +
         `기다린다고 낫지 않으니 로그를 보고 고쳐야 합니다. 고칠 때까지 에스크로가 잠깁니다.\n` +
         due.failures.slice(0, 10).join('\n'),
       '/admin/judgments',
+      `judge:bug:${assetClass}`,
     );
   }
 
   if (due.staleDeferred.length > 0) {
-    await notifyOperators(
+    await alertOps(
       `판정 이월 ${due.staleDeferred.length}건 — 수동 확인 필요`,
       `${STALE_DEFER_DAYS}일 넘게 판정되지 못한 카드입니다. 운영자 판정 큐에서 처리하세요.\n` +
         due.staleDeferred.slice(0, 10).join('\n'),
       '/admin/judgments',
+      `judge:stale:${assetClass}`,
     );
   }
 }
 
-/** 운영자 전원에게 알림 — 사람이 개입해야 하는 일을 콘솔에만 남기지 않는다 */
-async function notifyOperators(title: string, body: string, link: string): Promise<void> {
-  const operators = await prisma.user.findMany({
-    where: { role: 'OPERATOR' },
-    select: { id: true },
-  });
-  if (operators.length === 0) return;
-  await prisma.notification.createMany({
-    data: operators.map((o) => ({ userId: o.id, type: 'OPS_ALERT', title, body, link })),
+/**
+ * 배치가 사람을 부른다 — **인앱과 웹훅 양쪽으로** (2026-08-15).
+ *
+ * 여기 로컬 구현이 따로 있었고 그것은 `prisma.notification`만 썼다. 즉 판정 배치의
+ * 알림 — 이월 정차·상한 도달·공급자 장애·종목 차단 — 이 전부 **인앱 전용**이라
+ * 운영자가 어드민 앱을 열어야만 보였다. 고위험 감사 알림은 웹훅을 타는데
+ * **정작 돈이 묶이는 배치 사고가 안 타고 있었다.**
+ *
+ * 공용 `notifyOperators`(server/opsAlert)로 옮기면 웹훅이 따라오고 중복 억제도 딸려온다.
+ * `dedupeKey`를 자산군별로 주는 이유: 같은 사고가 매일 도는 배치마다 다시 알려지면
+ * 그 채널을 안 보게 된다 — 하루 한 번이면 "아직 안 풀렸다"를 전하기에 충분하다.
+ */
+async function alertOps(
+  title: string,
+  body: string,
+  link: string,
+  dedupeKey: string,
+): Promise<void> {
+  await notifyOperators(prisma, {
+    title,
+    body,
+    link,
+    type: 'OPS_ALERT',
+    dedupeKey,
+    dedupeMs: 24 * 3_600_000,
   });
 }
 
@@ -346,12 +388,13 @@ function tick(): void {
     // 그러면 같은 주의 이튿날에 값이 달라져 다시 돈다 — 주석은 "주 1회"인데 실제로는
     // 매일 울리고 있었다. 매일 오는 경고는 곧 안 읽는 경고가 된다
     enqueueDaily(`calendar:${market}`, String(weekKey), '거래일 달력 만료 경고', () =>
-      notifyOperators(
+      alertOps(
         `거래일 달력 갱신 필요 — ${market}`,
         left < 0
           ? `${market} 휴장일 달력이 ${-left}일 전에 끝났습니다. 지금은 공휴일도 거래일로 취급해 배치가 헛돕니다. src/domain/marketCalendar.ts에 다음 연도 휴장일을 추가해주세요.`
           : `${market} 휴장일 달력이 ${left}일 뒤 끝납니다. src/domain/marketCalendar.ts에 다음 연도 휴장일을 추가해주세요.`,
         '/admin',
+        `calendar:${market}`,
       ),
     );
   }

@@ -20,6 +20,29 @@ import { EQUITY_REGULAR_CLOSE } from './publishReport';
 // 배치 흐름·이월 규칙: docs/market-data.md §3
 
 /** 데이터 미도달 등으로 이번 배치에서 판정할 수 없는 상태 (다음 배치로 이월) */
+/**
+ * **시세 공급자가 응답하지 못했다** — 우리 코드 문제가 아니다 (2026-08-15).
+ *
+ * 이월(JudgmentDeferredError)과도 다르다: 이월은 "공급자가 정상 응답했는데 그 구간에
+ * 데이터가 없다"이고(그날 봉이 아직 안 올라온 정상 상황이 대부분), 이건 **물어보지도
+ * 못한 상태**다. 앞은 기다리면 대개 저절로 풀리고, 뒤는 소스가 살아나야 풀린다.
+ *
+ * 셋을 가르는 이유는 **운영자가 갈 곳이 다르기 때문**이다:
+ *   이월  → 아무것도 안 해도 된다 (다음 회차가 다시 본다)
+ *   공급자 → 소스 상태를 본다 (KIS 공지·업비트 상태 페이지)
+ *   버그  → 로그를 보고 코드를 고친다
+ */
+export class ProviderUnavailableError extends Error {
+  constructor(
+    readonly sourceId: string,
+    readonly ticker: string,
+    readonly cause: unknown,
+  ) {
+    super(`${sourceId}: ${ticker} 조회 실패 — ${cause instanceof Error ? cause.message : String(cause)}`);
+    this.name = 'ProviderUnavailableError';
+  }
+}
+
 export class JudgmentDeferredError extends Error {
   constructor(
     message: string,
@@ -160,10 +183,26 @@ export async function runJudgment(
         )
       : publishDate;
 
-  const [quotes, securityStatus] = await Promise.all([
-    provider.getDailyQuotes(card.ticker, from, deadlineDate),
-    provider.getSecurityStatus(card.ticker, deadlineDate),
-  ]);
+  // **공급자가 던진 것과 우리가 던진 것을 여기서 가른다** (2026-08-15).
+  //
+  // 지금까지 둘이 같은 통에 담겨 `[버그] 판정 오류 — 코드 확인 필요`로 나갔다.
+  // 그런데 이 통에 더 흔하게 들어오는 것은 **공급자 장애**(토큰 만료·HTTP 5xx·rt_cd
+  // 실패)이고, 그건 기다리면 낫고 우리 코드를 봐도 나올 것이 없다.
+  // 알림이 운영자를 **틀린 곳으로 보내고 있었다.**
+  //
+  // 호출을 감싸는 방식을 쓴 이유: 어댑터마다 에러 모양이 달라 메시지 문자열로 가르면
+  // 공급자를 추가할 때마다 조용히 어긋난다. **경계 하나만** 지키면 그 안에서 나온 것은
+  // 정의상 전부 공급자 몫이다.
+  let quotes: DailyQuote[];
+  let securityStatus: SecurityStatus;
+  try {
+    [quotes, securityStatus] = await Promise.all([
+      provider.getDailyQuotes(card.ticker, from, deadlineDate),
+      provider.getSecurityStatus(card.ticker, deadlineDate),
+    ]);
+  } catch (e) {
+    throw new ProviderUnavailableError(provider.sourceId, card.ticker, e);
+  }
 
   const normalStatus = !securityStatus.delisted && !securityStatus.halted;
   // 판정 대상 구간은 게시일~시한. 소급 조회분(게시일 이전)은 기준가 계산에만 쓴다.

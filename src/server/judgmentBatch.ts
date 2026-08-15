@@ -1,6 +1,10 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
 import type { AssetClass, Direction, TargetType } from '@/domain/constants';
-import { JudgmentDeferredError, runJudgmentFromRegistry } from '@/domain/judgmentPipeline';
+import {
+  JudgmentDeferredError,
+  ProviderUnavailableError,
+  runJudgmentFromRegistry,
+} from '@/domain/judgmentPipeline';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { scoreJudgedCard } from '@/domain/scoring';
 import { toJudgeableCard } from './cardMapper';
@@ -31,6 +35,17 @@ export interface BatchSummary {
    * 운영자가 시세를 넣으면 되지만, 이쪽은 코드를 고치기 전에는 몇 번을 돌려도 같다.
    */
   failures: string[];
+  /**
+   * **시세 공급자가 응답하지 못한 카드** (2026-08-15).
+   *
+   * 전에는 이것이 `failures`에 함께 담겨 "[버그] 코드 확인 필요"로 나갔다. 그런데 이
+   * 통에 더 흔하게 들어오는 것이 공급자 장애이고, 그건 **기다리면 낫고 우리 코드를
+   * 봐도 나올 것이 없다** — 알림이 운영자를 틀린 곳으로 보내고 있었다.
+   *
+   * 종목별로 세지 않고 **소스별로 묶는다**: 소스가 죽으면 그 소스를 쓰는 카드가 전부
+   * 걸리므로 종목 목록은 길기만 하고 아무것도 말해 주지 않는다.
+   */
+  providerDown: Map<string, number>;
   /**
    * 이번 회차에서 마지막으로 손댄 카드의 위치 — **다음 회차의 커서다.**
    *
@@ -250,6 +265,7 @@ async function sweepHardCappedWhilePaused(
     hardCapped: [],
     blockedInstruments: [],
     failures: [],
+    providerDown: new Map(),
     cursor: null,
     hasMore: false,
   };
@@ -384,6 +400,7 @@ export async function judgeAndSettleDueCards(
     hardCapped: [],
     blockedInstruments: [],
     failures: [],
+    providerDown: new Map(),
     cursor:
       dueCards.length > 0
         ? {
@@ -472,8 +489,12 @@ export async function judgeAndSettleDueCards(
       //  · 상한(Hard Cap)이 이월 경로에만 있어 **에스크로가 영원히 안 풀린다**
       //  · 알림 경로가 없어 콘솔에만 남는다 — 이월은 정차 큐, 상한은 전용 알림이 있는데
       //    **버그로 죽는 카드만 아무도 모른다**
-      // 판정이 안 된다는 사실은 원인과 무관하게 같으므로 절차도 같아야 한다.
-      // 다르게 다루는 것은 **알림 문구**뿐이다 — 이월은 데이터 문제, 이쪽은 우리 버그다.
+      // 판정이 안 된다는 사실은 원인과 무관하게 같으므로 절차(백오프·상한·큐)도 같다.
+      // 다르게 다루는 것은 **알림 문구**뿐인데, 그 갈래가 셋이다 (2026-08-15):
+      //   이월   → 아무것도 안 해도 된다 (다음 회차가 다시 본다)
+      //   공급자 → 소스 상태를 본다 (KIS 공지·업비트 상태 페이지). 기다리면 낫는다
+      //   버그   → 로그를 보고 코드를 고친다. 기다려도 안 낫는다
+      const providerDown = e instanceof ProviderUnavailableError;
       const deferred = e instanceof JudgmentDeferredError;
       const message = e instanceof Error ? e.message : String(e);
 
@@ -587,6 +608,12 @@ export async function judgeAndSettleDueCards(
           if (deferCount >= MAX_DEFER_ATTEMPTS || staleDays >= STALE_DEFER_DAYS) {
             summary.staleDeferred.push(`${card.ticker} (${card.id}, ${deferCount}회 이월): ${message}`);
           }
+        } else if (providerDown) {
+          // **소스별로 한 줄**로 센다 — 종목 목록은 길기만 하고 아무것도 안 말한다
+          summary.failed++;
+          const src = (e as ProviderUnavailableError).sourceId;
+          summary.providerDown.set(src, (summary.providerDown.get(src) ?? 0) + 1);
+          console.error(`시세 공급자 응답 없음 ${card.ticker} (${card.id}):`, message);
         } else {
           summary.failed++;
           console.error(`판정 실패 ${card.ticker} (${card.id}):`, e);

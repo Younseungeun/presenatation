@@ -40,6 +40,7 @@ const noQuotes: ProviderRegistry = { CRYPTO: new FixtureMarketDataProvider() };
  * 예상 밖으로 터지는 공급자 — 이월(JudgmentDeferredError)이 아니라 **우리 버그**의 대역.
  * 공급자가 JSON이 아닌 HTML 오류 페이지를 주거나, 응답 규격이 바뀌었을 때 실제로 이렇게 된다
  */
+/** 공급자가 던진다 — 인증 만료·HTTP 오류·응답 파싱 실패. **우리 코드 문제가 아니다** */
 const boom: ProviderRegistry = {
   CRYPTO: {
     sourceId: 'boom',
@@ -275,7 +276,7 @@ describe('판정 배치 청킹', () => {
   //  · 백오프가 안 걸려 매 회차 같은 카드를 다시 부른다 (KIS 호출을 영원히 갉아먹는다)
   //  · 상한이 이월 경로에만 있어 **에스크로가 영원히 안 풀린다**
   //  · 이월은 정차 큐, 상한은 전용 알림이 있는데 **버그로 죽는 카드만 아무도 몰랐다**
-  it('예상 밖 오류도 이월과 같은 절차를 밟는다 — 백오프·알림·상한', async () => {
+  it('공급자가 던지면 이월과 같은 절차를 밟되 **다른 통**에 담긴다 — 백오프·알림·상한', async () => {
     await publishCard(ERROR_TICKERS[0], researcherIds[0]);
     const card = await prisma.predictionCard.findFirstOrThrow({
       where: { ticker: ERROR_TICKERS[0] },
@@ -284,17 +285,25 @@ describe('판정 배치 청킹', () => {
     const s = await judgeAndSettleDueCards(prisma, boom, BATCH_NOW);
     expect(s.failed).toBeGreaterThan(0);
 
-    // ① 이월과 **다른 목록**으로 올라온다 — 처방이 다르기 때문이다.
-    //    이월은 기다리면 낫지만 이건 코드를 고치기 전에는 몇 번을 돌려도 같다
-    expect(s.failures.length).toBeGreaterThan(0);
-    expect(s.failures[0]).toContain('JSON');
+    // ① **소스별로** 센다 (2026-08-15). 종목 목록은 길기만 하고 아무것도 안 말한다 —
+    //    소스가 죽으면 그 소스를 쓰는 카드가 전부 걸리기 때문이다
+    expect(s.providerDown.get('boom')).toBeGreaterThan(0);
     expect(s.deferred).toBe(0);
+    // **"[버그]" 통에는 안 담긴다** — 공급자 장애를 우리 코드 문제로 알리면
+    // 운영자를 로그로 보내는데 정작 볼 곳은 공급자 상태다
+    expect(s.failures).toHaveLength(0);
 
     // ② 백오프가 걸려 매 회차 같은 카드를 다시 부르지 않는다
     const after = await prisma.predictionCard.findUniqueOrThrow({ where: { id: card.id } });
     expect(after.deferCount).toBeGreaterThan(0);
     expect(after.nextAttemptAt).not.toBeNull();
   });
+
+  // ⚠ **"우리 버그" 쪽에는 시험이 없다.** 공급자 응답 뒤에서 우리 코드가 터지는 상황을
+  // 픽스처로 만들려 했는데(널 반환·NaN 종가) 둘 다 파이프라인이 정상 처리했다 —
+  // 방어가 촘촘한 것이라 좋은 일이지만, 그만큼 `failures` 통은 **진짜 예상 밖의 것**만
+  // 담는다는 뜻이라 인위적으로 재현할 대상이 없다. 위 시험이 고정하는 것(공급자 장애가
+  // 그 통에 안 들어간다)이 이 분리에서 실제로 중요한 절반이다.
 
   // 원인이 무엇이든 구매자가 무기한 기다릴 이유는 없다 — 상한은 이월 경로 전용이 아니다
   it('예상 밖 오류로도 상한에 닿으면 닫고 환불한다 — 원인은 감사 기록에 남긴다', async () => {
