@@ -17,6 +17,7 @@ import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
 import { purgeOldNotifications } from '../src/server/opsAlert';
+import { flushOpsAlerts } from '../src/server/opsAlertFeed';
 import {
   anotherSchedulerMayBeRunning,
   BEAT_INTERVAL_MS,
@@ -295,6 +296,14 @@ async function notifyOperators(title: string, body: string, link: string): Promi
 
 function tick(): void {
   const now = new Date();
+
+  // **고위험 행위를 사람에게 보낸다** — 감사 로그에서 파생시키므로 웹이든 CLI든
+  // 빠질 자리가 없다 (server/opsAlertFeed). 매 틱 도는 이유는 세션이 털렸을 때
+  // 아는 시점이 빠를수록 피해가 작기 때문이다
+  enqueue('고위험 작업 알림', async () => {
+    const { sent } = await flushOpsAlerts(prisma, new Date());
+    if (sent > 0) console.log(`고위험 작업 알림 ${sent}건 발송`);
+  });
 
   // ── 마감 직후 판정 (시장별) ─────────────────────────────
   // 여기만 창구를 유지한다 — 마감 전에 판정하면 안 되고, 놓친 날은 기동 따라잡기가

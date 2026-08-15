@@ -91,7 +91,7 @@ beforeAll(async () => {
   prisma = createTestDb('bulk-revert-');
   await seedTestInstruments(
     prisma,
-    ['KRW-BR1', 'KRW-BR2', 'KRW-BR3'].map((ticker) => ({
+    ['KRW-BR1', 'KRW-BR2', 'KRW-BR3', 'KRW-BR4', 'KRW-BR5'].map((ticker) => ({
       assetClass: 'CRYPTO',
       ticker,
       name: ticker,
@@ -244,5 +244,78 @@ describe('회차 단위 롤백', () => {
     expect(after.reverted).toBe(2);
     expect(after.needsAccounting).toBe(1);
     expect(after.assetClass).toBe('CRYPTO');
+  });
+});
+
+// **정지가 만든 결함 — 처음 구현은 정지 중에 상한까지 멈췄다.**
+//
+// 그러면 정지가 길어지는 동안 시한 후 14일이 지난 카드가 **환불도 못 받고 묶인다.**
+// 상한은 판정이 아니라 **구매자와의 약속**이다 — "이 시점까지는 결과를 주거나 돈을
+// 돌려준다". 판정을 멈춘 것이 그 약속을 미룰 이유가 되지 못하고, 환불은 고장 난
+// 시세를 쓰지 않으므로 멈출 이유도 없다.
+//
+// (정지 기간을 상한에서 빼는 안은 기각했다 — 플랫폼 사정으로 구매자 돈을 더 묶어
+//  두는 것이고, 카드마다 유효 시간이 찢어져 "언제 끝나는가"를 아무도 못 답한다)
+describe('정지 중에도 상한은 집행한다', () => {
+  const LATE = new Date('2026-08-20T00:00:00Z'); // 시한(8/1)에서 19일 뒤
+
+  it('시한 후 14일이 지난 카드는 정지 중에도 전액 환불로 닫힌다', async () => {
+    const reportId = await judgedCard('KRW-BR4', 120);
+    // 판정을 지워 "아직 판정 못 한 카드"로 되돌린다 (시세 장애로 이월된 상태)
+    await prisma.judgment.deleteMany({
+      where: { predictionCard: { ticker: 'KRW-BR4' } },
+    });
+    await prisma.settlement.deleteMany({ where: { purchase: { reportId } } });
+    await prisma.purchase.updateMany({
+      where: { reportId },
+      data: { escrowStatus: 'HELD' },
+    });
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: operatorId,
+      reason: '업비트 장애',
+    });
+
+    const r = await judgeAndSettleDueCards(prisma, registry('KRW-BR4', 120), LATE, 'CRYPTO');
+    expect(r.judged).toBe(1);
+    expect(r.hardCapped[0]).toContain('정지 중');
+
+    const j = await prisma.judgment.findFirstOrThrow({
+      where: { predictionCard: { ticker: 'KRW-BR4' } },
+    });
+    expect(j.outcome).toBe('UNDECIDABLE');
+    expect(j.dataSource).toBe('hard-cap:paused');
+    // **리서처의 적중률은 깎이지 않는다** — 판정 불가는 표본에서 빠진다
+    expect(j.score).toBe(0);
+    expect(j.info).toBe(0);
+
+    // 구매자는 전액 돌려받는다 — 시한 약속은 정지와 무관하다
+    const s = await prisma.settlement.findFirstOrThrow({ where: { purchase: { reportId } } });
+    expect(s.buyerRefundKrw).toBe(10_000);
+    expect(s.researcherPayoutKrw).toBe(0);
+  });
+
+  it('상한에 안 닿은 카드는 정지 중에 건드리지 않는다 — 판정도 환불도 아니다', async () => {
+    const reportId = await judgedCard('KRW-BR5', 120);
+    await prisma.judgment.deleteMany({ where: { predictionCard: { ticker: 'KRW-BR5' } } });
+    await prisma.settlement.deleteMany({ where: { purchase: { reportId } } });
+    await prisma.purchase.updateMany({ where: { reportId }, data: { escrowStatus: 'HELD' } });
+
+    // 시한 사흘 뒤 — 아직 상한(14일) 한참 전이다
+    const soon = new Date('2026-08-04T00:00:00Z');
+    const r = await judgeAndSettleDueCards(prisma, registry('KRW-BR5', 120), soon, 'CRYPTO');
+    expect(r.judged).toBe(0);
+    expect(await prisma.judgment.count({ where: { predictionCard: { ticker: 'KRW-BR5' } } })).toBe(0);
+  });
+
+  // 판정 못 한 원인이 그 종목이 아니라 우리 정지이므로, 멀쩡한 종목이 정지 한 번에
+  // 유니버스에서 내려가면 안 된다
+  it('정지 중 상한은 종목을 막지 않는다', async () => {
+    const inst = await prisma.instrument.findUniqueOrThrow({
+      where: { assetClass_ticker: { assetClass: 'CRYPTO', ticker: 'KRW-BR4' } },
+    });
+    expect(inst.unjudgeableAt).toBeNull();
   });
 });

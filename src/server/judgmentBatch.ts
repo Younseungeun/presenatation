@@ -205,6 +205,91 @@ async function isDelisted(
   return row === null || row.active === false;
 }
 
+/**
+ * **정지 중에도 상한만은 집행한다** (2026-08-15).
+ *
+ * 상한은 판정이 아니라 **구매자와의 약속**이다 — "이 시점까지는 결과를 주거나 돈을
+ * 돌려준다". 판정을 멈춘 것이 그 약속을 미룰 이유가 되지 못하고, 환불은 고장 난 시세를
+ * 쓰지 않으므로 멈출 이유도 없다.
+ *
+ * ⚠ 이 경로는 시세를 **한 번도 부르지 않는다** — 정지의 목적이 그것이므로.
+ * 그래서 원인 구분(DATA / ERROR)을 할 수 없고 `hard-cap:paused`로 따로 적는다.
+ * 나중에 "왜 못 쟀나"를 물으면 답이 "우리가 멈춰 두는 동안 시한이 지났다"여야 한다.
+ */
+async function sweepHardCappedWhilePaused(
+  prisma: PrismaClient,
+  now: Date,
+  assetClass?: AssetClass,
+): Promise<BatchSummary> {
+  const capBefore = new Date(now.getTime() - JUDGMENT_HARD_CAP_DAYS * 86_400_000);
+  const cards = await prisma.predictionCard.findMany({
+    where: {
+      judgment: null,
+      ...(assetClass ? { assetClass } : {}),
+      deadline: { lte: capBefore },
+      manualJudgmentOnly: false,
+      report: { status: { in: ['PUBLISHED', 'CLOSED'] }, publishedAt: { not: null } },
+    },
+    include: {
+      report: {
+        include: {
+          purchases: { where: { escrowStatus: 'HELD' } },
+          researcher: { select: { userId: true } },
+        },
+      },
+    },
+    orderBy: [{ deadline: 'asc' }, { id: 'asc' }],
+    take: JUDGE_BATCH_SIZE,
+  });
+
+  const summary: BatchSummary = {
+    judged: 0,
+    deferred: 0,
+    failed: 0,
+    staleDeferred: [],
+    hardCapped: [],
+    blockedInstruments: [],
+    failures: [],
+    cursor: null,
+    hasMore: false,
+  };
+
+  for (const card of cards) {
+    const overdueDays = (now.getTime() - card.deadline.getTime()) / 86_400_000;
+    await prisma.$transaction(
+      buildJudgmentWrites(
+        prisma,
+        card,
+        {
+          result: { outcome: 'UNDECIDABLE' as const, undecidableReason: 'DATA_UNAVAILABLE' as const },
+          realizedReturnPct: null,
+          score: 0, // 판정 불가는 표본에서 빠진다 — 리서처의 적중률이 깎이지 않는다 (§2.2)
+          info: 0, // 증거도 없다 — 규율 래더에 들어가면 안 된다
+          dataSource: 'hard-cap:paused',
+          audit: {
+            hardCap: true,
+            cause: 'PAUSED',
+            overdueDays: Math.floor(overdueDays),
+            reason:
+              `자동 판정이 정지된 동안 시한 후 ${JUDGMENT_HARD_CAP_DAYS}일이 지나 ` +
+              '전액 환불로 닫았습니다 (구매자와의 시한 약속은 정지와 무관합니다)',
+            judgedAt: now.toISOString(),
+          },
+          resolvedBasePrice: null,
+        },
+        now,
+      ),
+    );
+    summary.judged++;
+    summary.hardCapped.push(`${card.ticker} (${card.id}): 정지 중 ${Math.floor(overdueDays)}일 초과`);
+    console.warn(`정지 중 판정 상한 도달 ${card.ticker} (${card.id}) — 판정 불가·전액 환불`);
+  }
+
+  // **종목을 막지는 않는다** — 판정 못 한 원인이 그 종목이 아니라 우리 정지이기 때문이다.
+  // 여기서 unjudgeableAt을 세우면 멀쩡한 종목이 정지 한 번에 유니버스에서 내려간다
+  return summary;
+}
+
 export async function judgeAndSettleDueCards(
   prisma: PrismaClient,
   registry: ProviderRegistry,
@@ -223,21 +308,20 @@ export async function judgeAndSettleDueCards(
    */
   fence?: () => Prisma.PrismaPromise<unknown>,
 ): Promise<BatchSummary> {
-  // **사람이 멈춰 뒀으면 한 장도 건드리지 않는다** (server/judgmentPause).
+  // **사람이 멈춰 뒀으면 판정하지 않는다** (server/judgmentPause).
   // 시세 오류로 되돌리는 중에 배치가 깨어나면 같은 고장 난 데이터로 다시 오판정하고,
-  // 구매자는 판정이 두 번 뒤집히는 것을 본다
+  // 구매자는 판정이 두 번 뒤집히는 것을 본다.
+  //
+  // **다만 상한(환불)까지 멈추면 안 된다 (2026-08-15 — 이 정지 스위치가 만든 결함).**
+  // 처음에는 여기서 그냥 돌아갔는데, 그러면 정지가 길어지는 동안 시한 후 14일이 지난
+  // 카드가 **환불도 못 받고 그대로 묶인다.** 상한은 판정이 아니라 **구매자와의 약속**이다
+  // — "이 시점까지는 결과를 주거나 돈을 돌려준다". 판정을 못 하는 것이 그 약속을 미룰
+  // 이유가 되지 못하고, 환불은 고장 난 시세를 쓰지 않으므로 멈출 이유도 없다.
+  //
+  // (정지 기간을 상한에서 빼는 안은 기각했다 — 그건 플랫폼 사정으로 구매자 돈을 더
+  //  묶어 두는 것이고, 카드마다 유효 시간이 찢어져 "언제 끝나는가"를 아무도 못 답한다)
   if (await isJudgmentPaused(prisma, assetClass)) {
-    return {
-      judged: 0,
-      deferred: 0,
-      failed: 0,
-      staleDeferred: [],
-      hardCapped: [],
-      blockedInstruments: [],
-      failures: [],
-      cursor: null,
-      hasMore: false,
-    };
+    return sweepHardCappedWhilePaused(prisma, now, assetClass);
   }
 
   // HELD 구매까지 한 번에 조회 — 카드별 개별 쿼리(N+1) 제거

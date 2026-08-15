@@ -6,6 +6,7 @@ import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { getAuditTrail } from '../auditLog';
 import { judgeAndSettleDueCards } from '../judgmentBatch';
 import { revertJudgment } from '../judgmentRevertService';
+import { flushOpsAlerts } from '../opsAlertFeed';
 import { DAILY_OUTFLOW_LIMIT_KRW, VelocityLimitExceeded, todayOutflowKrw } from '../payoutVelocity';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
@@ -236,5 +237,62 @@ describe('일일 유출 한도', () => {
         BATCH_NOW,
       ),
     ).rejects.toThrow(/감사 로그/); // 다음에 볼 곳을 알려준다
+  });
+});
+
+// **고위험 행위는 사람을 찾아간다.**
+//
+// 감사 로그 전용 화면을 만들려다 접었다 — 1인 운영에서 "운영자 감시 화면"은 아무도
+// 자발적으로 열지 않는 죽은 코드가 된다. 대신 사건이 사람을 찾아가게 한다.
+//
+// **호출부마다 알림을 부르지 않는 것이 핵심이다.** 그러면 여섯 곳 중 한 곳이 반드시
+// 빠지고, 빠진 그 한 곳이 공격자가 쓰는 경로가 된다. 감사 로그가 이미 단일 통로이므로
+// 거기서 파생시키면 빠질 자리가 없다 — 덤으로 **CLI에서 한 일도 알림이 간다.**
+describe('고위험 작업 알림', () => {
+  it('처음 돌 때는 과거를 쏟아내지 않는다 — 커서만 세운다', async () => {
+    const before = await prisma.notification.count({ where: { type: 'OPS_ALERT' } });
+    const r = await flushOpsAlerts(prisma, new Date('2026-08-02T12:00:00Z'));
+    expect(r.sent).toBe(0); // 이미 지급·되돌리기가 쌓여 있지만 보내지 않는다
+    expect(await prisma.notification.count({ where: { type: 'OPS_ALERT' } })).toBe(before);
+  });
+
+  it('커서 이후의 고위험 사건만 보낸다', async () => {
+    // 커서 이후에 일어난 사건 하나
+    await prisma.auditLog.create({
+      data: {
+        at: new Date('2026-08-02T13:00:00Z'),
+        actor: operatorId,
+        actorType: 'OPERATOR',
+        action: 'BULK_REVERT',
+        targetType: 'JudgmentRange',
+        targetId: 'x~y',
+        reason: '업비트 종가 오류',
+      },
+    });
+    // 같은 시각의 저위험 사건은 보내지 않는다 — 소음이 되면 진짜 신호도 안 보게 된다
+    await prisma.auditLog.create({
+      data: {
+        at: new Date('2026-08-02T13:01:00Z'),
+        actor: 'system:fixture',
+        actorType: 'SYSTEM',
+        action: 'JUDGMENT_CREATED',
+        targetType: 'PredictionCard',
+        targetId: 'noisy',
+      },
+    });
+
+    const r = await flushOpsAlerts(prisma, new Date('2026-08-02T14:00:00Z'));
+    expect(r.sent).toBe(1);
+
+    const n = await prisma.notification.findFirstOrThrow({
+      where: { title: { contains: '판정 일괄 되돌리기' } },
+    });
+    expect(n.body).toContain(operatorId);
+    expect(n.body).toContain('업비트 종가 오류');
+  });
+
+  it('같은 사건을 두 번 보내지 않는다', async () => {
+    const r = await flushOpsAlerts(prisma, new Date('2026-08-02T15:00:00Z'));
+    expect(r.sent).toBe(0);
   });
 });
