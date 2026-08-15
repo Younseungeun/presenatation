@@ -15,7 +15,13 @@ import {
 import { createDraftReport, publishReport } from '../reportService';
 import { manualJudgeCard } from '../manualJudgmentService';
 import { isJudgmentPaused, setJudgmentPause, SYSTEM_PAUSE_ACTOR } from '../judgmentPause';
-import { probeAndMaybeResume, PROBE_MAX_FAILURES } from '../crossCheckRecovery';
+import {
+  nextProbeAt,
+  probeAndMaybeResume,
+  resetProbeState,
+  sourceInstabilityVerdict,
+  PROBE_MAX_FAILURES,
+} from '../crossCheckRecovery';
 
 // **두 시세 소스가 다른 답을 냈을 때 무엇이 일어나는가** (domain/crossCheck).
 //
@@ -465,7 +471,7 @@ describe('정지 자동 해제 — 탐침', () => {
         sourceAt(PROBE_TICKER, HIT_CLOSE),
         'CRYPTO',
         sourceAt(PROBE_TICKER, MISS_CLOSE, 'second'),
-        BATCH_NOW,
+        new Date(BATCH_NOW.getTime() + i * 60 * 60_000),
         'enforce',
       );
     }
@@ -476,7 +482,7 @@ describe('정지 자동 해제 — 탐침', () => {
       sourceAt(PROBE_TICKER, HIT_CLOSE),
       'CRYPTO',
       sourceAt(PROBE_TICKER, HIT_CLOSE, 'second'),
-      BATCH_NOW,
+      new Date(BATCH_NOW.getTime() + 99 * 60 * 60_000),
       'enforce',
     );
     expect(after.hardLocked).toBe(true);
@@ -519,5 +525,126 @@ describe('스코프 없는 배치도 자산군 정지를 존중한다', () => {
       operatorUserId: operatorId,
       reason: '시험 정리',
     });
+  });
+});
+
+// **탐침은 백오프를 탄다** (2026-08-15, 외부 검토 E-1).
+//
+// 검토의 전제("배치가 1분마다 돌아 6분 만에 포기한다")는 사실과 달랐다 — 판정은
+// enqueueDaily라 자산군당 하루 한 번이다. 그런데 그 사실이 결함을 **반대 방향으로**
+// 드러냈다: 탐침을 판정 경로에 두면 관측도 하루 한 번이라, 10분짜리 순간 단절로
+// 멈춘 자산군이 꼬박 하루를 서 있고 6회 실패에 6일이 걸린다.
+//
+// → 탐침을 판정 일정에서 떼어 틱(1분)마다 자격만 보게 하고, 실제 주기는 백오프가
+// 정한다. 그러면 검토가 제안한 눈금(0·2·4·8·16·32분)이 그대로 의미를 갖는다.
+describe('탐침 백오프', () => {
+  it('실패할수록 다음 탐침이 뒤로 밀린다', () => {
+    const t0 = new Date('2026-08-02T00:00:00Z');
+    const mins = (d: Date) => (d.getTime() - t0.getTime()) / 60_000;
+    expect(mins(nextProbeAt(0, t0))).toBe(0);
+    expect(mins(nextProbeAt(1, t0))).toBe(2);
+    expect(mins(nextProbeAt(3, t0))).toBe(8);
+    // 마지막 눈금을 반복하지 않는다 — 그 지점에서 자동 재개를 포기하기 때문이다
+    expect(mins(nextProbeAt(PROBE_MAX_FAILURES - 1, t0))).toBe(32);
+    expect(mins(nextProbeAt(99, t0))).toBe(32);
+  });
+
+  it('백오프 시각 전에는 두드리지 않고, 그것은 실패가 아니다', async () => {
+    const BACKOFF_TICKER = 'KRW-BO1';
+    await seedTestInstruments(prisma, [
+      { assetClass: 'CRYPTO', ticker: BACKOFF_TICKER, name: BACKOFF_TICKER, shortable: true },
+    ]);
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 준비',
+    });
+    await publishCard(BACKOFF_TICKER);
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: true,
+      operatorUserId: SYSTEM_PAUSE_ACTOR,
+      reason: '시험: 백오프',
+    });
+    await resetProbeState(prisma, 'CRYPTO'); // 새 사고 — 배치가 정지할 때 하는 일
+
+    // 1회차 — 갈린다 → 실패 1, 다음 탐침은 2분 뒤
+    const first = await probeAndMaybeResume(
+      prisma,
+      sourceAt(BACKOFF_TICKER, HIT_CLOSE),
+      'CRYPTO',
+      sourceAt(BACKOFF_TICKER, MISS_CLOSE, 'second'),
+      BATCH_NOW,
+      'enforce',
+    );
+    expect(first.disagreed).toBeGreaterThan(0);
+    expect(first.failures).toBe(1);
+
+    // 1분 뒤 — 아직 때가 아니다. **실패로 세지 않는다**(그러면 6분 만에 포기한다)
+    const tooSoon = await probeAndMaybeResume(
+      prisma,
+      sourceAt(BACKOFF_TICKER, HIT_CLOSE),
+      'CRYPTO',
+      sourceAt(BACKOFF_TICKER, MISS_CLOSE, 'second'),
+      new Date(BATCH_NOW.getTime() + 60_000),
+      'enforce',
+    );
+    expect(tooSoon.skipped).toBe(true);
+    expect(tooSoon.checked).toBe(0);
+    expect(tooSoon.failures).toBe(1); // 그대로
+
+    // 3분 뒤 — 때가 됐고, 이번엔 소스가 돌아왔다
+    const later = await probeAndMaybeResume(
+      prisma,
+      sourceAt(BACKOFF_TICKER, HIT_CLOSE),
+      'CRYPTO',
+      sourceAt(BACKOFF_TICKER, HIT_CLOSE, 'second'),
+      new Date(BATCH_NOW.getTime() + 3 * 60_000),
+      'enforce',
+    );
+    expect(later.skipped).toBe(false);
+    expect(later.resumed).toBe(true);
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(false);
+  });
+});
+
+// **자동 정지가 잦아지는 것 자체가 신호다** (2026-08-15, 외부 검토 E-2).
+//
+// 자동 해제가 잘 도는 동안에는 아무도 아프지 않아서 소스의 불안정이 감사 로그 안에만
+// 남는다. 계약을 다시 볼 근거는 자동 해제가 실패하는 날이 아니라 그 전에 있어야 한다.
+describe('소스 불안정 지표', () => {
+  const ep = (minutes: number | null) => ({
+    assetClass: 'CRYPTO',
+    pausedAt: new Date('2026-08-01T00:00:00Z'),
+    resumedAt: minutes === null ? null : new Date('2026-08-01T01:00:00Z'),
+    minutes,
+  });
+
+  it('지터(5분 미만)는 빈도에서 빼되 누적 시간에는 넣는다', () => {
+    // 짧아도 잦으면 총 정지 시간이 늘고, 그만큼 판정이 밀린 것은 사실이다
+    const v = sourceInstabilityVerdict([ep(1), ep(2), ep(3), ep(4), ep(1)]);
+    expect(v.counted).toBe(0);
+    expect(v.totalMinutes).toBe(11);
+    expect(v.overFrequency).toBe(false);
+  });
+
+  it('잦으면 빈도로 걸린다 — 짧아도 자주면 엔드포인트 문제다', () => {
+    const v = sourceInstabilityVerdict(Array.from({ length: 5 }, () => ep(10)));
+    expect(v.counted).toBe(5);
+    expect(v.overFrequency).toBe(true);
+    expect(v.overDuration).toBe(false); // 50분 — 누적 문턱(120분)에는 못 닿는다
+  });
+
+  it('드물어도 길면 누적 시간으로 걸린다 — 공급자 복구 능력 문제다', () => {
+    const v = sourceInstabilityVerdict([ep(70), ep(60)]);
+    expect(v.counted).toBe(2);
+    expect(v.overFrequency).toBe(false);
+    expect(v.overDuration).toBe(true);
+  });
+
+  it('아직 안 풀린 정지도 지금까지의 시간으로 센다', () => {
+    const v = sourceInstabilityVerdict([ep(null)]);
+    expect(v.totalMinutes).toBe(0); // minutes가 null이면 0으로 — 지어내지 않는다
   });
 });

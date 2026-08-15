@@ -29,8 +29,15 @@ import { purgeExpiredPaymentIntents } from '../src/server/paymentIntentService';
 import { sweepStuckRefundAttempts } from '../src/server/settlementOpsService';
 import { recalcSeasonTiers } from '../src/server/seasonRecalcService';
 import { syncKrCardInstrumentRisk } from '../src/server/krRiskSync';
+import { pausedAssetClasses } from '../src/server/judgmentPause';
 import { healMissingCardData } from '../src/server/cardDataHealer';
-import { probeAndMaybeResume, PROBE_MAX_FAILURES } from '../src/server/crossCheckRecovery';
+import {
+  probeAndMaybeResume,
+  recentHaltEpisodes,
+  sourceInstabilityVerdict,
+  PROBE_MAX_FAILURES,
+  SOURCE_INSTABILITY,
+} from '../src/server/crossCheckRecovery';
 import {
   emptyRangeAlerts,
   EMPTY_RANGE_STREAK,
@@ -197,41 +204,74 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
   }
 }
 
-async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Promise<void> {
-  // **정지가 스스로 풀릴 수 있는지 먼저 본다** (server/crossCheckRecovery).
-  //
-  // 판정보다 앞에 두는 이유: 정지 중이면 아래가 통째로 건너뛰므로, 여기서 풀지 않으면
-  // **이번 회차도 못 돈다.** 순간 단절로 멈춘 자산군이 운영자 휴가 때문에 며칠 서 있으면
-  // 그동안 맞힌 카드까지 14일 상한에 닿아 전액 환불로 끝난다.
-  //
-  // 사람이 건 정지에는 아무 일도 하지 않는다 — 자격 검사가 그 안에 있다.
-  const probe = await probeAndMaybeResume(
-    prisma,
-    registry,
-    assetClass,
-    secondaryRegistry,
-    new Date(),
-  );
-  if (probe.resumed) {
-    console.log(`  ${assetClass}: 탐침 ${probe.checked}장 전원 합의 — 자동 판정 재개`);
-    await alertOps(
-      `[확인] ${assetClass} 자동 판정 재개 — 두 소스가 다시 일치합니다`,
-      `정지 중 탐침 ${probe.checked}장이 모두 같은 결론을 냈습니다 (일시 장애로 판단).\n` +
-        `판정을 재개했습니다. 원인이 궁금하면 감사 로그의 자동 해제 기록을 보세요.`,
-      '/admin/judgments',
-      `judge:resume:${assetClass}`,
+/**
+ * **정지가 스스로 풀릴 수 있는지 본다** — 판정 일정과 **분리된** 자기 주기로 돈다
+ * (server/crossCheckRecovery).
+ *
+ * 처음에는 이걸 판정 경로 안에 뒀는데 **시간 눈금이 두 자릿수 어긋나 있었다**:
+ * 판정은 `enqueueDaily`라 자산군당 하루 한 번인데, 자동 회복이 흡수해야 하는 장애는
+ * 10~30분짜리다. 그러면 순간 단절로 멈춘 자산군이 **꼬박 하루를 서 있고**, 6회
+ * 실패에 닿는 데 6일이 걸린다 — 그동안 카드는 14일 상한을 향해 간다.
+ *
+ * 그래서 **틱(1분)마다 자격을 보고, 백오프가 실제 주기를 정한다**
+ * (PROBE_BACKOFF_MIN: 0·2·4·8·16·32분).
+ */
+async function probePausedMarkets(): Promise<void> {
+  const paused = await pausedAssetClasses(prisma);
+  for (const assetClass of paused) {
+    // 사람이 건 정지에는 아무 일도 하지 않는다 — 자격 검사가 그 안에 있다
+    const probe = await probeAndMaybeResume(
+      prisma,
+      registry,
+      assetClass,
+      secondaryRegistry,
+      new Date(),
     );
-  } else if (probe.hardLocked) {
-    // **자동 해제를 포기했다** — "곧 풀리겠지"라는 기대가 개입을 늦추면 안 된다
-    await alertOps(
-      `[P0] ${assetClass} 자동 재개 포기 — 사람이 풀어야 합니다`,
-      `탐침이 ${probe.failures}회 연속으로 불일치를 봤습니다. 일시 장애가 아닙니다.\n` +
-        `이 상태로 두면 그 자산군의 카드가 차례로 14일 상한(전액 환불)에 닿습니다.\n` +
-        `두 소스를 직접 대조하고(npm run probe:sources) 원인을 고친 뒤 정지를 푸세요.`,
-      '/admin/judgments',
-      `judge:hardlock:${assetClass}`,
-    );
+    if (probe.resumed) {
+      console.log(`  ${assetClass}: 탐침 ${probe.checked}장 전원 합의 — 자동 판정 재개`);
+      await alertOps(
+        `[확인] ${assetClass} 자동 판정 재개 — 두 소스가 다시 일치합니다`,
+        `정지 중 탐침 ${probe.checked}장이 모두 같은 결론을 냈습니다 (일시 장애로 판단).\n` +
+          `판정을 재개했습니다. 원인이 궁금하면 감사 로그의 자동 해제 기록을 보세요.`,
+        '/admin/judgments',
+        `judge:resume:${assetClass}`,
+      );
+
+      // **잘 풀린다고 조용히 넘어가면 안 된다** — 자동 해제가 잦다는 것은 소스가
+      // 계속 흔들리고 있다는 뜻이고, 그 사실은 자동 해제가 실패하는 날이 아니라
+      // 지금 알아야 계약을 다시 볼 수 있다 (crossCheckRecovery.SOURCE_INSTABILITY)
+      const verdict = sourceInstabilityVerdict(await recentHaltEpisodes(prisma));
+      if (verdict.overFrequency || verdict.overDuration) {
+        await alertOps(
+          `[확인] 시세 소스가 반복해서 흔들립니다 — 교체를 검토하세요`,
+          `최근 ${SOURCE_INSTABILITY.WINDOW_DAYS}일: 자동 정지 ${verdict.counted}회 · ` +
+            `누적 ${Math.round(verdict.totalMinutes)}분 (${SOURCE_INSTABILITY.JITTER_MINUTES}분 미만은 빈도에서 제외).\n` +
+            (verdict.overFrequency
+              ? `· 빈도 초과 — 엔드포인트 설정이나 2차 피드 도입을 보세요.\n`
+              : '') +
+            (verdict.overDuration
+              ? `· 누적 시간 초과 — 공급자의 복구 능력 문제입니다. 계약을 보세요.\n`
+              : '') +
+            `자동 해제가 잘 돌아서 아무도 아프지 않았지만, 그동안 판정은 그만큼 밀렸습니다.`,
+          '/admin/judgments',
+          `judge:unstable:${assetClass}`,
+        );
+      }
+    } else if (probe.hardLocked) {
+      // **자동 해제를 포기했다** — "곧 풀리겠지"라는 기대가 개입을 늦추면 안 된다
+      await alertOps(
+        `[P0] ${assetClass} 자동 재개 포기 — 사람이 풀어야 합니다`,
+        `탐침이 ${probe.failures}회 연속으로 불일치를 봤습니다. 일시 장애가 아닙니다.\n` +
+          `이 상태로 두면 그 자산군의 카드가 차례로 14일 상한(전액 환불)에 닿습니다.\n` +
+          `두 소스를 직접 대조하고(npm run probe:sources) 원인을 고친 뒤 정지를 푸세요.`,
+        '/admin/judgments',
+        `judge:hardlock:${assetClass}`,
+      );
+    }
   }
+}
+
+async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Promise<void> {
 
   // **자격 검사를 쓰기마다 들려 보낸다** — 락을 뺏긴 뒤 깨어난 프로세스가 남은 카드를
   // 계속 쓰는 것을 막는 유일한 장치다 (batchLock 상단 "펜싱 토큰" 주석)
@@ -489,6 +529,12 @@ function tick(): void {
     const { alerted, count } = await flushHardCapSurgeAlert(prisma, new Date());
     if (alerted) console.warn(`상한 환불 급증 알림 발송 — 오늘 ${count}건`);
   });
+
+  // ── 정지 자동 해제 탐침 (틱마다 자격만 본다) ─────────────
+  // **판정 일정과 분리돼 있다.** 판정은 하루 한 번인데 자동 회복이 흡수해야 하는
+  // 장애는 10~30분짜리라, 판정 경로에 붙여 두면 순간 단절 하나에 하루를 선다.
+  // 실제 주기는 백오프가 정한다 (0·2·4·8·16·32분) — 여기서는 매 틱 물어보기만 한다.
+  enqueue('정지 자동 해제 탐침', probePausedMarkets);
 
   // ── 마감 직후 판정 (시장별) ─────────────────────────────
   // 여기만 창구를 유지한다 — 마감 전에 판정하면 안 되고, 놓친 날은 기동 따라잡기가

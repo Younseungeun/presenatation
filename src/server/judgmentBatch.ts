@@ -16,6 +16,7 @@ import { toJudgeableCard } from './cardMapper';
 import { rebaseIfAdjusted } from './corporateActionService';
 import { buildJudgmentWrites } from './judgmentWriter';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
+import { resetProbeState } from './crossCheckRecovery';
 import {
   isJudgmentPaused,
   pausedAssetClasses,
@@ -903,6 +904,10 @@ export async function judgeAndSettleDueCards(
       },
       now,
     );
+    // **이번 사고의 탐침은 0회부터 센다** — 실패 횟수를 사고 너머로 이어 두면
+    // 지난 사고에서 6회를 채운 자산군이 오늘 멈추는 순간 탐침 한 번 없이
+    // "자동 재개 포기"로 떨어진다 (crossCheckRecovery.resetProbeState)
+    await resetProbeState(prisma, cls);
     summary.haltedAssetClasses.push(cls);
     console.error(`[P0] ${cls} 자동 판정 정지 — 불일치 ${disagreed}/${attempted}건`);
   }
