@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import type { AssetClass } from '../src/domain/constants';
 import { isJustAfterClose, isMarketOpen, isTradingDay, marketToday } from '../src/domain/marketHours';
 import { coverageEndsIn, holidayName } from '../src/domain/marketCalendar';
-import { BatchLockBusy, withBatchLock } from '../src/server/batchLock';
+import { BatchLockBusy, withBatchLock, type BatchFence } from '../src/server/batchLock';
 import { backupDatabase } from '../src/server/dbBackup';
 import { createDefaultRegistry } from '../src/infra/marketData/registry';
 import { toRiskLevel, type RiskLevel } from '../src/domain/instrumentRisk';
@@ -176,7 +176,7 @@ const MAX_JUDGE_CHUNKS = 40;
  */
 async function judgeMarket(assetClass: AssetClass): Promise<void> {
   try {
-    await withBatchLock(prisma, 'judge', () => judgeMarketLocked(assetClass));
+    await withBatchLock(prisma, 'judge', (lock) => judgeMarketLocked(assetClass, lock));
   } catch (e) {
     if (e instanceof BatchLockBusy) {
       console.warn(`⚠ ${e.message} — ${assetClass} 판정을 이번 회차는 건너뜁니다`);
@@ -186,8 +186,10 @@ async function judgeMarket(assetClass: AssetClass): Promise<void> {
   }
 }
 
-async function judgeMarketLocked(assetClass: AssetClass): Promise<void> {
-  const reached = await runReachedJudgmentBatch(prisma, registry, new Date(), assetClass);
+async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Promise<void> {
+  // **자격 검사를 쓰기마다 들려 보낸다** — 락을 뺏긴 뒤 깨어난 프로세스가 남은 카드를
+  // 계속 쓰는 것을 막는 유일한 장치다 (batchLock 상단 "펜싱 토큰" 주석)
+  const reached = await runReachedJudgmentBatch(prisma, registry, new Date(), assetClass, lock.fence);
 
   // **밀린 카드를 다 소진할 때까지 커서로 이어서 돈다.** 판정은 한 회차 20장으로 끊기는데
   // (JUDGE_BATCH_SIZE — KIS 호출 간격 1.1초 때문에 한 번에 다 하면 큐가 통째로 막힌다),
@@ -195,7 +197,7 @@ async function judgeMarketLocked(assetClass: AssetClass): Promise<void> {
   //
   // **커서가 없으면 이월 카드가 앞자리를 영구히 막는다** — 이월은 Judgment를 안 만들어
   // 다음 조회에도 그대로 잡히기 때문이다. 그러면 뒤의 멀쩡한 카드가 영영 판정되지 않는다
-  const due = await judgeAndSettleDueCards(prisma, registry, new Date(), assetClass);
+  const due = await judgeAndSettleDueCards(prisma, registry, new Date(), assetClass, undefined, lock.fence);
   let chunks = 1;
   while (due.hasMore && due.cursor && chunks < MAX_JUDGE_CHUNKS && !stopping) {
     const next = await judgeAndSettleDueCards(
@@ -204,6 +206,7 @@ async function judgeMarketLocked(assetClass: AssetClass): Promise<void> {
       new Date(),
       assetClass,
       due.cursor,
+      lock.fence,
     );
     due.judged += next.judged;
     due.deferred += next.deferred;

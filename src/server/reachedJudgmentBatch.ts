@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 import type { AssetClass, Direction, TargetType } from '@/domain/constants';
 import { JudgmentDeferredError, runJudgmentFromRegistry } from '@/domain/judgmentPipeline';
 import type { ProviderRegistry } from '@/domain/marketData';
@@ -43,6 +43,8 @@ export async function runReachedJudgmentBatch(
   now = new Date(),
   /** 자산군 스코프 — 시장별로 마감 직후 그 시장만 (없으면 전부) */
   assetClass?: AssetClass,
+  /** 배치 락의 자격 검사 — judgmentBatch와 같은 이유 (스플릿 브레인 방어) */
+  fence?: () => Prisma.PrismaPromise<unknown>,
 ): Promise<ReachedJudgmentSummary> {
   const cards = await prisma.predictionCard.findMany({
     where: {
@@ -132,7 +134,7 @@ export async function runReachedJudgmentBatch(
         { result, realizedReturnPct, score, info, dataSource: audit.dataSource, audit, resolvedBasePrice },
         now,
       );
-      await prisma.$transaction(writes);
+      await prisma.$transaction(fence ? [fence(), ...writes] : writes);
       summary.judged++;
     } catch (e) {
       if (e instanceof JudgmentDeferredError) {

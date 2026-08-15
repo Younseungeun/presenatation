@@ -1,4 +1,9 @@
-import { MIN_SAMPLE_FOR_VERIFIED, type Direction, type Outcome } from './constants';
+import {
+  MIN_SAMPLE_FOR_RATE,
+  MIN_SAMPLE_FOR_VERIFIED,
+  type Direction,
+  type Outcome,
+} from './constants';
 
 // 리서처 트랙레코드 집계 (프로필·리더보드 표시용).
 // 난이도 가중치(역컨센서스·고변동성)와 세부 점수 가중치는 영업비밀 유지 대상이라
@@ -57,4 +62,30 @@ export function computeTrackRecord(predictions: JudgedPrediction[], now = new Da
     verifying: sampleSize < MIN_SAMPLE_FOR_VERIFIED,
     hypotheticalReturnPct,
   };
+}
+
+/**
+ * 적중률을 화면에 적는 **단 하나의 방법** (2026-08-15).
+ *
+ * 표본이 `MIN_SAMPLE_FOR_RATE` 미만이면 **숫자를 내보내지 않고 진행도를 적는다.**
+ * 계정 둘로 반대 방향을 걸어 살려낸 계정의 "적중률 100%"가 스크린샷으로 나가는 것을
+ * 막는 것이 목적이고(상수 주석), 표본 병기만으로는 캡처 한 장을 못 막는다.
+ *
+ * **함수를 하나로 두는 것이 이 방어의 전부다.** 화면마다 `hitRate * 100`을 적으면
+ * 여섯 곳 중 한 곳은 반드시 빠지고, 빠진 그 한 곳이 어뷰저가 캡처하는 화면이 된다.
+ */
+export function hitRateLabel(
+  hitRate: number | null,
+  sampleSize: number,
+  opts: { digits?: number; none?: string } = {},
+): string {
+  const { digits = 1, none = '판정 전' } = opts;
+  if (hitRate === null || sampleSize === 0) return none;
+  if (sampleSize < MIN_SAMPLE_FOR_RATE) return `검증 ${sampleSize}/${MIN_SAMPLE_FOR_RATE}건`;
+  return `${(hitRate * 100).toFixed(digits)}%`;
+}
+
+/** 표본이 차서 적중률 숫자를 보여줘도 되는가 — 표본 수를 따로 적을지 정할 때 쓴다 */
+export function showsHitRate(hitRate: number | null, sampleSize: number): boolean {
+  return hitRate !== null && sampleSize >= MIN_SAMPLE_FOR_RATE;
 }

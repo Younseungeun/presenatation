@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { showsHitRate, hitRateLabel } from "@/domain/trackRecord";
 import type { FollowedCardSort, FollowedSection } from "@/server/marketQueries";
 import type { OwnedCardView } from "@/server/ownedCardViews";
 import { OwnedCard } from "../OwnedCard";
@@ -36,10 +37,6 @@ import styles from "./leaderboard.module.css";
 // 배지 배치는 브랜드 규정(§4-4)을 따른다: **이름 옆은 인증 배지만.**
 // 등급 칩은 로제트가 아니라 텍스트 필이라, 같은 자리에 두면 두 신뢰 신호가 섞인다 —
 // 그래서 박스 오른쪽 위로 뺐다.
-
-function pct(v: number | null): string {
-  return v === null ? "—" : `${Math.round(v * 100)}%`;
-}
 
 export function FollowedSections({
   sections,
@@ -90,11 +87,15 @@ export function FollowedSections({
                     <DefaultAvatar className={styles.prAvatarImg} />
                   </span>
                   {/* 적중률은 표본과 함께 읽어야 뜻이 산다 — 100%(1건)과 62%(47건)은 다른 이야기다 */}
-                  {head.hitRate === null ? (
-                    <span className={styles.prNoRecord}>판정 전</span>
+                  {!showsHitRate(head.hitRate, head.judgedCount) ? (
+                    <span className={styles.prNoRecord}>
+                      {hitRateLabel(head.hitRate, head.judgedCount)}
+                    </span>
                   ) : (
                     <>
-                      <span className={styles.prHit}>적중 {pct(head.hitRate)}</span>
+                      <span className={styles.prHit}>
+                        적중 {hitRateLabel(head.hitRate, head.judgedCount, { digits: 0 })}
+                      </span>
                       <span className={styles.prSample}>{head.judgedCount}건</span>
                     </>
                   )}

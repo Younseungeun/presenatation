@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { showsHitRate, hitRateLabel } from "@/domain/trackRecord";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import type { ProfitabilityLevel } from "@/domain/profitability";
 import type { StabilityLevel } from "@/domain/stability";
@@ -128,21 +129,21 @@ function DirectionTrace({
   );
 }
 
-function pct(v: number | null): string {
-  return v === null ? "—" : `${Math.round(v * 100)}%`;
-}
-
 /**
  * 실적 — 적중률에 **표본 수를 반드시 붙인다**.
  * 100%(1건)과 62%(47건)이 같은 자리에 같은 크기로 뜨면 오해가 아니라 오도다.
  */
 function TrackRecord({ c }: { c: MaskedCardFull }) {
-  if (c.hitRate === null) {
-    return <span className={styles.record}>판정 전</span>;
+  // 표본이 얇으면 숫자 대신 진행도 — "100% (1건)"은 아무도 안 믿는 숫자이면서
+  // 어뷰저에게는 캡처할 만한 한 줄이다 (domain/trackRecord.hitRateLabel)
+  if (!showsHitRate(c.hitRate, c.judgedCount)) {
+    return (
+      <span className={styles.record}>{hitRateLabel(c.hitRate, c.judgedCount)}</span>
+    );
   }
   return (
     <span className={styles.record}>
-      적중 <strong>{pct(c.hitRate)}</strong>
+      적중 <strong>{hitRateLabel(c.hitRate, c.judgedCount, { digits: 0 })}</strong>
       <span className={styles.sample}>{c.judgedCount}건</span>
     </span>
   );

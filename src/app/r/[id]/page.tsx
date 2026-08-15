@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { hitRateLabel } from "@/domain/trackRecord";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { cardProfitabilityLevel } from "@/domain/profitability";
@@ -109,7 +110,7 @@ export default async function PublicProfile({
               <div className={styles.stat}>
                 <div className={styles.statLabel}>적중률</div>
                 <div className={styles.statValue}>
-                  {tr.hitRate === null ? "—" : `${(tr.hitRate * 100).toFixed(1)}%`}
+                  {hitRateLabel(tr.hitRate, tr.sampleSize, { none: "—" })}
                 </div>
               </div>
               <div className={styles.stat}>

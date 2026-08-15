@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { showsHitRate, hitRateLabel } from "@/domain/trackRecord";
 import type { ResearcherCallout as Data } from "@/server/marketQueries";
 import { DefaultAvatar } from "./Avatar";
 import { VerifiedBadge } from "./brand/VerifiedBadge";
@@ -32,11 +33,11 @@ export function ResearcherCallout({ data }: { data: Data }) {
         </span>
 
         <span className={styles.record}>
-          {data.hitRate === null ? (
-            "아직 판정된 예측이 없어요"
+          {!showsHitRate(data.hitRate, data.judgedCount) ? (
+            hitRateLabel(data.hitRate, data.judgedCount, { none: "아직 판정된 예측이 없어요" })
           ) : (
             <>
-              적중 <strong>{Math.round(data.hitRate * 100)}%</strong>
+              적중 <strong>{hitRateLabel(data.hitRate, data.judgedCount, { digits: 0 })}</strong>
               <span className={styles.sample}>{data.judgedCount}건</span>
             </>
           )}

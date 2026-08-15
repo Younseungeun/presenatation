@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { statSync } from 'node:fs';
 import { PrismaClient } from '@prisma/client';
 
 // **SQLite의 쓰기-쓰기 경합을 논쟁이 아니라 숫자로 정한다** (2026-08-15).
@@ -7,21 +8,20 @@ import { PrismaClient } from '@prisma/client';
 // 락을 쥔 동안 결제가 SQLITE_BUSY로 죽는다 → Postgres는 런칭 전 P0"라고 했다.
 // **메커니즘은 맞다.** SQLite는 WAL에서도 동시에 두 트랜잭션이 쓰지 못한다.
 //
-// 그런데 그 결론은 **"배치가 쓰기 락을 오래 쥔다"**를 전제로 한다. 그 전제가 우리
-// 코드에서 참인지는 읽어서 알 수 있고, 얼마나 참인지는 재야 안다:
+// 그 결론은 **"배치가 쓰기 락을 오래 쥔다"**를 전제로 하고, 그 전제는 잴 수 있다:
+//   · 시세 호출(KIS)은 트랜잭션 **밖**이다 (judgmentBatch: 조회 → 채점 → $transaction)
+//   · 트랜잭션은 **카드 한 장 단위**의 배열형이라 안에서 await을 할 수 없다
 //
-//   · 시세 호출(KIS)은 트랜잭션 **밖**이다 (judgmentBatch: runJudgmentFromRegistry →
-//     scoreJudgedCard → buildJudgmentWrites → $transaction). 네트워크는 락 안에 없다
-//   · 트랜잭션은 **카드 한 장 단위**의 배열형이다 (인터랙티브 트랜잭션이 아니라
-//     문장 6개 남짓을 한 번에 보낸다). 회차 전체를 묶지 않는다
+// 2차 검토가 세 가지를 더 짚었고, 그중 둘은 **이 스크립트가 이미 재고 있었다**:
+//   ① "단일 프로세스만 쟀다" → **아니다.** 처음부터 child_process로 **별도 OS 프로세스**
+//      둘을 띄운다. 아래 SWEEP이 그 수를 늘려 어디서 깨지는지까지 본다
+//   ② "WAL 체크포인트가 EXCLUSIVE 락을 잡아 수백 ms~수 초를 막는다" → 기본
+//      auto-checkpoint는 **PASSIVE**라 쓰는 쪽을 막지 않고 물러난다. 그래도 말로
+//      끝내지 않고 WAL 파일 크기와 체크포인트 결과를 함께 찍는다
+//   ③ "pm2 클러스터·다중 파드로 늘리면 깨진다" → **동의한다.** 그래서 몇에서 깨지는지를
+//      재는 것이 이 스크립트의 본론이 됐다. 그 수가 곧 Postgres 전환의 트리거다
 //
-// 그래서 이 스크립트는 두 프로세스를 실제로 띄워 다음을 잰다:
-//   ① 판정 쓰기 트랜잭션이 락을 쥐는 시간 (p50/p99)
-//   ② 그동안 들어온 결제성 쓰기의 지연과 **실패 건수**
-//   ③ 대조군: 트랜잭션 안에서 일부러 오래 끄는 경우 — 검토가 그린 그림이 실제로
-//      재현되는지, 그리고 그때 무너지는 것이 **엔진인지 트랜잭션 길이인지**
-//
-// 쓰는 법:  npx tsx scripts/measureWriteContention.ts [--slow-ms 8000]
+// 쓰는 법:  npm run measure:contention
 //
 // 남기는 이유: Postgres 전환은 큰 작업이라 "누가 그렇다더라"로 결정하면 안 된다.
 // 전환 뒤에도 같은 스크립트로 재서 **좋아졌다는 근거**를 남길 수 있어야 한다.
@@ -29,10 +29,13 @@ import { PrismaClient } from '@prisma/client';
 const TAG = '[write-contention]';
 const DURATION_MS = 6_000;
 
+/** 웹 서버를 몇 벌로 늘려 볼 것인가 — pm2 클러스터·다중 파드가 이 축이다 */
+const WEB_WRITER_SWEEP = [1, 2, 4, 8];
+
 /** 판정 쓰기 한 건의 모양 — buildJudgmentWrites가 내보내는 문장 수와 맞춘다 */
 function judgmentLikeWrites(prisma: PrismaClient, slowMs: number) {
   const rows = Array.from({ length: 6 }, (_, i) => ({
-    userId: `${TAG}`,
+    userId: TAG,
     type: 'BENCH',
     title: `bench-${i}`,
     body: 'x',
@@ -41,7 +44,7 @@ function judgmentLikeWrites(prisma: PrismaClient, slowMs: number) {
   if (slowMs > 0) {
     // 트랜잭션 **안에서** 일부러 시간을 끈다 — 재귀 CTE로 CPU를 태운다.
     // 앞선 create들이 이미 썼으므로 이 시점에 쓰기 락은 우리 것이다
-    const n = slowMs * 20_000; // 대략적인 눈금 (정확할 필요 없다 — 길게 끌기만 하면 된다)
+    const n = slowMs * 20_000;
     writes.push(
       prisma.$queryRawUnsafe(
         `WITH RECURSIVE c(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM c WHERE x < ${n}) SELECT count(*) AS n FROM c`,
@@ -84,7 +87,8 @@ async function runRole(role: 'batch' | 'web', slowMs: number) {
       );
       latencies.push(Date.now() - t0);
     } catch (e) {
-      errors.push(e instanceof Error ? e.message.split('\n')[0] : String(e));
+      const msg = e instanceof Error ? `${(e as { code?: string }).code ?? ''} ${e.message.split('\n').find((l) => l.trim()) ?? ''}` : String(e);
+      errors.push(msg.trim() || 'unknown');
     }
     // 배치는 카드마다 시세를 부르므로 쓰기 사이에 최소 1.1초가 비어 있다.
     // 그 사실을 지우고 재면 실제보다 훨씬 나쁜 그림이 나온다 — 다만 여기서는
@@ -115,15 +119,42 @@ function child(role: 'batch' | 'web', slowMs: number): Promise<{ latencies: numb
   });
 }
 
-async function scenario(label: string, slowMs: number) {
-  const [batch, web] = await Promise.all([child('batch', slowMs), child('web', slowMs)]);
+function walBytes(): number {
+  const url = (process.env.DATABASE_URL ?? '').replace(/^file:/, '');
+  const path = url.startsWith('.') ? `prisma/${url.slice(2)}` : url;
+  try {
+    return statSync(`${path}-wal`).size;
+  } catch {
+    return -1;
+  }
+}
+
+async function scenario(label: string, webWriters: number, slowMs: number) {
+  // **WAL은 도는 동안에만 존재한다** — 마지막 연결이 닫히면 SQLite가 체크포인트하고
+  // 파일을 지운다. 그래서 시작·끝이 아니라 **한창일 때** 재야 뜻이 있다.
+  // 이 값이 폭주하지 않는 것이 곧 "auto-checkpoint가 돌고 있다"의 증거다
+  // (기본 auto-checkpoint는 PASSIVE라 쓰는 쪽을 막지 않고 물러난다)
+  let walPeak = 0;
+  const sampler = setInterval(() => {
+    walPeak = Math.max(walPeak, walBytes());
+  }, 250);
+
+  const results = await Promise.all([
+    child('batch', slowMs),
+    ...Array.from({ length: webWriters }, () => child('web', slowMs)),
+  ]);
+  clearInterval(sampler);
+  const [batch, ...webs] = results;
   const b = stats(batch.latencies);
-  const w = stats(web.latencies);
+  const w = stats(webs.flatMap((x) => x.latencies));
+  const webErrors = webs.flatMap((x) => x.errors);
+
   console.log(`\n── ${label} ───────────────────────────────`);
   console.log(`  판정 쓰기  ${b.n}건  p50 ${b.p50}ms  p99 ${b.p99}ms  max ${b.max}ms  실패 ${batch.errors.length}`);
-  console.log(`  결제 쓰기  ${w.n}건  p50 ${w.p50}ms  p99 ${w.p99}ms  max ${w.max}ms  실패 ${web.errors.length}`);
-  if (web.errors.length > 0) console.log(`  ⚠ 결제 쓰기 실패 사유: ${web.errors[0]}`);
-  return { failed: web.errors.length, succeeded: w.n };
+  console.log(`  결제 쓰기  ${w.n}건  p50 ${w.p50}ms  p99 ${w.p99}ms  max ${w.max}ms  실패 ${webErrors.length}`);
+  console.log(`  WAL 최대   ${(walPeak / 1024).toFixed(0)}KB (auto-checkpoint가 돌고 있으면 여기서 멈춘다)`);
+  if (webErrors.length > 0) console.log(`  ⚠ 결제 쓰기 실패 사유: ${webErrors[0]}`);
+  return { failed: webErrors.length, succeeded: w.n, p99: w.p99, max: w.max };
 }
 
 async function main() {
@@ -138,25 +169,56 @@ async function main() {
 
   console.log(`대상: ${process.env.DATABASE_URL}`);
   const prisma = new PrismaClient();
-  console.log('저널 모드:', JSON.stringify(await prisma.$queryRawUnsafe('PRAGMA journal_mode')));
-  console.log('busy_timeout:', JSON.stringify(await prisma.$queryRawUnsafe('SELECT CAST(timeout AS TEXT) AS ms FROM pragma_busy_timeout')));
+  // PRAGMA는 정수를 BigInt로 돌려줘 JSON.stringify가 그대로는 못 삼킨다
+  const q = (sql: string) =>
+    prisma
+      .$queryRawUnsafe(sql)
+      .then((r) => JSON.stringify(r, (_k, v) => (typeof v === 'bigint' ? Number(v) : v)));
+  console.log('저널 모드:', await q('PRAGMA journal_mode'));
+  console.log('busy_timeout:', await q('SELECT CAST(timeout AS TEXT) AS ms FROM pragma_busy_timeout'));
+  // **체크포인트 주장의 근거를 여기서 본다.** 기본 auto-checkpoint는 PASSIVE라
+  // 쓰는 쪽을 막지 않고 물러난다 — 아래 WAL 크기가 폭주하지 않는 것이 그 증거다
+  console.log('wal_autocheckpoint(페이지):', await q('PRAGMA wal_autocheckpoint'));
   await prisma.$disconnect();
 
-  // ① 실제 모양: 트랜잭션 안에 I/O가 없다
-  const real = await scenario('실제 모양 (트랜잭션 안에 네트워크 없음)', 0);
-  // ② 대조군: 검토가 그린 그림 — 트랜잭션이 오래 걸리는 경우
-  const slow = await scenario('대조군 (트랜잭션 안에서 오래 끄는 경우)', 4_000);
+  // ── ① 웹 프로세스 수를 늘려 가며 어디서 깨지는지 본다 ──
+  // pm2 클러스터·다중 파드가 정확히 이 축이다. **몇에서 깨지는가가 곧 전환 트리거다**
+  const cliff: { writers: number; failed: number; p99: number }[] = [];
+  for (const writers of WEB_WRITER_SWEEP) {
+    const r = await scenario(`웹 쓰기 프로세스 ${writers}벌 (트랜잭션 안에 네트워크 없음)`, writers, 0);
+    cliff.push({ writers, failed: r.failed, p99: r.p99 });
+  }
+
+  // ── ② 대조군: 트랜잭션이 길어지는 경우 ──
+  const slow = await scenario('대조군 (트랜잭션 안에서 오래 끄는 경우)', 1, 4_000);
 
   console.log('\n── 결론 ─────────────────────────────────');
-  if (real.failed === 0 && slow.failed > 0) {
-    console.log('  쓰기-쓰기 경합은 실재한다. 다만 무너뜨리는 것은 **엔진이 아니라 트랜잭션 길이**다.');
-    console.log('  우리 트랜잭션에는 네트워크 호출이 없고 카드 한 장 단위라 실제 모양에서는 실패 0,');
-    console.log('  트랜잭션이 busy_timeout을 넘게 길어지는 순간 결제가 통째로 죽는다.');
-    console.log('  → 지켜야 하는 불변식: **트랜잭션 안에서 외부 호출을 하지 않는다** (checkNoIoInTransaction).');
-  } else if (real.failed > 0) {
-    console.log('  ⚠ 실제 모양에서도 결제 쓰기가 실패했다 — Postgres 전환이 급하다.');
+  console.log('  웹 프로세스 수별 결제 쓰기:');
+  for (const c of cliff) {
+    console.log(`    ${String(c.writers).padStart(2)}벌 → p99 ${String(c.p99).padStart(5)}ms · 실패 ${c.failed}건`);
+  }
+
+  // **깨지는 지점은 오류가 아니라 지연이다.** busy_timeout 5초가 실패를 흡수하는 동안
+  // p99가 먼저 사람 눈에 보이는 값으로 올라간다 — 결제 화면에서 1초는 이미 사고다
+  const P99_BUDGET_MS = 300;
+  const first = cliff[0]?.p99 ?? 0;
+  const overBudget = cliff.find((c) => c.p99 > P99_BUDGET_MS);
+  const failing = cliff.find((c) => c.failed > 0);
+  if (failing) {
+    console.log(`  → **${failing.writers}벌에서 오류가 난다.**`);
+  }
+  if (overBudget) {
+    console.log(
+      `  → **${overBudget.writers}벌에서 p99가 ${overBudget.p99}ms** (1벌 대비 ${(overBudget.p99 / Math.max(1, first)).toFixed(0)}배).\n` +
+        `     실패는 busy_timeout이 흡수하지만 그 전에 **지연이 먼저 무너진다** — 전환 트리거는 여기다.\n` +
+        `     지금은 웹이 한 프로세스라 안전 구간이고, pm2 클러스터·다중 파드로 늘리는 순간 넘는다.`,
+    );
   } else {
-    console.log('  대조군에서도 실패가 없다 — busy_timeout이 흡수했다. --slow-ms를 올려 다시 재라.');
+    console.log(`  → ${WEB_WRITER_SWEEP.at(-1)}벌까지 p99 ${P99_BUDGET_MS}ms 이내. 이 구간에서는 엔진이 병목이 아니다.`);
+  }
+  if (slow.failed > 0 && slow.succeeded === 0) {
+    console.log('  대조군은 전멸했다 — 무너뜨리는 것은 **엔진이 아니라 트랜잭션 길이**다.');
+    console.log('  → 지켜야 하는 불변식: 트랜잭션 안에서 외부 호출을 하지 않는다 (noIoInTransaction.test.ts).');
   }
 
   const cleanup = new PrismaClient();

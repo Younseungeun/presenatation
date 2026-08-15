@@ -212,6 +212,15 @@ export async function judgeAndSettleDueCards(
   assetClass?: AssetClass,
   /** 이어서 돌 때의 커서 — 직전 회차의 cursor */
   after?: { deadline: Date; id: string },
+  /**
+   * 배치 락의 자격 검사 (server/batchLock.BatchFence.fence).
+   *
+   * **모든 쓰기 트랜잭션의 첫 문장으로 들어간다.** 락을 뺏긴 뒤 깨어난 프로세스가
+   * 남은 카드를 계속 쓰는 스플릿 브레인을 막는 유일한 장치다 — 회수 판정을 아무리
+   * 조여도 "죽었는지 느린지"는 밖에서 구별할 수 없기 때문이다.
+   * 없으면(테스트·수동 경로) 검사 없이 돈다.
+   */
+  fence?: () => Prisma.PrismaPromise<unknown>,
 ): Promise<BatchSummary> {
   // HELD 구매까지 한 번에 조회 — 카드별 개별 쿼리(N+1) 제거
   const where: Prisma.PredictionCardWhereInput = {
@@ -331,7 +340,7 @@ export async function judgeAndSettleDueCards(
         { result, realizedReturnPct, score, info, dataSource: audit.dataSource, audit, resolvedBasePrice },
         now,
       );
-      await prisma.$transaction(writes);
+      await prisma.$transaction(fence ? [fence(), ...writes] : writes);
       summary.judged++;
     } catch (e) {
       // **예상 밖 오류도 이월과 같은 절차를 밟는다.**

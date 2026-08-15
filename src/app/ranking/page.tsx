@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { hitRateLabel, showsHitRate } from "@/domain/trackRecord";
 import { MIN_SAMPLE_FOR_VERIFIED } from "@/domain/constants";
 import { prisma } from "@/server/db";
 import { getAllTimeRanking, type RankingSort } from "@/server/leaderboardQueries";
@@ -16,9 +17,6 @@ const SORTS: { key: RankingSort; label: string }[] = [
   { key: "RETURN", label: "가상 수익률" },
 ];
 
-function pct(v: number | null): string {
-  return v === null ? "—" : `${(v * 100).toFixed(1)}%`;
-}
 
 function signed(v: number | null): string {
   return v === null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
@@ -92,13 +90,16 @@ export default async function RankingPage({
                   {r.verifying && <StatusChip status="VERIFYING" />}
                 </div>
                 <div className={styles.rowSub}>
+                  {/* 표본이 얇으면 라벨이 이미 "검증 2/5건"이라 표본을 또 적지 않는다 */}
                   {sort === "SCORE"
-                    ? `적중률 ${pct(r.hitRate)} · 표본 ${r.sampleSize}`
+                    ? showsHitRate(r.hitRate, r.sampleSize)
+                      ? `적중률 ${hitRateLabel(r.hitRate, r.sampleSize)} · 표본 ${r.sampleSize}`
+                      : hitRateLabel(r.hitRate, r.sampleSize)
                     : `누적 ${Math.round(r.totalScore).toLocaleString()}점 · 표본 ${r.sampleSize}`}
                 </div>
               </div>
               <div className={styles.rowScore}>
-                {sort === "HIT_RATE" && <div>{pct(r.hitRate)}</div>}
+                {sort === "HIT_RATE" && <div>{hitRateLabel(r.hitRate, r.sampleSize)}</div>}
                 {sort === "RETURN" && (
                   <div
                     className={
