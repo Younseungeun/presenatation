@@ -36,6 +36,7 @@
     "calibrate:semantic": "tsx scripts/calibrateSemantic.ts",
     "calibrate:sigma": "tsx scripts/calibrateSigmaEstimator.ts",
     "calibrate:stability": "tsx scripts/calibrateStability.ts",
+    "sim:cutoff": "tsx scripts/simShortHorizonCutoff.ts",
     "scheduler": "tsx scripts/runScheduler.ts",
     "pm2:start": "pm2 start ecosystem.config.cjs && pm2 save",
     "pm2:stop": "pm2 stop intovill-scheduler",
