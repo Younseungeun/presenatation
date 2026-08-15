@@ -1,5 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
+import { auditOp } from './auditLog';
 import { notifyOperators } from './opsAlert';
+import { assertWithinDailyLimit } from './payoutVelocity';
 import { cancelTossPayment, TossPaymentError } from './tossPayments';
 
 // 정산 실행 콘솔 (운영자): 판정이 만든 환불·지급 지시서를 실행하고 기록한다.
@@ -117,6 +119,10 @@ export async function executeRefund(
   if (!REFUND_METHODS.includes(input.method)) {
     throw new SettlementOpsError(`환불 방법이 유효하지 않습니다: ${input.method}`);
   }
+
+  // **환불도 나가는 돈이다** — 한도는 지급·환불 합계에 건다 (payoutVelocity).
+  // 환불만 열어 두면 "전부 환불" 한 번으로 에스크로가 통째로 비는 길이 남는다
+  await assertWithinDailyLimit(prisma, s.buyerRefundKrw, now);
 
   // PG 결제 키가 없으면 자동 취소가 불가능하다 — 시도 행을 만들기 전에 막는다
   if (input.method === 'PG_CANCEL' && !s.purchase.paymentKey) {
@@ -372,6 +378,21 @@ async function runRefundAttempt(
       where: { id: attempt.id },
       data: { status: 'SUCCEEDED', finishedAt: now },
     }),
+    // **기록과 돈은 함께 커밋된다** — 따로 남기면 "돈은 나갔는데 기록은 없는" 창이 열린다
+    auditOp(prisma, {
+      actor: operatorUserId,
+      actorType: 'OPERATOR',
+      action: 'REFUND_EXECUTED',
+      targetType: 'Settlement',
+      targetId: s.id,
+      before: { refundExecutedAt: null },
+      after: {
+        refundExecutedAt: now.toISOString(),
+        amountKrw: attempt.amountKrw,
+        method: attempt.method,
+      },
+      at: now,
+    }),
     prisma.settlement.update({
       // 동시 실행 대비: 미실행 조건을 다시 걸어 원자적으로 기록
       where: { id: s.id, refundExecutedAt: null },
@@ -517,6 +538,11 @@ export async function executePayout(
   }
 
   // **아직 우리에게 오지 않았을 수 있는 돈을 내주지 않는다** (PG_SETTLEMENT_LAG_DAYS)
+  // **하루에 나갈 수 있는 총액을 묶는다** (payoutVelocity).
+  // 세션이 털렸든 우리 버그든 운영자 실수든, 원인과 무관하게 같은 벽에 부딪힌다 —
+  // 그게 2차 인증보다 이것을 먼저 넣은 이유다
+  await assertWithinDailyLimit(prisma, s.researcherPayoutKrw, now);
+
   const ageDays = (now.getTime() - s.purchase.paidAt.getTime()) / 86_400_000;
   if (ageDays < PG_SETTLEMENT_LAG_DAYS && !input.confirmedSettled) {
     throw new SettlementOpsError(
@@ -530,6 +556,17 @@ export async function executePayout(
     prisma.settlement.update({
       where: { id: s.id, payoutExecutedAt: null },
       data: { payoutExecutedAt: now, payoutExecutedBy: input.operatorUserId },
+    }),
+    auditOp(prisma, {
+      actor: input.operatorUserId,
+      actorType: 'OPERATOR',
+      action: 'PAYOUT_EXECUTED',
+      targetType: 'Settlement',
+      targetId: s.id,
+      before: { payoutExecutedAt: null },
+      after: { payoutExecutedAt: now.toISOString(), amountKrw: s.researcherPayoutKrw },
+      reason: input.confirmedSettled ? 'PG 입금 확인 표시 후 실행' : undefined,
+      at: now,
     }),
     prisma.notification.create({
       data: {

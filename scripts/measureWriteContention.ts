@@ -210,8 +210,15 @@ async function main() {
   if (overBudget) {
     console.log(
       `  → **${overBudget.writers}벌에서 p99가 ${overBudget.p99}ms** (1벌 대비 ${(overBudget.p99 / Math.max(1, first)).toFixed(0)}배).\n` +
-        `     실패는 busy_timeout이 흡수하지만 그 전에 **지연이 먼저 무너진다** — 전환 트리거는 여기다.\n` +
-        `     지금은 웹이 한 프로세스라 안전 구간이고, pm2 클러스터·다중 파드로 늘리는 순간 넘는다.`,
+        `     실패는 busy_timeout이 흡수하지만 그 전에 **지연이 먼저 무너진다** — 전환 트리거는 여기다.`,
+    );
+    // **실제 상한은 설정값의 절반이다.** pm2 reload는 기존 워커를 띄워 둔 채 새 워커를
+    // 올리므로 배포 중 순간 2배가 된다 — 평시 수치만 보고 정하면 배포 때마다 밟는다
+    console.log(
+      `     ⚠ pm2 reload(무중단 배포)는 배포 중 워커가 **순간 2배**가 된다.\n` +
+        `        따라서 설정 상한은 ${Math.max(1, Math.floor(overBudget.writers / 2) - 1) || 1}벌 —` +
+        ` instances를 ${overBudget.writers / 2}벌로 두면 배포 순간 ${overBudget.writers}벌이 되어 여기에 닿는다.\n` +
+        `        무중단 배포를 도입하는 시점이 곧 Postgres 전환의 데드라인이다 (ecosystem.config.cjs).`,
     );
   } else {
     console.log(`  → ${WEB_WRITER_SWEEP.at(-1)}벌까지 p99 ${P99_BUDGET_MS}ms 이내. 이 구간에서는 엔진이 병목이 아니다.`);

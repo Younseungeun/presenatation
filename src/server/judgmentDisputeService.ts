@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { auditOp } from './auditLog';
 
 // 판정 이의제기 — **구매자 → 플랫폼의 단방향 클레임.**
 //
@@ -263,6 +264,19 @@ export async function resolveDispute(
         link: `/report/${dispute.purchase.reportId}`,
         createdAt: now,
       },
+    }),
+    // 이의 확정은 **돈을 움직이지는 않지만 돈의 근거를 바꾼다** — 인정은 되돌리기로,
+    // 기각은 정산 재개로 이어진다. 감사 로그가 봐야 하는 것이 정확히 그런 사건이다
+    auditOp(prisma, {
+      actor: input.operatorUserId,
+      actorType: 'OPERATOR',
+      action: 'DISPUTE_RESOLVED',
+      targetType: 'JudgmentDispute',
+      targetId: dispute.id,
+      before: { status: 'OPEN' },
+      after: { status: input.verdict, settlementUnlocked: input.verdict === 'REJECTED' },
+      reason: input.resolution.slice(0, 500),
+      at: now,
     }),
   ]);
 

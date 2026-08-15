@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from '@prisma/client';
+import { auditOp } from './auditLog';
 import { seasonOf } from './scoreService';
 
 // 판정 되돌리기 — **UI는 없다. 스크립트만 있다** (npm run judgment:revert).
@@ -208,6 +209,25 @@ export async function revertJudgment(
         nextAttemptAt: null,
         manualJudgmentOnly: input.cause === 'DATA_SOURCE',
       },
+    }),
+    // ⑥ **되돌렸다는 사실을 감사 로그에도 남긴다.** JudgmentRevert 묘비와 중복이지만
+    //    그건 이 도메인의 상태이고 이쪽은 시간 순 사건이다 — 분쟁에서 필요한 것은
+    //    "이 카드에 무슨 일이 순서대로 있었나"이고, 그건 한 표에서만 읽을 수 있다
+    auditOp(prisma, {
+      actor: input.operatorUserId,
+      actorType: 'OPERATOR',
+      action: 'JUDGMENT_REVERTED',
+      targetType: 'PredictionCard',
+      targetId: card.id,
+      before: {
+        judgmentId: judgment.id,
+        outcome: judgment.outcome,
+        score: judgment.score,
+        settlements: settlements.length,
+      },
+      after: { judgment: null, escrow: 'HELD', manualJudgmentOnly: input.cause === 'DATA_SOURCE' },
+      reason: `${input.cause}: ${input.reason}`,
+      at: now,
     }),
   ];
 

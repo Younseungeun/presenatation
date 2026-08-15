@@ -647,3 +647,40 @@ model AbuseReport {
   @@index([status, createdAt])
   @@index([reporterId, createdAt])
 }
+
+/// **돈의 근거가 언제 어떻게 바뀌었는지의 단일 기록** (2026-08-15).
+///
+/// 도메인 표(Settlement·Judgment·ComplianceReview…)는 **상태**를 관리하고, 이 표는
+/// **사건**을 남긴다. 둘은 역할이 다르므로 중복은 비용이 아니라 정합성 검증의 재료다 —
+/// 어긋나는 날이 오면 그 자체가 시스템 이상 신호다.
+///
+/// 규칙 셋:
+///  ① **append-only** — 갱신·삭제하지 않는다. 지울 수 있는 기록은 증명이 못 된다
+///  ② **사건 하나에 한 줄** — 판정 한 번이 정산 3건·알림 3건을 만들어도 로그는 한 줄이다.
+///     "정산 s_1이 왜 생겼나"는 도메인 외래키를 타고 올라와 targetId로 조회한다
+///     (하위 id를 JSON에 담으면 SQLite에는 JSON 인덱스가 없어 풀스캔이 된다)
+///  ③ **인프라 오류는 넣지 않는다** — 그건 로그의 일이고, 섞으면 이 표가 검색되지 않는
+///     크기로 자란다. 여기 들어오는 것은 **돈이 움직였거나 돈의 근거가 바뀐 사건**뿐이다
+model AuditLog {
+  id         String   @id @default(cuid())
+  at         DateTime @default(now())
+  /// 누가 — 운영자 userId 또는 "system:batch:judge" 같은 자동 주체
+  actor      String
+  /// OPERATOR | SYSTEM | USER — actor 문자열을 파싱하지 않고 종류를 따로 둔다
+  actorType  String
+  /// 무엇을 했나 (JUDGMENT_CREATED, PAYOUT_EXECUTED, JUDGMENT_REVERTED …)
+  action     String
+  /// 무엇에 대해 — 도메인 외래키가 이 값을 가리킨다
+  targetType String
+  targetId   String
+  /// 바뀌기 전/후의 **핵심 상태 필드만** (JSON). 객체 트리를 통째로 담지 않는다 —
+  /// 감사가 요구하는 것은 "주체·시각·바뀐 상태값"이지 10KB짜리 스냅샷이 아니다
+  before     String?
+  after      String?
+  /// 사람이 남긴 사유 (되돌리기 사유, 이의 판단 근거 등)
+  reason     String?
+
+  @@index([targetType, targetId])
+  @@index([at])
+  @@index([actor])
+}

@@ -1,6 +1,7 @@
 import type { Prisma, PrismaClient, PredictionCard, Purchase, Report } from '@prisma/client';
 import type { JudgmentResult } from '@/domain/judgment';
 import { settle } from '@/domain/settlement';
+import { auditOp } from './auditLog';
 
 // 판정 결과 영속화 + 에스크로 3분기 정산 + 인앱 알림 쓰기 묶음.
 // 자동 배치(judgmentBatch)와 운영자 수동 판정(manualJudgmentService)이 공유한다 —
@@ -136,6 +137,36 @@ export function buildJudgmentWrites(
         link: `/researcher/${card.report.researcherId}`,
         createdAt: now,
       },
+    }),
+  );
+
+  // **에스크로가 갈라지는 순간을 한 줄로 남긴다** (server/auditLog.ts).
+  //
+  // 정산이 몇 건이 되든 로그는 **판정 하나에 한 줄**이다. "정산 s_1이 왜 생겼나"는
+  // 도메인 외래키를 타고 올라와(Settlement → Purchase → Report → PredictionCard →
+  // Judgment) targetId로 조회한다 — 하위 id를 JSON에 담아 검색하게 만들면 SQLite에는
+  // JSON 인덱스가 없어 풀스캔이 된다.
+  //
+  // actor가 사람이 아닌 것이 이 사건의 성질이다. 대부분의 돈 이동은 자동 판정이
+  // 만들고, 그때 필요한 것은 "누가 눌렀나"가 아니라 **어떤 입력으로 그 결론이
+  // 나왔나**다 — 그건 Judgment.marketSnapshotJson에 이미 있으므로 여기서는
+  // dataSource만 가리키고 스냅샷을 다시 담지 않는다
+  writes.push(
+    auditOp(prisma, {
+      actor: `system:${input.dataSource}`,
+      actorType: input.dataSource.startsWith('manual:') ? 'OPERATOR' : 'SYSTEM',
+      action: 'JUDGMENT_CREATED',
+      targetType: 'PredictionCard',
+      targetId: card.id,
+      after: {
+        outcome: result.outcome,
+        settledPrice: result.settledPrice ?? null,
+        score: Math.round(input.score),
+        payoutKrw: payoutTotal,
+        refundKrw: refundTotal,
+        purchases: card.report.purchases.length,
+      },
+      at: now,
     }),
   );
 
