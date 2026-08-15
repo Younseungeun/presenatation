@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { computeTrackRecord, hitRateLabel, type JudgedPrediction } from '../trackRecord';
+import {
+  computeTrackRecord,
+  hitRateLabel,
+  stakedHitRateLabel,
+  type JudgedPrediction,
+} from '../trackRecord';
 
 const NOW = new Date('2026-07-12T00:00:00Z');
 
@@ -69,10 +74,10 @@ describe('팔린 카드와 안 팔린 카드를 가른다', () => {
   it('안 팔린 카드는 전체 표본에는 들어가고 "돈이 걸린" 표본에서는 빠진다', () => {
     const r = computeTrackRecord(
       [
-        pred({ outcome: 'HIT', sold: true }),
-        pred({ outcome: 'MISS', sold: true }),
-        pred({ outcome: 'HIT', sold: false }),
-        pred({ outcome: 'HIT', sold: false }),
+        pred({ outcome: 'HIT', stakedKrw: 50_000, buyers: 2 }),
+        pred({ outcome: 'MISS', stakedKrw: 50_000, buyers: 2 }),
+        pred({ outcome: 'HIT', stakedKrw: 0 }),
+        pred({ outcome: 'HIT', stakedKrw: 0 }),
       ],
       NOW,
     );
@@ -86,7 +91,7 @@ describe('팔린 카드와 안 팔린 카드를 가른다', () => {
 
   it('판정 불가는 양쪽 표본에서 모두 빠진다', () => {
     const r = computeTrackRecord(
-      [pred({ outcome: 'UNDECIDABLE', sold: true }), pred({ outcome: 'HIT', sold: true })],
+      [pred({ outcome: 'UNDECIDABLE', stakedKrw: 50_000, buyers: 2 }), pred({ outcome: 'HIT', stakedKrw: 50_000, buyers: 2 })],
       NOW,
     );
     expect(r.sampleSize).toBe(1);
@@ -101,8 +106,54 @@ describe('팔린 카드와 안 팔린 카드를 가른다', () => {
   });
 
   it('팔린 카드가 없으면 적중률 자리에 숫자를 지어내지 않는다', () => {
-    const r = computeTrackRecord([pred({ outcome: 'HIT', sold: false })], NOW);
+    const r = computeTrackRecord([pred({ outcome: 'HIT', stakedKrw: 0 })], NOW);
     expect(r.stakedHitRate).toBeNull();
     expect(hitRateLabel(r.stakedHitRate, r.stakedSampleSize, { none: '—' })).toBe('—');
+  });
+});
+
+// **최저가 세탁 방어** (2026-08-15, 외부 검토 D-1).
+//
+// 구매 여부(boolean)로만 가르면 1,000원짜리를 지인이 사는 것으로 "돈이 걸린 예측"이
+// 만들어진다. 수수료 100원이 전부다. 그래서 금액과 사람 수를 **곱으로** 요구한다 —
+// 어느 한쪽만 걸면 나머지 한쪽으로 우회된다.
+describe('돈이 걸린 예측 — 표시 문턱', () => {
+  const many = (n: number, over: Partial<JudgedPrediction>) =>
+    Array.from({ length: n }, () => pred(over));
+
+  it('1,000원 다섯 장으로는 비율이 나가지 않는다 (표본은 찼지만 금액이 없다)', () => {
+    const r = computeTrackRecord(many(5, { stakedKrw: 1_000, buyers: 1 }), NOW);
+    expect(r.stakedSampleSize).toBe(5); // 표본 문턱은 넘었다
+    expect(r.stakedQualified).toBe(false);
+    expect(stakedHitRateLabel(r)).toBe('집계 중');
+  });
+
+  it('한 사람이 큰돈을 몰아줘도 나가지 않는다 (사람 수가 없다)', () => {
+    const r = computeTrackRecord(many(5, { stakedKrw: 200_000, buyers: 1 }), NOW);
+    expect(r.stakedAmountKrw).toBe(1_000_000);
+    expect(r.stakedQualified).toBe(false);
+  });
+
+  it('금액과 사람 수를 둘 다 넘겨야 비율이 나간다', () => {
+    const r = computeTrackRecord(
+      [
+        ...many(4, { stakedKrw: 30_000, buyers: 3, outcome: 'HIT' }),
+        pred({ stakedKrw: 30_000, buyers: 3, outcome: 'MISS' }),
+      ],
+      NOW,
+    );
+    expect(r.stakedQualified).toBe(true);
+    expect(stakedHitRateLabel(r)).toBe('80.0%');
+  });
+
+  it('구매자 수는 카드별 최댓값 — 세 카드 × 1명이 3명이 되지 않는다', () => {
+    const r = computeTrackRecord(many(5, { stakedKrw: 50_000, buyers: 1 }), NOW);
+    expect(r.stakedBuyers).toBe(1);
+    expect(r.stakedQualified).toBe(false);
+  });
+
+  it('표본 자체가 모자라면 문턱 이야기 전에 진행도를 적는다', () => {
+    const r = computeTrackRecord(many(2, { stakedKrw: 500_000, buyers: 9 }), NOW);
+    expect(stakedHitRateLabel(r)).toBe('검증 2/5건');
   });
 });

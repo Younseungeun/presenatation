@@ -16,7 +16,7 @@ import { toJudgeableCard } from './cardMapper';
 import { rebaseIfAdjusted } from './corporateActionService';
 import { buildJudgmentWrites } from './judgmentWriter';
 import { memoizeRegistry } from '@/infra/marketData/memoRegistry';
-import { isJudgmentPaused } from './judgmentPause';
+import { isJudgmentPaused, setJudgmentPause } from './judgmentPause';
 
 // 판정 배치: 시한이 지난 미판정 카드를 찾아 판정 → 점수 산정 → 에스크로 정산까지
 // 하나의 트랜잭션으로 실행한다 (docs/market-data.md §4).
@@ -71,6 +71,11 @@ export interface BatchSummary {
    */
   disagreed: string[];
   /**
+   * 불일치가 무더기로 나 **이 자산군의 자동 판정을 정지시켰다** (shouldHaltOnDisagreement).
+   * 값이 있으면 다음 회차부터 판정이 서고, 사람이 소스를 확인해 풀어야 한다.
+   */
+  haltedAssetClass: AssetClass | null;
+  /**
    * **공급자가 200 OK로 빈 배열을 준 카드** — 소스별 집계 (2026-08-15).
    *
    * 이것만 따로 세는 이유: 빈 배열은 **예외를 던지지 않는다.** 공급자 장애 감지에도,
@@ -121,6 +126,38 @@ export const STALE_DEFER_DAYS = 7;
 export const EMPTY_RANGE_RATIO = 0.5;
 export const EMPTY_RANGE_MIN_CARDS = 5;
 export const EMPTY_RANGE_STREAK = 3;
+
+/**
+ * **불일치가 무더기로 나면 그 자산군의 자동 판정을 통째로 세운다** (2026-08-15).
+ *
+ * 외부 검토가 안전 장치의 방향이 거꾸로였음을 짚었다. 전에는 "예상 불일치가 운영자
+ * 처리 용량을 넘으면 enforce로 올리지 않는다"를 전환 조건에 뒀는데, 그러면 **시장
+ * 급변·API 개편으로 불일치가 폭증하는 바로 그날 대조가 꺼지고** 신뢰가 깨진 단일
+ * 소스로 자동 판정이 그대로 나간다. 용량 초과의 처방은 장치를 끄는 것이 아니라
+ * **큐를 세우는 것**이다.
+ *
+ * 왜 불일치 카드만 빼지 않고 전부 멈추는가: 소스가 무더기 불일치를 낼 만큼 깨졌다면
+ * **합의한 카드도 검증된 것이 아니다** — 그저 목표선을 사이에 두지 않았을 뿐이다.
+ * 그 상태에서 나머지를 판정하는 것은 애초에 대조를 안 한 것과 같다.
+ *
+ * 문턱이 비율 **그리고** 건수인 이유는 빈 배열 알림과 같다(EMPTY_RANGE_RATIO 주석):
+ * 대상이 2장인 조용한 날의 2/2가 100%로 울리면 안 되고, 만기가 몰린 날 3건이
+ * 전체를 세워도 안 된다. 목표선 근처 카드에서 **불일치가 드물게 나는 것은 정상**이라
+ * 한두 건은 수동 큐로 보내고 지나가야 한다.
+ *
+ * 정지는 **자동으로 풀리지 않는다** — 사람이 소스를 확인하고 해제한다(judgmentPause).
+ * 정지 중에도 14일 상한(전액 환불)은 계속 집행되므로 구매자 약속은 유지된다.
+ */
+export const DISAGREEMENT_HALT_RATIO = 0.5;
+export const DISAGREEMENT_HALT_MIN = 5;
+
+export function shouldHaltOnDisagreement(disagreed: number, attempted: number): boolean {
+  return (
+    disagreed >= DISAGREEMENT_HALT_MIN &&
+    attempted > 0 &&
+    disagreed / attempted >= DISAGREEMENT_HALT_RATIO
+  );
+}
 
 /** 알림을 울려야 하는 소스만 골라 낸다 (scripts/runScheduler가 쓴다) */
 export function emptyRangeAlerts(
@@ -346,6 +383,7 @@ async function sweepHardCapped(
     providerDown: new Map(),
     disagreed: [],
     emptyRange: new Map(),
+    haltedAssetClass: null,
     cursor: null,
     hasMore: false,
   };
@@ -504,6 +542,7 @@ export async function judgeAndSettleDueCards(
     providerDown: new Map(),
     disagreed: [],
     emptyRange: new Map(),
+    haltedAssetClass: null,
     cursor:
       dueCards.length > 0
         ? {
@@ -779,6 +818,35 @@ export async function judgeAndSettleDueCards(
         }
       }
     }
+  }
+
+  // ── 불일치가 무더기면 이 자산군을 세운다 (shouldHaltOnDisagreement) ──────
+  //
+  // 여기까지 오는 동안 불일치 카드는 이미 하나씩 수동 큐로 갔다. 그런데 **무더기로
+  // 났다면 문제는 카드가 아니라 소스**다 — 그리고 그 소스로 판정한 나머지 카드는
+  // 합의했다는 이유로 안전한 것이 아니라, 그저 목표선을 사이에 두지 않았을 뿐이다.
+  //
+  // 정지는 **다음 회차부터** 듣는다(이번 회차의 판정은 이미 나갔다). 그래도 이 자리가
+  // 맞다: 다음 회차를 세우지 않으면 같은 소스로 다음 20장이 그대로 나간다.
+  if (assetClass && shouldHaltOnDisagreement(summary.disagreed.length, dueCards.length)) {
+    await setJudgmentPause(
+      prisma,
+      {
+        scope: assetClass,
+        paused: true,
+        // 사람이 아니라 시스템이 세운 것이라는 사실이 감사 로그에 남아야 한다 —
+        // 해제할 때 "누가 왜 멈췄나"의 답이 "아무도"면 원인을 못 찾는다
+        operatorUserId: 'system:cross-check',
+        reason:
+          `시세 소스 간 판정 불일치 ${summary.disagreed.length}/${dueCards.length}건 — ` +
+          '한 소스가 깨졌을 가능성이 높아 자동 판정을 정지했습니다',
+      },
+      now,
+    );
+    summary.haltedAssetClass = assetClass;
+    console.error(
+      `[P0] ${assetClass} 자동 판정 정지 — 불일치 ${summary.disagreed.length}/${dueCards.length}건`,
+    );
   }
 
   return summary;

@@ -16,12 +16,23 @@ export interface JudgedPrediction {
   settledPrice?: number;
   judgedAt: Date;
   /**
-   * 이 카드가 **팔렸는가** (구매 1건 이상) — 2026-08-15 추가.
+   * 이 카드에 **실제로 걸린 돈** (판매 대금 합계, 원) — 2026-08-15.
    *
-   * 없으면(undefined) 팔린 것으로 세지 않는다. 옛 호출부가 조용히 전부 "걸린 카드"로
-   * 잡히는 것보다 **덜 세는 쪽**이 안전하기 때문이다.
+   * 처음에는 `sold: boolean`이었는데 **세탁에 무너진다**(외부 검토 지적):
+   * 최저가 1,000원짜리로 올려 지인이 사면 수수료 100원에 "돈이 걸린 예측"이 된다.
+   * 건수는 1,000원과 100만원을 구별하지 못하므로 **금액이 눈금이어야 한다.**
+   *
+   * 없으면(undefined) 0으로 본다 — 옛 호출부가 조용히 "걸린 카드"로 잡히는 것보다
+   * **덜 세는 쪽**이 안전하다.
    */
-  sold?: boolean;
+  stakedKrw?: number;
+  /**
+   * 이 카드를 산 **서로 다른 사람 수**.
+   *
+   * 금액만으로는 한 사람이 여러 장 사는 것과 여럿이 사는 것이 같아 보인다. 세탁은
+   * 대개 **소수의 협력자**가 하므로, 금액과 사람 수를 함께 요구하면 비용이 곱으로 는다.
+   */
+  buyers?: number;
 }
 
 export interface TrackRecord {
@@ -59,7 +70,45 @@ export interface TrackRecord {
    */
   stakedSampleSize: number;
   stakedHitRate: number | null;
+  /** 걸린 돈의 합계 (원) — 표시의 근거이자 세탁 방어의 눈금 */
+  stakedAmountKrw: number;
+  /** 이 리서처의 카드를 산 **서로 다른 사람 수** (자산군별 집계 안에서) */
+  stakedBuyers: number;
+  /**
+   * **적중률 숫자를 내보내도 되는가** (STAKED_DISPLAY_FLOOR).
+   *
+   * 표본 수만으로는 못 막는다 — 1,000원 카드 다섯 장이면 표본 5건이 채워지고
+   * "돈이 걸린 예측 100%"가 5,000원에 만들어진다. 그래서 **금액과 사람 수**를
+   * 함께 요구한다. 못 넘으면 비율 대신 진행도를 적는다(hitRateLabel과 같은 태도).
+   */
+  stakedQualified: boolean;
 }
+
+/**
+ * "돈이 걸린 예측" 적중률을 **숫자로** 내보내기 위한 최소 조건 (2026-08-15).
+ *
+ * ── 왜 금액과 사람 수를 함께 거는가 ─────────────────────────────
+ * 구매 여부(boolean)로만 가르면 **최저가 세탁**이 그대로 통한다: 1,000원에 올려
+ * 지인이 사면 수수료 100원으로 "돈이 걸린 예측"이 된다. 검토가 정확히 이 지점을 짚었다.
+ *
+ * 금액만 걸어도 부족하다 — 한 사람이 만원짜리를 열 장 사면 10만원이 채워진다.
+ * 사람 수만 걸어도 부족하다 — 1,000원짜리를 다섯 명이 사면 다섯 명이 채워진다.
+ * **둘을 곱으로 요구**해야 세탁 비용이 곱으로 는다.
+ *
+ * ── 값의 근거 ───────────────────────────────────────────────
+ * 가격 가이드가 건당 5천~5만원(기획 §3.4)이라 중간값 2만원 기준:
+ *  · 금액 10만원 = 카드 5장어치 판매. 최저가(1,000원)로 채우려면 **100건**이 필요하다
+ *  · 구매자 3명 = 지인 동원의 현실적 상한 근처. 본인 인증이 실공급자로 바뀌면
+ *    이 조건이 부계정으로는 못 채워진다
+ * 정직한 리서처에게는 낮은 문턱이다 — 2만원 카드가 다섯 번 팔리고 사는 사람이
+ * 셋이면 넘는다. **막으려는 것은 판매가 아니라 "판매의 시늉"이다.**
+ */
+export const STAKED_DISPLAY_FLOOR = {
+  /** 누적 판매 대금 (원) */
+  AMOUNT_KRW: 100_000,
+  /** 서로 다른 구매자 수 */
+  BUYERS: 3,
+} as const;
 
 /** 방향 반영 실현 수익률(%): 하락 예측이 맞으면 양수가 되도록 부호를 뒤집는다 */
 function realizedReturnPct(p: JudgedPrediction): number | null {
@@ -88,12 +137,16 @@ export function computeTrackRecord(predictions: JudgedPrediction[], now = new Da
 
   // **돈이 걸린 카드만** 따로 센다 — 안 팔린 카드는 틀려도 현실의 대가가 0이라
   // 구매자가 "이 사람을 믿을까"를 판단할 때 무게가 같을 수 없다 (TrackRecord 주석)
-  const staked = judged.filter((p) => p.sold === true);
+  const staked = judged.filter((p) => (p.stakedKrw ?? 0) > 0);
   const stakedSampleSize = staked.length;
   const stakedHitRate =
     stakedSampleSize > 0
       ? staked.filter((p) => p.outcome === 'HIT').length / stakedSampleSize
       : null;
+  const stakedAmountKrw = staked.reduce((acc, p) => acc + (p.stakedKrw ?? 0), 0);
+  // 카드별 구매자 수의 최댓값을 쓴다 — 같은 사람이 여러 카드를 산 것을 여러 명으로
+  // 부풀리지 않기 위해서다. 합산은 "3명"을 세 카드 × 1명으로 쉽게 만들어 준다
+  const stakedBuyers = staked.reduce((acc, p) => Math.max(acc, p.buyers ?? 0), 0);
 
   return {
     sampleSize,
@@ -103,6 +156,11 @@ export function computeTrackRecord(predictions: JudgedPrediction[], now = new Da
     hypotheticalReturnPct,
     stakedSampleSize,
     stakedHitRate,
+    stakedAmountKrw,
+    stakedBuyers,
+    stakedQualified:
+      stakedAmountKrw >= STAKED_DISPLAY_FLOOR.AMOUNT_KRW &&
+      stakedBuyers >= STAKED_DISPLAY_FLOOR.BUYERS,
   };
 }
 
@@ -130,4 +188,20 @@ export function hitRateLabel(
 /** 표본이 차서 적중률 숫자를 보여줘도 되는가 — 표본 수를 따로 적을지 정할 때 쓴다 */
 export function showsHitRate(hitRate: number | null, sampleSize: number): boolean {
   return hitRate !== null && sampleSize >= MIN_SAMPLE_FOR_RATE;
+}
+
+/**
+ * "돈이 걸린 예측"을 화면에 적는 **단 하나의 방법** (hitRateLabel과 짝).
+ *
+ * 표본(MIN_SAMPLE_FOR_RATE)에 더해 **금액·사람 수 문턱**까지 넘어야 숫자가 나간다.
+ * 못 넘으면 왜 못 넘었는지를 적는다 — "검증 중"만 적으면 리서처가 무엇을 더 해야
+ * 하는지 알 수 없고, 문턱을 숨기면 세탁자만 시행착오로 알아낸다.
+ */
+export function stakedHitRateLabel(r: TrackRecord): string {
+  if (r.stakedSampleSize === 0) return '—';
+  if (r.stakedSampleSize < MIN_SAMPLE_FOR_RATE) {
+    return `검증 ${r.stakedSampleSize}/${MIN_SAMPLE_FOR_RATE}건`;
+  }
+  if (!r.stakedQualified) return '집계 중';
+  return `${(r.stakedHitRate! * 100).toFixed(1)}%`;
 }

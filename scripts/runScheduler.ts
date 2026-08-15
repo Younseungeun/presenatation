@@ -235,6 +235,7 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
     due.blockedInstruments.push(...next.blockedInstruments);
     due.failures.push(...next.failures);
     due.disagreed.push(...next.disagreed);
+    due.haltedAssetClass = due.haltedAssetClass ?? next.haltedAssetClass;
     // 빈 배열 집계는 **회차를 합쳐야 비율이 의미를 갖는다** — 20장씩 끊어 보면
     // 분모가 작아 우연히 100%가 나오는 회차가 생긴다
     for (const [src, stat] of next.emptyRange) {
@@ -325,6 +326,20 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
   //
   // 카드는 이미 수동 판정 큐에 올라가 있고 즉시 판정할 수 있다. 방치하면 시한 후
   // 14일에 시스템이 전액 환불로 닫는다 — 리서처가 맞혔더라도 0점이 된다.
+  // **자동 판정이 스스로 섰다** — 불일치가 무더기라 한 소스가 깨졌다고 본 것이다
+  // (judgmentBatch.shouldHaltOnDisagreement). 다른 알림과 달리 **이미 판정이 멈춰 있다.**
+  if (due.haltedAssetClass) {
+    await alertOps(
+      `[P0] ${due.haltedAssetClass} 자동 판정 정지 — 시세 소스가 깨진 것으로 보입니다`,
+      `한 회차에서 불일치가 무더기로 나 자동 판정을 세웠습니다 (${due.disagreed.length}건).\n` +
+        `합의한 카드도 안전한 것이 아닙니다 — 목표선을 사이에 두지 않았을 뿐입니다.\n` +
+        `두 소스의 일봉을 직접 확인하고(npm run probe:sources), 원인을 고친 뒤 정지를 푸세요.\n` +
+        `정지 중에도 시한 후 ${JUDGMENT_HARD_CAP_DAYS}일 상한(전액 환불)은 계속 집행됩니다.`,
+      '/admin/judgments',
+      `judge:halt:${due.haltedAssetClass}`,
+    );
+  }
+
   if (due.disagreed.length > 0) {
     await alertOps(
       `[P0] 시세 소스 간 판정 불일치 ${due.disagreed.length}건 — 사람이 판정해야 합니다`,

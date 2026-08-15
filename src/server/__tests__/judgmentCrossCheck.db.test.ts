@@ -9,9 +9,12 @@ import {
   EMPTY_RANGE_STREAK,
   JUDGMENT_HARD_CAP_DAYS,
   judgeAndSettleDueCards,
+  shouldHaltOnDisagreement,
+  DISAGREEMENT_HALT_MIN,
 } from '../judgmentBatch';
 import { createDraftReport, publishReport } from '../reportService';
 import { manualJudgeCard } from '../manualJudgmentService';
+import { isJudgmentPaused, setJudgmentPause } from '../judgmentPause';
 
 // **두 시세 소스가 다른 답을 냈을 때 무엇이 일어나는가** (domain/crossCheck).
 //
@@ -272,5 +275,84 @@ describe('빈 배열은 배치에서 따로 세어진다', () => {
     expect(stat).toBeDefined();
     expect(stat!.empty).toBeGreaterThan(0);
     expect(stat!.attempted).toBeGreaterThanOrEqual(stat!.empty);
+  });
+});
+
+// **불일치가 무더기면 자산군을 통째로 세운다** (2026-08-15, 외부 검토 D-4).
+//
+// 전에는 "예상 불일치가 운영자 용량을 넘으면 enforce로 올리지 않는다"를 전환 조건에
+// 뒀는데, 안전 장치의 방향이 거꾸로였다 — **불일치가 폭증하는 바로 그날 대조가 꺼지고**
+// 신뢰가 깨진 단일 소스로 자동 판정이 그대로 나간다. 용량 초과의 처방은 장치를 끄는
+// 것이 아니라 큐를 세우는 것이다.
+describe('대량 불일치 → 자동 판정 정지', () => {
+  it('문턱은 비율과 건수를 둘 다 넘어야 한다', () => {
+    // 조용한 날의 2/2 = 100% — 세우면 안 된다
+    expect(shouldHaltOnDisagreement(2, 2)).toBe(false);
+    // 만기가 몰린 날의 몇 건 — 나머지가 멀쩡하면 수동 큐로 보내고 지나간다
+    expect(shouldHaltOnDisagreement(4, 100)).toBe(false);
+    expect(shouldHaltOnDisagreement(DISAGREEMENT_HALT_MIN, DISAGREEMENT_HALT_MIN * 2)).toBe(true);
+  });
+
+  it('한 회차에서 무더기로 갈리면 그 자산군의 자동 판정이 선다', async () => {
+    const tickers = ['KRW-HL1', 'KRW-HL2', 'KRW-HL3', 'KRW-HL4', 'KRW-HL5', 'KRW-HL6'];
+    await seedTestInstruments(
+      prisma,
+      tickers.map((ticker) => ({ assetClass: 'CRYPTO', ticker, name: ticker, shortable: true })),
+    );
+    // 활성 카드 상한에 걸리지 않게 리서처를 나눈다
+    const ids: string[] = [];
+    for (const [i] of tickers.entries()) {
+      const u = await prisma.user.create({
+        data: {
+          email: `halt${i}@xcheck.io`,
+          identityVerified: true,
+          researcherProfile: { create: { tier: 'CHALLENGER' } },
+        },
+        include: { researcherProfile: true },
+      });
+      ids.push(u.researcherProfile!.id);
+    }
+    const saved = researcherId;
+    for (const [i, t] of tickers.entries()) {
+      researcherId = ids[i];
+      await publishCard(t);
+    }
+    researcherId = saved;
+
+    // 주 소스는 전부 적중, 두 번째 소스는 전부 실패 → 전원 불일치
+    const primary = new FixtureMarketDataProvider();
+    const second = new FixtureMarketDataProvider();
+    (second as { sourceId: string }).sourceId = 'second';
+    for (const t of tickers) {
+      primary.setCurrentPrice(t, 100).setQuotes(t, [bar('2026-07-20', 100), bar('2026-08-01', HIT_CLOSE)]);
+      second.setCurrentPrice(t, 100).setQuotes(t, [bar('2026-07-20', 100), bar('2026-08-01', MISS_CLOSE)]);
+    }
+
+    const summary = await judgeAndSettleDueCards(
+      prisma,
+      { CRYPTO: primary },
+      BATCH_NOW,
+      'CRYPTO',
+      undefined,
+      undefined,
+      { CRYPTO: second },
+      'enforce',
+    );
+
+    expect(summary.disagreed.length).toBeGreaterThanOrEqual(DISAGREEMENT_HALT_MIN);
+    expect(summary.haltedAssetClass).toBe('CRYPTO');
+    // **다음 회차는 실제로 선다** — 정지가 기록으로만 남으면 아무것도 막지 못한다
+    expect(await isJudgmentPaused(prisma, 'CRYPTO')).toBe(true);
+
+    // 정지 중에도 상한(환불)은 계속 집행된다 — 구매자 약속은 정지와 무관하다
+    const during = await judgeAndSettleDueCards(prisma, { CRYPTO: primary }, PAST_CAP, 'CRYPTO');
+    expect(during.hardCapped.length).toBeGreaterThan(0);
+
+    await setJudgmentPause(prisma, {
+      scope: 'CRYPTO',
+      paused: false,
+      operatorUserId: operatorId,
+      reason: '시험 정리',
+    });
   });
 });

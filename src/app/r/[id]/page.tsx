@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { hitRateLabel } from "@/domain/trackRecord";
+import { hitRateLabel, stakedHitRateLabel } from "@/domain/trackRecord";
 import { notFound } from "next/navigation";
 import { ASSET_CLASS_LABEL, type AssetClass } from "@/domain/constants";
 import { JUDGMENT_BASIS_NOTE } from "@/domain/crossCheck";
@@ -126,10 +126,10 @@ export default async function PublicProfile({
               */}
               <div className={styles.stat}>
                 <div className={styles.statLabel}>돈이 걸린 예측</div>
-                <div className={styles.statValue}>
-                  {hitRateLabel(tr.stakedHitRate, tr.stakedSampleSize, { none: "—" })}
+                <div className={styles.statValue}>{stakedHitRateLabel(tr)}</div>
+                <div className={styles.statSub}>
+                  {tr.stakedSampleSize}건 · {tr.stakedAmountKrw.toLocaleString("ko-KR")}원
                 </div>
-                <div className={styles.statSub}>{tr.stakedSampleSize}건 판매</div>
               </div>
               <div className={styles.stat}>
                 <div className={styles.statLabel}>최근 12개월</div>
@@ -153,7 +153,7 @@ export default async function PublicProfile({
             */}
             <p className={styles.footnote}>
               적중률은 판정된 모든 카드로 셉니다. <b>돈이 걸린 예측</b>은 그중 실제로
-              팔린 카드만 따로 센 값입니다 — 팔린 카드가 틀리면 리서처는 대금을 잃습니다.
+              팔린 카드만 따로 센 값입니다 — 팔린 카드가 틀리면 리서처는 대금을 잃습니다. 판매액과 구매자 수가 적으면 비율 대신 <b>집계 중</b>으로 둡니다.
             </p>
             <p className={styles.footnote}>
               판정 기준: {JUDGMENT_BASIS_NOTE[tr.assetClass as AssetClass]}

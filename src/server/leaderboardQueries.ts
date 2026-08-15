@@ -16,8 +16,23 @@ interface JudgmentRow {
     assetClass: string;
     direction: string;
     basePrice: number | null;
-    /** 팔린 카드인가 — 구매 건수로 판단 (domain/trackRecord.stakedHitRate) */
-    report?: { _count?: { purchases: number } };
+    /**
+     * 이 카드에 실제로 걸린 돈과 산 사람들 — 건수(boolean)로는 최저가 세탁을 못 막는다
+     * (domain/trackRecord.STAKED_DISPLAY_FLOOR)
+     */
+    report?: { purchases?: { amountKrw: number; buyerId: string }[] };
+  };
+}
+
+/** 구매 행 → 걸린 금액·서로 다른 구매자 수 */
+function stakeOf(purchases: { amountKrw: number; buyerId: string }[] | undefined): {
+  stakedKrw: number;
+  buyers: number;
+} {
+  if (!purchases || purchases.length === 0) return { stakedKrw: 0, buyers: 0 };
+  return {
+    stakedKrw: purchases.reduce((acc, p) => acc + p.amountKrw, 0),
+    buyers: new Set(purchases.map((p) => p.buyerId)).size,
   };
 }
 
@@ -28,7 +43,7 @@ function toJudgedPrediction(j: JudgmentRow): JudgedPrediction {
     basePrice: j.predictionCard.basePrice ?? 0,
     settledPrice: j.settledPrice ?? undefined,
     judgedAt: j.judgedAt,
-    sold: (j.predictionCard.report?._count?.purchases ?? 0) > 0,
+    ...stakeOf(j.predictionCard.report?.purchases),
   };
 }
 
@@ -90,7 +105,10 @@ export async function getLeaderboard(
           direction: true,
           basePrice: true,
           report: {
-            select: { researcherId: true, _count: { select: { purchases: true } } },
+            select: {
+              researcherId: true,
+              purchases: { select: { amountKrw: true, buyerId: true } },
+            },
           },
         },
       },
@@ -204,7 +222,10 @@ export async function getAllTimeRanking(
           direction: true,
           basePrice: true,
           report: {
-            select: { researcherId: true, _count: { select: { purchases: true } } },
+            select: {
+              researcherId: true,
+              purchases: { select: { amountKrw: true, buyerId: true } },
+            },
           },
         },
       },
@@ -261,7 +282,7 @@ export async function getPublicProfile(
         include: {
           predictionCard: { include: { judgment: true } },
           // 팔린 카드를 가르는 값 — 행을 끌어오지 않고 개수만 (trackRecord.stakedHitRate)
-          _count: { select: { purchases: true } },
+          purchases: { select: { amountKrw: true, buyerId: true } },
         },
       },
     },
@@ -281,7 +302,7 @@ export async function getPublicProfile(
       basePrice: c.basePrice ?? 0,
       settledPrice: c.judgment!.settledPrice ?? undefined,
       judgedAt: c.judgment!.judgedAt,
-      sold: r._count.purchases > 0,
+      ...stakeOf(r.purchases),
     });
     byAsset.set(c.assetClass as AssetClass, list);
   }
