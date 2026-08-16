@@ -205,6 +205,52 @@ export async function consumeApproval(
   }
 }
 
+// ── 1인 운영 모드 (2026-08-17 사용자 확정) ────────────────────
+//
+// 사업 초기에는 운영자가 창업자 1명뿐이고, 그때 2인 승인은 **아무도 안 지키면서
+// 본인만 막는 절차**다 — 내부자 후보가 코드·DB·배포를 전부 쥔 창업자 본인이라,
+// 앱 관문이 막을 수 있는 상대가 아니다. 그렇다고 관문을 없애면 **계정 탈취**
+// (세션·기기를 훔친 외부자)까지 열린다. 그래서 두 번째 사람 자리를
+// **실행 직전 생체 재확인**으로 갈아끼운다:
+//   세션만 훔친 사람 → 생체가 없어 못 한다
+//   폰을 주운 사람   → 얼굴·지문이 필요해 못 한다
+//   창업자 본인      → 1초
+// 진짜 운영자가 2명이 되는 순간 자동으로 2인 승인으로 돌아간다.
+
+/** 진짜(콜드 제외) 운영자가 1명 이하인가 — 이 판정이 두 체제를 가른다 */
+export async function isSoloOperatorMode(prisma: PrismaClient): Promise<boolean> {
+  const real = await prisma.user.count({ where: { role: 'OPERATOR', operatorCold: false } });
+  return real <= 1;
+}
+
+/**
+ * 생체 재확인의 유효 시간 — 재확인하고 실행 버튼을 누르기까지의 여유다.
+ * 길게 두면 그만큼 "재확인해 둔 세션"을 훔칠 창이 된다.
+ * @근거 설계 재확인 직후 실행을 마치기에 넉넉하되, 훔친 세션이 얹혀 갈 창은 좁게
+ */
+export const OPERATOR_RECHECK_WINDOW_MS = 5 * 60_000;
+
+/**
+ * 생체 재확인을 **써서 없앤다** — 승인서와 같은 1회용이다.
+ * 재확인 한 번으로 두 가지 실행이 나가면, 두 번째는 확인받지 않은 실행이다.
+ */
+export async function consumeOperatorRecheck(
+  prisma: PrismaClient,
+  operatorUserId: string,
+  now = new Date(),
+): Promise<void> {
+  const cutoff = new Date(now.getTime() - OPERATOR_RECHECK_WINDOW_MS);
+  const { count } = await prisma.user.updateMany({
+    where: { id: operatorUserId, operatorRecheckAt: { gte: cutoff } },
+    data: { operatorRecheckAt: null },
+  });
+  if (count === 0) {
+    throw new ApprovalError(
+      '실행 직전 지문·얼굴 확인이 필요합니다 — 확인 후 다시 실행하세요.',
+    );
+  }
+}
+
 /** 대기 중인 요청 (운영자 화면) */
 export async function getPendingApprovals(prisma: PrismaClient, now = new Date()) {
   await expireStaleApprovals(prisma, now); // 화면에 뜨는 것은 전부 아직 살아 있는 요청이다

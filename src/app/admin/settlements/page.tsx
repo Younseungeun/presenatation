@@ -8,6 +8,7 @@ import {
   SETTLEMENT_COOLDOWN_HOURS,
 } from "@/server/settlementCooldown";
 import { getPendingPayouts, getPendingRefunds } from "@/server/settlementOpsService";
+import { DUAL_APPROVAL_THRESHOLD_KRW } from "@/domain/operatorApproval";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
 import { EmptyState } from "../../EmptyState";
@@ -120,16 +121,35 @@ export default async function AdminSettlementsPage() {
       {payouts.length === 0 ? (
         <EmptyState compact glyph="inbox" title="지급할 정산이 없어요" />
       ) : (
-        payouts.map((s) => (
-          <div key={s.id} className={styles.card}>
+        payouts.map((s) => {
+          // 금액이 클수록 눈에 걸리게 (2026-08-17 사용자 확정 — 1인 운영에서 고액 지급
+          // 2인 승인의 "큰돈은 주의해서 보자"는 취지를 색이 잇는다. 검수 큐의 지연
+          // 강조와 같은 문법: 좌측 컬러 보더). 문턱은 2인 승인 문턱과 그 절반
+          const emphasis =
+            s.researcherPayoutKrw >= DUAL_APPROVAL_THRESHOLD_KRW
+              ? "var(--neg)"
+              : s.researcherPayoutKrw >= DUAL_APPROVAL_THRESHOLD_KRW / 2
+                ? "var(--warn)"
+                : null;
+          return (
+          <div
+            key={s.id}
+            className={styles.card}
+            style={emphasis ? { borderLeft: `4px solid ${emphasis}` } : undefined}
+          >
             <div className={styles.cardTop}>
-              <div className={styles.cardTitle}>
+              <div className={styles.cardTitle} style={emphasis ? { color: emphasis } : undefined}>
                 {s.researcherPayoutKrw.toLocaleString()}원 →{" "}
                 {s.purchase.report.researcher.user.penName ??
                   s.purchase.report.researcher.user.email}
               </div>
               <StatusChip status="HIT" label="적중 정산" />
             </div>
+            {emphasis === "var(--neg)" && (
+              <p className={styles.sub} style={{ color: emphasis }}>
+                큰 금액입니다 — 실행 전에 리포트·판정·계좌를 한 번 더 확인하세요.
+              </p>
+            )}
             <div className={styles.meta}>
               <span>{s.purchase.report.title}</span>
               <span>수수료 {s.platformFeeKrw.toLocaleString()}원</span>
@@ -137,7 +157,8 @@ export default async function AdminSettlementsPage() {
             </div>
             <ExecuteButton kind="PAYOUT" settlementId={s.id} />
           </div>
-        ))
+          );
+        })
       )}
       </main>
     </>

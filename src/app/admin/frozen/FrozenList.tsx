@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { performOperatorRecheck } from "../operatorRecheck";
 import styles from "../../researcher/researcher.module.css";
 
 // 동결 해제 — 확인한 내용을 적어야 실행되고, 그 글이 그대로 승인자의 사유가 된다.
@@ -21,7 +22,7 @@ export function FrozenList({ initial }: { initial: FrozenRow[] }) {
   const [notice, setNotice] = useState<Record<string, string>>({});
   const [error, setError] = useState<Record<string, string>>({});
 
-  async function unfreeze(id: string) {
+  async function unfreeze(id: string, retried = false) {
     setBusy(id);
     setError((p) => ({ ...p, [id]: "" }));
     setNotice((p) => ({ ...p, [id]: "" }));
@@ -35,6 +36,14 @@ export function FrozenList({ initial }: { initial: FrozenRow[] }) {
       if (!res.ok) {
         if (json.code === "APPROVAL_PENDING") {
           setNotice((p) => ({ ...p, [id]: json.error }));
+        } else if (json.code === "RECHECK_REQUIRED" && !retried) {
+          // 1인 운영 모드 — 두 번째 사람 대신 지문·얼굴이 선다. 확인되면 한 번만 재시도
+          const recheck = await performOperatorRecheck();
+          if (recheck.ok) {
+            await unfreeze(id, true);
+            return;
+          }
+          if (recheck.error) setError((p) => ({ ...p, [id]: recheck.error! }));
         } else {
           setError((p) => ({ ...p, [id]: json.error ?? "해제에 실패했습니다" }));
         }

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { performOperatorRecheck } from "../operatorRecheck";
 import styles from "../../researcher/researcher.module.css";
 
 // 수동 판정 폼: 카드 유형에 맞는 시세만 입력받는다.
@@ -42,7 +43,7 @@ export function ManualJudgeForm({
         ? "기간 최고가"
         : "기간 최저가";
 
-  async function submit() {
+  async function submit(retried = false) {
     setBusy(true);
     setError(null);
     try {
@@ -66,6 +67,16 @@ export function ManualJudgeForm({
       });
       const body = await res.json();
       if (!res.ok) {
+        if (body.code === "RECHECK_REQUIRED" && !retried) {
+          // 1인 운영 모드 — 두 번째 사람 대신 지문·얼굴이 선다. 확인되면 한 번만 재시도
+          const recheck = await performOperatorRecheck();
+          if (recheck.ok) {
+            await submit(true);
+            return;
+          }
+          if (recheck.error) setError(recheck.error);
+          return;
+        }
         setError(body.error ?? "판정 실패");
         return;
       }
@@ -153,7 +164,7 @@ export function ManualJudgeForm({
       <div className={styles.formActions}>
         <button
           className={styles.primaryBtn}
-          onClick={submit}
+          onClick={() => submit()}
           disabled={busy || !reason.trim() || (mode === "PRICE" && !price)}
         >
           {busy ? "판정 중…" : mode === "PRICE" ? "판정 실행" : "판정 불가 처리"}

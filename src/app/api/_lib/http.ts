@@ -85,11 +85,11 @@ export function toErrorResponse(e: unknown): NextResponse {
   if (e instanceof PublishValidationError) {
     return NextResponse.json({ error: '검증 실패', issues: e.issues }, { status: 400 });
   }
-  if (
-    e instanceof ManualJudgmentError ||
-    e instanceof SettlementOpsError ||
-    e instanceof ComplianceTakedownError
-  ) {
+  if (e instanceof ManualJudgmentError) {
+    // code(RECHECK_REQUIRED)가 있으면 화면이 지문·얼굴 확인을 띄우고 재시도한다
+    return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+  }
+  if (e instanceof SettlementOpsError || e instanceof ComplianceTakedownError) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
   if (e instanceof Prisma.PrismaClientKnownRequestError && PRISMA_STATUS[e.code]) {

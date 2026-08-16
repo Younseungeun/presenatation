@@ -2,7 +2,13 @@ import { randomInt } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
 import { hashCi } from './authService';
-import { ApprovalError, consumeApproval, requestApproval } from './operatorApprovalService';
+import {
+  ApprovalError,
+  consumeApproval,
+  consumeOperatorRecheck,
+  isSoloOperatorMode,
+  requestApproval,
+} from './operatorApprovalService';
 import { decryptField, encryptField, last4 } from './fieldCrypto';
 import { notifyOperators } from './opsAlert';
 
@@ -41,8 +47,11 @@ import { notifyOperators } from './opsAlert';
 export class PayoutAccountError extends Error {
   constructor(
     message: string,
-    /** APPROVAL_PENDING = 실패가 아니라 절차의 절반 — 화면이 오류 색으로 그리면 안 된다 */
-    readonly code?: 'APPROVAL_PENDING',
+    /**
+     * APPROVAL_PENDING = 실패가 아니라 절차의 절반 — 화면이 오류 색으로 그리면 안 된다.
+     * RECHECK_REQUIRED = 1인 운영 모드 — 화면이 지문·얼굴 확인을 띄우고 재시도한다.
+     */
+    readonly code?: 'APPROVAL_PENDING' | 'RECHECK_REQUIRED',
   ) {
     super(message);
     this.name = 'PayoutAccountError';
@@ -516,26 +525,39 @@ export async function unfreezePayouts(
     await consumeApproval(prisma, { action: 'PAYOUT_UNFREEZE', targetId: input.researcherUserId }, now);
   } catch (e) {
     if (!(e instanceof ApprovalError)) throw e;
-    const user = await prisma.user.findUnique({
-      where: { id: input.researcherUserId },
-      select: { penName: true, email: true },
-    });
-    await requestApproval(
-      prisma,
-      {
-        action: 'PAYOUT_UNFREEZE',
-        targetId: input.researcherUserId,
-        summary: `정산 동결 해제 — ${user?.penName ?? user?.email ?? input.researcherUserId}`,
-        requestedBy: input.operatorUserId,
-        reason: input.reason.trim(),
-      },
-      now,
-    );
-    throw new PayoutAccountError(
-      '동결 해제에는 다른 운영자의 승인이 필요합니다 — 승인 요청을 올려두었습니다. ' +
-        '승인되면 여기서 다시 실행하세요.',
-      'APPROVAL_PENDING',
-    );
+    // 승인서가 없다 — 여기서 체제가 갈린다 (2026-08-17 사용자 확정).
+    // 1인 운영: 두 번째 사람 대신 **실행 직전 생체 재확인**이 선다. 세션만 훔친
+    // 사람은 생체가 없고, 폰을 주운 사람은 얼굴·지문이 없다.
+    // 다인 운영: 요청을 대신 올리고 다른 운영자의 승인을 기다린다.
+    if (await isSoloOperatorMode(prisma)) {
+      try {
+        await consumeOperatorRecheck(prisma, input.operatorUserId, now);
+      } catch (re) {
+        if (!(re instanceof ApprovalError)) throw re;
+        throw new PayoutAccountError(re.message, 'RECHECK_REQUIRED');
+      }
+    } else {
+      const user = await prisma.user.findUnique({
+        where: { id: input.researcherUserId },
+        select: { penName: true, email: true },
+      });
+      await requestApproval(
+        prisma,
+        {
+          action: 'PAYOUT_UNFREEZE',
+          targetId: input.researcherUserId,
+          summary: `정산 동결 해제 — ${user?.penName ?? user?.email ?? input.researcherUserId}`,
+          requestedBy: input.operatorUserId,
+          reason: input.reason.trim(),
+        },
+        now,
+      );
+      throw new PayoutAccountError(
+        '동결 해제에는 다른 운영자의 승인이 필요합니다 — 승인 요청을 올려두었습니다. ' +
+          '승인되면 여기서 다시 실행하세요.',
+        'APPROVAL_PENDING',
+      );
+    }
   }
 
   const { count } = await prisma.payoutAccount.updateMany({

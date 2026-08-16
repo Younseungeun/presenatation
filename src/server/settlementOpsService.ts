@@ -2,7 +2,12 @@ import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
 import { notifyOperators } from './opsAlert';
 import { requiresDualApproval } from '@/domain/operatorApproval';
-import { ApprovalError, consumeApproval, requestApproval } from './operatorApprovalService';
+import {
+  ApprovalError,
+  consumeApproval,
+  isSoloOperatorMode,
+  requestApproval,
+} from './operatorApprovalService';
 import { assertPayoutAccountReady } from './payoutAccountService';
 import { assertWithinDailyLimit } from './payoutVelocity';
 import { assertCooldownPassed, cooldownCutoff } from './settlementCooldown';
@@ -618,7 +623,10 @@ export async function executePayout(
   // 습관이 되고, **형식이 되는 순간 2인 승인은 장식**이다(domain/operatorApproval).
   // 승인이 없으면 **요청을 대신 올리고 멈춘다** — 동결 해제·이의 인정과 같은 흐름이라
   // 별도의 요청 화면이 필요 없다
-  if (requiresDualApproval(s.researcherPayoutKrw)) {
+  // 1인 운영 모드에서는 관문 대신 **화면 강조**다 (2026-08-17 사용자 확정) —
+  // 이 관문의 취지는 "큰돈은 주의해서 보자"인데, 승인자가 없는 체제에서 그 취지는
+  // 지시서 화면의 금액 색 강조가 잇는다. 일일 한도·쿨다운·계좌 검증은 그대로 산다
+  if (requiresDualApproval(s.researcherPayoutKrw) && !(await isSoloOperatorMode(prisma))) {
     try {
       await consumeApproval(prisma, { action: 'LARGE_PAYOUT', targetId: s.id }, now);
     } catch (e) {

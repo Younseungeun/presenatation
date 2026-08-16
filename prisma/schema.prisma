@@ -40,6 +40,12 @@ model User {
    * server/operatorGrantService.ts가 운영자 부여와 콜드 강등을 한 트랜잭션으로 묶는다.
    */
   operatorCold     Boolean  @default(false)
+  /**
+   * 운영자 생체 재확인 시각 (2026-08-17 사용자 확정 — 1인 운영 모드).
+   * 운영자가 1명일 때 2인 승인의 두 번째 사람 자리를 **실행 직전 지문·얼굴 재확인**이
+   * 대신한다. 재확인은 승인서처럼 **1회용**이다 — 쓰면 비워진다.
+   */
+  operatorRecheckAt DateTime?
   createdAt        DateTime @default(now())
 
   researcherProfile ResearcherProfile?

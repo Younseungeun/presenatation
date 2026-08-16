@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { performOperatorRecheck } from "../operatorRecheck";
 import styles from "../../researcher/researcher.module.css";
 import q from "./disputes.module.css";
 
@@ -21,16 +22,18 @@ export function ResolveForm({ disputeId }: { disputeId: string }) {
   // 절차의 절반이므로 오류 색으로 보여주면 안 된다
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function submit() {
+  async function submit(retried = false) {
     if (resolution.trim().length < 5) {
       setError("판단 근거를 적어주세요 — 이 글이 그대로 구매자에게 갑니다.");
       return;
     }
-    const question =
-      verdict === "UPHELD"
-        ? "오류로 인정할까요? 다른 운영자의 승인이 필요하며, 승인 후 다시 확정하면 구매자에게 통지됩니다. 판정 되돌리기는 별도로 실행해야 합니다."
-        : "판정 유지로 확정할까요? 구매자에게 통지되고 이 건의 정산이 다시 열립니다.";
-    if (!window.confirm(question)) return;
+    if (!retried) {
+      const question =
+        verdict === "UPHELD"
+          ? "오류로 인정할까요? 두 번째 확인(다른 운영자 승인 또는 지문·얼굴)이 필요하며, 확정되면 구매자에게 통지됩니다. 판정 되돌리기는 별도로 실행해야 합니다."
+          : "판정 유지로 확정할까요? 구매자에게 통지되고 이 건의 정산이 다시 열립니다.";
+      if (!window.confirm(question)) return;
+    }
 
     setBusy(true);
     setError(null);
@@ -45,6 +48,14 @@ export function ResolveForm({ disputeId }: { disputeId: string }) {
       if (!res.ok) {
         if (json.code === "APPROVAL_PENDING") {
           setNotice(json.error);
+        } else if (json.code === "RECHECK_REQUIRED" && !retried) {
+          // 1인 운영 모드 — 두 번째 사람 대신 지문·얼굴이 선다. 확인되면 한 번만 재시도
+          const recheck = await performOperatorRecheck();
+          if (recheck.ok) {
+            await submit(true);
+            return;
+          }
+          if (recheck.error) setError(recheck.error);
         } else {
           setError(json.error ?? "확정 실패");
         }
@@ -86,7 +97,7 @@ export function ResolveForm({ disputeId }: { disputeId: string }) {
         }
       />
       <div className={styles.formActions}>
-        <button className={styles.primaryBtn} onClick={submit} disabled={busy}>
+        <button className={styles.primaryBtn} onClick={() => submit()} disabled={busy}>
           {busy ? "보내는 중…" : "확정하고 구매자에게 통지"}
         </button>
       </div>

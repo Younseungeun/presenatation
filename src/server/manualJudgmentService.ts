@@ -5,7 +5,13 @@ import { judge, type JudgmentResult, type MarketSnapshot } from '@/domain/judgme
 import { scoreJudgedCard } from '@/domain/scoring';
 import { STALE_DEFER_DAYS } from './judgmentBatch';
 import { buildJudgmentWrites } from './judgmentWriter';
-import { ApprovalError, consumeApproval, requestApproval } from './operatorApprovalService';
+import {
+  ApprovalError,
+  consumeApproval,
+  consumeOperatorRecheck,
+  isSoloOperatorMode,
+  requestApproval,
+} from './operatorApprovalService';
 
 // 운영자 판정 보류 큐 (§2.5 연장): 자동 판정이 STALE_DEFER_DAYS 이상 이월된 카드를
 // 운영자가 검증된 시세를 직접 입력해 수동 판정한다.
@@ -15,7 +21,11 @@ import { ApprovalError, consumeApproval, requestApproval } from './operatorAppro
 // - 사유(reason) 필수 + 입력값·운영자 식별자를 감사 스냅샷에 기록 (분쟁 재현용)
 
 export class ManualJudgmentError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** RECHECK_REQUIRED = 1인 운영 모드 — 화면이 지문·얼굴 확인을 띄우고 재시도한다 */
+    readonly code?: 'RECHECK_REQUIRED',
+  ) {
     super(message);
     this.name = 'ManualJudgmentError';
   }
@@ -223,21 +233,32 @@ export async function manualJudgeCard(
       await consumeApproval(prisma, { action: 'FIRST_MANUAL_JUDGMENT', targetId: card.id }, now);
     } catch (e) {
       if (!(e instanceof ApprovalError)) throw e;
-      await requestApproval(
-        prisma,
-        {
-          action: 'FIRST_MANUAL_JUDGMENT',
-          targetId: card.id,
-          summary: `${card.assetName} (${card.ticker}) 수동 판정 — 기계 판정 이력 없음`,
-          requestedBy: input.operatorUserId,
-          reason: input.reason.trim(),
-        },
-        now,
-      );
-      throw new ManualJudgmentError(
-        '기계 판정 이력이 없는 카드의 수동 판정에는 다른 운영자의 승인이 필요합니다 — ' +
-          '승인 요청을 올려두었습니다. 승인되면 같은 입력으로 다시 판정하세요.',
-      );
+      // 승인서가 없다 — 1인 운영이면 생체 재확인, 다인이면 요청을 올리고 대기
+      // (2026-08-17 사용자 확정 — unfreezePayouts와 같은 갈림)
+      if (await isSoloOperatorMode(prisma)) {
+        try {
+          await consumeOperatorRecheck(prisma, input.operatorUserId, now);
+        } catch (re) {
+          if (!(re instanceof ApprovalError)) throw re;
+          throw new ManualJudgmentError(re.message, 'RECHECK_REQUIRED');
+        }
+      } else {
+        await requestApproval(
+          prisma,
+          {
+            action: 'FIRST_MANUAL_JUDGMENT',
+            targetId: card.id,
+            summary: `${card.assetName} (${card.ticker}) 수동 판정 — 기계 판정 이력 없음`,
+            requestedBy: input.operatorUserId,
+            reason: input.reason.trim(),
+          },
+          now,
+        );
+        throw new ManualJudgmentError(
+          '기계 판정 이력이 없는 카드의 수동 판정에는 다른 운영자의 승인이 필요합니다 — ' +
+            '승인 요청을 올려두었습니다. 승인되면 같은 입력으로 다시 판정하세요.',
+        );
+      }
     }
   }
 

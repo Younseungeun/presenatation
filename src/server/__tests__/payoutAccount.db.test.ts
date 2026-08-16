@@ -48,6 +48,11 @@ beforeAll(async () => {
     },
   });
   researcherUserId = u.id;
+  // 이 파일은 **다인 운영 모드**를 시험한다 — 진짜 운영자가 2명 있어야 승인 요청
+  // 흐름이 산다 (1명이면 생체 재확인 모드로 갈려 soloOperator.db.test.ts가 맡는다)
+  for (const email of ['opa@acct.io', 'opb@acct.io']) {
+    await prisma.user.create({ data: { email, identityVerified: true, role: 'OPERATOR' } });
+  }
 });
 
 afterAll(async () => {

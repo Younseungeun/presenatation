@@ -1,6 +1,12 @@
 import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
-import { ApprovalError, consumeApproval, requestApproval } from './operatorApprovalService';
+import {
+  ApprovalError,
+  consumeApproval,
+  consumeOperatorRecheck,
+  isSoloOperatorMode,
+  requestApproval,
+} from './operatorApprovalService';
 
 // 판정 이의제기 — **구매자 → 플랫폼의 단방향 클레임.**
 //
@@ -45,7 +51,8 @@ export class DisputeError extends Error {
       | 'WINDOW_CLOSED'
       | 'ALREADY_FILED'
       | 'BAD_INPUT'
-      | 'APPROVAL_PENDING',
+      | 'APPROVAL_PENDING'
+      | 'RECHECK_REQUIRED',
     message: string,
   ) {
     super(message);
@@ -296,23 +303,34 @@ export async function resolveDispute(
       await consumeApproval(prisma, { action: 'DISPUTE_UPHOLD', targetId: dispute.id }, now);
     } catch (e) {
       if (!(e instanceof ApprovalError)) throw e;
-      const card = dispute.judgment?.predictionCard;
-      await requestApproval(
-        prisma,
-        {
-          action: 'DISPUTE_UPHOLD',
-          targetId: dispute.id,
-          summary: `${card ? `${card.assetName} (${card.ticker})` : '판정'} 이의 인정 — 판정을 뒤집는 결정`,
-          requestedBy: input.operatorUserId,
-          reason: input.resolution,
-        },
-        now,
-      );
-      throw new DisputeError(
-        'APPROVAL_PENDING',
-        '판정을 뒤집는 결정에는 다른 운영자의 승인이 필요합니다 — 승인 요청을 올려두었습니다. ' +
-          '승인되면 여기서 다시 확정하세요.',
-      );
+      // 승인서가 없다 — 1인 운영이면 생체 재확인, 다인이면 요청을 올리고 대기
+      // (2026-08-17 사용자 확정 — unfreezePayouts와 같은 갈림)
+      if (await isSoloOperatorMode(prisma)) {
+        try {
+          await consumeOperatorRecheck(prisma, input.operatorUserId, now);
+        } catch (re) {
+          if (!(re instanceof ApprovalError)) throw re;
+          throw new DisputeError('RECHECK_REQUIRED', re.message);
+        }
+      } else {
+        const card = dispute.judgment?.predictionCard;
+        await requestApproval(
+          prisma,
+          {
+            action: 'DISPUTE_UPHOLD',
+            targetId: dispute.id,
+            summary: `${card ? `${card.assetName} (${card.ticker})` : '판정'} 이의 인정 — 판정을 뒤집는 결정`,
+            requestedBy: input.operatorUserId,
+            reason: input.resolution,
+          },
+          now,
+        );
+        throw new DisputeError(
+          'APPROVAL_PENDING',
+          '판정을 뒤집는 결정에는 다른 운영자의 승인이 필요합니다 — 승인 요청을 올려두었습니다. ' +
+            '승인되면 여기서 다시 확정하세요.',
+        );
+      }
     }
   }
 
