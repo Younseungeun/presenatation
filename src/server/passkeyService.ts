@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { notifyNewDevice } from './deviceService';
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -215,21 +216,11 @@ export async function finishPasskeyRegistration(
   // ── 기기 등록은 **계좌 변경과 같은 무게의 사건이다** ─────────────
   // "새 사람이 이 계정을 쓰기 시작했다"는 뜻이라, 조용히 지나가면 탈취자가 여기로
   // 들어온다. 첫 등록(가입 직후)은 본인이 방금 한 일이라 알리지 않는다
-  if (before > 0) {
-    await prisma.notification.create({
-      data: {
-        userId: input.userId,
-        type: 'PASSKEY_REGISTERED',
-        title: '[중요] 새 기기가 등록되었습니다',
-        body:
-          `"${input.label}"에서 이 계정으로 로그인할 수 있게 되었습니다.\n` +
-          '**본인이 등록하지 않았다면 지금 바로 정산을 동결해주세요.** ' +
-          '동결하면 확인이 끝날 때까지 한 푼도 나가지 않습니다.',
-        link: '/settings/payout',
-        createdAt: now,
-      },
-    });
-  }
+  await notifyNewDevice(
+    prisma,
+    { userId: input.userId, label: input.label, kind: 'BIOMETRIC' },
+    now,
+  );
 
   return { credentialId: credential.id, label: input.label, isFirst: before === 0 };
 }

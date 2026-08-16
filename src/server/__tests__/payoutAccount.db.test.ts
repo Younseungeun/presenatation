@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb } from './helpers/testDb';
 import { hashCi } from '../authService';
+import { decideApproval, requestApproval } from '../operatorApprovalService';
 import { decryptField, encryptField, last4 } from '../fieldCrypto';
 import {
   ACCOUNT_CHANGE_COOLDOWN_MS,
@@ -286,8 +287,26 @@ describe('정산 동결', () => {
     ).rejects.toThrow(PayoutAccountError);
   });
 
+  // **동결 해제에는 다른 운영자의 승인이 필요하다** (2026-08-16 검토 2차 Q3).
+  // 동결은 이 시스템에서 방어를 스스로 여는 유일한 행위라, 금액과 무관하게 항상 2인이다
+  it('승인 없이는 풀 수 없다 — 운영자 하나가 뚫려도 방어가 안 열린다', async () => {
+    await expect(
+      unfreezePayouts(prisma, { researcherUserId, operatorUserId: OPERATOR, reason: '확인' }),
+    ).rejects.toThrow(/다른 운영자의 승인이 필요합니다/);
+  });
+
   it('운영자가 풀면 감사 로그가 남고, 계좌 검증 상태는 건드리지 않는다', async () => {
     const before = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId } });
+    // 요청과 승인을 다른 사람이 한다 — 요청자는 자기 요청을 승인하지 못한다
+    const { id } = await requestApproval(prisma, {
+      action: 'PAYOUT_UNFREEZE',
+      targetId: researcherUserId,
+      summary: '동결 해제',
+      requestedBy: OPERATOR,
+      reason: '본인 통화 확인',
+    });
+    await decideApproval(prisma, { approvalId: id, approverUserId: 'op-second', approve: true });
+
     await unfreezePayouts(prisma, {
       researcherUserId,
       operatorUserId: OPERATOR,
@@ -306,6 +325,14 @@ describe('정산 동결', () => {
   });
 
   it('동결되지 않은 계좌는 풀 수 없다', async () => {
+    const { id } = await requestApproval(prisma, {
+      action: 'PAYOUT_UNFREEZE',
+      targetId: researcherUserId,
+      summary: '동결 해제',
+      requestedBy: OPERATOR,
+      reason: '확인',
+    });
+    await decideApproval(prisma, { approvalId: id, approverUserId: 'op-second', approve: true });
     await expect(
       unfreezePayouts(prisma, { researcherUserId, operatorUserId: OPERATOR, reason: '확인' }),
     ).rejects.toThrow(/동결된 계좌가 아닙니다/);

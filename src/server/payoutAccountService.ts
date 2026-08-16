@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
 import { hashCi } from './authService';
+import { consumeApproval } from './operatorApprovalService';
 import { decryptField, encryptField, last4 } from './fieldCrypto';
 import { notifyOperators } from './opsAlert';
 
@@ -308,6 +309,12 @@ export async function unfreezePayouts(
   if (!input.reason.trim()) {
     throw new PayoutAccountError('동결을 풀려면 무엇을 확인했는지 적어주세요');
   }
+  // ── **다른 운영자의 승인이 있어야 풀린다** (2026-08-16 검토 2차 Q3) ──
+  // 동결은 이 시스템에서 **방어를 스스로 여는 유일한 행위**다. 운영자 하나가 뚫리거나
+  // 악의를 품으면 그 하나로 모든 방어가 무의미해지므로, 금액과 무관하게 항상 2인이다.
+  // 승인서는 1회용이라(consumeApproval) 같은 승인으로 두 번 풀 수 없다
+  await consumeApproval(prisma, { action: 'PAYOUT_UNFREEZE', targetId: input.researcherUserId }, now);
+
   const { count } = await prisma.payoutAccount.updateMany({
     where: { researcherUserId: input.researcherUserId, frozenAt: { not: null } },
     data: { frozenAt: null, frozenBy: null },

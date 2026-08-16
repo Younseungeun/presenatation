@@ -28,6 +28,7 @@ const NOW = new Date('2026-08-16T00:00:00Z');
 
 const claims = (userId: string, over: Partial<SessionClaims> = {}): SessionClaims => ({
   userId,
+  epoch: 0,
   method: 'IDENTITY',
   verifiedAt: NOW.getTime(),
   ...over,

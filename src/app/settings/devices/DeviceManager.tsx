@@ -2,22 +2,18 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { startRegistration } from "@simplewebauthn/browser";
+import type { LoginDevice } from "@/server/deviceService";
 import styles from "./devices.module.css";
 
-type Device = {
-  id: string;
-  label: string;
-  createdAt: string;
-  lastUsedAt: string | null;
-};
-
-// 등록된 기기 목록 + 이 기기 등록하기.
+// 로그인 기기 — **생체와 간편 비밀번호를 한 목록으로 본다.**
 //
-// **기기 이름을 사용자가 짓게 한다.** 브라우저 User-Agent로 자동 생성하면 "Chrome 141"
-// 같은 것이 나오는데, 폰과 노트북에서 같은 크롬을 쓰면 둘을 구별하지 못한다.
-// 어느 기기를 지울지 고르는 것이 이 목록의 존재 이유라, 구별되지 않으면 쓸모가 없다.
+// 나눠서 보여 주면 잃어버린 폰을 지우려는 사람이 **한쪽만 지우고 안심**한다.
+// 그게 이 화면에서 가장 비싼 실수라, 종류는 배지로만 구분하고 목록은 하나로 둔다.
+//
+// **기기 이름은 사용자가 짓는다.** User-Agent로 자동 생성하면 "Chrome 141"이 나오는데,
+// 폰과 노트북에서 같은 크롬을 쓰면 둘을 구별하지 못한다 — 어느 기기를 지울지 고르는
+// 것이 이 목록의 존재 이유라, 구별되지 않으면 쓸모가 없다.
 
-// 서버에서는 항상 false로 그린다 — useEffect로 setState하면 화면이 번쩍인다
 const NO_SUBSCRIBE = () => () => {};
 const usePasskeySupported = () =>
   useSyncExternalStore(
@@ -31,7 +27,7 @@ function fmt(iso: string | null) {
   return new Date(iso).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
 }
 
-export function DeviceManager({ initial }: { initial: Device[] }) {
+export function DeviceManager({ initial }: { initial: LoginDevice[] }) {
   const [devices, setDevices] = useState(initial);
   const supported = usePasskeySupported();
   const [label, setLabel] = useState("");
@@ -53,8 +49,8 @@ export function DeviceManager({ initial }: { initial: Device[] }) {
       const optionsJSON = await optionsRes.json();
       if (!optionsRes.ok) {
         // 관문에 걸린 것은 **두 종류를 나눠서** 다룬다. 재인증으로 지금 풀리는 것과,
-        // 기다려야만 풀리는 것 — 하나로 뭉뚱그리면 "다시 시도" 버튼이 영영 안 되는
-        // 화면이 되거나, 반대로 기다려야 하는 사람에게 헛된 인증을 시키게 된다
+        // 기다려야만 풀리는 것 — 뭉뚱그리면 "다시 시도"가 영영 안 되는 화면이 되거나,
+        // 기다려야 하는 사람에게 헛된 인증을 시키게 된다
         if (optionsJSON?.code === "REVERIFY_REQUIRED") setNeedsReverify(true);
         throw new Error(optionsJSON?.error ?? "등록을 시작할 수 없습니다");
       }
@@ -73,7 +69,6 @@ export function DeviceManager({ initial }: { initial: Device[] }) {
       const name = (e as { name?: string })?.name;
       // 지문 창을 그냥 닫은 것은 오류가 아니다
       if (name === "NotAllowedError" || name === "AbortError") return;
-      // 이미 등록된 기기에서 또 등록하면 인증기가 스스로 막는다 — 그대로 말해준다
       if (name === "InvalidStateError") {
         setError("이 기기는 이미 등록되어 있습니다.");
         return;
@@ -84,18 +79,20 @@ export function DeviceManager({ initial }: { initial: Device[] }) {
     }
   }
 
-  async function remove(id: string) {
+  async function remove(device: LoginDevice) {
     setError(null);
     const res = await fetch("/api/passkey/devices", {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ passkeyId: id }),
+      body: JSON.stringify({ deviceId: device.id, kind: device.kind }),
     });
     if (!res.ok) {
       setError("기기를 지우지 못했습니다");
       return;
     }
-    await refresh();
+    // 삭제는 **모든 세션을 끊는다** — 지금 이 창도 포함이다. 로그인 화면으로 보내
+    // "지웠는데 왜 계속 들어와 있지"라는 혼란을 없앤다
+    window.location.assign("/login");
   }
 
   return (
@@ -103,17 +100,22 @@ export function DeviceManager({ initial }: { initial: Device[] }) {
       <div className={styles.list}>
         {devices.length === 0 ? (
           <p className={styles.empty}>
-            등록된 기기가 없습니다. 지금 쓰는 기기를 등록하면 다음부터 지문·얼굴로 바로
-            로그인합니다.
+            등록된 기기가 없습니다. 지금 쓰는 기기를 등록하면 다음부터 바로 로그인합니다.
           </p>
         ) : (
           devices.map((d) => (
-            <div key={d.id} className={styles.row}>
+            <div key={`${d.kind}-${d.id}`} className={styles.row}>
               <div>
-                <div className={styles.name}>{d.label}</div>
+                <div className={styles.name}>
+                  {d.label}
+                  <span className={styles.badge}>
+                    {d.kind === "BIOMETRIC" ? "지문·얼굴" : "간편 비밀번호"}
+                  </span>
+                  {d.locked && <span className={styles.lockedBadge}>잠김</span>}
+                </div>
                 <div className={styles.sub}>마지막 사용 {fmt(d.lastUsedAt)}</div>
               </div>
-              <button type="button" className={styles.remove} onClick={() => remove(d.id)}>
+              <button type="button" className={styles.remove} onClick={() => remove(d)}>
                 삭제
               </button>
             </div>
@@ -134,16 +136,14 @@ export function DeviceManager({ initial }: { initial: Device[] }) {
             />
           </label>
           <button type="button" className={styles.add} onClick={register} disabled={busy}>
-            {busy ? "등록하는 중…" : "이 기기 등록하기"}
+            {busy ? "등록하는 중…" : "이 기기에 지문·얼굴 등록"}
           </button>
         </div>
       ) : (
         <p className={styles.empty}>이 브라우저는 지문·얼굴 로그인을 지원하지 않습니다.</p>
       )}
       {error && <p className={styles.error}>{error}</p>}
-      {/* 막다른 길로 두지 않는다 — 재인증으로 풀리는 경우에는 그 길을 바로 보여준다.
-          로그인 화면으로 보내는 이유: 본인 인증 흐름이 그쪽에 이미 있고, 실공급자로
-          바뀌면 팝업·리다이렉트가 붙는 곳도 거기다 */}
+      {/* 막다른 길로 두지 않는다 — 재인증으로 풀리는 경우에는 그 길을 바로 보여준다 */}
       {needsReverify && (
         <p className={styles.empty}>
           <a href="/login?next=/settings/devices">본인 인증 다시 하기 →</a>

@@ -1,0 +1,96 @@
+/* 승인 대기열 — 승인자가 판단할 재료를 다 보여준다 */
+
+.card {
+  padding: 16px;
+  margin: 0 16px 12px;
+  border: 1px solid var(--border, #d8d8de);
+  border-radius: 12px;
+  background: var(--surface-1, #fff);
+}
+
+.action {
+  font-size: 12px;
+  font-weight: 700;
+  color: #7a3b12;
+  background: #fff4ed;
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+
+.summary {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.amount {
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 6px;
+}
+
+.meta {
+  font-size: 12px;
+  color: var(--text-3, #6b6b76);
+  margin-bottom: 10px;
+}
+
+.reason {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--text-2, #44444d);
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface-2, #f5f5f7);
+  margin-bottom: 14px;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.approve {
+  flex: 1;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent, #1f2937);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.reject {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--border, #d8d8de);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-2, #44444d);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.approve:disabled,
+.reject:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.empty {
+  padding: 16px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-2, #44444d);
+}
+
+.error {
+  margin: 0 16px 12px;
+  font-size: 13px;
+  color: #b42318;
+}

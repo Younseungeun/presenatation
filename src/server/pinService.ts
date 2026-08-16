@@ -1,5 +1,6 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
+import { notifyNewDevice } from './deviceService';
 
 // 간편 비밀번호 — **기기에 묶인 6자리** (2026-08-16 사용자 확정 구조).
 //
@@ -115,7 +116,7 @@ export async function setupPin(
   }
 
   const deviceToken = newDeviceToken();
-  await prisma.trustedDevice.create({
+  const created = await prisma.trustedDevice.create({
     data: {
       userId: input.userId,
       deviceTokenHash: hashDeviceToken(deviceToken),
@@ -124,6 +125,8 @@ export async function setupPin(
       createdAt: now,
     },
   });
+  // 기존 기기들에 알린다 — 유심을 가로챈 쪽이 심은 것이라면 이 알림이 유일한 신호다
+  await notifyNewDevice(prisma, { userId: input.userId, label: created.label, kind: 'PIN' }, now);
   return { deviceToken };
 }
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
-import { listPasskeys } from "@/server/passkeyService";
+import { listLoginDevices } from "@/server/deviceService";
 import { AppHeader } from "../../AppHeader";
 import marketStyles from "../../market.module.css";
 import styles from "./devices.module.css";
@@ -31,21 +31,14 @@ export default async function DevicesPage() {
     );
   }
 
-  const devices = await listPasskeys(prisma, userId);
+  const devices = await listLoginDevices(prisma, userId);
 
   return (
     <>
       <AppHeader title="로그인 기기" backHref="/settings" />
       <main className={marketStyles.page}>
         <div className={marketStyles.section}>등록된 기기</div>
-        <DeviceManager
-          initial={devices.map((d) => ({
-            id: d.id,
-            label: d.label,
-            createdAt: d.createdAt.toISOString(),
-            lastUsedAt: d.lastUsedAt?.toISOString() ?? null,
-          }))}
-        />
+        <DeviceManager initial={devices} />
 
         <div className={marketStyles.section}>알아두실 것</div>
         <p className={styles.empty}>
@@ -56,6 +49,11 @@ export default async function DevicesPage() {
           <br />
           <strong>새 기기가 등록되면 알림이 갑니다.</strong> 본인이 등록하지 않은 기기가
           보이면 삭제하고, <Link href="/settings/payout">정산을 동결</Link>해주세요.
+          <br />
+          <br />
+          <strong>기기를 지우면 모든 기기에서 로그아웃됩니다.</strong> 지우기만 하면 그 기기의
+          다음 로그인만 막힐 뿐, 이미 열려 있는 창은 그대로 남기 때문입니다. 본인 기기에서는
+          다시 로그인하시면 됩니다.
           <br />
           <br />
           기기를 전부 지워도 계정은 잠기지 않습니다 — 휴대폰 본인 인증으로 다시 들어올 수

@@ -1,6 +1,8 @@
 import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
 import { notifyOperators } from './opsAlert';
+import { requiresDualApproval } from '@/domain/operatorApproval';
+import { consumeApproval } from './operatorApprovalService';
 import { assertPayoutAccountReady } from './payoutAccountService';
 import { assertWithinDailyLimit } from './payoutVelocity';
 import { assertCooldownPassed, cooldownCutoff } from './settlementCooldown';
@@ -606,6 +608,17 @@ export async function executePayout(
   // 세션이 털렸든 우리 버그든 운영자 실수든, 원인과 무관하게 같은 벽에 부딪힌다 —
   // 그게 2차 인증보다 이것을 먼저 넣은 이유다
   await assertWithinDailyLimit(prisma, s.researcherPayoutKrw, now);
+
+  // ── **큰 금액은 다른 운영자의 승인이 있어야 나간다** (2026-08-16 검토 2차 Q3) ──
+  // 위 관문들은 전부 "계정이 뚫렸을 때"를 막는다. 정당하게 들어온 운영자가 악의를
+  // 품는 경우(내부자)는 못 막고, 그건 접근 제어로 풀 수 있는 문제가 아니다 —
+  // **실행을 두 사람이 나누는 것**만이 막는다.
+  //
+  // 전부에 걸지 않는 이유: 하루 수십 건의 소액 정산까지 두 사람이 붙으면 승인이
+  // 습관이 되고, **형식이 되는 순간 2인 승인은 장식**이다(domain/operatorApproval).
+  if (requiresDualApproval(s.researcherPayoutKrw)) {
+    await consumeApproval(prisma, { action: 'LARGE_PAYOUT', targetId: s.id }, now);
+  }
 
   const ageDays = (now.getTime() - s.purchase.paidAt.getTime()) / 86_400_000;
   if (ageDays < PG_SETTLEMENT_LAG_DAYS && !input.confirmedSettled) {

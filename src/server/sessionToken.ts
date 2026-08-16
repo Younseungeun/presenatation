@@ -20,7 +20,24 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 // 매 요청마다 세션 조회가 붙지 않는다. (바뀌는 것 — 계좌·기기 목록 — 은 DB가 답한다)
 
 const AUTH_SECRET = process.env.AUTH_SECRET ?? 'dev-auth-secret-change-me';
-export const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 30;
+
+/**
+ * 세션 수명 — **30일에서 3일로 줄였다** (2026-08-16, 인증 축 검토 2차 Q2).
+ *
+ * 30일의 근거는 "매번 본인 인증을 시킬 수 없다"였다. **그 전제가 사라졌다** —
+ * 이제 깨우는 데 지문 한 번 또는 6자리다(1~2초). 근거가 없어진 값을 그대로 두면
+ * 훔친 세션이 한 달을 사는 것 말고는 아무 일도 하지 않는다.
+ *
+ * 3일이 사는 자리: 잠금 해제된 기기를 잃어버렸을 때 **남이 머물 수 있는 시간 창**이
+ * 30일에서 3일로 줄어든다. 반대쪽 비용은 사흘에 한 번 지문을 대는 것이고, 돈이
+ * 에스크로에 묶인 앱에서 그것은 귀찮음이 아니라 신뢰의 신호로 읽힌다.
+ *
+ * 은행 앱처럼 10~30분까지 조이지는 않는다 — 이쪽은 조회 화면이 많아 그 정도면
+ * 읽는 중에 끊긴다.
+ *
+ * @근거 설계 깨우는 마찰이 1~2초로 떨어져 30일의 전제가 사라졌다 (검토 권장 24~72h)
+ */
+export const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 3;
 
 /** 어떤 길로 들어왔나 — IDENTITY(풀)·PASSKEY(생체)·PIN(간편 비밀번호) */
 export const LOGIN_METHODS = ['IDENTITY', 'PASSKEY', 'PIN'] as const;
@@ -28,6 +45,8 @@ export type LoginMethod = (typeof LOGIN_METHODS)[number];
 
 export interface SessionClaims {
   userId: string;
+  /** 세션 세대 — 사용자의 현재 세대와 다르면 강제 로그아웃된 세션이다 */
+  epoch: number;
   /** 이 세션이 만들어진 길 */
   method: LoginMethod;
   /** 마지막으로 본인 인증을 통과한 시각(ms). 패스키 로그인은 인증을 안 하므로 0 */
@@ -42,7 +61,7 @@ const unb64u = (s: string) => Buffer.from(s, 'base64url').toString('utf8');
 
 export function serializeSession(
   userId: string,
-  claims: { method: LoginMethod; verifiedAt: number },
+  claims: { method: LoginMethod; verifiedAt: number; epoch: number },
   now = Date.now(),
 ): string {
   const payload = [
@@ -50,6 +69,7 @@ export function serializeSession(
     now + SESSION_MAX_AGE_SEC * 1000,
     claims.method,
     claims.verifiedAt,
+    claims.epoch,
   ].join('.');
   return `${payload}.${sign(payload)}`;
 }
@@ -76,7 +96,7 @@ export function parseSessionClaims(
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
 
   const parts = payload.split('.');
-  const [rawId, expStr, methodStr, verifiedStr] = parts;
+  const [rawId, expStr, methodStr, verifiedStr, epochStr] = parts;
   if (!rawId || !expStr || Number(expStr) < now) return null;
 
   const method: LoginMethod =
@@ -84,10 +104,13 @@ export function parseSessionClaims(
       ? methodStr
       : 'IDENTITY';
   const verifiedAt = Number(verifiedStr);
+  const epoch = Number(epochStr);
   return {
     userId: unb64u(rawId),
     method,
     verifiedAt: Number.isFinite(verifiedAt) ? verifiedAt : 0,
+    // 옛 형식은 세대 0 — 사용자가 한 번이라도 강제 로그아웃하면 그 세션들도 함께 끊긴다
+    epoch: Number.isFinite(epoch) ? epoch : 0,
   };
 }
 

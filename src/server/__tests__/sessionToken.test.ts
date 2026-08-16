@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseSession, parseSessionClaims, serializeSession } from '../sessionToken';
 
-const IDENTITY = { method: 'IDENTITY' as const, verifiedAt: 1_700_000_000_000 };
+const IDENTITY = { method: 'IDENTITY' as const, verifiedAt: 1_700_000_000_000, epoch: 0 };
 
 describe('session token — 서명·변조·만료', () => {
   it('서명한 토큰은 같은 userId로 복원', () => {
@@ -39,11 +39,12 @@ describe('session claims — 경로와 인증 시각', () => {
       userId: 'user_123',
       method: 'IDENTITY',
       verifiedAt: IDENTITY.verifiedAt,
+      epoch: 0,
     });
   });
 
   it('패스키 로그인은 본인 인증을 안 거치므로 verifiedAt이 0이다', () => {
-    const token = serializeSession('user_123', { method: 'PASSKEY', verifiedAt: 0 });
+    const token = serializeSession('user_123', { method: 'PASSKEY', verifiedAt: 0, epoch: 0 });
     const claims = parseSessionClaims(token)!;
     expect(claims.method).toBe('PASSKEY');
     // 0이라는 것은 곧 "기기 등록 관문에서 재인증을 요구받는다"는 뜻이다 —

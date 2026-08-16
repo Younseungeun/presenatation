@@ -64,4 +64,3 @@ src/server/schedulerHealth.ts:BEAT_INTERVAL_MS
 src/server/schedulerHealth.ts:HEARTBEAT_TAKEOVER_MS
 src/server/schedulerHealth.ts:ITEM_STUCK_MS
 src/server/schedulerHealth.ts:LIVENESS_STALE_MS
-src/server/sessionToken.ts:SESSION_MAX_AGE_SEC
