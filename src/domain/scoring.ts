@@ -67,6 +67,8 @@ export const SCORE_MODEL_NAME = '인투빌 점수 산정 모델 vmax';
  *  · 별점도 구별하지 못한다 — confidenceStars가 클램프에 걸려 c=2와 같은 ★1이 된다
  *
  * 즉 하한 2는 이제 점수 방어 장치가 아니라 **참가 조건**이다: 팔려면 점수를 걸어야 한다.
+ *
+ * @근거 설계 참가 조건 — 팔려면 점수를 걸어야 한다 (c=1은 실현값이 항상 0)
  */
 export const CONFIDENCE_RANGE = { min: 2, max: 10 } as const;
 
@@ -74,6 +76,8 @@ export const CONFIDENCE_RANGE = { min: 2, max: 10 } as const;
  * 정보량(내추럴 로그)을 사람이 읽는 점수로 옮기는 배수.
  * 분리력에는 영향이 없다 — 단조 변환일 뿐이라 순위도 등급 비율도 그대로다.
  * 100인 이유는 카드 한 장이 대략 −200 ~ +500 범위에 들어와 읽기 좋기 때문이다.
+ *
+ * @근거 설계 사람이 읽는 눈금 — 단조 변환이라 순위·등급 비율에 영향이 없다
  */
 export const SCORE_SCALE = 100;
 
@@ -87,6 +91,8 @@ export const SCORE_SCALE = 100;
  *    "수익성 적극"이 삼성전자에서 10%, 테마주에서 40%를 뜻하게 되어 구매자가 라벨에서
  *    기대할 수 있는 것이 사라진다
  * 하나의 상수가 둘을 겸하면 한쪽을 고칠 때 다른 쪽이 조용히 따라 움직인다.
+ *
+ * @근거 설계 수익성 라벨은 종목과 무관한 절대 크기여야 한다 (하한과 역할 분리)
  */
 export const PROFITABILITY_BASE_PCT: Record<AssetClass, number> = {
   KR_EQUITY: 5,
@@ -120,6 +126,8 @@ export const PROFITABILITY_BASE_PCT: Record<AssetClass, number> = {
  * 표시하지 못한다. 기간을 3~180일로 바꿔도 같은 자리에서 갈린다(무정보 ≤1%).
  * 부수 효과로 파밍 이득이 54.6%p → 1.2%p로 닫히고, 단타 하한이 완화된다
  * (대형주 3일: 5% → 4.4%). 몬테카를로 4만 경로로 닫힌꼴 p₀를 검증(오차 ≤1.1%p).
+ *
+ * @근거 시뮬 scripts/simMagnitudeFloor.ts — 무정보 0.3% / 준수 82.5%의 무릎
  */
 export const MAGNITUDE_FLOOR_K = 1.2;
 
@@ -127,6 +135,8 @@ export const MAGNITUDE_FLOOR_K = 1.2;
  * 절대 바닥(%) — 왕복 거래비용(수수료·세금·호가 스프레드)이 국내 주식 기준 0.2%대라,
  * 그 다섯 배는 되어야 "따라 매매해서 남는" 조언이 된다. σ가 아주 작은 종목의
  * 초단기 카드가 0.5%짜리 목표로 내려앉는 것을 막는 상품 성립선이다.
+ *
+ * @근거 규칙 왕복 거래비용 0.2%대의 다섯 배 — 따라 매매해서 남는 최소선
  */
 export const ABSOLUTE_MIN_MAGNITUDE_PCT = 1;
 
@@ -152,6 +162,8 @@ const FLOOR_CAP_RATIO = 0.7;
  * 그래서 게시 시점에 그 종목의 실현 변동성을 재서 카드에 고정하고(sigmaDaily),
  * p₀는 그 값으로 계산한다 — 같은 값이 안정성 별점의 원천이기도 하다
  * (domain/stability.ts: 한 번 재서 두 곳이 읽는다).
+ *
+ * @근거 설계 종목 σ를 못 구할 때만 쓰는 폴백 — 실제 p₀는 카드에 고정된 σ로 낸다
  */
 export const DAILY_SIGMA: Record<AssetClass, number> = {
   KR_EQUITY: 0.02,
@@ -251,6 +263,8 @@ export function minMagnitudePct(
  * 수익성 5구간의 경계 — 자산군 기준 단위 F의 배수.
  * (profitability.ts가 이 값을 읽는다. 여기 두는 이유는 점수의 크기 가중이 같은
  *  구간을 쓰기 때문 — 두 곳에 적어 두면 언젠가 갈라진다.)
+ *
+ * @근거 설계 수익성 5구간 경계 — 기준 단위 F의 배수, 점수 가중과 같은 눈금
  */
 export const PROFITABILITY_BOUNDS = [1.5, 2, 3, 5] as const;
 
@@ -268,6 +282,8 @@ export function magnitudeLevel(assetClass: AssetClass, magnitudePct: number): 1 
  *
  * 점수 가중(magnitudeWeight)과 별점 환산(ratingStars.profitabilityPayoutStars)이
  * 같은 눈금을 써야 해서 여기 한곳에 둔다.
+ *
+ * @근거 설계 구간의 기하 중점 — 경계가 등비라 산술 중점은 위를 과소평가한다
  */
 export const PROFITABILITY_PAYOUT_MULTIPLE: Record<1 | 2 | 3 | 4 | 5, number> = (() => {
   const edges = [1, ...PROFITABILITY_BOUNDS];
@@ -380,6 +396,7 @@ export function noSkillTouchProbability(
 // 신고가 정확해지므로(이론과 실측 일치) 10칸이 7칸보다 못할 이유가 없다.
 
 /** 신뢰도 최고 칸의 승산 배수 — 실측 최상위 실력(×137.6)을 덮는다 */
+/** @근거 시뮬 scripts/simConfidenceLevels.ts — 실측 최상위 실력 ×137.6을 덮는다 */
 export const CONFIDENCE_ODDS_TOP = 140;
 
 /** 신뢰도 c → 승산 배수. 등비 사다리(칸당 약 ×1.71)라 별점이 c에 선형이 된다 */
@@ -393,6 +410,7 @@ const oddsOf = (p: number) => p / Math.max(1e-9, 1 - p);
 const probOf = (o: number) => o / (1 + o);
 
 /** 신고 확률의 상한 — ln(p̂/p₀)가 무한대로 가지 않게 (100% 신고는 허용하지 않는다) */
+/** @근거 설계 ln(p̂/p₀)가 발산하지 않게 — 100% 신고는 허용하지 않는다 */
 export const CLAIMED_PROB_CAP = 0.97;
 
 /**
@@ -535,6 +553,8 @@ export interface Discipline {
  * 여전히 팔 수 있다) 탐지의 관문이다. 깊은 단은 처분이 무거우므로 증거 요구가
  * 강해야 한다 — 시장 충격 국면에서 정직한 리서처가 게시 정지를 당하는 것이
  * 이 사다리에서 가장 비싼 오작동이다.
+ *
+ * @근거 시뮬 scripts/simDisciplineRealtime.ts — 1단 10%에서 오작동 1.54% / c=5 탐지 45%
  */
 export const DISCIPLINE_ALPHA = [0.1, 0.01, 0.001, 0.0001] as const;
 
@@ -543,6 +563,7 @@ export function evidenceThreshold(alpha: number): number {
   return -Math.log(1 / alpha);
 }
 
+/** @근거 설계 α별 처분 — 가벼운 단이 관문, 무거운 단일수록 증거 요구가 강하다 */
 export const DISCIPLINE_LADDER: ReadonlyArray<
   { evidenceBelow: number; alpha: number } & Discipline
 > = [

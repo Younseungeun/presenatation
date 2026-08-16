@@ -146,6 +146,8 @@ const BASE_LOOKBACK_DAYS = 10;
  * 대부분 자릿수 단위(0, ×10, 통화 혼동 ×1300)라 이 문턱이면 전부 걸린다. 반대로
  * 5% 어긋난 값 같은 미묘한 오류는 **통과한다** — 그건 이 장치로 잡을 수 없고,
  * 잡으려 문턱을 조이면 진짜 급변이 무더기로 이월돼 운영 부담만 는다.
+ *
+ * @근거 규칙 국내는 거래소 가격제한폭, 미국·코인은 실측 최대의 2.2~2.5배
  */
 export const IMPLAUSIBLE_DAILY_MOVE: Record<AssetClass, number> = {
   KR_EQUITY: 0.3,
@@ -172,9 +174,12 @@ export const IMPLAUSIBLE_DAILY_MOVE: Record<AssetClass, number> = {
  *
  * ⚠ 절대 폭 필터를 **대체하지 않고 완화만 한다.** 거래량도 함께 망가진 응답이 있을 수
  * 있고, 신규 상장처럼 평소 거래량이 없는 경우도 있다 — 그때는 종전대로 걸린다.
+ *
+ * @근거 설계 자릿수 오류는 가격만 튀고 거래량은 평소값이다
  */
 export const REAL_MOVE_VOLUME_MULTIPLE = 5;
 /** 기준선을 세우는 데 필요한 최소 표본 — 이보다 적으면 판단하지 않고 종전대로 막는다 */
+/** @근거 설계 기준선을 세울 표본이 없으면 판단하지 않고 종전대로 막는다 */
 export const VOLUME_BASELINE_MIN_BARS = 3;
 
 /**

@@ -66,6 +66,8 @@ import type { PrismaClient } from '@prisma/client';
  *
  * 뒤쪽은 손실이지만 **유계이고 측정된다**(opsMetrics의 이의율). 열어 두는 대신
  * 크기를 아는 쪽이, 닫아 놓고 소비자 분쟁에서 지는 쪽보다 낫다.
+ *
+ * @근거 설계 에스크로로 되돌릴 수 있는 창 — 그 뒤는 CS 환불로 플랫폼이 부담한다
  */
 export const SETTLEMENT_COOLDOWN_HOURS = 48;
 

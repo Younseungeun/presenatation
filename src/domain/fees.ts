@@ -7,6 +7,7 @@ import { TIER_NAME, type PrepaymentRatio, type Tier } from './constants';
 // 시니어 = 수수료 인하(20→15%), 마스터 = 선결제 해금, 펠로우 = 구독, 인투빌 펠로우 = 최저 수수료.
 // 시니어까지는 100% 성과 연동 유지 → 구매자 무위험 진입이 리서처 대다수에 적용 (1단계 신뢰 축적 우선)
 // (내부 키 BRONZE~CHALLENGER는 DB 저장값이라 유지 — 표시 명칭은 constants.TIER_LABEL/TIER_NAME)
+// @근거 설계 등급 사다리 — 시니어에서 수수료 인하(20→15%), PG 포함 총액 고지
 export const TIER_BASE_FEE_BP: Record<Tier, number> = {
   BRONZE: 2000,
   SILVER: 1500,
@@ -16,6 +17,7 @@ export const TIER_BASE_FEE_BP: Record<Tier, number> = {
 };
 
 // 등급별 선결제 비율 상한 (마스터부터 해금, 상위 등급마다 +10%p)
+// @근거 설계 마스터부터 해금, 상위 등급마다 +10%p
 export const TIER_MAX_PREPAYMENT: Record<Tier, PrepaymentRatio> = {
   BRONZE: 0,
   SILVER: 0,
@@ -25,6 +27,7 @@ export const TIER_MAX_PREPAYMENT: Record<Tier, PrepaymentRatio> = {
 };
 
 // 선결제 비율별 수수료 할증 (기본 수수료에 가산)
+// @근거 설계 선결제는 플랫폼이 위험을 먼저 지는 것이라 할증이 붙는다
 export const PREPAYMENT_SURCHARGE_BP: Record<PrepaymentRatio, number> = {
   0: 0,
   10: 200,
@@ -33,6 +36,7 @@ export const PREPAYMENT_SURCHARGE_BP: Record<PrepaymentRatio, number> = {
 };
 
 // 초기 입점 프로모션: 첫 6개월 기본 수수료 10%
+// @근거 설계 초기 입점 프로모션 — 첫 6개월 기본 수수료 10%
 export const PROMO_BASE_FEE_BP = 1000;
 
 export interface FeeInput {

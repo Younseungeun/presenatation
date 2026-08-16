@@ -21,6 +21,7 @@ import type { TargetType } from './constants';
 // 실수 하나다.
 
 /** 반올림 오차 허용치 — 이보다 작으면 아무 일도 없었던 것으로 본다 */
+/** @근거 설계 반올림 오차 허용치 — 이보다 작으면 사건이 없었던 것으로 본다 */
 export const ADJUSTMENT_EPSILON = 0.002;
 
 /**
@@ -34,6 +35,8 @@ export const ADJUSTMENT_EPSILON = 0.002;
  *
  * 2%인 근거: 실제 권리 사건 중 가장 작은 축인 5% 무상증자가 배수 0.952,
  * 2:1 분할이 0.5다. 배당 드리프트(≤0.7%)와 그 사이가 넉넉히 벌어진다.
+ *
+ * @근거 규칙 5% 무상증자가 배수 0.952 — 배당 드리프트(≤0.7%)와 넉넉히 벌어진다
  */
 export const CORPORATE_ACTION_MIN = 0.02;
 
@@ -41,8 +44,11 @@ export const CORPORATE_ACTION_MIN = 0.02;
  * 자동 리베이스를 허용하는 배수 범위.
  * 100:1을 넘는 조정은 실제 사건보다 데이터 사고일 가능성이 높다 — 조용히 고치지 않고
  * 사람이 보게 남긴다(운영자 알림). 지어내지 않는다는 이 도메인의 태도와 같다.
+ *
+ * @근거 설계 100:1을 넘는 조정은 사건보다 데이터 사고일 가능성이 높다
  */
 export const MIN_FACTOR = 0.01;
+/** @근거 설계 100:1을 넘는 조정은 사건보다 데이터 사고일 가능성이 높다 */
 export const MAX_FACTOR = 100;
 
 export interface AdjustmentDetection {

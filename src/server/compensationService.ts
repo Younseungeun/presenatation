@@ -79,6 +79,8 @@ export function buildCompensationWrites(
  * 너무 짧으면 천천히 반복하는 쪽을 못 본다. 규율 래더가 증거를 평생 쌓는 것과
  * 방향이 다른 이유는 재는 것이 다르기 때문이다 — 저쪽은 **신고의 정직성**이고
  * 이쪽은 **지금 이 사람의 게시를 한 번 볼 것인가**다.
+ *
+ * @근거 설계 평생 누적이면 오래 활동한 사람이 그 이유만으로 먼저 걸린다
  */
 export const UNJUDGEABLE_LOOKBACK_DAYS = 180;
 
@@ -321,6 +323,8 @@ export async function executeCompensation(
  * **큐 길이가 곧 사고 규모의 계기판이다.** 자동 승인 경로를 두지 않은 대가로 이 큐는
  * 방치되면 리서처 돈이 갇히는 자리가 되므로, 검수 보류 큐와 같은 규칙을 쓴다 —
  * 사람을 기다리는 큐는 스스로 소리를 내야 한다.
+ *
+ * @근거 설계 사람을 기다리는 큐는 스스로 소리를 내야 한다 (검수 보류와 같은 규칙)
  */
 export const COMPENSATION_REVIEW_OVERDUE_DAYS = 3;
 

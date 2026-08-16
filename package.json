@@ -55,6 +55,7 @@
     "judgment:resume": "tsx scripts/bulkRevertJudgments.ts resume",
     "judgment:bulk-revert": "tsx scripts/bulkRevertJudgments.ts revert",
     "drill": "tsx scripts/incidentDrill.ts",
+    "debt:constants": "tsx scripts/auditConstants.ts",
     "judgment:rejudge": "tsx scripts/bulkRevertJudgments.ts rejudge"
   },
   "dependencies": {

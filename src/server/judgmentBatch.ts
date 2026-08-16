@@ -124,6 +124,7 @@ export interface BatchSummary {
 }
 
 /** 이월이 이 일수를 넘으면 운영자 보류 큐 대상 */
+/** @근거 설계 하드캡(14일)보다 이르게 둬야 사람이 손쓸 창구가 생긴다 */
 export const STALE_DEFER_DAYS = 7;
 
 /**
@@ -141,9 +142,13 @@ export const STALE_DEFER_DAYS = 7;
  * 그리고 이 조건이 못 잡는 갈래가 하나 더 있다: **소수 종목이 계속 비는 경우**
  * (0.5%의 그 50장). 비율로도 건수로도 안 걸리지만 그 종목의 카드는 영영 판정되지 않는다.
  * → `EMPTY_RANGE_STREAK`회 이상 이월된 종목은 비율과 무관하게 이름을 올린다.
+ *
+ * @근거 설계 비율만 보면 소수 종목의 만성 결측을 놓친다 — 건수·연속과 함께 본다
  */
 export const EMPTY_RANGE_RATIO = 0.5;
+/** @근거 설계 표본이 작은 날 비율 하나로 울리지 않게 하는 하한 */
 export const EMPTY_RANGE_MIN_CARDS = 5;
+/** @근거 설계 비율로도 건수로도 안 걸리는 만성 결측 종목을 잡는 갈래 */
 export const EMPTY_RANGE_STREAK = 3;
 
 /**
@@ -185,8 +190,11 @@ export const EMPTY_RANGE_STREAK = 3;
  *
  * 시스템이 건 정지는 **재관측으로 스스로 풀 수 있다** (server/crossCheckRecovery).
  * 사람이 건 정지는 종전대로 사람만 푼다.
+ *
+ * @근거 설계 자산군 단위로 세운다 — 진짜 전역 사고는 세 자산군에서 각각 선다
  */
 export const DISAGREEMENT_HALT_RATIO = 0.3;
+/** @근거 설계 표본이 작은 날 비율만으로 자산군을 세우지 않게 하는 하한 */
 export const DISAGREEMENT_HALT_MIN = 3;
 
 export function shouldHaltOnDisagreement(disagreed: number, attempted: number): boolean {
@@ -222,6 +230,8 @@ export function emptyRangeAlerts(
  *
  * 판정은 멱등이라 여러 회차로 나눠 돌아도 결과가 같다. 남은 수(remaining)를 돌려주면
  * 스케줄러가 그 자리에서 다시 부른다.
+ *
+ * @근거 규칙 KIS 호출 간격 1.1초 — 20장이면 최악 22초, 죽어도 20장어치만 잃는다
  */
 export const JUDGE_BATCH_SIZE = 20;
 
@@ -242,6 +252,8 @@ export const JUDGE_BATCH_SIZE = 20;
  * 정해 둔 지금은 **간격이 곧 놓칠 확률**이다.
  *
  * 마지막 눈금은 클램프로 반복된다(nextAttemptAfterDefer) — 4회차 이후는 계속 하루 간격.
+ *
+ * @근거 설계 상한을 정해 둔 뒤로는 간격이 곧 놓칠 확률이다 — 마지막 눈금은 하루
  */
 export const DEFER_BACKOFF_MS = [
   // **첫 실패는 미루지 않는다.** 한 번의 결측은 대개 일시적이고(그날 봉이 아직 안 올라옴),
@@ -279,6 +291,8 @@ export const MAX_DEFER_ATTEMPTS = DEFER_BACKOFF_MS.length;
  * STALE_DEFER_DAYS(7일)보다 늦게 잡은 이유: 그 사이가 **사람이 손쓸 창구**다.
  * 7일에 운영자 큐로 올라가고, 그래도 아무도 손대지 못하면 14일에 시스템이 닫는다.
  * 둘을 같은 날로 두면 운영자에게 기회가 없다.
+ *
+ * @근거 설계 에스크로 지연에 끝을 둔다 — 7일에 사람, 14일에 시스템이 닫는다
  */
 export const JUDGMENT_HARD_CAP_DAYS = 14;
 
@@ -299,6 +313,8 @@ export const JUDGMENT_HARD_CAP_DAYS = 14;
  * 정상적인 사고 한 번은 유예를 다 쓰고도 이 선에 안 닿고, **반복되는 사고만** 닿는다.
  *
  * 원칙: **자동 회복의 권한보다 에스크로 정산 시한 약속이 위에 있다.**
+ *
+ * @근거 설계 사고 한 번이 쓰는 유예(약 하루)에 여유를 더한 값 — 반복만 닿는다
  */
 export const JUDGMENT_ABSOLUTE_CAP_DAYS = 16;
 
@@ -322,6 +338,8 @@ export const JUDGMENT_ABSOLUTE_CAP_DAYS = 16;
  * "진짜 상폐된 종목"과 "우리가 못 구해서 막아 둔 종목"을 쿼리로 구분할 수 없다.
  * **진행 중인 카드와 돈은 건드리지 않는다.** 마스터 동기화는 이 칸을 만지지 않으므로
  * 조용히 되살아나지 않고, 원인이 풀리면 `npm run risk:set -- --judgeable`로 되돌린다.
+ *
+ * @근거 설계 한 번은 사건이고 두 번은 성질이다 — 같은 종목이 두 번 걸려야 막는다
  */
 export const HARD_CAP_BLOCK_THRESHOLD = 2;
 

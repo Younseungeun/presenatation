@@ -72,6 +72,8 @@ export function profitabilityPayoutStars(level: ProfitabilityLevel): number {
  * 펴지는 두 변경을 거쳤는데, 계산식이라 양쪽 모두 자동으로 반영됐다.
  *
  * 안정성은 여기 없다: 점수 기여가 0이므로 무게도 0 (종목 변동성 표시 전용).
+ *
+ * @근거 설계 손으로 적지 않고 계산한다 — 신뢰도 하한·수익성 가중이 바뀌면 따라 움직인다
  */
 export const RATING_WEIGHT: { profitability: number; confidence: number } = (() => {
   // 수익성: 점수에 곱해지는 무게가 구간 1→5에서 1.00 → 2.00 (scoring.magnitudeWeight)

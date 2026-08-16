@@ -49,6 +49,8 @@ import type { AssetClass } from './constants';
  *
  * 시장 국면이 바뀌면 같은 스크립트를 다시 돌려 이 네 숫자만 갈아 끼운다.
  * (추정기를 바꾸면 **반드시** 함께 다시 돌린다)
+ *
+ * @근거 시뮬 scripts/calibrateStability.ts — 5분위 점유율 20/19/20/20/20%
  */
 export const STABILITY_SIGMA_BOUNDS = [0.025, 0.035, 0.049, 0.0705] as const;
 
@@ -58,6 +60,8 @@ export type StabilityLevel = 1 | 2 | 3 | 4 | 5;
  * 표본 하한 — 이보다 짧은 이력(신규 상장 등)으로 만든 σ는 표시하지 않는다.
  * 20거래일(약 한 달)은 추정 표준오차 σ/√(2n) ≈ 16%로, 5구간 분류가 한 칸 이상
  * 흔들리지 않는 최소선이다.
+ *
+ * @근거 설계 20거래일이면 추정 표준오차 σ/√(2n) ≈ 16% — 5구간이 한 칸 안에 든다
  */
 export const MIN_RETURN_SAMPLES = 20;
 
@@ -72,6 +76,8 @@ export const MIN_RETURN_SAMPLES = 20;
  *
  * 더 늘리지 않는 이유: 변동성은 국면을 타므로 1년치를 쓰면 "최근"이 아니게 된다.
  * (KIS 일봉은 한 번에 100건이라 120일은 2회 호출이다 — kisProvider.pagedDaily)
+ *
+ * @근거 설계 120거래일 — 분기 하나의 무게가 절반이 되고 표준오차가 6.5%로 준다
  */
 export const MAX_RETURN_SAMPLES = 120;
 
@@ -81,6 +87,8 @@ export const MAX_RETURN_SAMPLES = 120;
  * 그런 종목의 낮은 σ는 "안정적"이 아니라 "거래가 없다"는 뜻이다.
  * 0.6은 넉넉한 선이다: 정상 종목은 종가가 같은 날이 거의 없고(≈1.0),
  * 정지 종목은 0에 가깝다.
+ *
+ * @근거 설계 정상 종목은 ≈1.0, 정지 종목은 0에 가깝다 — 그 사이의 넉넉한 선
  */
 export const MIN_MOVING_RATIO = 0.6;
 
@@ -167,6 +175,7 @@ export function parkinsonSigma(
 }
 
 /** Parkinson 창 — 짧게 잡는 것이 목적이다(반응 속도) */
+/** @근거 설계 짧게 잡는 것이 목적이다 — 장중 변동에 대한 반응 속도 */
 export const PARKINSON_SAMPLES = 10;
 
 /**

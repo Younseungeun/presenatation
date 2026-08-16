@@ -38,19 +38,26 @@ import type { Direction } from './constants';
 //
 // 고지·문구는 **비율만 쓴다** — 실제 수치(원·%)를 쓰면 비공개인 목표 수익률이 역산된다.
 
+/** @근거 시뮬 scripts/simSalesWindow.ts — 남은 몫 기준으로 판매창을 자른다 */
 export const SALES_WINDOW_RATIO = 1 / 3;
+/** @근거 설계 장기 카드의 판매창이 무한정 열려 있지 않게 하는 절대 상한 */
 export const SALES_WINDOW_MAX_DAYS = 30;
 
 /** 판매 중단선 — 남은 몫이 광고의 절반 밑이면 결제를 막는다 */
+/** @근거 시뮬 scripts/simSalesBand.ts — 경계 구매자의 적중 확률이 게시 직후의 1.2~1.6배 */
 export const SUSPEND_ALPHA = 0.5;
 /** 부족 고지선 — 남은 몫이 광고의 8할 밑이면 "다 못 챙긴다"를 알린다 */
+/** @근거 시뮬 scripts/simSalesBand.ts — 판매일의 약 30%가 걸리는 부족 고지선 */
 export const NOTICE_SHORTFALL_Q = 0.8;
 /** 초과 고지선 — 반대로 광고 폭 이상 벌어졌으면 "예측이 빗나가는 중"을 경고한다 */
+/** @근거 시뮬 scripts/simSalesBand.ts — 대칭 문턱이면 판매일의 37~50%가 초과가 된다 */
 export const NOTICE_EXCESS_Q = 2.0;
 
 /**
  * 역방향 마감선 — 기준가에서 **광고한 목표 폭만큼 반대로** 가면 판매를 끝낸다.
  * (+30% 카드가 −30%가 된 순간. 1.0 = 목표 폭의 100%를 반대로 이동)
+ *
+ * @근거 설계 광고한 목표 폭만큼 반대로 가면 상품이 성립하지 않는다
  */
 export const ADVERSE_CLOSE_FRACTION = 1.0;
 

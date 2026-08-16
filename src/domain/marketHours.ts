@@ -9,7 +9,7 @@ import { marketClock, MARKET_TIMEZONE } from './marketData';
 //  · 판정은 "언젠가" 돌아 마감 직후 결과를 볼 수 없었다
 // 자동화의 뼈대라 도메인에 둔다 — 스케줄러와 배치가 같은 답을 봐야 한다.
 
-/** 정규장 시간 (해당 시장 현지시각) */
+/** 정규장 시간 (해당 시장 현지시각) — 거래소가 정한 값이라 고를 것이 없다 */
 export const MARKET_SESSION: Record<Exclude<AssetClass, 'CRYPTO'>, { open: string; close: string }> =
   {
     KR_EQUITY: { open: '09:00', close: '15:30' },
@@ -20,6 +20,8 @@ export const MARKET_SESSION: Record<Exclude<AssetClass, 'CRYPTO'>, { open: strin
  * 마감 후 판정까지의 유예 (분) — 사용자 확정: **장 마감 5분 후로 통일**.
  * 마감 정각에 부르면 그날 일봉이 아직 없거나 잠정치일 수 있다. 5분을 두고,
  * 그래도 당일 봉이 없으면 판정하지 않고 이월한다(배치가 그렇게 동작한다).
+ *
+ * @근거 설계 마감 정각의 일봉은 없거나 잠정치다 — 사용자 확정으로 5분 통일
  */
 export const CLOSE_GRACE_MIN = 5;
 

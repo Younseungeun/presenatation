@@ -34,6 +34,7 @@ export type TierThresholds = Record<Exclude<Tier, 'BRONZE' | 'CHALLENGER'>, numb
 //
 // 시즌 장수 민감도는 v4보다 낮다 — 카드당 점수가 유계라 누적 분산이 작다.
 // 그래도 운영 데이터로 모집단·게시량 가정을 재조정하는 것은 전제다.
+// @근거 시뮬 scripts/simScoreModel.ts — 순위상관 0.860, 꼬리가 겹치지 않는 지점
 export const DEFAULT_TIER_THRESHOLDS: TierThresholds = {
   SILVER: 1_200,
   GOLD: 2_650,

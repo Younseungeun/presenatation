@@ -465,6 +465,8 @@ async function runRefundAttempt(
  * PG 취소는 초 단위로 끝나는 호출이라 30분이 남아 있으면 정상 경로가 아니다.
  * 결제 쪽 `REQUIRES_MANUAL_VOID`(고객이 돈을 냈는데 못 받은 상태)와 달리 이쪽은
  * 며칠 안에만 환불되면 되는 건이라 즉시 알림이 아니라 배치로 묶어 올린다.
+ *
+ * @근거 설계 PG 취소는 초 단위 호출 — 30분이 남아 있으면 정상 경로가 아니다
  */
 export const STUCK_REFUND_MINUTES = 30;
 
@@ -543,6 +545,8 @@ export async function sweepStuckRefundAttempts(
  * 최근이면 지급을 거부하고, 운영자가 토스 콘솔에서 입금을 눈으로 확인했으면
  * `confirmedSettled`로 넘긴다. 대조 배치(domain/reconciliation.ts)가 붙으면
  * 이 확인이 자동이 된다 — 그때까지의 임시 방어선이다.
+ *
+ * @근거 계약 토스 정산 주기 — 실계약 전이라 막지 않고 운영자에게 확인시킨다
  */
 export const PG_SETTLEMENT_LAG_DAYS = 3;
 

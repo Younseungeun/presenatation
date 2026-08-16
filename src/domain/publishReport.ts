@@ -22,6 +22,7 @@ import {
 // 여기서 걸러지지 않으면 판정·정산까지 오염되므로 검증은 게시 시점에 전부 끝낸다.
 
 /** 플랫폼 가격 가이드 (CLAUDE.md 3.4절: 건당 5천~5만원) */
+/** @근거 설계 기획 §3.4의 가격 가이드 — 건당 5천~5만원 */
 export const PRICE_GUIDE_KRW = { min: 5_000, max: 50_000 } as const;
 
 /**
@@ -34,6 +35,8 @@ export const PRICE_GUIDE_KRW = { min: 5_000, max: 50_000 } as const;
  *
  * 요약도 함께 제한한다: 요약은 구매 전 공개되는 미리보기이고, 검수 입력에도
  * 포함되므로 여기를 열어두면 본문만 막는 것이 의미가 없다.
+ *
+ * @근거 설계 검수 입력 토큰 상한을 구조로 고정 — 비용이 본문 길이에 선형이다
  */
 export const REPORT_TEXT_LIMITS = {
   title: 100,
@@ -114,12 +117,15 @@ export const MAX_ACTIVE_CARDS: Record<Tier, number> = {
  * **한 자산군만 다루는 리서처는 영향을 받지 않는다**(실측 61장 그대로).
  *
  * 자산군별 상한에서 유도한다 — 두 곳에 적어 두면 한쪽을 고칠 때 다른 쪽이 어긋난다.
+ *
+ * @근거 시뮬 scripts/simEvidenceCorrelation.ts — 전체 8장에서 오작동 2.90%
  */
 export const MAX_ACTIVE_CARDS_TOTAL: Record<Tier, number> = Object.fromEntries(
   Object.entries(MAX_ACTIVE_CARDS).map(([tier, n]) => [tier, Math.round(n * 1.6)]),
 ) as Record<Tier, number>;
 
 /** 이 시한(일)을 넘으면 **장기 카드** — 한 시즌(91일) 안에 판정이 끝나지 않는다 */
+/** @근거 설계 한 시즌(91일) 안에 판정이 끝나지 않는 경계 */
 export const LONG_HORIZON_DAYS = 90;
 
 /**
@@ -134,6 +140,8 @@ export const LONG_HORIZON_DAYS = 90;
  * 두 시즌으로 끊으면 "첫 판정까지 최대 반년"이 보장되고, 그 사이 등급 재산정도
  * 두 번 돈다. 콜드스타트에서 이탈이 나는 구간을 덮으면서 정상적인 중장기 예측은
  * 그대로 살린다.
+ *
+ * @근거 설계 두 시즌 — 콜드스타트 이탈 구간을 덮되 중장기 예측은 살린다
  */
 export const NEW_RESEARCHER_MAX_HORIZON_DAYS = LONG_HORIZON_DAYS * 2;
 
@@ -144,6 +152,8 @@ export const NEW_RESEARCHER_MAX_HORIZON_DAYS = LONG_HORIZON_DAYS * 2;
  * 판정 → 정산 또는 환불이 한 번 돌면 리서처는 이 플랫폼이 실제로 어떻게 굴러가는지
  * 알게 되고, 그 뒤의 기간 선택은 본인 몫이다. 더 높이면 실력 문턱이 되어 버리는데
  * 그건 이 규칙이 할 일이 아니다(그건 등급과 규율 래더가 한다).
+ *
+ * @근거 설계 실력 검증이 아니라 사이클을 한 번 겪게 하는 것이 목적이다
  */
 export const JUDGED_BEFORE_LONG_CARDS = 1;
 
@@ -162,6 +172,8 @@ export const JUDGED_BEFORE_LONG_CARDS = 1;
  * 발동 67.6%, scripts/simDisciplineRealtime.ts).
  *
  * 상한에서 유도한다 — 두 곳에 적어 두면 한쪽을 고칠 때 다른 쪽이 조용히 어긋난다.
+ *
+ * @근거 시뮬 scripts/simDisciplineRealtime.ts — 절반이 회전해야 래더가 볼 표본이 생긴다
  */
 export const MAX_ACTIVE_LONG_CARDS: Record<Tier, number> = Object.fromEntries(
   Object.entries(MAX_ACTIVE_CARDS).map(([tier, n]) => [tier, Math.max(1, Math.floor(n / 2))]),
@@ -179,6 +191,7 @@ export const DEADLINE_MIN_DAYS: Record<AssetClass, number> = {
   US_EQUITY: 0,
   CRYPTO: 1,
 };
+/** @근거 설계 1년 — 시즌 넷을 넘기는 카드는 판정 약속을 지킬 수 없다 */
 export const DEADLINE_MAX_DAYS = 365;
 
 /**
@@ -229,10 +242,13 @@ export const DEADLINE_MAX_DAYS = 365;
  * ⚠ 30일 이후 0으로 떨어지는 것은 우위가 사라져서가 아니라 **신뢰도 사다리가 성겨서**다:
  *   가장 낮은 칸(c=2)이 이미 승산 ×1.73을 신고하는데 실제 우위가 그보다 작아,
  *   신고하는 순간 기대값이 음수가 된다. **사다리 자체가 필터로 작동한다.**
+ *
+ * @근거 시뮬 scripts/simShortHorizonCutoff.ts — 시각 선택 이득이 시니어선의 3.9%
  */
 export const EQUITY_SHORT_HORIZON_DAYS = 14;
 
 /** 장 시작 후·주말 게시 단기 카드의 최소 시한: 게시일로부터 N일 (시장 시간대 날짜 기준) */
+/** @근거 설계 게시 이후 첫 정규장 종가를 기준가로 쓸 수 있는 최소 간격 */
 export const AFTER_CUTOFF_MIN_DEADLINE_DAYS = 2;
 
 /**
@@ -244,6 +260,8 @@ export const AFTER_CUTOFF_MIN_DEADLINE_DAYS = 2;
  *   (20~04시 ET, 국내 증권사 '주간거래' = 한국 낮 시간) → 프리마켓(04~09:30 ET)이
  *   사실상 연속이라 정보 공백 시점이 존재하지 않는다 → 당일 카드 불가,
  *   단기 카드는 항상 게시일+2일(기준가 = 게시 이후 첫 정규장 종가)
+ *
+ * @근거 규칙 NXT 프리마켓·KRX 장전 시간외 개시 시각(08:00 KST)
  */
 export const KR_PUBLISH_CUTOFF = {
   timeZone: 'Asia/Seoul',
@@ -252,6 +270,7 @@ export const KR_PUBLISH_CUTOFF = {
 } as const;
 
 /** 정규장 마감 시각 — 이후 게시는 그날 종가가 이미 공개된 뒤라 기준일을 다음 거래일로 굴린다 */
+/** @근거 규칙 거래소 정규장 마감 시각 */
 export const EQUITY_REGULAR_CLOSE: Record<Exclude<AssetClass, 'CRYPTO'>, string> = {
   KR_EQUITY: '15:30',
   US_EQUITY: '16:00',

@@ -58,6 +58,8 @@ export const RISK_CATEGORY_LABEL: Record<RiskCategory, string> = {
  * 리서처가 종목을 옮기면 처음부터 다시 센다. 이 눈금은 그 사각을 본다.
  * 종목 쪽보다 느슨한(2 → 3) 이유는 처분의 대상이 다르기 때문이다 — 종목을 내리는 것은
  * 아무의 잘못도 아니지만, 사람의 게시를 멈춰 세우는 것은 한 번 더 확실할 때 해야 한다.
+ *
+ * @근거 설계 사람의 게시를 멈추는 처분이라 종목 차단(2)보다 한 번 더 확실할 때
  */
 export const UNJUDGEABLE_PATTERN_THRESHOLD = 3;
 
@@ -516,6 +518,7 @@ export function findingMessages(findings: Finding[], severity?: Severity): strin
 // 자동 통과 경로를 닫는 것이다 — 정상적으로 고쳐 쓴 리서처는 운영자 승인으로 게시된다.
 
 /** 이 횟수 이상 반려된 리포트는 검수 통과 여부와 무관하게 운영자 검토를 거친다 */
+/** @근거 설계 반려 누적으로 검수 경계를 이진 탐색하는 것을 막는다 */
 export const REPUBLISH_REVIEW_THRESHOLD = 3;
 
 export function requiresReviewAfterRejections(rejectionCount: number): boolean {
@@ -529,8 +532,10 @@ export function requiresReviewAfterRejections(rejectionCount: number): boolean {
 // 그래서 큐는 오래된 순으로 정렬하고, 경과 시간에 따라 눈에 띄게 표시한다.
 
 /** 이 시간을 넘기면 주의 (반나절 안에는 답을 줘야 한다는 기준) */
+/** @근거 설계 반나절 안에는 답을 줘야 한다는 운영 기준 */
 export const HOLD_ATTENTION_HOURS = 6;
 /** 이 시간을 넘기면 지연 — 단기 카드는 이미 가치를 잃었을 수 있다 */
+/** @근거 설계 하루를 넘기면 단기 카드는 이미 가치를 잃었을 수 있다 */
 export const HOLD_OVERDUE_HOURS = 24;
 
 export type HoldUrgency = 'NORMAL' | 'ATTENTION' | 'OVERDUE';

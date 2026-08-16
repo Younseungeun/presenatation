@@ -86,6 +86,8 @@ export const DEFAULT_CROSS_CHECK_MODE: CrossCheckMode = 'shadow';
  * **합의한 카드도 검증된 것이 아니다** — 그저 목표선을 사이에 두지 않았을 뿐이다.
  * 깨진 소스로 나머지를 판정하는 것은 대조를 안 한 것과 같다.
  * 정지 중에도 14일 상한(환불)은 계속 집행되므로 구매자 약속은 유지된다.
+ *
+ * @근거 설계 소스가 무더기 불일치를 내면 합의한 카드도 검증된 것이 아니다
  */
 export const CROSS_CHECK_READINESS = {
   /** 어댑터 안정성을 보는 관측 기간 (영업일) */

@@ -75,6 +75,7 @@ export const PREPAYMENT_RATIOS = [0, 10, 20, 30] as const;
 export type PrepaymentRatio = (typeof PREPAYMENT_RATIOS)[number];
 
 // 표본 수 미만이면 프로필에 "검증 중" 배지 표시
+// @근거 설계 표본이 이보다 적으면 적중률이 실력의 신호가 되지 못한다
 export const MIN_SAMPLE_FOR_VERIFIED = 10;
 
 /**
@@ -96,5 +97,7 @@ export const MIN_SAMPLE_FOR_VERIFIED = 10;
  *
  * 아래일 때 숫자를 감추는 것이 신규 리서처에게도 낫다: "100% (1건)"은 아무도 안 믿는
  * 숫자지만 "검증 1/5건"은 **플랫폼이 엄격하다**는 사실을 대신 말해 준다.
+ *
+ * @근거 설계 이보다 적은 표본으로 비율을 표시하면 숫자가 사실보다 세게 읽힌다
  */
 export const MIN_SAMPLE_FOR_RATE = 5;
