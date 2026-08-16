@@ -97,6 +97,55 @@ describe('계좌 등록·검증', () => {
     expect(saved.holderName).toBeNull(); // 은행 조회로만 채워진다
   });
 
+  // **첫 등록과 변경은 알림이 다르다** — 동결 버튼을 눌러야 하는 쪽은 "내가 안 바꿨는데
+  // 바뀌었다"는 사람이다. 첫 등록에도 "변경되었습니다"를 보내면 정상 등록한 사람이
+  // 놀라고, 늑대 소년이 되어 진짜 변경 알림의 무게가 깎인다
+  it('첫 등록은 "등록", 두 번째부터 "변경"으로 알린다', async () => {
+    const first = await prisma.notification.findFirstOrThrow({
+      where: { userId: researcherUserId, type: 'PAYOUT_ACCOUNT_CHANGED' },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(first.title).toContain('등록되었습니다');
+    expect(first.title).not.toContain('변경');
+
+    await registerPayoutAccount(
+      prisma,
+      { researcherUserId, bankCode: '004', accountNumber: '110-234-567890', actor: researcherUserId, identity: OWNER },
+      NOW,
+    );
+    const second = await prisma.notification.findFirstOrThrow({
+      where: { userId: researcherUserId, type: 'PAYOUT_ACCOUNT_CHANGED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    // 같은 계좌번호를 다시 넣어도 **변경**이다 — 값을 비교하려면 저장된 원문을
+    // 복호화해 꺼내야 하고, 그게 이 설계가 피하려는 바로 그 일이다
+    expect(second.title).toContain('변경되었습니다');
+  });
+
+  // 동결은 계좌가 없어도 걸 수 있어서 **빈 껍데기 행**이 먼저 생긴다.
+  // 그 행을 "이미 계좌가 있다"로 세면 진짜 첫 등록이 "변경"으로 잘못 알려진다
+  it('동결로 만들어진 빈 행은 첫 등록 판정을 흐리지 않는다', async () => {
+    const other = await prisma.user.create({
+      data: { email: 'frozen-first@acct.io', identityVerified: true, identityHash: hashCi('ci-ff') },
+    });
+    await freezePayouts(prisma, { researcherUserId: other.id, actor: other.id }, NOW);
+    await registerPayoutAccount(
+      prisma,
+      {
+        researcherUserId: other.id,
+        bankCode: '004',
+        accountNumber: '110-999-111222',
+        actor: other.id,
+        identity: { ci: 'ci-ff', name: '홍길동' },
+      },
+      NOW,
+    );
+    const noti = await prisma.notification.findFirstOrThrow({
+      where: { userId: other.id, type: 'PAYOUT_ACCOUNT_CHANGED' },
+    });
+    expect(noti.title).toContain('등록되었습니다');
+  });
+
   it('미검증 계좌에는 지급하지 않는다', async () => {
     await expect(assertPayoutAccountReady(prisma, researcherUserId, LATER)).rejects.toThrow(
       PayoutAccountError,

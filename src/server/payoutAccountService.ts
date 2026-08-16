@@ -124,6 +124,20 @@ export async function registerPayoutAccount(
     changedAt: now,
   };
 
+  // **첫 등록인지 변경인지 미리 안다** — 알림 문구가 갈린다.
+  // 동결 버튼을 눌러야 하는 쪽은 "내가 안 바꿨는데 바뀌었다"는 사람이라, 첫 등록에도
+  // "변경되었습니다"라고 보내면 **정상 등록한 사람이 놀라고**(늑대 소년이 된다)
+  // 진짜 변경 알림의 무게가 그만큼 깎인다.
+  //
+  // 계좌 유무만 본다 — `frozenAt`을 채우려고 만든 빈 껍데기 행이 있을 수 있어
+  // (freezePayouts는 계좌가 없어도 동결을 걸 수 있다) 행의 존재가 아니라
+  // **실제로 계좌번호가 들어 있었는가**로 가른다
+  const before = await prisma.payoutAccount.findUnique({
+    where: { researcherUserId: input.researcherUserId },
+    select: { accountNumberEnc: true },
+  });
+  const isFirst = !before || before.accountNumberEnc === '';
+
   await prisma.payoutAccount.upsert({
     where: { researcherUserId: input.researcherUserId },
     create: { researcherUserId: input.researcherUserId, ...data, createdAt: now },
@@ -140,16 +154,23 @@ export async function registerPayoutAccount(
   // 통제하지 못하는 경로**로 가야 하는데, 지금 있는 것은 인앱 알림뿐이다. 계정을 쥔
   // 사람은 이 알림도 본다(다만 동결을 풀지는 못한다 — 그건 운영자만 한다).
   // 본인 인증 실공급자가 붙어 문자·이메일이 생기면 그쪽을 함께 써야 완성된다.
+  const cooldownHours = ACCOUNT_CHANGE_COOLDOWN_MS / 3_600_000;
   await prisma.notification.create({
     data: {
       userId: input.researcherUserId,
       type: 'PAYOUT_ACCOUNT_CHANGED',
-      title: '[중요] 정산 계좌가 변경되었습니다',
-      body:
-        `정산 계좌가 ${data.bankCode} ${accountLast4}로 변경되었습니다. ` +
-        `본인이 변경한 것이 맞다면 은행 예금주 확인 후 ${ACCOUNT_CHANGE_COOLDOWN_MS / 3_600_000}시간 뒤부터 새 계좌로 지급됩니다.\n` +
-        '**본인이 변경하지 않았다면 지금 바로 정산을 동결해주세요.** ' +
-        '동결하면 확인이 끝날 때까지 한 푼도 나가지 않습니다.',
+      title: isFirst ? '정산 계좌가 등록되었습니다' : '[중요] 정산 계좌가 변경되었습니다',
+      body: isFirst
+        ? // 첫 등록은 본인이 방금 한 일이라 놀랄 이유가 없다 — 다음에 무엇이
+          // 남았는지만 알려 준다. 그래도 "내가 한 게 아니면" 한 줄은 남긴다:
+          // 유심을 가로챈 사람이 남의 계정에 처음 계좌를 넣는 경우가 실제로 있다
+          `정산 계좌로 ${data.bankCode} ${accountLast4}를 등록했습니다.\n` +
+          `은행 예금주 확인이 끝나고 ${cooldownHours}시간이 지나면 이 계좌로 지급됩니다.\n` +
+          '만약 본인이 등록한 것이 아니라면 지금 바로 정산을 동결해주세요.'
+        : `정산 계좌가 ${data.bankCode} ${accountLast4}로 변경되었습니다. ` +
+          `본인이 변경한 것이 맞다면 은행 예금주 확인 후 ${cooldownHours}시간 뒤부터 새 계좌로 지급됩니다.\n` +
+          '**본인이 변경하지 않았다면 지금 바로 정산을 동결해주세요.** ' +
+          '동결하면 확인이 끝날 때까지 한 푼도 나가지 않습니다.',
       link: '/settings',
       createdAt: now,
     },
