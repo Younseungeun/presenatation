@@ -29,7 +29,10 @@ export async function POST(req: NextRequest) {
     // 기기 등록 관문(최근성)에서 재인증을 요구받는다. 그것이 맞다: 열쇠로 들어와
     // 열쇠를 또 심는 길을 열어 두면 훔친 기기 하나가 계정을 영구히 장악한다
     await setSessionCookie(userId, { method: 'PASSKEY', verifiedAt: 0 });
-    return NextResponse.json({ ok: true });
+    // 관리자는 첫 화면이 운영 대시보드다 — 로그인이 **성공한 뒤**의 응답이라
+    // "아무것도 알려주지 않는다" 원칙(위 주석)과 충돌하지 않는다
+    const me = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    return NextResponse.json({ ok: true, operator: me?.role === 'OPERATOR' });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '입력 형식 오류', issues: e.issues }, { status: 400 });

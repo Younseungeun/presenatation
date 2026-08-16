@@ -50,8 +50,10 @@ export function PasskeyButton() {
         // 어떤 자격증명이 이 서비스에 있는지 훑을 수 있다
         throw new Error("이 기기로는 로그인할 수 없습니다. 아래에서 본인 인증으로 진행해주세요.");
       }
-      // 세션 쿠키가 방금 생겼다 — 전체 페이지 로드로 서버가 그것을 읽게 한다
-      window.location.href = "/";
+      const verified = await verifyRes.json();
+      // 세션 쿠키가 방금 생겼다 — 전체 페이지 로드로 서버가 그것을 읽게 한다.
+      // 관리자는 이용자 홈이 아니라 운영 대시보드가 첫 화면이다
+      window.location.href = verified.operator ? "/admin" : "/";
     } catch (e) {
       // 사용자가 지문 창을 그냥 닫은 것은 오류가 아니다. 조용히 되돌린다
       const name = (e as { name?: string })?.name;

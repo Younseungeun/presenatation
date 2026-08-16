@@ -59,7 +59,13 @@ export async function POST(req: NextRequest) {
       result.userId,
       store.get('rm_device')?.value,
     ));
-    return NextResponse.json({ ...result, pinSetupRequired });
+    // 관리자 신원이면 첫 화면이 운영 대시보드다 (2026-08-17 사용자 확정 구조).
+    // 방금 verifyAndSignIn이 신원으로 승격까지 마쳤으므로 여기선 role만 읽으면 된다
+    const me = await prisma.user.findUnique({
+      where: { id: result.userId },
+      select: { role: true },
+    });
+    return NextResponse.json({ ...result, pinSetupRequired, operator: me?.role === 'OPERATOR' });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '입력 형식 오류', issues: e.issues }, { status: 400 });

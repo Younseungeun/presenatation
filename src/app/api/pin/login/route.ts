@@ -30,7 +30,9 @@ export async function POST(req: NextRequest) {
     // 간편 로그인은 본인 인증을 거치지 않았다 — verifiedAt은 0이고, 그래서 이 세션은
     // 자격증명을 심는 관문(패스키·PIN 설정)에서 재인증을 요구받는다
     await setSessionCookie(userId, { method: 'PIN', verifiedAt: 0 });
-    return NextResponse.json({ ok: true });
+    // 관리자는 첫 화면이 운영 대시보드다 — 화면 분기는 클라이언트가 한다
+    const me = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    return NextResponse.json({ ok: true, operator: me?.role === 'OPERATOR' });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '입력 형식 오류', issues: e.issues }, { status: 400 });

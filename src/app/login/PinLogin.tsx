@@ -41,7 +41,8 @@ export function PinLogin() {
         if (body?.code === "PIN_LOCKED" || body?.code === "UNKNOWN_DEVICE") setLocked(true);
         throw new Error(body?.error ?? "로그인에 실패했습니다");
       }
-      window.location.href = "/";
+      // 관리자는 이용자 홈이 아니라 운영 대시보드가 첫 화면이다
+      window.location.href = body.operator ? "/admin" : "/";
     } catch (e) {
       setError(e instanceof Error ? e.message : "로그인에 실패했습니다");
       setPin("");

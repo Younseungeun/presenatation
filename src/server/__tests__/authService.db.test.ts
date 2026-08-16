@@ -143,3 +143,49 @@ describe('signUpAndSignIn — 가입 갈래 (단순 이용자 / 리서처)', () 
     expect(profile.userId).toBe(first.userId);
   });
 });
+
+// ── 관리자는 계정이 아니라 신원이다 (2026-08-17 사용자 확정 구조) ──────────
+//
+// 창업자의 CI 해시를 환경 변수(FOUNDER_CI_HASH)에 고정하면, 그 사람의 본인 인증이
+// 곧 관리자 승격이다. DB를 초기화하거나 앱을 다시 깔아도 풀 로그인 한 번이면 돌아온다.
+describe('창업자 신원 자동 승격', () => {
+  const FOUNDER = { name: '창업자', phone: '010-7777-0001' };
+
+  afterAll(() => {
+    delete process.env.FOUNDER_CI_HASH;
+  });
+
+  it('환경 변수가 비어 있으면 아무도 승격되지 않는다', async () => {
+    delete process.env.FOUNDER_CI_HASH;
+    const r = await verifyAndSignIn(prisma, provider, FOUNDER);
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: r.userId } });
+    expect(u.role).toBe('USER');
+  });
+
+  it('신원이 일치하는 풀 로그인은 기존 계정도 승격시킨다', async () => {
+    const ci = (await provider.verify(FOUNDER)).ci;
+    process.env.FOUNDER_CI_HASH = hashCi(ci);
+
+    const r = await verifyAndSignIn(prisma, provider, FOUNDER);
+    expect(r.isNewUser).toBe(false); // 위 시험에서 만든 그 계정이다
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: r.userId } });
+    expect(u.role).toBe('OPERATOR');
+  });
+
+  it('다른 사람의 인증은 승격되지 않는다 — 해시가 다르면 그냥 이용자다', async () => {
+    const r = await verifyAndSignIn(prisma, provider, { name: '남남', phone: '010-7777-0002' });
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: r.userId } });
+    expect(u.role).toBe('USER');
+  });
+
+  it('DB가 사라져도 신원만 있으면 첫 가입부터 관리자다', async () => {
+    // 새 계정 생성 경로 — 창업자와 같은 해시를 가진 새 번호는 없으므로,
+    // 환경 변수를 새 사람의 해시로 바꿔 "초기화 후 첫 가입" 상황을 흉내 낸다
+    const fresh = { name: '재설치창업자', phone: '010-7777-0003' };
+    process.env.FOUNDER_CI_HASH = hashCi((await provider.verify(fresh)).ci);
+    const r = await verifyAndSignIn(prisma, provider, fresh);
+    expect(r.isNewUser).toBe(true);
+    const u = await prisma.user.findUniqueOrThrow({ where: { id: r.userId } });
+    expect(u.role).toBe('OPERATOR');
+  });
+});

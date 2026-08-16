@@ -24,6 +24,7 @@
     "seed:crypto": "tsx scripts/seedCryptoScenario.ts",
     "batch:judge": "tsx scripts/runJudgmentBatch.ts",
     "op:grant": "tsx scripts/grantOperator.ts",
+    "op:hash": "tsx scripts/printFounderHash.ts",
     "judgment:revert": "tsx scripts/revertJudgment.ts",
     "cs:void": "tsx scripts/voidPurchase.ts",
     "risk:us": "tsx scripts/syncUsStatus.ts",

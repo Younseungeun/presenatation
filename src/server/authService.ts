@@ -38,6 +38,16 @@ export async function verifyAndSignIn(
   const result = await provider.verify(input);
   const identityHash = hashCi(result.ci);
 
+  // ── 관리자는 계정이 아니라 **신원**이다 (2026-08-17 사용자 확정 구조) ────
+  // 창업자의 CI 해시를 환경 변수에 고정해 두면, **그 사람의 본인 인증**이 곧 관리자
+  // 승격이다 — 어느 기기, 어느 계정 행이든 상관없다. DB의 role 칸을 CLI로 부여하는
+  // 방식(op:grant)과 달리, 앱을 다시 깔거나 DB를 초기화해도 풀 로그인 한 번이면
+  // 관리자 화면이 돌아온다. 값을 코드가 아니라 환경 변수에 두는 이유: 코드는 원격
+  // 저장소에 올라가고, 한 번 올라간 값은 이력에서 지워지지 않는다.
+  // **승격만 한다** — 환경 변수가 비어 있거나 다르면 아무 일도 하지 않는다.
+  const founderHash = process.env.FOUNDER_CI_HASH?.trim();
+  const isFounder = !!founderHash && identityHash === founderHash;
+
   // ── 실명을 가입 시점에 저장한다 (2026-08-16 사용자 확정) ─────────
   // 계좌 등록 때 은행 예금주명과 대조할 상대편이다. 인증 응답의 이름만 쓴다 —
   // 본인이 화면에 적는 이름은 절대 이 칸에 들어오지 않는다.
@@ -47,7 +57,15 @@ export async function verifyAndSignIn(
 
   const existing = await prisma.user.findUnique({ where: { identityHash } });
   if (existing) {
-    await prisma.user.update({ where: { id: existing.id }, data: { realNameEnc } });
+    await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        realNameEnc,
+        ...(isFounder && existing.role !== 'OPERATOR'
+          ? { role: 'OPERATOR', operatorCold: false }
+          : {}),
+      },
+    });
     return { userId: existing.id, isNewUser: false };
   }
 
@@ -59,6 +77,7 @@ export async function verifyAndSignIn(
       identityVerified: true,
       identityHash,
       realNameEnc,
+      ...(isFounder ? { role: 'OPERATOR' } : {}),
     },
   });
   return { userId: created.id, isNewUser: true };
