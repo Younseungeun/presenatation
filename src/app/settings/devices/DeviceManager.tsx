@@ -37,6 +37,7 @@ export function DeviceManager({ initial }: { initial: Device[] }) {
   const [label, setLabel] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [needsReverify, setNeedsReverify] = useState(false);
 
   async function refresh() {
     const res = await fetch("/api/passkey/devices");
@@ -46,10 +47,17 @@ export function DeviceManager({ initial }: { initial: Device[] }) {
   async function register() {
     setBusy(true);
     setError(null);
+    setNeedsReverify(false);
     try {
       const optionsRes = await fetch("/api/passkey/register");
       const optionsJSON = await optionsRes.json();
-      if (!optionsRes.ok) throw new Error(optionsJSON?.error ?? "등록을 시작할 수 없습니다");
+      if (!optionsRes.ok) {
+        // 관문에 걸린 것은 **두 종류를 나눠서** 다룬다. 재인증으로 지금 풀리는 것과,
+        // 기다려야만 풀리는 것 — 하나로 뭉뚱그리면 "다시 시도" 버튼이 영영 안 되는
+        // 화면이 되거나, 반대로 기다려야 하는 사람에게 헛된 인증을 시키게 된다
+        if (optionsJSON?.code === "REVERIFY_REQUIRED") setNeedsReverify(true);
+        throw new Error(optionsJSON?.error ?? "등록을 시작할 수 없습니다");
+      }
 
       const response = await startRegistration({ optionsJSON });
       const res = await fetch("/api/passkey/register", {
@@ -133,6 +141,14 @@ export function DeviceManager({ initial }: { initial: Device[] }) {
         <p className={styles.empty}>이 브라우저는 지문·얼굴 로그인을 지원하지 않습니다.</p>
       )}
       {error && <p className={styles.error}>{error}</p>}
+      {/* 막다른 길로 두지 않는다 — 재인증으로 풀리는 경우에는 그 길을 바로 보여준다.
+          로그인 화면으로 보내는 이유: 본인 인증 흐름이 그쪽에 이미 있고, 실공급자로
+          바뀌면 팝업·리다이렉트가 붙는 곳도 거기다 */}
+      {needsReverify && (
+        <p className={styles.empty}>
+          <a href="/login?next=/settings/devices">본인 인증 다시 하기 →</a>
+        </p>
+      )}
     </>
   );
 }

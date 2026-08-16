@@ -1,5 +1,12 @@
 import { cookies } from 'next/headers';
-import { SESSION_MAX_AGE_SEC, parseSession, serializeSession } from './sessionToken';
+import {
+  SESSION_MAX_AGE_SEC,
+  parseSession,
+  parseSessionClaims,
+  serializeSession,
+  type LoginMethod,
+  type SessionClaims,
+} from './sessionToken';
 
 // 세션 쿠키 헬퍼 (서버 컴포넌트·라우트 전용). 서명·검증은 sessionToken.ts.
 
@@ -11,9 +18,18 @@ export async function getSessionUserId(): Promise<string | null> {
   return parseSession(store.get(SESSION_COOKIE)?.value);
 }
 
-export async function setSessionCookie(userId: string): Promise<void> {
+/** 사용자 id에 더해 **어떻게 들어왔는지**까지 — 관문이 이것을 본다 */
+export async function getSessionClaims(): Promise<SessionClaims | null> {
   const store = await cookies();
-  store.set(SESSION_COOKIE, serializeSession(userId), {
+  return parseSessionClaims(store.get(SESSION_COOKIE)?.value);
+}
+
+export async function setSessionCookie(
+  userId: string,
+  claims: { method: LoginMethod; verifiedAt: number },
+): Promise<void> {
+  const store = await cookies();
+  store.set(SESSION_COOKIE, serializeSession(userId, claims), {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',

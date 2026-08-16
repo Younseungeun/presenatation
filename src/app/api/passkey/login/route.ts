@@ -25,7 +25,10 @@ export async function POST(req: NextRequest) {
   try {
     const body = bodySchema.parse(await req.json());
     const { userId } = await finishPasskeyLogin(prisma, body.response);
-    await setSessionCookie(userId);
+    // 패스키 로그인은 본인 인증을 거치지 않는다 — verifiedAt은 0이고, 그래서 이 세션은
+    // 기기 등록 관문(최근성)에서 재인증을 요구받는다. 그것이 맞다: 열쇠로 들어와
+    // 열쇠를 또 심는 길을 열어 두면 훔친 기기 하나가 계정을 영구히 장악한다
+    await setSessionCookie(userId, { method: 'PASSKEY', verifiedAt: 0 });
     return NextResponse.json({ ok: true });
   } catch (e) {
     if (e instanceof z.ZodError) {

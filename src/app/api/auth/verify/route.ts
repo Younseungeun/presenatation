@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { signUpAndSignIn } from '@/server/authService';
 import { prisma } from '@/server/db';
 import { createDefaultIdentityProvider } from '@/server/identityProvider';
+import { notifyElevatedRiskLogin } from '@/server/authGates';
 import { setSessionCookie } from '@/server/session';
 import { toErrorResponse } from '../../_lib/http';
 
@@ -39,7 +40,13 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await signUpAndSignIn(prisma, provider, body);
-    await setSessionCookie(result.userId);
+    // **방금 본인 인증을 통과했다는 사실을 세션에 남긴다.** 패스키 등록 관문이
+    // 이 시각을 보고 "지금 화면 앞의 사람이 방금 인증한 그 사람"인지 판단한다
+    await setSessionCookie(result.userId, { method: 'IDENTITY', verifiedAt: Date.now() });
+
+    // 패스키가 있는데 **본인 인증으로** 들어왔다면 평소 경로가 아니다 — 유심을 가로챈
+    // 공격자가 고르는 길이 이쪽이라, 본인에게 알리고 48시간 동안 열쇠를 못 심게 한다
+    await notifyElevatedRiskLogin(prisma, result.userId);
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof z.ZodError) {
