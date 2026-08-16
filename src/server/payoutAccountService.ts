@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { auditOp } from './auditLog';
 import { encryptField, last4 } from './fieldCrypto';
 import { notifyOperators } from './opsAlert';
 
@@ -84,6 +85,31 @@ export async function registerPayoutAccount(
     where: { researcherUserId: input.researcherUserId },
     create: { researcherUserId: input.researcherUserId, ...data, createdAt: now },
     update: data,
+  });
+
+  // ── 쿨다운을 **골든타임**으로 만든다 (2026-08-16, 외부 검토 A) ──────────
+  //
+  // 48시간의 값어치는 기다림 자체가 아니라 **그 사이에 진짜 주인이 멈출 수 있다는
+  // 것**이다. 멈출 방법이 없으면 그냥 지연일 뿐이다. 그래서 문구가 "지급이 늦어진다"가
+  // 아니라 **"본인이 바꾼 것이 맞습니까"**를 먼저 묻는다.
+  //
+  // ⚠ **이 장치의 한계를 정직하게 적어 둔다**: 알림이 의미를 가지려면 **탈취자가
+  // 통제하지 못하는 경로**로 가야 하는데, 지금 있는 것은 인앱 알림뿐이다. 계정을 쥔
+  // 사람은 이 알림도 본다(다만 동결을 풀지는 못한다 — 그건 운영자만 한다).
+  // 본인 인증 실공급자가 붙어 문자·이메일이 생기면 그쪽을 함께 써야 완성된다.
+  await prisma.notification.create({
+    data: {
+      userId: input.researcherUserId,
+      type: 'PAYOUT_ACCOUNT_CHANGED',
+      title: '[중요] 정산 계좌가 변경되었습니다',
+      body:
+        `정산 계좌가 ${data.bankCode} ${accountLast4}로 변경되었습니다. ` +
+        `본인이 변경한 것이 맞다면 은행 예금주 확인 후 ${ACCOUNT_CHANGE_COOLDOWN_MS / 3_600_000}시간 뒤부터 새 계좌로 지급됩니다.\n` +
+        '**본인이 변경하지 않았다면 지금 바로 정산을 동결해주세요.** ' +
+        '동결하면 확인이 끝날 때까지 한 푼도 나가지 않습니다.',
+      link: '/settings',
+      createdAt: now,
+    },
   });
   // **덧붙이기만 하는 이력** — 덮어쓰는 표만 있으면 "언제 어떤 계좌로 바뀌었나"에
   // 답할 수 없고, 그 질문은 정산 분쟁·수사 협조에서 반드시 나온다
@@ -175,6 +201,98 @@ export async function applyHolderLookup(
 }
 
 /**
+ * **정산을 동결한다 — 거는 것은 누구나.**
+ *
+ * "내가 안 바꿨다"고 말하는 순간이다. 되돌릴 수 없는 쪽(돈이 나가는 것)을 막는
+ * 행동이라 문턱을 두지 않는다 — 잘못 걸어도 대가는 "운영자에게 연락해야 한다"이고,
+ * 못 걸었을 때의 대가는 돈이 나가는 것이다.
+ *
+ * 계좌가 아직 없어도 걸 수 있어야 한다: 탈취자가 계좌를 **등록하기 전에** 미리 잠그는
+ * 것이 가장 이른 방어다. 그래서 행이 없으면 빈 계좌를 동결 상태로 만들어 둔다.
+ */
+export async function freezePayouts(
+  prisma: PrismaClient,
+  input: { researcherUserId: string; actor: string; reason?: string },
+  now = new Date(),
+): Promise<void> {
+  const frozen = { frozenAt: now, frozenBy: input.actor };
+  await prisma.payoutAccount.upsert({
+    where: { researcherUserId: input.researcherUserId },
+    create: {
+      researcherUserId: input.researcherUserId,
+      bankCode: '',
+      accountNumberEnc: '',
+      accountLast4: '****',
+      status: 'UNVERIFIED',
+      changedAt: now,
+      createdAt: now,
+      ...frozen,
+    },
+    update: frozen,
+  });
+  await notifyOperators(prisma, {
+    title: `[긴급] 정산 동결 요청 — ${input.researcherUserId}`,
+    body: [
+      '본인이 정산을 동결했습니다 — "내 계좌가 아니다"라는 신고일 수 있습니다.',
+      input.reason ? `사유: ${input.reason}` : '사유 미기재',
+      '**해제는 운영자만 할 수 있습니다.** 본인 확인 전에는 풀지 마세요 —',
+      '계정을 쥔 사람이 요청하는 것과 진짜 본인의 요청은 화면에서 구별되지 않습니다.',
+    ].join('\n'),
+    link: '/admin/settlements',
+  });
+}
+
+/**
+ * **동결을 푼다 — 운영자만.**
+ *
+ * 이 비대칭이 장치의 전부다. 본인이 풀 수 있으면 계정을 쥔 탈취자가 풀 수 있고,
+ * 그러면 동결은 아무것도 아니게 된다. 그래서 여기는 `operatorUserId`를 요구하고,
+ * 푼 사실을 **감사 로그에 남긴다** — 돈이 다시 나갈 수 있게 만드는 개입이다.
+ *
+ * ⚠ **계좌 검증 상태는 건드리지 않는다.** 동결 해제는 "이 사람의 지급을 다시 연다"이지
+ * "이 계좌가 본인 것이다"가 아니다. 둘을 한 번에 처리하면 운영자가 확인한 것보다
+ * 많은 것을 인정하게 된다.
+ */
+export async function unfreezePayouts(
+  prisma: PrismaClient,
+  input: { researcherUserId: string; operatorUserId: string; reason: string },
+  now = new Date(),
+): Promise<void> {
+  if (!input.reason.trim()) {
+    throw new PayoutAccountError('동결을 풀려면 무엇을 확인했는지 적어주세요');
+  }
+  const { count } = await prisma.payoutAccount.updateMany({
+    where: { researcherUserId: input.researcherUserId, frozenAt: { not: null } },
+    data: { frozenAt: null, frozenBy: null },
+  });
+  if (count === 0) throw new PayoutAccountError('동결된 계좌가 아닙니다');
+
+  await prisma.$transaction([
+    auditOp(prisma, {
+      actor: input.operatorUserId,
+      actorType: 'OPERATOR',
+      action: 'PAYOUT_FREEZE_SET',
+      targetType: 'PayoutAccount',
+      targetId: input.researcherUserId,
+      before: { frozen: true },
+      after: { frozen: false },
+      reason: input.reason.trim(),
+      at: now,
+    }),
+    prisma.notification.create({
+      data: {
+        userId: input.researcherUserId,
+        type: 'PAYOUT_ACCOUNT_CHANGED',
+        title: '정산 동결이 해제되었습니다',
+        body: '운영자 확인을 거쳐 정산 동결이 해제되었습니다. 계좌 검증이 끝나면 지급이 재개됩니다.',
+        link: '/settings',
+        createdAt: now,
+      },
+    }),
+  ]);
+}
+
+/**
  * **돈이 나가기 직전의 관문.** 통과하지 못하면 던진다.
  *
  * 지급·보상 양쪽이 같은 함수를 부른다 — 돈이 나가는 경로가 늘 때마다 여기에 붙이면
@@ -189,6 +307,14 @@ export async function assertPayoutAccountReady(
   if (!account) {
     throw new PayoutAccountError(
       '정산받을 계좌가 등록되지 않았습니다 — 리서처에게 계좌 등록을 요청해주세요.',
+    );
+  }
+  // **동결이 가장 먼저다.** 이것은 "본인이 아닐 수 있다"는 신고라, 다른 어떤 조건이
+  // 통과하든 무관하게 막아야 한다. 뒤에 두면 "검증됐으니 나간다"가 먼저 읽힌다
+  if (account.frozenAt) {
+    throw new PayoutAccountError(
+      '정산이 동결된 계정입니다 — 본인이 계좌 변경을 신고했습니다. ' +
+        '운영자가 본인 확인을 마쳐야 해제됩니다(본인은 해제할 수 없습니다).',
     );
   }
   if (account.status !== 'VERIFIED') {

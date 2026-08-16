@@ -6,8 +6,10 @@ import {
   ACCOUNT_CHANGE_COOLDOWN_MS,
   applyHolderLookup,
   assertPayoutAccountReady,
+  freezePayouts,
   PayoutAccountError,
   registerPayoutAccount,
+  unfreezePayouts,
 } from '../payoutAccountService';
 
 // **돈이 어디로 나가는지 시스템이 알게 하는 표.**
@@ -179,5 +181,88 @@ describe('변경 방어', () => {
     expect(history.map((h) => h.accountLast4)).toContain('7890');
     expect(history.map((h) => h.accountLast4)).toContain('7666');
     expect(history.some((h) => h.status === 'HOLDER_MISMATCH')).toBe(true);
+  });
+});
+
+// ── 동결: **거는 것은 누구나, 푸는 것은 운영자만** (2026-08-16) ────────────
+//
+// 쿨다운 48시간의 값어치는 기다림 자체가 아니라 **그 사이에 진짜 주인이 멈출 수
+// 있다는 것**이다. 멈출 방법이 없으면 48시간은 그냥 지연이다.
+//
+// 비대칭이 장치의 전부다: 본인이 풀 수 있으면 계정을 쥔 탈취자가 풀 수 있다.
+// 잘못 건 동결의 대가는 "운영자에게 연락"이고, 못 건 동결의 대가는 돈이 나가는 것이다.
+describe('정산 동결', () => {
+  const OPERATOR = 'op-freeze';
+
+  it('동결하면 검증된 계좌라도 지급이 막힌다', async () => {
+    const past = new Date('2026-09-01T00:00:00Z');
+    await registerPayoutAccount(
+      prisma,
+      { researcherUserId, bankCode: '004', accountNumber: '110-111-222333', actor: researcherUserId },
+      new Date(past.getTime() - ACCOUNT_CHANGE_COOLDOWN_MS - 3_600_000),
+    );
+    await applyHolderLookup(
+      prisma,
+      { researcherUserId, holderName: '홍길동', actor: 'system:bank', expectedHolderName: '홍길동' },
+      past,
+    );
+    await expect(assertPayoutAccountReady(prisma, researcherUserId, past)).resolves.toBeUndefined();
+
+    await freezePayouts(prisma, { researcherUserId, actor: researcherUserId, reason: '내가 안 바꿨다' }, past);
+    await expect(assertPayoutAccountReady(prisma, researcherUserId, past)).rejects.toThrow(
+      /동결된 계정입니다/,
+    );
+  });
+
+  // **동결이 가장 먼저 걸린다** — "본인이 아닐 수 있다"는 신고라, 다른 조건이 통과하든
+  // 무관하게 막아야 한다. 뒤에 두면 "검증됐으니 나간다"가 먼저 읽힌다
+  it('동결 사유가 다른 어떤 사유보다 먼저 보고된다', async () => {
+    const past = new Date('2026-09-02T00:00:00Z');
+    await registerPayoutAccount(
+      prisma,
+      { researcherUserId, bankCode: '004', accountNumber: '110-999-000111', actor: researcherUserId },
+      past,
+    );
+    // 지금은 미검증 + 쿨다운 + 동결이 전부 걸린 상태
+    await expect(assertPayoutAccountReady(prisma, researcherUserId, past)).rejects.toThrow(
+      /동결된 계정입니다/,
+    );
+  });
+
+  it('사유 없이는 동결을 풀 수 없다', async () => {
+    await expect(
+      unfreezePayouts(prisma, { researcherUserId, operatorUserId: OPERATOR, reason: '  ' }),
+    ).rejects.toThrow(PayoutAccountError);
+  });
+
+  it('운영자가 풀면 감사 로그가 남고, 계좌 검증 상태는 건드리지 않는다', async () => {
+    const before = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId } });
+    await unfreezePayouts(prisma, {
+      researcherUserId,
+      operatorUserId: OPERATOR,
+      reason: '본인 통화 확인 — 본인이 변경한 것이 맞음',
+    });
+    const after = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId } });
+    expect(after.frozenAt).toBeNull();
+    // 동결 해제는 "지급을 다시 연다"이지 "이 계좌가 본인 것이다"가 아니다
+    expect(after.status).toBe(before.status);
+
+    expect(
+      await prisma.auditLog.count({
+        where: { action: 'PAYOUT_FREEZE_SET', targetId: researcherUserId },
+      }),
+    ).toBe(1);
+  });
+
+  it('동결되지 않은 계좌는 풀 수 없다', async () => {
+    await expect(
+      unfreezePayouts(prisma, { researcherUserId, operatorUserId: OPERATOR, reason: '확인' }),
+    ).rejects.toThrow(/동결된 계좌가 아닙니다/);
+  });
+
+  // 탈취자가 **계좌를 등록하기 전에** 미리 잠그는 것이 가장 이른 방어다
+  it('계좌가 아직 없어도 미리 동결할 수 있다', async () => {
+    await freezePayouts(prisma, { researcherUserId: 'newcomer', actor: 'newcomer' });
+    await expect(assertPayoutAccountReady(prisma, 'newcomer')).rejects.toThrow(/동결된 계정입니다/);
   });
 });
