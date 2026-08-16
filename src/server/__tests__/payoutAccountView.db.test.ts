@@ -49,7 +49,7 @@ describe('payoutAccountView — 본인이 보는 정산 계좌', () => {
     const userId = await makeUser(email);
     await registerPayoutAccount(
       prisma,
-      { researcherUserId: userId, bankCode: '004', accountNumber: '1234567890', actor: userId, identity: identityFor(email) },
+      { researcherUserId: userId, bankCode: '004', accountNumber: '1234567890', actor: userId, identity: identityFor(email), trustedDevice: false },
       NOW,
     );
     const v = await payoutAccountView(prisma, userId, NOW);
@@ -65,7 +65,7 @@ describe('payoutAccountView — 본인이 보는 정산 계좌', () => {
     const userId = await makeUser(email);
     await registerPayoutAccount(
       prisma,
-      { researcherUserId: userId, bankCode: '004', accountNumber: '1111222233', actor: userId, identity: identityFor(email) },
+      { researcherUserId: userId, bankCode: '004', accountNumber: '1111222233', actor: userId, identity: identityFor(email), trustedDevice: false },
       NOW,
     );
     const soon = new Date(NOW.getTime() + ACCOUNT_CHANGE_COOLDOWN_MS / 2);

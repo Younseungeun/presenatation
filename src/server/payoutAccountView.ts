@@ -1,5 +1,4 @@
 import type { PrismaClient } from '@prisma/client';
-import { ACCOUNT_CHANGE_COOLDOWN_MS } from './payoutAccountService';
 
 // 본인이 보는 정산 계좌 상태 — **동결 버튼이 놓일 화면의 데이터.**
 //
@@ -42,8 +41,8 @@ export async function payoutAccountView(
       changedAt: null,
     };
   }
-  const since = now.getTime() - a.changedAt.getTime();
-  const left = ACCOUNT_CHANGE_COOLDOWN_MS - since;
+  // 쿨다운은 낯선 기기에서 바꾼 경우에만 걸려 있다 — 평소 기기 변경은 이 칸이 null
+  const left = a.cooldownUntil ? a.cooldownUntil.getTime() - now.getTime() : 0;
   return {
     // 계좌 없이 미리 잠근 경우 빈 행이 생긴다(freezePayouts) — 그건 "등록됨"이 아니다
     registered: a.accountNumberEnc !== '',

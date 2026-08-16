@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { createDefaultIdentityProvider } from '@/server/identityProvider';
 import { registerPayoutAccount } from '@/server/payoutAccountService';
 import { payoutAccountView } from '@/server/payoutAccountView';
+import { isTrustedDevice } from '@/server/pinService';
 import { requireUserId, toErrorResponse } from '../../../_lib/http';
 
 // 정산 계좌 등록·변경 — **돈의 방향이 바뀌는 유일한 창구다.**
@@ -35,11 +37,19 @@ export async function POST(req: NextRequest) {
       phone: body.phone,
     });
 
+    // **평소 로그인 기기인가** — 간편 로그인이 사는 기기의 토큰(httpOnly 쿠키)이
+    // 이 계정의 것인지 본다. 맞으면 쿨다운·고지 없이 등록되고, 낯선 기기면
+    // 48시간 대기 + "다른 기기에서 변경됨" 고지가 붙는다 (payoutAccountService ②).
+    // 쿠키는 위조할 수 없다(서버는 해시만 보관, 토큰은 풀 로그인 때만 발급)
+    const store = await cookies();
+    const trustedDevice = await isTrustedDevice(prisma, userId, store.get('rm_device')?.value);
+
     await registerPayoutAccount(prisma, {
       researcherUserId: userId,
       bankCode: body.bankCode,
       accountNumber: body.accountNumber,
       identity: { ci: identity.ci, name: identity.name },
+      trustedDevice,
       actor: userId,
     });
     return NextResponse.json(await payoutAccountView(prisma, userId), { status: 201 });

@@ -20,7 +20,8 @@ import {
 // 시스템은 돈이 누구 계좌로 갔는지 몰랐다. 이 파일이 지키는 것은 셋이다:
 //   ① 지시서에 계좌를 **박지 않는다** (실행 시점에 지금 등록된 계좌를 본다)
 //   ② 계좌를 바꾸면 **즉시 미검증**으로 떨어지고, 미검증에는 한 푼도 안 나간다
-//   ③ 바꾼 직후에는 검증돼도 안 나간다 (탈취자가 바꾸고 곧바로 빼 가는 경로)
+//   ③ **낯선 기기에서** 바꾼 직후에는 검증돼도 안 나간다 (탈취자가 바꾸고 곧바로
+//      빼 가는 경로 — 평소 기기는 대기 0, 2026-08-16 사용자 확정 완화)
 
 let prisma: PrismaClient;
 let researcherUserId: string;
@@ -84,7 +85,7 @@ describe('계좌 등록·검증', () => {
   it('등록하면 언제나 미검증으로 시작한다', async () => {
     const r = await registerPayoutAccount(
       prisma,
-      { researcherUserId, bankCode: '004', accountNumber: '110-234-567890', actor: researcherUserId, identity: OWNER },
+      { researcherUserId, bankCode: '004', accountNumber: '110-234-567890', actor: researcherUserId, identity: OWNER, trustedDevice: false },
       NOW,
     );
     expect(r.status).toBe('UNVERIFIED');
@@ -110,7 +111,7 @@ describe('계좌 등록·검증', () => {
 
     await registerPayoutAccount(
       prisma,
-      { researcherUserId, bankCode: '004', accountNumber: '110-234-567890', actor: researcherUserId, identity: OWNER },
+      { researcherUserId, bankCode: '004', accountNumber: '110-234-567890', actor: researcherUserId, identity: OWNER, trustedDevice: false },
       NOW,
     );
     const second = await prisma.notification.findFirstOrThrow({
@@ -137,6 +138,7 @@ describe('계좌 등록·검증', () => {
         accountNumber: '110-999-111222',
         actor: other.id,
         identity: { ci: 'ci-ff', name: '홍길동' },
+        trustedDevice: false,
       },
       NOW,
     );
@@ -193,6 +195,7 @@ describe('계좌 등록·검증', () => {
           accountNumber: '777-666-555444',
           actor: researcherUserId,
           identity: ATTACKER,
+          trustedDevice: false,
         },
         NOW,
       ),
@@ -246,7 +249,7 @@ describe('변경 방어', () => {
 
     await registerPayoutAccount(
       prisma,
-      { researcherUserId, bankCode: '020', accountNumber: '999-888-777666', actor: researcherUserId, identity: OWNER },
+      { researcherUserId, bankCode: '020', accountNumber: '999-888-777666', actor: researcherUserId, identity: OWNER, trustedDevice: false },
       LATER,
     );
     const after = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId } });
@@ -254,9 +257,9 @@ describe('변경 방어', () => {
     expect(after.holderName).toBeNull(); // 옛 계좌의 이름이 새 계좌에 남으면 그게 잘못된 대조다
   });
 
-  // 검증까지 마쳐도 **바꾼 직후에는** 안 나간다 — 그 사이 본인 알림이 가서
-  // "내가 안 바꿨다"고 말할 창이 생긴다
-  it('바꾼 직후에는 검증돼도 지급하지 않는다', async () => {
+  // 검증까지 마쳐도 **낯선 기기에서 바꾼 직후에는** 안 나간다 — 그 사이 본인 알림이
+  // 가서 "내가 안 바꿨다"고 말할 창이 생긴다
+  it('낯선 기기에서 바꾼 직후에는 검증돼도 지급하지 않는다', async () => {
     await applyHolderLookup(
       prisma,
       { researcherUserId, holderName: '홍길동', actor: 'system:bank' },
@@ -264,11 +267,47 @@ describe('변경 방어', () => {
     );
     // 변경 직후
     await expect(assertPayoutAccountReady(prisma, researcherUserId, LATER)).rejects.toThrow(
-      /계좌를 바꾼 지 얼마 되지 않았습니다/,
+      /평소 기기가 아닌 곳에서 계좌를 바꾼 직후입니다/,
     );
     // 쿨다운이 지나면 통과
     const past = new Date(LATER.getTime() + ACCOUNT_CHANGE_COOLDOWN_MS + 1000);
     await expect(assertPayoutAccountReady(prisma, researcherUserId, past)).resolves.toBeUndefined();
+  });
+
+  // ── 평소 기기 경로 (2026-08-16 사용자 확정 완화) ──────────────
+  // 계좌 변경은 본인 인증 재확인 + 예금주명 대조를 이미 지나므로, 남는 위협은
+  // "유심 스와핑 + 본인 명의 통장"뿐이고 그 공격자의 기기는 언제나 낯선 기기다.
+  // 그래서 평소 로그인 기기에서의 변경은 대기도 고지도 없다 — 방어는 같고
+  // 정상 사용자의 대기만 사라진다
+  it('평소 기기에서 바꾸면 대기 없이 지급되고, 고지도 없다', async () => {
+    const before = await prisma.notification.count({
+      where: { userId: researcherUserId, type: 'PAYOUT_ACCOUNT_CHANGED' },
+    });
+    await registerPayoutAccount(
+      prisma,
+      { researcherUserId, bankCode: '004', accountNumber: '555-444-333222', actor: researcherUserId, identity: OWNER, trustedDevice: true },
+      LATER,
+    );
+    // 고지가 늘지 않았다 — 본인이 방금 한 일이라 알림은 소음이고,
+    // 아끼는 만큼 진짜 경보(낯선 기기)가 무거워진다
+    const after = await prisma.notification.count({
+      where: { userId: researcherUserId, type: 'PAYOUT_ACCOUNT_CHANGED' },
+    });
+    expect(after).toBe(before);
+
+    // 검증만 끝나면 **바꾼 그 순간에도** 지급된다 — 쿨다운 칸이 비어 있다
+    await applyHolderLookup(
+      prisma,
+      { researcherUserId, holderName: '홍길동', actor: 'system:bank' },
+      LATER,
+    );
+    await expect(assertPayoutAccountReady(prisma, researcherUserId, LATER)).resolves.toBeUndefined();
+
+    // 이력은 기기와 무관하게 남는다 — 고지를 아낀 것이지 기록을 아낀 것이 아니다
+    const history = await prisma.payoutAccountHistory.findMany({
+      where: { researcherUserId, accountLast4: '3222' },
+    });
+    expect(history.length).toBeGreaterThan(0);
   });
 
   // 덮어쓰는 표만 있으면 "언제 어떤 계좌로 바뀌었나"에 답할 수 없다.
@@ -299,7 +338,7 @@ describe('정산 동결', () => {
     const past = new Date('2026-09-01T00:00:00Z');
     await registerPayoutAccount(
       prisma,
-      { researcherUserId, bankCode: '004', accountNumber: '110-111-222333', actor: researcherUserId, identity: OWNER },
+      { researcherUserId, bankCode: '004', accountNumber: '110-111-222333', actor: researcherUserId, identity: OWNER, trustedDevice: false },
       new Date(past.getTime() - ACCOUNT_CHANGE_COOLDOWN_MS - 3_600_000),
     );
     await applyHolderLookup(
@@ -321,7 +360,7 @@ describe('정산 동결', () => {
     const past = new Date('2026-09-02T00:00:00Z');
     await registerPayoutAccount(
       prisma,
-      { researcherUserId, bankCode: '004', accountNumber: '110-999-000111', actor: researcherUserId, identity: OWNER },
+      { researcherUserId, bankCode: '004', accountNumber: '110-999-000111', actor: researcherUserId, identity: OWNER, trustedDevice: false },
       past,
     );
     // 지금은 미검증 + 쿨다운 + 동결이 전부 걸린 상태

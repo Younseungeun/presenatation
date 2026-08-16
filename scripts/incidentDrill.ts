@@ -338,8 +338,11 @@ async function main() {
       // 계좌 등록은 **본인 인증을 다시 받는다** — 계정만 뚫어서는 계좌를 못 바꾼다.
       // 리허설의 리서처는 seedDrill에서 이 CI로 인증된 사람이다
       identity: DRILL_IDENTITY,
+      // 낯선 기기 경로로 등록한다 — 리허설은 가장 좁은 문(쿨다운 포함)을 통과해야
+      // 실제 최악 경로와 어긋나지 않는다 (평소 기기면 대기 0)
+      trustedDevice: false,
     },
-    // 변경 쿨다운(48시간)을 지나 있어야 지급된다 — 탈취자가 바꾸고 곧바로 빼 가는 경로 방어
+    // 낯선 기기 쿨다운(48시간)을 지나 있어야 지급된다 — 탈취자가 바꾸고 곧바로 빼 가는 경로 방어
     new Date(AFTER_COOLDOWN.getTime() - ACCOUNT_CHANGE_COOLDOWN_MS - 3_600_000),
   );
   await applyHolderLookup(
