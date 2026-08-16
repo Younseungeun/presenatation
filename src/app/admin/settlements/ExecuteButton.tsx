@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { performOperatorRecheck } from "../operatorRecheck";
 import styles from "../../researcher/researcher.module.css";
 
 // 지시서 실행 버튼: 환불은 방법(PG 취소/계좌이체)을 골라 실행, 지급은 바로 실행.
@@ -38,8 +39,8 @@ export function ExecuteButton({
   // 새 계좌이체 실행이거나, 멈춘 계좌이체를 "보냈다"로 닫을 때 참조번호가 필요하다
   const needsReference = resolving || (kind === "REFUND" && !stuck && method === "BANK_TRANSFER");
 
-  async function post(body: unknown, question: string) {
-    if (!window.confirm(question)) return;
+  async function post(body: unknown, question: string, retried = false) {
+    if (!retried && !window.confirm(question)) return;
     setBusy(true);
     setError(null);
     try {
@@ -50,6 +51,17 @@ export function ExecuteButton({
       });
       const json = await res.json();
       if (!res.ok) {
+        if (json.code === "RECHECK_REQUIRED" && !retried) {
+          // 1인 운영 모드의 고액 지급 — 지문 1초가 흐름을 끊는 물리적 브레이크다
+          // (검토 6차 Q2). 확인되면 한 번만 재시도
+          const recheck = await performOperatorRecheck();
+          if (recheck.ok) {
+            await post(body, question, true);
+            return;
+          }
+          if (recheck.error) setError(recheck.error);
+          return;
+        }
         setError(json.error ?? "실행 실패");
         return;
       }

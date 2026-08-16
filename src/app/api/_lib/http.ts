@@ -31,6 +31,19 @@ export async function requireOperatorId(prisma: PrismaClient): Promise<string> {
   const userId = await requireUserId();
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role !== 'OPERATOR') throw new HttpError(403, '운영자 권한이 필요합니다');
+  // ── 부트스트랩 관문 (2026-08-17 검토 6차 Q1) ──────────────────
+  // 패스키 0개인 관리자 세션은 **아무 관리 API도 못 쓴다.** 관리자 권한이 신원(CI)에
+  // 걸려 있어서, 패스키가 하나도 없는 공백기에 유심을 가로챈 공격자가 들어오면 그가
+  // 심는 패스키가 "첫 기기"가 되어 48시간 유예 없이 계정을 장악한다 — 그 공백기를
+  // 코드로 닫는다. 첫 패스키가 등록돼야 비로소 관리 기능이 열리고, 그 뒤의 유심
+  // 스와핑은 기기 등록 유예(48시간) + 본인 알림에 걸린다.
+  const passkeys = await prisma.passkey.count({ where: { userId } });
+  if (passkeys === 0) {
+    throw new HttpError(
+      403,
+      '관리자 기능을 쓰려면 먼저 이 기기의 지문·얼굴(패스키)을 등록해야 합니다 — 관리자 화면의 안내를 따라주세요.',
+    );
+  }
   return userId;
 }
 
@@ -89,7 +102,11 @@ export function toErrorResponse(e: unknown): NextResponse {
     // code(RECHECK_REQUIRED)가 있으면 화면이 지문·얼굴 확인을 띄우고 재시도한다
     return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
   }
-  if (e instanceof SettlementOpsError || e instanceof ComplianceTakedownError) {
+  if (e instanceof SettlementOpsError) {
+    // code(RECHECK_REQUIRED)가 있으면 화면이 지문·얼굴 확인을 띄우고 재시도한다
+    return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+  }
+  if (e instanceof ComplianceTakedownError) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
   if (e instanceof Prisma.PrismaClientKnownRequestError && PRISMA_STATUS[e.code]) {

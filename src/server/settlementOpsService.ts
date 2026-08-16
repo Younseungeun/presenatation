@@ -5,6 +5,7 @@ import { requiresDualApproval } from '@/domain/operatorApproval';
 import {
   ApprovalError,
   consumeApproval,
+  consumeOperatorRecheck,
   isSoloOperatorMode,
   requestApproval,
 } from './operatorApprovalService';
@@ -30,7 +31,11 @@ function refundReason(outcome: string, amountKrw: number): string {
 }
 
 export class SettlementOpsError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** RECHECK_REQUIRED = 1인 운영 모드 — 화면이 지문·얼굴 확인을 띄우고 재시도한다 */
+    readonly code?: 'RECHECK_REQUIRED',
+  ) {
     super(message);
     this.name = 'SettlementOpsError';
   }
@@ -623,10 +628,19 @@ export async function executePayout(
   // 습관이 되고, **형식이 되는 순간 2인 승인은 장식**이다(domain/operatorApproval).
   // 승인이 없으면 **요청을 대신 올리고 멈춘다** — 동결 해제·이의 인정과 같은 흐름이라
   // 별도의 요청 화면이 필요 없다
-  // 1인 운영 모드에서는 관문 대신 **화면 강조**다 (2026-08-17 사용자 확정) —
-  // 이 관문의 취지는 "큰돈은 주의해서 보자"인데, 승인자가 없는 체제에서 그 취지는
-  // 지시서 화면의 금액 색 강조가 잇는다. 일일 한도·쿨다운·계좌 검증은 그대로 산다
-  if (requiresDualApproval(s.researcherPayoutKrw) && !(await isSoloOperatorMode(prisma))) {
+  // 1인 운영 모드: **색 강조 + 생체 재확인** (2026-08-17 검토 6차 Q2로 강화) —
+  // 처음엔 색 강조만 두려 했으나, 사람은 반복되는 화면에 빠르게 적응한다(경보 피로).
+  // 지문을 대는 1초는 흐름을 끊는 물리적 브레이크라, 계정 탈취만이 아니라
+  // **0을 하나 더 붙인 본인의 실수**도 직전에 잡는다. 비용이 1초라면 층을 걷어낼
+  // 이유가 없다. 일일 한도·쿨다운·계좌 검증은 그대로 산다
+  if (requiresDualApproval(s.researcherPayoutKrw) && (await isSoloOperatorMode(prisma))) {
+    try {
+      await consumeOperatorRecheck(prisma, input.operatorUserId, now);
+    } catch (re) {
+      if (!(re instanceof ApprovalError)) throw re;
+      throw new SettlementOpsError(re.message, 'RECHECK_REQUIRED');
+    }
+  } else if (requiresDualApproval(s.researcherPayoutKrw)) {
     try {
       await consumeApproval(prisma, { action: 'LARGE_PAYOUT', targetId: s.id }, now);
     } catch (e) {
