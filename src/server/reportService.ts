@@ -24,13 +24,25 @@ import { operatorVerdictWrites, screenAndRecord } from './complianceService';
 import { buildNewCardNotificationWrites } from './followService';
 import { validateListedInstrument } from './instrumentService';
 import { captureBaseAnchor } from './corporateActionService';
-import { getInstrumentSigma } from './instrumentSigma';
+import { getInstrumentSigmaResult } from './instrumentSigma';
+
 import { buildJudgmentWrites } from './judgmentWriter';
 import { researcherSeasonTotals } from './scoreService';
 
 // 리포트 생명주기: DRAFT → PUBLISHED → (철회 시) CLOSED
 // 게시 시점에 수수료·기준가가 고정되고 예측 카드가 잠긴다.
 // 잠금은 "수정 API를 만들지 않는 것"이 아니라 서비스 레이어 규칙으로 강제한다.
+
+/**
+ * σ를 잴 수 없는 종목의 게시 거절 문구 — 관문과 작성 화면이 같은 문장을 쓴다.
+ *
+ * **왜 이 문장인가**: 리서처에게 "안 됩니다"만 말하면 규칙이 임의로 보인다. 막는 이유가
+ * 종목의 상태이고 **언제 풀리는지가 정해져 있다**는 것을 같이 말해야 기다릴 수 있다.
+ */
+export const INSUFFICIENT_MARKET_DATA =
+  '이 종목은 아직 변동성을 잴 수 있을 만큼 거래 이력이 없습니다 (최소 20거래일). ' +
+  '예측 크기 하한과 점수 기준이 종목 변동성에서 나오므로, 그 값을 못 구하면 카드를 게시할 수 없습니다. ' +
+  '거래일이 쌓이면 자동으로 열립니다.';
 
 /** 기준가 확정에 사용할 직전 거래일 탐색 범위 (연휴 대비) */
 const BASE_PRICE_LOOKBACK_DAYS = 14;
@@ -284,15 +296,25 @@ async function finalizePublish(
   // 종목 실현 변동성을 게시 시점에 재서 카드에 고정한다 — **두 곳이 이 값을 읽는다**:
   // 안정성 별점(stability.ts)과 무정보 도달 확률 p₀(scoring.ts).
   // 캐시(하루)를 쓰는 이유: 리서처가 작성 화면에서 본 σ와 게시된 카드의 σ가 같아야
-  // 그때 본 배당표가 그대로 유효하다. 실패해도 게시는 진행된다(null → 별점 "—",
-  // p₀는 자산군 σ̄ 폴백) — 별점은 부가 정보, 기준가는 판정의 전제라 취급이 다르다
-  const sigmaDaily = await getInstrumentSigma(
+  // 그때 본 배당표가 그대로 유효하다.
+  //
+  // **못 쟀을 때의 처분이 이유에 따라 갈린다** (42차 확정):
+  //  · 표본 부족 → **게시를 막는다.** 우리가 파는 것은 리포트가 아니라 "이 예측이
+  //    무정보 대비 얼마나 위인가"인데, p₀를 짐작으로 계산한 카드는 **뒷받침할 수 없는
+  //    점수를 파는 것**이다. 측정할 수 없는 것은 팔지 않는다
+  //  · 일시 장애 → 종전대로 게시를 진행한다(별점 "—", p₀는 거친 쪽 폴백).
+  //    여기서 막으면 시세 소스 장애 한 번이 전 종목의 게시를 멈춘다
+  const sigmaResult = await getInstrumentSigmaResult(
     prisma,
     registry,
     cardDraft.assetClass,
     cardDraft.ticker,
     now,
   );
+  if (sigmaResult.sigma === null && sigmaResult.reason === 'INSUFFICIENT_SAMPLES') {
+    throw new PublishValidationError([INSUFFICIENT_MARKET_DATA]);
+  }
+  const sigmaDaily = sigmaResult.sigma;
 
   // 액면분할 감지 앵커 — 기준가와 같은 순간에 적어 둔다. 이 종가가 나중에 달라지면
   // 그 배수가 곧 조정 배수다 (domain/corporateAction.ts). 실패해도 게시는 진행한다

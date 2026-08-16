@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { AssetClass } from '@/domain/constants';
 import type { ProviderRegistry } from '@/domain/marketData';
-import { fetchRealizedSigma } from './realizedVolatility';
+import { fetchRealizedSigmaResult, type SigmaResult } from './realizedVolatility';
 
 // 종목 실현 변동성 조회 — **한 번 재서 두 곳이 읽는다.**
 //   · 안정성 별점 (domain/stability.ts)
@@ -18,8 +18,48 @@ import { fetchRealizedSigma } from './realizedVolatility';
 const CACHE_TTL_MS = 24 * 60 * 60_000;
 
 /**
+ * 캐시된 σ와, 못 냈으면 그 이유 (없거나 오래됐으면 실측 후 갱신).
+ *
+ * 게시 관문이 이 함수를 쓴다 — `INSUFFICIENT_SAMPLES`면 게시를 막아야 하는데,
+ * `null` 하나로 뭉개면 일시 장애와 구별되지 않는다(realizedVolatility.SigmaFailure).
+ */
+export async function getInstrumentSigmaResult(
+  prisma: PrismaClient,
+  registry: ProviderRegistry,
+  assetClass: AssetClass,
+  ticker: string,
+  now = new Date(),
+): Promise<SigmaResult> {
+  const row = await prisma.instrument.findUnique({
+    where: { assetClass_ticker: { assetClass, ticker } },
+    select: { sigmaDaily: true, sigmaSyncedAt: true },
+  });
+
+  const fresh =
+    row?.sigmaSyncedAt != null && now.getTime() - row.sigmaSyncedAt.getTime() < CACHE_TTL_MS;
+  if (fresh && row?.sigmaDaily != null) return { sigma: row.sigmaDaily };
+
+  const measured = await fetchRealizedSigmaResult(registry, assetClass, ticker, now);
+  if (measured.sigma === null) {
+    // 실패를 캐시하지 않는다 — 다음 요청이 다시 시도해야 일시 장애가 하루 동안 굳지 않는다.
+    //
+    // **낡은 캐시값이 있으면 그것을 쓴다.** 한 번이라도 잰 적이 있다는 것은 그 종목에
+    // 표본이 충분했다는 뜻이므로, 지금 못 쟀다면 그건 표본 문제가 아니라 장애다 —
+    // 이 경우 이유를 `UNAVAILABLE`로 덮어써야 게시가 잘못 막히지 않는다.
+    if (row?.sigmaDaily != null) return { sigma: row.sigmaDaily };
+    return measured;
+  }
+
+  await prisma.instrument.updateMany({
+    where: { assetClass, ticker },
+    data: { sigmaDaily: measured.sigma, sigmaSyncedAt: now },
+  });
+  return measured;
+}
+
+/**
  * 캐시된 σ (없거나 오래됐으면 실측 후 갱신).
- * 시세 조회에 실패하면 null — 화면은 "아직 못 쟀다"고 말하고, 점수는 자산군 σ̄로 물러선다.
+ * 못 냈으면 null — 화면은 "아직 못 쟀다"고 말한다. 이유가 필요하면 위 함수를 쓴다.
  */
 export async function getInstrumentSigma(
   prisma: PrismaClient,
@@ -28,24 +68,5 @@ export async function getInstrumentSigma(
   ticker: string,
   now = new Date(),
 ): Promise<number | null> {
-  const row = await prisma.instrument.findUnique({
-    where: { assetClass_ticker: { assetClass, ticker } },
-    select: { sigmaDaily: true, sigmaSyncedAt: true },
-  });
-
-  const fresh =
-    row?.sigmaSyncedAt != null && now.getTime() - row.sigmaSyncedAt.getTime() < CACHE_TTL_MS;
-  if (fresh && row?.sigmaDaily != null) return row.sigmaDaily;
-
-  const measured = await fetchRealizedSigma(registry, assetClass, ticker, now);
-  if (measured === null) {
-    // 실패를 캐시하지 않는다 — 다음 요청이 다시 시도해야 일시 장애가 하루 동안 굳지 않는다
-    return row?.sigmaDaily ?? null;
-  }
-
-  await prisma.instrument.updateMany({
-    where: { assetClass, ticker },
-    data: { sigmaDaily: measured, sigmaSyncedAt: now },
-  });
-  return measured;
+  return (await getInstrumentSigmaResult(prisma, registry, assetClass, ticker, now)).sigma;
 }

@@ -216,9 +216,10 @@ export const DAILY_SIGMA: Record<AssetClass, number> = {
  * 겨우 0.75%p 위이고, 신규 상장 코인이 그 위에 있으면 카드당 +8 ~ +24가 남는다.
  * 닫으려면 폴백을 관측된 적 없는 값까지 올려야 하는데 그건 **에두른 금지**다.
  *
- * 그래서 진짜 답은 폴백이 아니라 **σ를 못 잰 종목의 게시를 막는 것**이라고 본다
- * (표본 부족만. 조회 실패는 일시적이라 종전대로 게시를 진행하고 치유 배치가 메운다).
- * 42차 검토에 올렸다 — docs/reviews/intovill-oplogic-round42-prompt.md
+ * **42차에서 확정됐다: σ를 못 잰 종목은 게시를 막는다** (server/reportService.INSUFFICIENT_MARKET_DATA).
+ * 표본 부족만 막고 조회 실패는 종전대로 진행한다 — 그래서 이 폴백은 **장애로 못 잰 카드**
+ * 하나만 쓰게 됐고, 그런 카드는 치유 배치가 σ를 메운다.
+ * 이 상수는 그 좁아진 자리의 안전망이다.
  *
  * @근거 시뮬 scripts/probeNewListingSigma.ts — 주식은 이 값에서 무실력 기대값이 ≤0으로 돌아온다
  */
