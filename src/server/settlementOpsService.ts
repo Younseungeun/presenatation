@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
 import { notifyOperators } from './opsAlert';
+import { assertPayoutAccountReady } from './payoutAccountService';
 import { assertWithinDailyLimit } from './payoutVelocity';
 import { assertCooldownPassed, cooldownCutoff } from './settlementCooldown';
 import { cancelTossPayment, TossPaymentError } from './tossPayments';
@@ -585,6 +586,16 @@ export async function executePayout(
   // **이의 확인보다 뒤에 둔다** — 둘 다 걸리면 더 쓸모 있는 메시지가 이겨야 한다.
   // "24시간 기다려라"를 보고 기다려 봐야 그다음에 이의 거부를 만난다
   assertCooldownPassed(s.settledAt, now);
+
+  // **검증되지 않은 계좌에는 한 푼도 안 나간다** (payoutAccountService, 2026-08-16).
+  //
+  // 지시서에 계좌를 박아 두지 않는 대신, 실행 시점에 **지금 등록된 계좌**를 본다.
+  // 스냅샷을 남기면 계좌를 해지하고 갈아탄 사람에게 보내 100% 이체 실패가 나거나,
+  // 탈취를 뒤늦게 알고 되돌려 놨는데도 옛 스냅샷이 그대로 나간다.
+  //
+  // ⚠ **실시간 조회 자체는 탈취를 못 막는다** — 막는 것은 "바꾸면 즉시 미검증"과
+  // 변경 쿨다운이다. 실명 대조는 아직 없어서 VERIFIED는 "계좌가 실재한다"까지만 뜻한다
+  await assertPayoutAccountReady(prisma, s.purchase.report.researcher.userId, now);
 
   // **아직 우리에게 오지 않았을 수 있는 돈을 내주지 않는다** (PG_SETTLEMENT_LAG_DAYS)
   // **하루에 나갈 수 있는 총액을 묶는다** (payoutVelocity).

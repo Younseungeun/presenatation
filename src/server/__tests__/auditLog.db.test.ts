@@ -1,6 +1,10 @@
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTestDb, seedTestInstruments } from './helpers/testDb';
+import {
+  createTestDb,
+  seedTestInstruments,
+  seedVerifiedPayoutAccount,
+} from './helpers/testDb';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
 import { getAuditTrail } from '../auditLog';
@@ -110,6 +114,8 @@ beforeAll(async () => {
     include: { researcherProfile: true },
   });
   researcherId = r.researcherProfile!.id;
+  // 계좌 관문(assertPayoutAccountReady)이 지급 실행 앞에 있다 — 없으면 한 푼도 안 나간다
+  await seedVerifiedPayoutAccount(prisma, r.id);
   buyerAId = (await prisma.user.create({ data: { email: 'a@audit.io', identityVerified: true } }))
     .id;
   buyerBId = (await prisma.user.create({ data: { email: 'b@audit.io', identityVerified: true } }))

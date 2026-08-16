@@ -19,6 +19,11 @@ import { judgeAndSettleDueCards } from '../src/server/judgmentBatch';
 import { flushOpsAlerts } from '../src/server/opsAlertFeed';
 import { purchaseReport } from '../src/server/purchaseService';
 import { createDraftReport, publishReport } from '../src/server/reportService';
+import {
+  ACCOUNT_CHANGE_COOLDOWN_MS,
+  applyHolderLookup,
+  registerPayoutAccount,
+} from '../src/server/payoutAccountService';
 import { getCooldownHold, SETTLEMENT_COOLDOWN_HOURS } from '../src/server/settlementCooldown';
 import {
   executePayout,
@@ -296,6 +301,37 @@ async function main() {
   note(`가장 빨리 풀리는 시각: ${hold.nextExecutableAt?.toISOString() ?? '—'}`);
   const payouts = await getPendingPayouts(prisma, AFTER_COOLDOWN);
   note(`${SETTLEMENT_COOLDOWN_HOURS}시간 뒤 지급 큐: ${payouts.length}건`);
+
+  // ── 계좌 관문 (2026-08-16) ──────────────────────────────────────
+  // **리허설에 이 단계가 없으면 실제 운영과 어긋난다.** 지급은 이제 "검증된 계좌"를
+  // 요구하고, 그것이 없으면 큐에 건이 있어도 한 푼도 안 나간다.
+  // 이 단계를 넣으면서 리허설이 한 번 깨졌는데, 그게 곧 관문이 빠짐없이 걸렸다는 증거다.
+  await executePayout(
+    prisma,
+    { settlementId: payouts[0].id, operatorUserId: operator.id, confirmedSettled: true },
+    AFTER_COOLDOWN,
+  ).then(
+    () => note('⚠ 계좌 없이 지급이 나갔다 — 관문이 뚫렸다'),
+    (e) => note(`계좌 미등록 상태의 지급 시도: 거부됨 (${(e as Error).message.slice(0, 40)}…)`),
+  );
+  await registerPayoutAccount(
+    prisma,
+    {
+      researcherUserId: researcher.id,
+      bankCode: '004',
+      accountNumber: '110-234-567890',
+      actor: researcher.id,
+    },
+    // 변경 쿨다운(48시간)을 지나 있어야 지급된다 — 탈취자가 바꾸고 곧바로 빼 가는 경로 방어
+    new Date(AFTER_COOLDOWN.getTime() - ACCOUNT_CHANGE_COOLDOWN_MS - 3_600_000),
+  );
+  await applyHolderLookup(
+    prisma,
+    { researcherUserId: researcher.id, holderName: '리서처', actor: 'system:bank' },
+    AFTER_COOLDOWN,
+  );
+  note('계좌 등록 + 은행 예금주 조회 → 검증 완료. 이제 지급할 수 있다.');
+
   if (payouts.length > 0) {
     await executePayout(
       prisma,

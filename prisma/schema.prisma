@@ -427,6 +427,68 @@ model Purchase {
   @@unique([reportId, buyerId]) // 자기 구매 중복 방지 및 1인 1구매
 }
 
+// 정산받을 계좌 — **사람당 하나, 지시서에는 절대 박지 않는다** (2026-08-16).
+//
+// ── 왜 지시서에 스냅샷을 안 남기나 ──────────────────────────────
+// 지시서마다 계좌를 박아 두면 **바꾼 뒤에도 옛 계좌로 나간다.** 두 가지가 동시에 나쁘다:
+//  · 계좌를 해지하고 갈아탄 사람에게 보내면 100% 이체 실패다(그 뒤처리가 더 복잡하다)
+//  · 탈취를 뒤늦게 알고 정상 계좌로 되돌려도, 이미 찍힌 스냅샷은 그대로 나간다
+// 그래서 실행 시점에 **지금 등록된 계좌**를 본다. 지시서는 `userId`·금액·출처만 갖는다.
+//
+// ── 그러면 반대 위험(탈취 직후 실행)은 무엇이 막나 ──────────────
+// **실시간 조회 자체는 아무것도 막지 못한다** — 탈취자가 자기 계좌로 바꾸면 그 계좌로
+// 나갈 뿐이다. 막는 것은 **계좌를 바꾸면 즉시 미검증으로 떨어진다**는 규칙이고,
+// 미검증에는 한 푼도 안 나간다. 그 위에 두 겹이 더 있다:
+//  · **변경 쿨다운** — 바꾼 뒤 일정 시간은 검증돼도 안 내보낸다. 그 사이 본인에게
+//    알림이 가므로 "내가 안 바꿨다"고 말할 창이 생긴다
+//  · **예금주명 대조** — 은행이 돌려준 이름이 본인 인증 실명과 다르면 VERIFIED가 될 수
+//    없다. ⚠ **이 겹은 아직 없다** — 실명을 저장하지 않기 때문이다(개인정보처리방침
+//    확정 전). 그때까지 VERIFIED는 "계좌가 실재한다"까지만 뜻한다
+model PayoutAccount {
+  id               String   @id @default(cuid())
+  /** 사람당 하나 — 여러 개를 허용하면 "어느 것으로 보냈나"가 매번 질문이 된다 */
+  researcherUserId String   @unique
+  bankCode         String
+  /** 암호화 보관 (server/fieldCrypto.ts). 원문은 이체 실행 순간에만 복호화한다 */
+  accountNumberEnc String
+  /** 화면·감사용 뒤 4자리 — 이것 때문에 전체를 복호화할 이유가 없어진다 */
+  accountLast4     String
+  /**
+   * 예금주명 — **은행 조회 응답으로만 채운다.**
+   * 본인에게 입력받으면 양쪽을 다 본인이 적는 것이라 아무것도 대조하지 못한다.
+   * 조회 계약 전에는 null로 남고, 그동안 status는 UNVERIFIED다
+   */
+  holderName       String?
+  /** UNVERIFIED | VERIFIED | HOLDER_MISMATCH */
+  status           String   @default("UNVERIFIED")
+  verifiedAt       DateTime?
+  /** 마지막 변경 시각 — 변경 쿨다운의 기산점 */
+  changedAt        DateTime @default(now())
+  createdAt        DateTime @default(now())
+}
+
+// 계좌 변경 이력 — **덧붙이기만 한다** (2026-08-16, 외부 검토 D).
+//
+// PayoutAccount는 덮어쓰는 표라 "언제 어떤 계좌로 바뀌었나"가 남지 않는다. 그 질문은
+// 정산 분쟁과 수사 협조에서 반드시 나오고, 그때 없으면 만들 방법이 없다.
+// 감사 로그(AuditLog)와 따로 두는 이유: 저쪽은 **사건**의 순서를 남기는 표이고
+// 이쪽은 **값**의 이력이다. 계좌번호를 감사 로그 JSON에 넣으면 검색도 안 되고
+// 파기 요청이 왔을 때 지울 자리도 흩어진다.
+model PayoutAccountHistory {
+  id               String   @id @default(cuid())
+  researcherUserId String
+  bankCode         String
+  accountNumberEnc String
+  accountLast4     String
+  holderName       String?
+  status           String
+  /** 누가 바꿨나 — 본인이면 userId, 운영자 개입이면 그 운영자 */
+  actor            String
+  recordedAt       DateTime @default(now())
+
+  @@index([researcherUserId, recordedAt])
+}
+
 // 플랫폼 귀책 보상 지시서 — **Settlement과 같은 표를 쓰지 않는다** (2026-08-16).
 //
 // ── 왜 나누는가 ─────────────────────────────────────────────────

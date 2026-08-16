@@ -8,6 +8,7 @@ import {
 import { auditOp } from './auditLog';
 import { assertWithinMonthlyBudget } from './compensationBudget';
 import { notifyOperators } from './opsAlert';
+import { assertPayoutAccountReady } from './payoutAccountService';
 import { assertWithinDailyLimit } from './payoutVelocity';
 
 // 플랫폼 귀책 보상의 생성·확정·실행.
@@ -265,6 +266,9 @@ export async function executeCompensation(
     );
   }
 
+  // 지급과 **같은 관문**을 지난다 — 돈이 나가는 경로가 늘 때마다 여기에 붙이지 않으면
+  // 그 경로만 조용히 무방비가 된다 (일일 한도와 정확히 같은 성질이다)
+  await assertPayoutAccountReady(prisma, c.researcherUserId, now);
   await assertWithinDailyLimit(prisma, c.amountKrw, now);
   await assertWithinMonthlyBudget(prisma, c.amountKrw, now);
 

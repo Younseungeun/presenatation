@@ -78,3 +78,37 @@ export async function seedTestInstruments(
     });
   }
 }
+
+/**
+ * 검증된 정산 계좌를 심는다 (2026-08-16).
+ *
+ * `assertPayoutAccountReady`가 지급·보상 양쪽 실행 관문에 붙으면서, **계좌가 없으면
+ * 어떤 돈도 안 나간다.** 그 관문이 생긴 날 지급을 시험하던 파일들이 한꺼번에 깨졌는데,
+ * 그게 곧 관문이 빠짐없이 걸렸다는 증거다.
+ *
+ * `changedAt`을 한참 과거로 두는 이유: 변경 쿨다운(ACCOUNT_CHANGE_COOLDOWN_MS)이
+ * 걸리면 "계좌를 방금 바꿨다"로 막힌다. 이 헬퍼를 쓰는 시험들은 계좌가 아니라
+ * 지급 절차를 보고 있으므로, 쿨다운을 미리 지나 있는 상태로 만든다.
+ */
+export async function seedVerifiedPayoutAccount(
+  prisma: PrismaClient,
+  researcherUserId: string,
+): Promise<void> {
+  const longAgo = new Date('2020-01-01T00:00:00Z');
+  await prisma.payoutAccount.upsert({
+    where: { researcherUserId },
+    create: {
+      researcherUserId,
+      bankCode: '004',
+      // 실제 암호문일 필요가 없다 — 이 헬퍼를 쓰는 시험은 복호화하지 않는다
+      accountNumberEnc: 'test:test:test',
+      accountLast4: '0000',
+      holderName: '테스트 예금주',
+      status: 'VERIFIED',
+      verifiedAt: longAgo,
+      changedAt: longAgo,
+      createdAt: longAgo,
+    },
+    update: { status: 'VERIFIED', verifiedAt: longAgo, changedAt: longAgo },
+  });
+}
