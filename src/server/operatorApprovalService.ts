@@ -37,15 +37,73 @@ export class ApprovalError extends Error {
  */
 async function expireStaleApprovals(prisma: PrismaClient, now: Date): Promise<void> {
   const cutoff = new Date(now.getTime() - APPROVAL_TTL_HOURS * 3_600_000);
-  await prisma.operatorApproval.updateMany({
+  // 만료는 조용히 일어나면 안 된다 (검토 5차 Q3) — 기안자는 실행하러 갔다가
+  // "승인이 필요합니다"를 다시 만나서야 알게 된다. 상태 전이는 한 번뿐이므로
+  // (EXPIRED가 되면 다시는 이 where에 안 걸린다) 알림도 정확히 한 번 나간다
+  const stale = await prisma.operatorApproval.findMany({
     where: {
       OR: [
         { status: 'PENDING', requestedAt: { lt: cutoff } },
         { status: 'APPROVED', decidedAt: { lt: cutoff } },
       ],
     },
-    data: { status: 'EXPIRED' },
+    select: { id: true, requestedBy: true, action: true, summary: true, status: true },
   });
+  if (stale.length === 0) return;
+  await prisma.$transaction([
+    prisma.operatorApproval.updateMany({
+      where: { id: { in: stale.map((s) => s.id) } },
+      data: { status: 'EXPIRED' },
+    }),
+    prisma.notification.createMany({
+      data: stale.map((s) => ({
+        userId: s.requestedBy,
+        type: 'OPS_ALERT',
+        title: `[만료] ${APPROVAL_ACTION_LABEL[s.action as ApprovalAction] ?? s.action}`,
+        body:
+          s.status === 'PENDING'
+            ? `요청이 ${APPROVAL_TTL_HOURS}시간 동안 승인되지 않아 자동 만료되었습니다.\n` +
+              `${s.summary}\n필요하면 사유를 다시 써서 새로 요청하세요.`
+            : `승인서가 ${APPROVAL_TTL_HOURS}시간 안에 실행되지 않아 만료되었습니다.\n` +
+              `${s.summary}\n아직 필요한 일이면 처음부터 다시 요청하세요 — 사흘이 지난 판단은 다시 내려야 합니다.`,
+        link: '/admin/approvals',
+        createdAt: now,
+      })),
+    }),
+  ]);
+}
+
+/**
+ * 만료 임박 재알림 (검토 5차 Q3, @근거 설계 만료 전 마지막 하루의 문턱 — 매일 울리면 배경음이 된다).
+ * 요청 후 48시간이 지난 대기 건을 운영자들에게 **한 번만** 다시 알린다.
+ * 스케줄러가 하루 한 번 부른다.
+ */
+export const APPROVAL_REMINDER_AFTER_HOURS = 48;
+
+export async function notifyApprovalReminders(
+  prisma: PrismaClient,
+  now = new Date(),
+): Promise<number> {
+  await expireStaleApprovals(prisma, now);
+  const cutoff = new Date(now.getTime() - APPROVAL_REMINDER_AFTER_HOURS * 3_600_000);
+  const due = await prisma.operatorApproval.findMany({
+    where: { status: 'PENDING', requestedAt: { lt: cutoff }, remindedAt: null },
+    select: { id: true, action: true, summary: true },
+  });
+  if (due.length === 0) return 0;
+  await prisma.operatorApproval.updateMany({
+    where: { id: { in: due.map((d) => d.id) } },
+    data: { remindedAt: now },
+  });
+  await notifyOperators(prisma, {
+    title: `[만료 임박] 승인 대기 ${due.length}건 — 24시간 뒤 자동 만료`,
+    body: [
+      ...due.map((d) => `· ${APPROVAL_ACTION_LABEL[d.action as ApprovalAction] ?? d.action} — ${d.summary}`),
+      '만료되면 기안자가 사유부터 다시 써야 합니다.',
+    ].join('\n'),
+    link: '/admin/approvals',
+  });
+  return due.length;
 }
 
 export async function requestApproval(

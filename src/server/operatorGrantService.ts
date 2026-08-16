@@ -49,6 +49,17 @@ export async function grantOperatorRole(
           '지금 만들면 한 사람의 단독 승인 백도어가 됩니다.',
       );
     }
+    // **패스키가 먼저다** (검토 5차 Q2). 콜드 계정은 CI 유일 제약 때문에 본인 인증을
+    // 못 거친 계정이라(창업자의 CI는 본계정에 있다) 신원 축이 하나 비어 있다.
+    // 그 자리를 금고 기기의 하드웨어 결속(Secure Enclave/TPM에 묶인 패스키)이 메운다 —
+    // 패스키 없는 콜드는 비밀번호 하나로 열리는 승인 권한이다
+    const passkeys = await prisma.passkey.count({ where: { userId: user.id } });
+    if (passkeys === 0) {
+      throw new OperatorGrantError(
+        '콜드 계정에는 패스키가 먼저 등록되어야 합니다 — 본인 인증(CI)이 없는 계정이라 ' +
+          '금고 기기의 생체 결속이 유일한 신원 축입니다. 금고 기기에서 패스키를 등록한 뒤 다시 부여하세요.',
+      );
+    }
     await prisma.$transaction([
       prisma.user.update({
         where: { id: user.id },

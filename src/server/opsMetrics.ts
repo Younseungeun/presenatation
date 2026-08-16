@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
+import { assessApprovalHealth } from '@/domain/approvalHealth';
 
-// 운영 초기(거래 100건·리서처 10명 구간)에 **매일 눈으로 보는 여섯 숫자.**
+// 운영 초기(거래 100건·리서처 10명 구간)에 **매일 눈으로 보는 사업 로직 숫자들.**
 //
 // 기존 계측(에스크로 잔액·스케줄러 심박·이월 건수)은 전부 **"인프라가 죽었는가"**를
 // 본다. 그것들이 전부 초록이어도 서비스는 조용히 죽을 수 있다 — 카드가 안 팔리고,
@@ -296,14 +297,26 @@ export const OPS_THRESHOLDS = {
 } as const;
 
 export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Promise<OpsMetric[]> {
-  const [lead, payout, zero, revert, repurchase, manual] = await Promise.all([
+  const [lead, payout, zero, revert, repurchase, manual, approvalRows] = await Promise.all([
     judgmentLeadTime(prisma),
     payoutLatency(prisma),
     zeroPurchaseRate(prisma, now),
     judgmentDisputeRate(prisma),
     repurchaseAfterJudgment(prisma, now),
     manualInterventions(prisma),
+    prisma.operatorApproval.findMany({
+      where: { decidedAt: { not: null }, decidedBy: { not: null } },
+      select: { requestedAt: true, decidedAt: true, decidedBy: true, status: true },
+    }),
   ]);
+  const approval = assessApprovalHealth(
+    approvalRows.map((r) => ({
+      requestedAt: r.requestedAt,
+      decidedAt: r.decidedAt!,
+      decidedBy: r.decidedBy!,
+      status: r.status,
+    })),
+  );
 
   const per100 = manual.judged === 0 ? 0 : (manual.total / manual.judged) * 100;
   const h = repurchase.horizon;
@@ -395,6 +408,22 @@ export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Pro
       meaning:
         '확장 가능성의 지표입니다. 100건에 5건을 손대면 1,000건에서는 50건이고, 그때 사람이 병목이 됩니다.',
       alert: per100 > OPS_THRESHOLDS.interventionsPer100,
+    },
+    {
+      // 2인 승인의 사망 원인은 우회가 아니라 습관화다 (검토 5차 Q1). 성격이 다른
+      // 신호 셋을 함께 본다 — 시간 하나만 보면 굿하트의 법칙에 걸린다
+      key: 'approvalHealth',
+      label: '승인 건강도 (2인 승인)',
+      value:
+        approval.decided === 0
+          ? '—'
+          : `즉시 승인 ${pct(approval.instant, approval.decided)}`,
+      sample:
+        `결정 ${approval.decided}건 · 반려 ${approval.rejected}건 · ` +
+        `연쇄 승인 ${approval.batchRuns}회`,
+      meaning:
+        '2인 승인이 장식이 되는 것을 감지합니다. 1분 미만 즉시 승인이 절반을 넘거나, 표본 50건 위에서 반려가 0이거나, 10초 안에 3건이 연속 승인되면 — 검토가 아니라 도장입니다.',
+      alert: approval.alert,
     },
   ];
 }

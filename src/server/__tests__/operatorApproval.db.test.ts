@@ -12,6 +12,7 @@ import {
   consumeApproval,
   decideApproval,
   getPendingApprovals,
+  notifyApprovalReminders,
   requestApproval,
 } from '../operatorApprovalService';
 
@@ -213,5 +214,43 @@ describe('승인서에는 수명이 있다 (72시간)', () => {
     const pending = await getPendingApprovals(prisma, LATER);
     // NOW에 올라간 요청들은 LATER 기준 전부 만료 — ttl-3의 재요청만 남는다
     expect(pending.every((p) => p.requestedAt.getTime() > NOW.getTime())).toBe(true);
+  });
+
+  it('만료는 조용히 일어나지 않는다 — 기안자가 알림을 받는다 (검토 5차 Q3)', async () => {
+    // ttl-1(대기 만료)·ttl-2(승인서 만료) 모두 OP_A의 요청이었다 — 만료 알림이 가 있어야 한다
+    const notis = await prisma.notification.findMany({
+      where: { userId: OP_A, title: { contains: '만료' } },
+    });
+    expect(notis.length).toBeGreaterThanOrEqual(2);
+    // 대기 만료와 승인서 만료는 다음 행동이 달라 문구도 다르다
+    expect(notis.some((n) => n.body.includes('승인되지 않아'))).toBe(true);
+    expect(notis.some((n) => n.body.includes('실행되지 않아'))).toBe(true);
+  });
+});
+
+// 승인 요청 알림은 올라갈 때 1회뿐이라 놓치면 조용히 만료된다 — 만료 전 마지막 하루에
+// 한 번만 다시 울린다. 매일 울리면 알림이 배경음이 되고, 배경음은 아무도 안 듣는다
+describe('만료 임박 재알림 (48시간 경과, 1회)', () => {
+  it('48시간 지난 대기 건을 운영자에게 알리고, 두 번 울리지는 않는다', async () => {
+    const { id } = await requestApproval(
+      prisma,
+      { action: 'PAYOUT_UNFREEZE', targetId: 'remind-1', summary: '해제', requestedBy: OP_A, reason: '확인' },
+      NOW,
+    );
+    const AT_49H = new Date(NOW.getTime() + 49 * 3_600_000);
+    expect(await notifyApprovalReminders(prisma, AT_49H)).toBe(1);
+    const row = await prisma.operatorApproval.findUniqueOrThrow({ where: { id } });
+    expect(row.remindedAt).not.toBeNull();
+    // 다음 날 또 돌아도 같은 건으로 다시 울리지 않는다
+    expect(await notifyApprovalReminders(prisma, new Date(AT_49H.getTime() + 3_600_000))).toBe(0);
+  });
+
+  it('아직 48시간이 안 된 요청은 건드리지 않는다', async () => {
+    await requestApproval(
+      prisma,
+      { action: 'PAYOUT_UNFREEZE', targetId: 'remind-2', summary: '해제', requestedBy: OP_A, reason: '확인' },
+      NOW,
+    );
+    expect(await notifyApprovalReminders(prisma, new Date(NOW.getTime() + 3_600_000))).toBe(0);
   });
 });

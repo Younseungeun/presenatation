@@ -32,8 +32,18 @@ afterAll(async () => {
 });
 
 describe('1인 운영 기간 — 콜드 계정으로 교착을 푼다', () => {
-  it('창업자와 콜드 계정을 부여한다 (콜드는 본인 인증 없이도 된다 — CI는 창업자 계정에 있다)', async () => {
+  it('패스키 없는 콜드는 거절된다 — CI가 없는 계정이라 기기 결속이 유일한 신원 축이다 (검토 5차 Q2)', async () => {
     await grantOperatorRole(prisma, { email: 'founder@iv.io', actor: 'cli' }, NOW);
+    await expect(
+      grantOperatorRole(prisma, { email: 'cold@iv.io', cold: true, actor: 'cli' }, NOW),
+    ).rejects.toThrow(/패스키가 먼저/);
+  });
+
+  it('금고 기기의 패스키를 등록하면 콜드 계정이 부여된다 (본인 인증은 없어도 된다 — CI는 창업자 계정에 있다)', async () => {
+    const cold0 = await prisma.user.findUniqueOrThrow({ where: { email: 'cold@iv.io' } });
+    await prisma.passkey.create({
+      data: { userId: cold0.id, credentialId: 'vault-cred', publicKey: 'pk', label: '금고 태블릿' },
+    });
     const r = await grantOperatorRole(prisma, { email: 'cold@iv.io', cold: true, actor: 'cli' }, NOW);
     expect(r.demotedColdAccounts).toEqual([]);
 

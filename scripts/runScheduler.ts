@@ -34,6 +34,7 @@ import { purgeExpiredChallenges } from '../src/server/passkeyService';
 import { sweepStuckRefundAttempts } from '../src/server/settlementOpsService';
 import { notifyIfOutflowPressure } from '../src/server/payoutVelocity';
 import { sweepPendingCompensations } from '../src/server/compensationService';
+import { notifyApprovalReminders } from '../src/server/operatorApprovalService';
 import { recalcSeasonTiers } from '../src/server/seasonRecalcService';
 import { syncKrCardInstrumentRisk } from '../src/server/krRiskSync';
 import { pausedAssetClasses } from '../src/server/judgmentPause';
@@ -736,6 +737,17 @@ function tick(): void {
       if (s.pending > 0) {
         console.log(`  귀책 확정 대기 보상 ${s.pending}건 (${s.overdue}건 지연)`);
       }
+    });
+  }
+
+  // ── 승인 대기 만료 임박 재알림 (매일 09:30 KST) ─────────
+  // 승인 요청 알림은 올라갈 때 1회뿐이라, 놓치면 요청이 조용히 만료된다(72h) —
+  // "사람을 기다리는 큐는 스스로 소리를 내야 한다"(보상 큐와 같은 규칙).
+  // 48시간 경과 건을 한 번만 다시 알린다 — 매일 울리면 알림이 배경음이 된다
+  if (kstClock >= '09:30') {
+    enqueueDaily('approval-reminder', kstNow, '승인 대기 만료 임박 점검', async () => {
+      const n = await notifyApprovalReminders(prisma);
+      if (n > 0) console.log(`  만료 임박(24시간 남음) 승인 요청 ${n}건 — 운영자 재알림`);
     });
   }
 

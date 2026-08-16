@@ -562,6 +562,8 @@ model OperatorApproval {
   status       String    @default("PENDING")
   decidedBy    String?
   decidedAt    DateTime?
+  /// 만료 임박 재알림을 보낸 시각 (검토 5차 Q3) — 한 번만 울린다. 매일 울리면 배경음이 된다
+  remindedAt   DateTime?
   decisionNote String?
   executedAt   DateTime?
 
