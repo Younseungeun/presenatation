@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb } from './helpers/testDb';
 import {
+  APPROVAL_TTL_HOURS,
   canApprove,
   DUAL_APPROVAL_THRESHOLD_KRW,
   requiresDualApproval,
@@ -155,8 +156,62 @@ describe('요청', () => {
   });
 
   it('대기 목록에 오래된 순으로 쌓인다', async () => {
-    const pending = await getPendingApprovals(prisma);
+    const pending = await getPendingApprovals(prisma, NOW);
     expect(pending.length).toBeGreaterThan(0);
     expect(pending.every((p) => p.status === 'PENDING')).toBe(true);
+  });
+});
+
+// 만료가 없으면 반년 전에 올라간 요청을 오늘 승인하고 쓸 수 있다 — 승인의 전제(그때의
+// 사유)는 낡았는데 승인서만 살아 있는 것이다 (검토 4차 Q3). 배치가 아니라 **모든
+// 진입로의 지연 평가**로 죽인다 — 배치는 죽어 있는 사이 낡은 것이 산 것처럼 보인다
+describe('승인서에는 수명이 있다 (72시간)', () => {
+  const LATER = new Date(NOW.getTime() + (APPROVAL_TTL_HOURS + 1) * 3_600_000);
+
+  it('낡은 대기 요청은 승인할 수 없다 — 사유부터 다시 써야 한다', async () => {
+    const { id } = await requestApproval(
+      prisma,
+      { action: 'PAYOUT_UNFREEZE', targetId: 'ttl-1', summary: '해제', requestedBy: OP_A, reason: '확인' },
+      NOW,
+    );
+    await expect(
+      decideApproval(prisma, { approvalId: id, approverUserId: OP_B, approve: true }, LATER),
+    ).rejects.toThrow(/만료/);
+    const row = await prisma.operatorApproval.findUniqueOrThrow({ where: { id } });
+    expect(row.status).toBe('EXPIRED');
+  });
+
+  it('낡은 승인서는 소비되지 않는다 — 승인만 받아 두고 반년 뒤에 쓰는 길을 막는다', async () => {
+    const { id } = await requestApproval(
+      prisma,
+      { action: 'PAYOUT_UNFREEZE', targetId: 'ttl-2', summary: '해제', requestedBy: OP_A, reason: '확인' },
+      NOW,
+    );
+    await decideApproval(prisma, { approvalId: id, approverUserId: OP_B, approve: true }, NOW);
+    await expect(
+      consumeApproval(prisma, { action: 'PAYOUT_UNFREEZE', targetId: 'ttl-2' }, LATER),
+    ).rejects.toThrow(ApprovalError);
+    const row = await prisma.operatorApproval.findUniqueOrThrow({ where: { id } });
+    expect(row.status).toBe('EXPIRED');
+  });
+
+  it('만료된 요청은 중복 방지에 걸리지 않는다 — 새로 요청하면 새 요청이 생긴다', async () => {
+    const first = await requestApproval(
+      prisma,
+      { action: 'PAYOUT_UNFREEZE', targetId: 'ttl-3', summary: '해제', requestedBy: OP_A, reason: '확인' },
+      NOW,
+    );
+    const second = await requestApproval(
+      prisma,
+      { action: 'PAYOUT_UNFREEZE', targetId: 'ttl-3', summary: '해제', requestedBy: OP_A, reason: '다시 확인' },
+      LATER,
+    );
+    expect(second.id).not.toBe(first.id);
+  });
+
+  it('화면의 대기 목록에는 살아 있는 요청만 뜬다', async () => {
+    const pending = await getPendingApprovals(prisma, LATER);
+    // NOW에 올라간 요청들은 LATER 기준 전부 만료 — ttl-3의 재요청만 남는다
+    expect(pending.every((p) => p.requestedAt.getTime() > NOW.getTime())).toBe(true);
   });
 });

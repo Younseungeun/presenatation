@@ -22,6 +22,7 @@ const ACTION_LABEL: Record<string, string> = {
   PAYOUT_UNFREEZE: "정산 동결 해제",
   LARGE_PAYOUT: "고액 지급 실행",
   DISPUTE_UPHOLD: "판정 이의 인정 (판정 뒤집기)",
+  FIRST_MANUAL_JUDGMENT: "기계 판정 없는 수동 판정",
 };
 
 export function ApprovalList({ initial }: { initial: Approval[] }) {

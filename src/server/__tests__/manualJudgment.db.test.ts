@@ -8,6 +8,7 @@ import {
   manualJudgeCard,
   ManualJudgmentError,
 } from '../manualJudgmentService';
+import { decideApproval } from '../operatorApprovalService';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
 
@@ -18,7 +19,25 @@ let prisma: PrismaClient;
 let researcherId: string;
 let buyerId: string;
 let operatorId: string;
+let secondOperatorId: string;
 const cardIdByTicker: Record<string, string> = {};
+
+/**
+ * 기계 판정 이력이 없는 카드의 수동 판정에는 2인 승인이 걸린다 (검토 4차 Q1).
+ * 판정을 실행하려는 시험은 이 헬퍼로 승인부터 받는다 — 첫 판정 시도가 요청을 올리고,
+ * 다른 운영자가 승인하고, 같은 판정을 다시 실행하는 실제 절차 그대로다.
+ */
+async function approveFirstManual(cardId: string, judge: () => Promise<unknown>) {
+  await expect(judge()).rejects.toThrow(/다른 운영자의 승인/);
+  const req = await prisma.operatorApproval.findFirstOrThrow({
+    where: { action: 'FIRST_MANUAL_JUDGMENT', targetId: cardId, status: 'PENDING' },
+  });
+  await decideApproval(
+    prisma,
+    { approvalId: req.id, approverUserId: secondOperatorId, approve: true },
+    STALE_NOW,
+  );
+}
 
 const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
 const PUBLISH_NOW = new Date('2026-07-12T00:00:00Z');
@@ -73,6 +92,11 @@ beforeAll(async () => {
   operatorId = (
     await prisma.user.create({
       data: { email: 'op@m.io', identityVerified: true, role: 'OPERATOR' },
+    })
+  ).id;
+  secondOperatorId = (
+    await prisma.user.create({
+      data: { email: 'op2@m.io', identityVerified: true, role: 'OPERATOR' },
     })
   ).id;
 
@@ -146,16 +170,22 @@ describe('manualJudgeCard — 수동 판정', () => {
   });
 
   it('시세 입력 판정: 자동 경로와 동일한 점수·정산 (HIT → +212점, 수수료 20% 정산)', async () => {
-    const result = await manualJudgeCard(
-      prisma,
-      {
-        cardId: cardIdByTicker['KRW-AAA'],
-        operatorUserId: operatorId,
-        reason: '공급자 결측 — 거래소 공시 종가 112 확인',
-        decision: { type: 'PRICE', priceAtDeadline: 112 },
-      },
-      STALE_NOW,
-    );
+    // 기계 판정 이력이 없는 카드다 — 첫 시도는 승인 요청으로 멈추고(요청은 자동으로
+    // 올라간다), 다른 운영자가 승인해야 같은 판정이 실행된다 (검토 4차 Q1).
+    // 운영자가 넣는 숫자가 곧 원천 데이터인 자리라, 이 창구가 조작되면 앞선 방어가 다 무력하다
+    const judge = () =>
+      manualJudgeCard(
+        prisma,
+        {
+          cardId: cardIdByTicker['KRW-AAA'],
+          operatorUserId: operatorId,
+          reason: '공급자 결측 — 거래소 공시 종가 112 확인',
+          decision: { type: 'PRICE', priceAtDeadline: 112 },
+        },
+        STALE_NOW,
+      );
+    await approveFirstManual(cardIdByTicker['KRW-AAA'], judge);
+    const result = await judge();
     expect(result.outcome).toBe('HIT');
     // v4: 10×크기×c×(1−p₀). 픽스처 종목이 조용해(σ=0.5%/일) p₀가 작아 지급이 크다
     expect(result.score).toBeCloseTo(212, 0);
@@ -174,17 +204,20 @@ describe('manualJudgeCard — 수동 판정', () => {
     expect(purchase.settlement!.researcherPayoutKrw).toBe(8_000);
   });
 
-  it('판정 불가 처리: 전액 현금 환불 + 수수료 0', async () => {
-    const result = await manualJudgeCard(
-      prisma,
-      {
-        cardId: cardIdByTicker['KRW-BBB'],
-        operatorUserId: operatorId,
-        reason: '마켓 상장폐지로 시세 확인 불가',
-        decision: { type: 'UNDECIDABLE', undecidableReason: 'DELISTED' },
-      },
-      STALE_NOW,
-    );
+  it('판정 불가 처리: 전액 현금 환불 + 수수료 0 — 이쪽도 돈이라 같은 관문을 지난다', async () => {
+    const judge = () =>
+      manualJudgeCard(
+        prisma,
+        {
+          cardId: cardIdByTicker['KRW-BBB'],
+          operatorUserId: operatorId,
+          reason: '마켓 상장폐지로 시세 확인 불가',
+          decision: { type: 'UNDECIDABLE', undecidableReason: 'DELISTED' },
+        },
+        STALE_NOW,
+      );
+    await approveFirstManual(cardIdByTicker['KRW-BBB'], judge);
+    const result = await judge();
     expect(result.outcome).toBe('UNDECIDABLE');
     expect(result.score).toBe(0);
 

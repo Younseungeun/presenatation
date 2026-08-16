@@ -198,6 +198,21 @@ describe('교차검증 — enforce는 판정하지 않고 사람에게 넘긴다
     );
     const card = await prisma.predictionCard.findFirstOrThrow({ where: { reportId } });
 
+    // 기계 판정 이력이 없는 카드의 수동 판정에는 2인 승인이 걸린다(검토 4차 Q1) —
+    // 이 시험의 초점은 교차검증이라 승인서를 직접 심는다
+    await prisma.operatorApproval.create({
+      data: {
+        action: 'FIRST_MANUAL_JUDGMENT',
+        targetId: card.id,
+        summary: '교차검증 불일치 수동 판정',
+        requestedBy: 'op-a',
+        reason: '두 소스 대조',
+        requestedAt: BATCH_NOW,
+        status: 'APPROVED',
+        decidedBy: 'op-b',
+        decidedAt: BATCH_NOW,
+      },
+    });
     // BATCH_NOW는 시한 후 하루 — 원래라면 "자동 판정 우선 7일"에 막힌다.
     // 자동 판정이 꺼진 카드에는 그 우선권을 줄 상대가 없다
     await manualJudgeCard(

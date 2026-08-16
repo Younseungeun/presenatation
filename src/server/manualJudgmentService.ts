@@ -5,6 +5,7 @@ import { judge, type JudgmentResult, type MarketSnapshot } from '@/domain/judgme
 import { scoreJudgedCard } from '@/domain/scoring';
 import { STALE_DEFER_DAYS } from './judgmentBatch';
 import { buildJudgmentWrites } from './judgmentWriter';
+import { ApprovalError, consumeApproval, requestApproval } from './operatorApprovalService';
 
 // 운영자 판정 보류 큐 (§2.5 연장): 자동 판정이 STALE_DEFER_DAYS 이상 이월된 카드를
 // 운영자가 검증된 시세를 직접 입력해 수동 판정한다.
@@ -202,6 +203,40 @@ export async function manualJudgeCard(
     if (result.outcome === 'UNDECIDABLE' && result.undecidableReason !== 'WITHDRAWN') {
       throw new ManualJudgmentError(
         '입력한 시세로 판정할 수 없습니다 — 필요한 가격(종가/고가/저가/기준가)을 채우거나 판정 불가로 처리하세요',
+      );
+    }
+  }
+
+  // ── 기계 판정 이력이 없으면 2인 승인이다 (2026-08-16 검토 4차 Q1) ──
+  // 되돌리기를 거쳐 온 카드(JudgmentRevert 묘비 있음)는 그 길목(이의 인정)에 이미
+  // 2인이 섰으므로 걸지 않는다 — 같은 체인에 관문을 두 번 세우면 사고 복구의 대량
+  // 수동 판정이 두 배로 느려질 뿐이다. 반대로 시세 결측·신규 상장으로 **기계의 1차
+  // 판정 없이** 여기 온 카드는 운영자가 넣는 숫자가 곧 원천 데이터라, 이 입력 창구가
+  // 조작되면 앞선 모든 방어가 무력해진다. (자리는 입력 검증 뒤 — 형식이 틀린 입력에
+  // 승인서를 태우지 않는다)
+  const priorJudgment = await prisma.judgmentRevert.findFirst({
+    where: { predictionCardId: card.id },
+    select: { id: true },
+  });
+  if (!priorJudgment) {
+    try {
+      await consumeApproval(prisma, { action: 'FIRST_MANUAL_JUDGMENT', targetId: card.id }, now);
+    } catch (e) {
+      if (!(e instanceof ApprovalError)) throw e;
+      await requestApproval(
+        prisma,
+        {
+          action: 'FIRST_MANUAL_JUDGMENT',
+          targetId: card.id,
+          summary: `${card.assetName} (${card.ticker}) 수동 판정 — 기계 판정 이력 없음`,
+          requestedBy: input.operatorUserId,
+          reason: input.reason.trim(),
+        },
+        now,
+      );
+      throw new ManualJudgmentError(
+        '기계 판정 이력이 없는 카드의 수동 판정에는 다른 운영자의 승인이 필요합니다 — ' +
+          '승인 요청을 올려두었습니다. 승인되면 같은 입력으로 다시 판정하세요.',
       );
     }
   }

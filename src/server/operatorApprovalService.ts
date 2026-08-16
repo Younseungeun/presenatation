@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import {
   APPROVAL_ACTION_LABEL,
+  APPROVAL_TTL_HOURS,
   canApprove,
   type ApprovalAction,
   type ApprovalStatus,
@@ -26,6 +27,27 @@ export class ApprovalError extends Error {
   }
 }
 
+/**
+ * 낡은 요청·승인서를 만료시킨다 (2026-08-16 검토 4차 Q3 — 지연 평가).
+ *
+ * 스케줄러 배치가 아니라 **모든 진입로 첫머리**에서 부른다. 배치 방식은 배치가 죽은
+ * 사이 낡은 승인서가 산 것처럼 보이는 창이 생기는데, 지연 평가는 그 창 자체가 없다 —
+ * 읽는 순간이 곧 판정 순간이다. 대기는 요청 시각부터, 승인서는 승인 시각부터 센다
+ * (승인만 받아 두고 반년 뒤에 소비되는 승인서는 낡은 대기보다 더 나쁘다).
+ */
+async function expireStaleApprovals(prisma: PrismaClient, now: Date): Promise<void> {
+  const cutoff = new Date(now.getTime() - APPROVAL_TTL_HOURS * 3_600_000);
+  await prisma.operatorApproval.updateMany({
+    where: {
+      OR: [
+        { status: 'PENDING', requestedAt: { lt: cutoff } },
+        { status: 'APPROVED', decidedAt: { lt: cutoff } },
+      ],
+    },
+    data: { status: 'EXPIRED' },
+  });
+}
+
 export async function requestApproval(
   prisma: PrismaClient,
   input: {
@@ -41,6 +63,7 @@ export async function requestApproval(
   if (!input.reason.trim()) {
     throw new ApprovalError('무엇을 왜 하려는지 적어주세요 — 승인자가 판단할 근거가 됩니다');
   }
+  await expireStaleApprovals(prisma, now); // 만료된 대기 건을 산 것으로 착각하고 재사용하지 않게
   // 같은 대상에 대기 중인 요청이 있으면 새로 만들지 않는다. 안 그러면 승인자가
   // 같은 건을 여러 번 승인하게 되고, 그중 하나만 소비돼 나머지가 유령으로 남는다
   const existing = await prisma.operatorApproval.findFirst({
@@ -82,6 +105,7 @@ export async function decideApproval(
   },
   now = new Date(),
 ): Promise<ApprovalStatus> {
+  await expireStaleApprovals(prisma, now);
   const row = await prisma.operatorApproval.findUnique({ where: { id: input.approvalId } });
   if (!row) throw new ApprovalError('요청을 찾을 수 없습니다');
 
@@ -111,6 +135,7 @@ export async function consumeApproval(
   input: { action: ApprovalAction; targetId: string },
   now = new Date(),
 ): Promise<void> {
+  await expireStaleApprovals(prisma, now); // 낡은 승인서는 소비되기 전에 여기서 죽는다
   const { count } = await prisma.operatorApproval.updateMany({
     where: { action: input.action, targetId: input.targetId, status: 'APPROVED' },
     data: { status: 'EXECUTED', executedAt: now },
@@ -123,7 +148,8 @@ export async function consumeApproval(
 }
 
 /** 대기 중인 요청 (운영자 화면) */
-export async function getPendingApprovals(prisma: PrismaClient) {
+export async function getPendingApprovals(prisma: PrismaClient, now = new Date()) {
+  await expireStaleApprovals(prisma, now); // 화면에 뜨는 것은 전부 아직 살아 있는 요청이다
   return prisma.operatorApproval.findMany({
     where: { status: 'PENDING' },
     orderBy: { requestedAt: 'asc' },

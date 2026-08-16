@@ -160,6 +160,21 @@ describe('감사 로그', () => {
   it('수동 판정은 남는다 — 그리고 고위험 알림에 걸린다', async () => {
     const { cardId } = await judgedCard('KRW-AU4', 120, { skipJudge: true });
 
+    // 기계 판정 이력이 없는 카드의 수동 판정에는 2인 승인이 걸린다(검토 4차 Q1) —
+    // 이 시험의 초점은 감사 로그라 승인서를 직접 심는다
+    await prisma.operatorApproval.create({
+      data: {
+        action: 'FIRST_MANUAL_JUDGMENT',
+        targetId: cardId,
+        summary: '감사 로그 시험용 수동 판정',
+        requestedBy: 'op-a',
+        reason: '공급자 결측',
+        requestedAt: MANUAL_NOW,
+        status: 'APPROVED',
+        decidedBy: 'op-b',
+        decidedAt: MANUAL_NOW,
+      },
+    });
     await manualJudgeCard(
       prisma,
       {

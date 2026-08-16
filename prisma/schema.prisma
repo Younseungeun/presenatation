@@ -32,6 +32,14 @@ model User {
    */
   sessionEpoch     Int      @default(0)
   role             String   @default("USER") // USER | OPERATOR — 운영자는 판정 보류 큐 수동 판정 가능
+  /**
+   * 콜드 운영자 계정 표시 (2026-08-16 검토 4차 Q2). 출시 초 운영자가 1명일 때
+   * 2인 승인의 교착을 푸는 금고 속 두 번째 계정이다 — 실제로는 한 사람 + 두 번째 기기라,
+   * **진짜 두 번째 운영자가 생기는 순간 회수해야 한다.** 남겨 두면 한 사람이 콜드를 쥐고
+   * 다시 단독 승인 능력을 갖는다. 회수는 수칙이 아니라 코드가 한다 —
+   * server/operatorGrantService.ts가 운영자 부여와 콜드 강등을 한 트랜잭션으로 묶는다.
+   */
+  operatorCold     Boolean  @default(false)
   createdAt        DateTime @default(now())
 
   researcherProfile ResearcherProfile?
