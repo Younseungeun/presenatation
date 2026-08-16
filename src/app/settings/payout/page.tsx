@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
 import { payoutAccountView } from "@/server/payoutAccountView";
+import { isTrustedDevice } from "@/server/pinService";
 import { AppHeader } from "../../AppHeader";
 import marketStyles from "../../market.module.css";
 import styles from "./payout.module.css";
@@ -33,7 +35,11 @@ export default async function PayoutProtectionPage() {
     );
   }
 
-  const view = await payoutAccountView(prisma, userId);
+  // 이 화면이 평소 기기에서 열렸는지에 따라 유예 확인 번호를 **보여줄지, 입력받을지**가
+  // 갈린다 — 번호는 낯선 기기에, 입력은 평소 기기에 (payoutAccountView 주석)
+  const store = await cookies();
+  const trusted = await isTrustedDevice(prisma, userId, store.get("rm_device")?.value);
+  const view = await payoutAccountView(prisma, userId, trusted);
 
   return (
     <>

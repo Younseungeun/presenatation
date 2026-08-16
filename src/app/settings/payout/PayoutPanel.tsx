@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { PayoutAccountView } from "@/server/payoutAccountView";
 import { AccountForm } from "./AccountForm";
+import { CooldownConfirm } from "./CooldownConfirm";
 import { FreezeButton } from "./FreezeButton";
 import styles from "./payout.module.css";
 
@@ -43,6 +44,11 @@ export function PayoutPanel({ initial }: { initial: PayoutAccountView }) {
                 <span className={styles.statusKey}>지급 유예</span>
                 <span className={styles.statusValue}>{view.cooldownHoursLeft}시간 남음</span>
               </div>
+            )}
+            {/* 유예 즉시 해제 — 번호는 낯선 기기(이 변경을 만든 기기)에 보이고,
+                입력은 평소 기기에서만 받는다. 두 갈래가 한 컴포넌트에 있다 */}
+            {(view.cooldownCode != null || view.canConfirmCooldown) && (
+              <CooldownConfirm view={view} onDone={setView} />
             )}
           </>
         ) : (

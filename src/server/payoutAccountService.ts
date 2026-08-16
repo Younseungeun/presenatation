@@ -1,3 +1,4 @@
+import { randomInt } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
 import { hashCi } from './authService';
@@ -57,6 +58,16 @@ export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
  * @근거 설계 사람이 알림을 보고 반응하는 시간 — 정산 쿨다운(48h)과 같은 계산
  */
 export const ACCOUNT_CHANGE_COOLDOWN_MS = 48 * 3_600_000;
+
+/**
+ * 유예 즉시 해제 확인 번호의 시도 상한 — 넘으면 번호가 타고 48시간 대기로 돌아간다.
+ *
+ * 입력은 평소 기기에서만 받으므로 여기까지 오는 무차별 대입은 사실상 없다(평소 기기를
+ * 쥔 사람은 번호를 볼 수 있는 사람이다). 이 상한은 그 전제가 깨졌을 때의 이중 방어다.
+ *
+ * @근거 설계 간편 비밀번호 잠금과 같은 눈금 (MAX_PIN_ATTEMPTS)
+ */
+export const COOLDOWN_CONFIRM_MAX_ATTEMPTS = 5;
 
 /**
  * 계좌를 등록하거나 바꾼다 — **언제나 미검증으로 떨어지고, 언제나 재인증을 요구한다.**
@@ -139,10 +150,13 @@ export async function registerPayoutAccount(
     verifiedAt: null,
     changedAt: now,
     // 평소 기기면 대기 없음 — 검증(예금주 조회)이 끝나는 대로 지급된다.
-    // 낯선 기기면 고지와 같은 축으로 48시간을 남긴다 (스키마 주석 참고)
+    // 낯선 기기면 고지와 같은 축으로 48시간을 남기고, **즉시 해제 확인 번호**를 만든다.
+    // 번호는 낯선 기기 화면에 표시되고 입력은 평소 기기에서만 받는다 (스키마 주석 참고)
     cooldownUntil: input.trustedDevice
       ? null
       : new Date(now.getTime() + ACCOUNT_CHANGE_COOLDOWN_MS),
+    cooldownCode: input.trustedDevice ? null : String(randomInt(0, 1_000_000)).padStart(6, '0'),
+    cooldownCodeAttempts: 0,
   };
 
   // **첫 등록인지 변경인지 미리 안다** — 알림 문구가 갈린다.
@@ -194,12 +208,14 @@ export async function registerPayoutAccount(
             // 계좌를 넣는 경우가 실제로 있다
             `정산 계좌로 ${data.bankCode} ${accountLast4}를 등록했습니다.\n` +
             `평소 로그인 기기가 아닌 곳에서 등록되어, 은행 예금주 확인 후 ${cooldownHours}시간이 지나면 지급됩니다.\n` +
+            '본인이 등록한 것이 맞다면 평소 쓰시는 기기에서 새 기기 화면의 확인 번호를 입력해 바로 지급되게 할 수 있습니다.\n' +
             '만약 본인이 등록한 것이 아니라면 지금 바로 정산을 동결해주세요.'
           : `평소 로그인 기기가 아닌 곳에서 정산 계좌가 ${data.bankCode} ${accountLast4}로 변경되었습니다. ` +
-            `본인이 변경한 것이 맞다면 은행 예금주 확인 후 ${cooldownHours}시간 뒤부터 새 계좌로 지급됩니다.\n` +
+            `본인이 변경한 것이 맞다면 은행 예금주 확인 후 ${cooldownHours}시간 뒤부터 새 계좌로 지급됩니다 — ` +
+            '또는 평소 쓰시는 기기에서 새 기기 화면의 확인 번호를 입력하면 대기 없이 지급됩니다.\n' +
             '**본인이 변경하지 않았다면 지금 바로 정산을 동결해주세요.** ' +
             '동결하면 확인이 끝날 때까지 한 푼도 나가지 않습니다.',
-        link: '/settings',
+        link: '/settings/payout',
         createdAt: now,
       },
     });
@@ -235,6 +251,92 @@ export async function registerPayoutAccount(
  * 실명이 없는 계좌(재인증이 붙기 전에 등록된 것)는 **대조하지 않고 미검증으로 남긴다.**
  * 통과시키면 옛 계좌들만 조용히 무방비가 된다.
  */
+/**
+ * 낯선 기기 유예를 **평소 기기에서** 즉시 끝낸다 (2026-08-16 사용자 확정).
+ *
+ * 흐름: 낯선 기기에서 계좌를 바꾸면 그 화면에 확인 번호가 뜬다 → 평소 기기의 알림이
+ * 입력 화면으로 안내한다 → 평소 기기에서 그 번호를 입력하면 유예가 그 자리에서 풀린다.
+ *
+ * **번호의 힘은 번호가 아니라 입력되는 자리에 있다.** 번호는 낯선 기기(탈취자 포함)에
+ * 보이지만, 입력은 평소 로그인 기기에서만 받는다 — 평소 기기에서 입력됐다는 것은
+ * 그 기기를 쥐고 간편 로그인까지 통과한 본인이 이 변경을 승인했다는 뜻이고,
+ * 그건 48시간의 침묵보다 강한 증거라 즉시 해제가 정당하다.
+ *
+ * ⚠ 남는 우회로는 하나 — **보이스피싱**("보안 확인을 위해 이 번호를 입력하세요").
+ * 기술 관문으로는 못 막고, 입력 화면의 사기 경고 문구가 유일한 방어다.
+ */
+export async function confirmCooldownRelease(
+  prisma: PrismaClient,
+  input: { researcherUserId: string; code: string; trustedDevice: boolean },
+  now = new Date(),
+): Promise<void> {
+  // 이 검사가 장치의 전부다 — 낯선 기기(탈취자가 쥔 그 기기)에서는 번호를 알아도 못 푼다
+  if (!input.trustedDevice) {
+    throw new PayoutAccountError(
+      '확인 번호는 평소 쓰시는 기기에서만 입력할 수 있습니다 — 이 화면의 번호를 평소 기기에서 입력해주세요.',
+    );
+  }
+  const account = await prisma.payoutAccount.findUnique({
+    where: { researcherUserId: input.researcherUserId },
+  });
+  if (!account || !account.cooldownUntil || now.getTime() >= account.cooldownUntil.getTime()) {
+    throw new PayoutAccountError('해제할 지급 유예가 없습니다');
+  }
+  if (!account.cooldownCode) {
+    throw new PayoutAccountError(
+      '확인 번호가 만료되었습니다 — 유예가 끝나면 지급되며, 급하면 평소 기기에서 계좌를 다시 등록해주세요.',
+    );
+  }
+  if (account.cooldownCode !== input.code.trim()) {
+    const attempts = account.cooldownCodeAttempts + 1;
+    const burned = attempts >= COOLDOWN_CONFIRM_MAX_ATTEMPTS;
+    await prisma.payoutAccount.update({
+      where: { researcherUserId: input.researcherUserId },
+      // 틀릴 때마다 세고, 상한에 닿으면 **번호를 태운다** — 유예는 그대로 흐른다.
+      // 여기 오는 무차별 대입은 전제(평소 기기)가 깨졌다는 뜻이라 편의를 줄 이유가 없다
+      data: { cooldownCodeAttempts: attempts, ...(burned ? { cooldownCode: null } : {}) },
+    });
+    throw new PayoutAccountError(
+      burned
+        ? `확인 번호를 ${COOLDOWN_CONFIRM_MAX_ATTEMPTS}회 잘못 입력해 번호가 만료되었습니다 — 유예가 끝나면 지급됩니다.`
+        : `확인 번호가 일치하지 않습니다 (${COOLDOWN_CONFIRM_MAX_ATTEMPTS - attempts}회 남음)`,
+    );
+  }
+
+  await prisma.$transaction([
+    prisma.payoutAccount.update({
+      where: { researcherUserId: input.researcherUserId },
+      data: { cooldownUntil: null, cooldownCode: null, cooldownCodeAttempts: 0 },
+    }),
+    // 해제도 알린다 — 유예를 없앤 사건은 유예를 만든 사건만큼 알 가치가 있다
+    prisma.notification.create({
+      data: {
+        userId: input.researcherUserId,
+        type: 'PAYOUT_ACCOUNT_CHANGED',
+        title: '지급 유예가 해제되었습니다',
+        body:
+          '평소 기기에서 확인 번호가 입력되어 계좌 변경 유예(48시간)가 해제되었습니다. ' +
+          '은행 예금주 확인이 끝나는 대로 지급됩니다.',
+        link: '/settings/payout',
+        createdAt: now,
+      },
+    }),
+    // 방어를 일찍 끝낸 사건은 감사에 남는다 — "왜 48시간을 안 기다렸나"는 나중에
+    // 반드시 나오는 질문이고, 답은 "본인이 평소 기기에서 승인했다"여야 한다
+    auditOp(prisma, {
+      actor: input.researcherUserId,
+      actorType: 'USER',
+      action: 'ACCOUNT_COOLDOWN_LIFTED',
+      targetType: 'PayoutAccount',
+      targetId: account.id,
+      before: { cooldownUntil: account.cooldownUntil.toISOString() },
+      after: { cooldownUntil: null },
+      reason: '평소 기기에서 확인 번호 입력',
+      at: now,
+    }),
+  ]);
+}
+
 export async function applyHolderLookup(
   prisma: PrismaClient,
   input: {

@@ -52,7 +52,9 @@ export async function POST(req: NextRequest) {
       trustedDevice,
       actor: userId,
     });
-    return NextResponse.json(await payoutAccountView(prisma, userId), { status: 201 });
+    return NextResponse.json(await payoutAccountView(prisma, userId, trustedDevice), {
+      status: 201,
+    });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '입력 형식 오류', issues: e.issues }, { status: 400 });

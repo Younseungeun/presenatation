@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { freezePayouts } from '@/server/payoutAccountService';
 import { payoutAccountView } from '@/server/payoutAccountView';
+import { isTrustedDevice } from '@/server/pinService';
 import { requireUserId, toErrorResponse } from '../../_lib/http';
 
 const bodySchema = z.object({ reason: z.string().max(300).optional() });
@@ -24,7 +26,9 @@ export async function POST(req: NextRequest) {
     const userId = await requireUserId();
     const body = bodySchema.parse(await req.json().catch(() => ({})));
     await freezePayouts(prisma, { researcherUserId: userId, actor: userId, reason: body.reason });
-    return NextResponse.json(await payoutAccountView(prisma, userId));
+    const store = await cookies();
+    const trusted = await isTrustedDevice(prisma, userId, store.get('rm_device')?.value);
+    return NextResponse.json(await payoutAccountView(prisma, userId, trusted));
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '입력 형식 오류', issues: e.issues }, { status: 400 });

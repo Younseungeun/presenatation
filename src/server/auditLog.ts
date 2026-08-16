@@ -94,6 +94,12 @@ export const AUDIT_ACTIONS = {
   BULK_REVERT: '판정 일괄 되돌리기',
   /** 운영자 권한을 주거나 뺏었다 */
   ROLE_CHANGED: '운영자 권한 변경',
+  /**
+   * 계좌 변경 유예(48시간)를 본인이 평소 기기에서 확인 번호로 즉시 끝냈다.
+   * 방어를 일찍 끝낸 사건이라 남긴다 — "왜 48시간을 안 기다렸나"는 분쟁에서
+   * 반드시 나오는 질문이고, 답("본인이 평소 기기에서 승인했다")이 여기 있어야 한다
+   */
+  ACCOUNT_COOLDOWN_LIFTED: '계좌 지급 유예 즉시 해제',
 } as const;
 
 export type AuditAction = keyof typeof AUDIT_ACTIONS;

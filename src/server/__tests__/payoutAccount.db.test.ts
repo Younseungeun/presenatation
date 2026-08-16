@@ -8,11 +8,14 @@ import {
   ACCOUNT_CHANGE_COOLDOWN_MS,
   applyHolderLookup,
   assertPayoutAccountReady,
+  confirmCooldownRelease,
+  COOLDOWN_CONFIRM_MAX_ATTEMPTS,
   freezePayouts,
   PayoutAccountError,
   registerPayoutAccount,
   unfreezePayouts,
 } from '../payoutAccountService';
+import { payoutAccountView } from '../payoutAccountView';
 
 // **돈이 어디로 나가는지 시스템이 알게 하는 표.**
 //
@@ -430,5 +433,112 @@ describe('정산 동결', () => {
   it('계좌가 아직 없어도 미리 동결할 수 있다', async () => {
     await freezePayouts(prisma, { researcherUserId: 'newcomer', actor: 'newcomer' });
     await expect(assertPayoutAccountReady(prisma, 'newcomer')).rejects.toThrow(/동결된 계정입니다/);
+  });
+});
+
+// ── 유예 즉시 해제: **번호는 낯선 기기에, 입력은 평소 기기에** (2026-08-16 사용자 확정) ──
+//
+// 번호의 힘은 번호가 아니라 입력되는 자리에 있다. 번호는 낯선 기기(탈취자 포함)에
+// 보이지만, 입력은 평소 로그인 기기에서만 받는다 — 평소 기기에서 입력됐다는 것은
+// 그 기기를 쥐고 간편 로그인까지 통과한 본인이 승인했다는 뜻이고, 48시간 침묵보다
+// 강한 증거라 즉시 해제가 정당하다.
+describe('유예 즉시 해제 (확인 번호)', () => {
+  async function makeUserWithCooldown(email: string, ci: string) {
+    const u = await prisma.user.create({
+      data: { email, identityVerified: true, identityHash: hashCi(ci) },
+    });
+    await registerPayoutAccount(
+      prisma,
+      {
+        researcherUserId: u.id,
+        bankCode: '004',
+        accountNumber: '110-777-888999',
+        actor: u.id,
+        identity: { ci, name: '홍길동' },
+        trustedDevice: false, // 낯선 기기 — 유예와 확인 번호가 생긴다
+      },
+      NOW,
+    );
+    await applyHolderLookup(prisma, { researcherUserId: u.id, holderName: '홍길동', actor: 'system:bank' }, NOW);
+    return u.id;
+  }
+
+  it('낯선 기기 변경은 6자리 확인 번호를 만들고, 화면은 기기에 따라 두 얼굴이다', async () => {
+    const uid = await makeUserWithCooldown('confirm-a@acct.io', 'ci-confirm-a');
+    const saved = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId: uid } });
+    expect(saved.cooldownCode).toMatch(/^\d{6}$/);
+
+    // 낯선 기기 화면: 번호는 보이고, 입력은 못 한다
+    const strangerView = await payoutAccountView(prisma, uid, false, NOW);
+    expect(strangerView.cooldownCode).toBe(saved.cooldownCode);
+    expect(strangerView.canConfirmCooldown).toBe(false);
+    // 평소 기기 화면: 번호는 없고, 입력만 받는다 — 한 화면에 둘 다 있으면 셀프 승인이다
+    const trustedView = await payoutAccountView(prisma, uid, true, NOW);
+    expect(trustedView.cooldownCode).toBeNull();
+    expect(trustedView.canConfirmCooldown).toBe(true);
+  });
+
+  it('**낯선 기기에서는 번호를 알아도 못 푼다** — 탈취자가 쥔 것이 정확히 그 기기다', async () => {
+    const uid = await makeUserWithCooldown('confirm-b@acct.io', 'ci-confirm-b');
+    const saved = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId: uid } });
+    await expect(
+      confirmCooldownRelease(
+        prisma,
+        { researcherUserId: uid, code: saved.cooldownCode!, trustedDevice: false },
+        NOW,
+      ),
+    ).rejects.toThrow(/평소 쓰시는 기기에서만/);
+  });
+
+  it('평소 기기에서 맞는 번호를 넣으면 그 자리에서 지급 가능해진다', async () => {
+    const uid = await makeUserWithCooldown('confirm-c@acct.io', 'ci-confirm-c');
+    // 해제 전에는 검증돼 있어도 유예에 막힌다
+    await expect(assertPayoutAccountReady(prisma, uid, NOW)).rejects.toThrow(/평소 기기가 아닌 곳에서/);
+
+    const saved = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId: uid } });
+    await confirmCooldownRelease(
+      prisma,
+      { researcherUserId: uid, code: saved.cooldownCode!, trustedDevice: true },
+      NOW,
+    );
+
+    await expect(assertPayoutAccountReady(prisma, uid, NOW)).resolves.toBeUndefined();
+    // 번호는 한 번 쓰면 사라진다
+    const after = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId: uid } });
+    expect(after.cooldownCode).toBeNull();
+    expect(after.cooldownUntil).toBeNull();
+    // 방어를 일찍 끝낸 사건은 감사에 남는다
+    expect(
+      await prisma.auditLog.count({ where: { action: 'ACCOUNT_COOLDOWN_LIFTED', targetId: after.id } }),
+    ).toBe(1);
+    // 본인에게도 알린다 — 유예를 없앤 사건은 만든 사건만큼 알 가치가 있다
+    expect(
+      await prisma.notification.count({ where: { userId: uid, title: { contains: '유예가 해제' } } }),
+    ).toBe(1);
+  });
+
+  it(`${COOLDOWN_CONFIRM_MAX_ATTEMPTS}회 틀리면 번호가 타고, 유예는 그대로 흐른다`, async () => {
+    const uid = await makeUserWithCooldown('confirm-d@acct.io', 'ci-confirm-d');
+    const real = (await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId: uid } }))
+      .cooldownCode;
+    const wrong = real === '000001' ? '000002' : '000001'; // 우연히 정답이 되지 않게
+    for (let i = 1; i <= COOLDOWN_CONFIRM_MAX_ATTEMPTS; i++) {
+      await expect(
+        confirmCooldownRelease(
+          prisma,
+          { researcherUserId: uid, code: wrong, trustedDevice: true },
+          NOW,
+        ),
+      ).rejects.toThrow(PayoutAccountError);
+    }
+    const burned = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId: uid } });
+    expect(burned.cooldownCode).toBeNull();
+    expect(burned.cooldownUntil).not.toBeNull(); // 편의는 죽어도 방어는 산다
+    // 번호가 탄 뒤에는 진짜 번호로도 못 푼다
+    await expect(
+      confirmCooldownRelease(prisma, { researcherUserId: uid, code: real!, trustedDevice: true }, NOW),
+    ).rejects.toThrow(/만료되었습니다/);
+    // 유예가 끝나면 평소처럼 지급된다
+    await expect(assertPayoutAccountReady(prisma, uid, LATER)).resolves.toBeUndefined();
   });
 });

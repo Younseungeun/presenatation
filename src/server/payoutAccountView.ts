@@ -21,11 +21,22 @@ export type PayoutAccountView = {
   /** 변경 쿨다운이 남아 있으면 남은 시간(시간 단위), 없으면 null */
   cooldownHoursLeft: number | null;
   changedAt: string | null;
+  /**
+   * 유예 즉시 해제 확인 번호 — **낯선 기기에서 볼 때만** 실린다.
+   * 번호는 새 기기 화면에 뜨고 입력은 평소 기기에서만 받는 구조라, 어느 화면에
+   * 무엇을 보여줄지가 곧 보안이다: 평소 기기에 번호까지 보여주면 "두 기기를 오가며
+   * 확인한다"는 절차가 한 화면의 셀프 승인으로 무너진다.
+   */
+  cooldownCode: string | null;
+  /** 이 기기(평소 기기)에서 확인 번호를 입력해 유예를 끝낼 수 있는가 */
+  canConfirmCooldown: boolean;
 };
 
 export async function payoutAccountView(
   prisma: PrismaClient,
   researcherUserId: string,
+  /** 이 요청이 평소 로그인 기기에서 왔는가 — 화면이 번호를 보여줄지 입력을 받을지 가른다 */
+  trustedDevice = false,
   now = new Date(),
 ): Promise<PayoutAccountView> {
   const a = await prisma.payoutAccount.findUnique({ where: { researcherUserId } });
@@ -39,10 +50,13 @@ export async function payoutAccountView(
       frozenAt: null,
       cooldownHoursLeft: null,
       changedAt: null,
+      cooldownCode: null,
+      canConfirmCooldown: false,
     };
   }
   // 쿨다운은 낯선 기기에서 바꾼 경우에만 걸려 있다 — 평소 기기 변경은 이 칸이 null
   const left = a.cooldownUntil ? a.cooldownUntil.getTime() - now.getTime() : 0;
+  const cooldownActive = left > 0;
   return {
     // 계좌 없이 미리 잠근 경우 빈 행이 생긴다(freezePayouts) — 그건 "등록됨"이 아니다
     registered: a.accountNumberEnc !== '',
@@ -51,7 +65,9 @@ export async function payoutAccountView(
     status: a.accountNumberEnc === '' ? null : a.status,
     frozen: a.frozenAt != null,
     frozenAt: a.frozenAt?.toISOString() ?? null,
-    cooldownHoursLeft: left > 0 ? Math.ceil(left / 3_600_000) : null,
+    cooldownHoursLeft: cooldownActive ? Math.ceil(left / 3_600_000) : null,
     changedAt: a.changedAt.toISOString(),
+    cooldownCode: cooldownActive && !trustedDevice ? a.cooldownCode : null,
+    canConfirmCooldown: cooldownActive && trustedDevice && a.cooldownCode != null,
   };
 }

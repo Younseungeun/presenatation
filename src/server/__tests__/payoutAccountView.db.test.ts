@@ -38,7 +38,7 @@ async function makeUser(email: string) {
 
 describe('payoutAccountView — 본인이 보는 정산 계좌', () => {
   it('계좌가 없으면 비어 있다고 말한다', async () => {
-    const v = await payoutAccountView(prisma, await makeUser('none@p.io'), NOW);
+    const v = await payoutAccountView(prisma, await makeUser('none@p.io'), false, NOW);
     expect(v.registered).toBe(false);
     expect(v.frozen).toBe(false);
     expect(v.last4).toBeNull();
@@ -52,7 +52,7 @@ describe('payoutAccountView — 본인이 보는 정산 계좌', () => {
       { researcherUserId: userId, bankCode: '004', accountNumber: '1234567890', actor: userId, identity: identityFor(email), trustedDevice: false },
       NOW,
     );
-    const v = await payoutAccountView(prisma, userId, NOW);
+    const v = await payoutAccountView(prisma, userId, false, NOW);
     expect(v.registered).toBe(true);
     expect(v.last4).toBe('7890');
     // 화면이 필요한 것은 "내가 아는 그 계좌가 맞나"이지 번호 자체가 아니다.
@@ -69,17 +69,17 @@ describe('payoutAccountView — 본인이 보는 정산 계좌', () => {
       NOW,
     );
     const soon = new Date(NOW.getTime() + ACCOUNT_CHANGE_COOLDOWN_MS / 2);
-    expect(await payoutAccountView(prisma, userId, soon)).toMatchObject({
+    expect(await payoutAccountView(prisma, userId, false, soon)).toMatchObject({
       cooldownHoursLeft: expect.any(Number),
     });
     const later = new Date(NOW.getTime() + ACCOUNT_CHANGE_COOLDOWN_MS + 1000);
-    expect((await payoutAccountView(prisma, userId, later)).cooldownHoursLeft).toBeNull();
+    expect((await payoutAccountView(prisma, userId, false, later)).cooldownHoursLeft).toBeNull();
   });
 
   it('**계좌 없이 미리 잠근 것을 "등록됨"으로 세지 않는다** — 빈 행이 생긴다', async () => {
     const userId = await makeUser('pre@p.io');
     await freezePayouts(prisma, { researcherUserId: userId, actor: userId }, NOW);
-    const v = await payoutAccountView(prisma, userId, NOW);
+    const v = await payoutAccountView(prisma, userId, false, NOW);
     expect(v.frozen).toBe(true);
     expect(v.registered).toBe(false); // 잠갔다고 계좌가 생긴 것은 아니다
     expect(v.last4).toBeNull();
@@ -91,6 +91,6 @@ describe('payoutAccountView — 본인이 보는 정산 계좌', () => {
     await expect(
       freezePayouts(prisma, { researcherUserId: userId, actor: userId }, NOW),
     ).resolves.toBeUndefined();
-    expect((await payoutAccountView(prisma, userId, NOW)).frozen).toBe(true);
+    expect((await payoutAccountView(prisma, userId, false, NOW)).frozen).toBe(true);
   });
 });
