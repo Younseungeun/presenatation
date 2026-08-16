@@ -1,3 +1,5 @@
+// ⚠ 디자인 보류 — 기능 검증용 최소 형태다. 화면을 다시 만들 때 지킬 불변은 docs/design-backlog.md에 있다
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { JudgmentAudit } from "@/domain/judgmentPipeline";
