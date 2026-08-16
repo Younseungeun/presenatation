@@ -102,7 +102,9 @@ export default async function SettingsPage() {
             <div className={styles.section}>운영</div>
             <div className={styles.list}>
               {/* 맨 위 — 다른 운영자가 기다리고 있는 요청이라 가장 먼저 보여야 한다 */}
-              <Row href="/admin/approvals" label="승인 대기열" sub="2인 승인 — 동결 해제·고액 지급" />
+              <Row href="/admin/approvals" label="승인 대기열" sub="2인 승인 — 동결 해제·고액 지급·판정" />
+              {/* 동결은 급한 사람의 신고다 — 승인 대기열 바로 아래, 다른 큐보다 앞 */}
+              <Row href="/admin/frozen" label="정산 동결 관리" sub="동결된 계정 확인·해제 (2인 승인)" />
               <Row href="/admin/health" label="운영 건강" sub="매일 보는 사업 로직 숫자들" />
               <Row href="/admin/judgments" label="판정 보류 큐" sub="수동 판정 대기 카드" />
               {/* 접수가 정산을 잠그므로 푸는 화면이 정산 지시서보다 앞에 있어야 한다 */}

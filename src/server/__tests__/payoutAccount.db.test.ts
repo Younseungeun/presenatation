@@ -379,11 +379,18 @@ describe('정산 동결', () => {
   });
 
   // **동결 해제에는 다른 운영자의 승인이 필요하다** (2026-08-16 검토 2차 Q3).
-  // 동결은 이 시스템에서 방어를 스스로 여는 유일한 행위라, 금액과 무관하게 항상 2인이다
-  it('승인 없이는 풀 수 없다 — 운영자 하나가 뚫려도 방어가 안 열린다', async () => {
+  // 동결은 이 시스템에서 방어를 스스로 여는 유일한 행위라, 금액과 무관하게 항상 2인이다.
+  // 승인이 없으면 **요청이 자동으로 올라간다** — 운영자에게 별도 요청 화면이 필요 없고,
+  // 확인한 내용이 그대로 승인자의 사유가 된다 (이의 인정·수동 판정과 같은 흐름)
+  it('승인 없이 풀려 하면 요청이 대신 올라가고 멈춘다 — 운영자 하나가 뚫려도 방어가 안 열린다', async () => {
     await expect(
       unfreezePayouts(prisma, { researcherUserId, operatorUserId: OPERATOR, reason: '확인' }),
-    ).rejects.toThrow(/다른 운영자의 승인이 필요합니다/);
+    ).rejects.toMatchObject({ code: 'APPROVAL_PENDING' });
+    const req = await prisma.operatorApproval.findFirstOrThrow({
+      where: { action: 'PAYOUT_UNFREEZE', targetId: researcherUserId, status: 'PENDING' },
+    });
+    expect(req.reason).toBe('확인'); // 해제 사유가 곧 승인자가 읽을 사유다
+    expect(req.requestedBy).toBe(OPERATOR); // 그래서 이 요청은 OPERATOR 자신이 승인할 수 없다
   });
 
   it('운영자가 풀면 감사 로그가 남고, 계좌 검증 상태는 건드리지 않는다', async () => {

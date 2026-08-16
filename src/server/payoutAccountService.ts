@@ -2,7 +2,7 @@ import { randomInt } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
 import { hashCi } from './authService';
-import { consumeApproval } from './operatorApprovalService';
+import { ApprovalError, consumeApproval, requestApproval } from './operatorApprovalService';
 import { decryptField, encryptField, last4 } from './fieldCrypto';
 import { notifyOperators } from './opsAlert';
 
@@ -39,7 +39,11 @@ import { notifyOperators } from './opsAlert';
 // **대조하는 이름이 "누구의 이름인지"를 묶어 두는 것이 이 방어의 핵심이다.**
 
 export class PayoutAccountError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** APPROVAL_PENDING = 실패가 아니라 절차의 절반 — 화면이 오류 색으로 그리면 안 된다 */
+    readonly code?: 'APPROVAL_PENDING',
+  ) {
     super(message);
     this.name = 'PayoutAccountError';
   }
@@ -438,8 +442,40 @@ export async function freezePayouts(
       '**해제는 운영자만 할 수 있습니다.** 본인 확인 전에는 풀지 마세요 —',
       '계정을 쥔 사람이 요청하는 것과 진짜 본인의 요청은 화면에서 구별되지 않습니다.',
     ].join('\n'),
-    link: '/admin/settlements',
+    link: '/admin/frozen',
   });
+}
+
+/**
+ * 동결된 계정 목록 — 운영자 해제 화면(/admin/frozen)의 데이터.
+ * 계좌번호는 뒤 4자리만, 계좌 없이 미리 잠근 빈 행은 "미등록"으로 표시한다.
+ */
+export async function listFrozenAccounts(prisma: PrismaClient) {
+  const rows = await prisma.payoutAccount.findMany({
+    where: { frozenAt: { not: null } },
+    orderBy: { frozenAt: 'asc' }, // 오래 기다린 사람부터 — 동결 동안 그 사람의 돈이 서 있다
+    select: {
+      researcherUserId: true,
+      accountLast4: true,
+      accountNumberEnc: true,
+      bankCode: true,
+      frozenAt: true,
+      frozenBy: true,
+    },
+  });
+  const users = await prisma.user.findMany({
+    where: { id: { in: rows.map((r) => r.researcherUserId) } },
+    select: { id: true, email: true, penName: true },
+  });
+  const byId = new Map(users.map((u) => [u.id, u]));
+  return rows.map((r) => ({
+    researcherUserId: r.researcherUserId,
+    displayName: byId.get(r.researcherUserId)?.penName ?? byId.get(r.researcherUserId)?.email ?? r.researcherUserId,
+    account: r.accountNumberEnc === '' ? '계좌 미등록 (선제 동결)' : `${r.bankCode} ···${r.accountLast4}`,
+    frozenAt: r.frozenAt!.toISOString(),
+    // 건 사람이 본인이면 "본인" — 대부분 그렇다 (거는 것은 본인, 푸는 것은 운영자)
+    frozenBy: r.frozenBy === r.researcherUserId ? '본인' : (r.frozenBy ?? '—'),
+  }));
 }
 
 /**
@@ -461,11 +497,46 @@ export async function unfreezePayouts(
   if (!input.reason.trim()) {
     throw new PayoutAccountError('동결을 풀려면 무엇을 확인했는지 적어주세요');
   }
+  // 동결 상태를 먼저 본다 — 막힐 해제에 승인서를 태우거나 유령 요청을 만들지 않는다
+  // (수동 판정 관문이 입력 검증 뒤에 서는 것과 같은 원칙)
+  const target = await prisma.payoutAccount.findUnique({
+    where: { researcherUserId: input.researcherUserId },
+    select: { frozenAt: true },
+  });
+  if (!target?.frozenAt) throw new PayoutAccountError('동결된 계좌가 아닙니다');
+
   // ── **다른 운영자의 승인이 있어야 풀린다** (2026-08-16 검토 2차 Q3) ──
   // 동결은 이 시스템에서 **방어를 스스로 여는 유일한 행위**다. 운영자 하나가 뚫리거나
   // 악의를 품으면 그 하나로 모든 방어가 무의미해지므로, 금액과 무관하게 항상 2인이다.
-  // 승인서는 1회용이라(consumeApproval) 같은 승인으로 두 번 풀 수 없다
-  await consumeApproval(prisma, { action: 'PAYOUT_UNFREEZE', targetId: input.researcherUserId }, now);
+  // 승인서는 1회용이라(consumeApproval) 같은 승인으로 두 번 풀 수 없다.
+  // 승인이 없으면 **여기서 요청을 대신 올리고 멈춘다** — 이의 인정·수동 판정과 같은
+  // 흐름이라 운영자에게 별도의 "요청 화면"이 필요 없다. 확인한 내용(reason)이 그대로
+  // 승인자가 읽을 사유가 된다
+  try {
+    await consumeApproval(prisma, { action: 'PAYOUT_UNFREEZE', targetId: input.researcherUserId }, now);
+  } catch (e) {
+    if (!(e instanceof ApprovalError)) throw e;
+    const user = await prisma.user.findUnique({
+      where: { id: input.researcherUserId },
+      select: { penName: true, email: true },
+    });
+    await requestApproval(
+      prisma,
+      {
+        action: 'PAYOUT_UNFREEZE',
+        targetId: input.researcherUserId,
+        summary: `정산 동결 해제 — ${user?.penName ?? user?.email ?? input.researcherUserId}`,
+        requestedBy: input.operatorUserId,
+        reason: input.reason.trim(),
+      },
+      now,
+    );
+    throw new PayoutAccountError(
+      '동결 해제에는 다른 운영자의 승인이 필요합니다 — 승인 요청을 올려두었습니다. ' +
+        '승인되면 여기서 다시 실행하세요.',
+      'APPROVAL_PENDING',
+    );
+  }
 
   const { count } = await prisma.payoutAccount.updateMany({
     where: { researcherUserId: input.researcherUserId, frozenAt: { not: null } },

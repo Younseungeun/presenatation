@@ -2,7 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
 import { notifyOperators } from './opsAlert';
 import { requiresDualApproval } from '@/domain/operatorApproval';
-import { consumeApproval } from './operatorApprovalService';
+import { ApprovalError, consumeApproval, requestApproval } from './operatorApprovalService';
 import { assertPayoutAccountReady } from './payoutAccountService';
 import { assertWithinDailyLimit } from './payoutVelocity';
 import { assertCooldownPassed, cooldownCutoff } from './settlementCooldown';
@@ -616,8 +616,30 @@ export async function executePayout(
   //
   // 전부에 걸지 않는 이유: 하루 수십 건의 소액 정산까지 두 사람이 붙으면 승인이
   // 습관이 되고, **형식이 되는 순간 2인 승인은 장식**이다(domain/operatorApproval).
+  // 승인이 없으면 **요청을 대신 올리고 멈춘다** — 동결 해제·이의 인정과 같은 흐름이라
+  // 별도의 요청 화면이 필요 없다
   if (requiresDualApproval(s.researcherPayoutKrw)) {
-    await consumeApproval(prisma, { action: 'LARGE_PAYOUT', targetId: s.id }, now);
+    try {
+      await consumeApproval(prisma, { action: 'LARGE_PAYOUT', targetId: s.id }, now);
+    } catch (e) {
+      if (!(e instanceof ApprovalError)) throw e;
+      await requestApproval(
+        prisma,
+        {
+          action: 'LARGE_PAYOUT',
+          targetId: s.id,
+          summary: `고액 지급 실행 — 정산 ${s.id.slice(0, 8)}…`,
+          amountKrw: s.researcherPayoutKrw,
+          requestedBy: input.operatorUserId,
+          reason: `정산 지시서 지급 실행 (${s.researcherPayoutKrw.toLocaleString()}원 — 문턱 초과)`,
+        },
+        now,
+      );
+      throw new SettlementOpsError(
+        '고액 지급에는 다른 운영자의 승인이 필요합니다 — 승인 요청을 올려두었습니다. ' +
+          '승인되면 여기서 다시 실행하세요.',
+      );
+    }
   }
 
   const ageDays = (now.getTime() - s.purchase.paidAt.getTime()) / 86_400_000;
