@@ -138,6 +138,31 @@ describe('runJudgment', () => {
         reason: 'IMPLAUSIBLE_QUOTE',
       });
     });
+
+    // **기준선은 재려는 그 봉을 빼고 낸다** (2026-08-16 보강).
+    //
+    // 넣어 두면 기준선이 그 사건을 조금씩 흡수해 **사건이 클수록 자기 자신을 정상으로
+    // 보이게** 만든다. 중앙값이라 큰 창에서는 영향이 작지만, 표본이 빠듯한 창에서는
+    // 그 한 개가 최소 표본을 채워 완화를 켜 버린다 — 여기서 갈린다.
+    it('짧은 창에서는 급등일을 뺀 표본이 모자라 완화가 걸리지 않는다', async () => {
+      const p = new FixtureMarketDataProvider();
+      p.setQuotes('005930', [
+        // 정상 2개뿐 — 급등일을 빼면 표본이 VOLUME_BASELINE_MIN_BARS(3)에 못 미친다
+        { date: '2026-06-15', open: 100000, high: 100000, low: 100000, close: 100000, volume: 10_000 },
+        { date: '2026-07-01', open: 100500, high: 100500, low: 100500, close: 100500, volume: 10_000 },
+        {
+          date: '2026-07-10',
+          open: 1_000_000,
+          high: 1_000_000,
+          low: 1_000_000,
+          close: 1_000_000,
+          volume: 10_000 * REAL_MOVE_VOLUME_MULTIPLE * 10, // 거래량은 충분히 터졌는데도
+        },
+      ]);
+      await expect(runJudgment(baseCard, p, NOW)).rejects.toMatchObject({
+        reason: 'IMPLAUSIBLE_QUOTE',
+      });
+    });
   });
 
   it('목표가 도달 → HIT + 감사 스냅샷에 원천 데이터·소스 기록', async () => {

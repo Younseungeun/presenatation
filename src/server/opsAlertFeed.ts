@@ -172,3 +172,53 @@ export async function flushHardCapSurgeAlert(
 
   return { alerted: true, count };
 }
+
+/**
+ * 하루에 이만큼 넘게 **이상 시세로 수동 큐에 올라가면** 알린다 (2026-08-16).
+ *
+ * ── 왜 별도 알림인가 ────────────────────────────────────────────
+ * 이상 시세 한 건은 그 종목의 사고라 자산군 정지도 안 걸고 조용히 큐로 보낸다.
+ * 그런데 **전쟁·급락처럼 시장 전체가 흔들리는 날**에는 미국 소형주 여러 개가 한꺼번에
+ * 절대 폭(60%)을 넘고, 그중 거래량이 덜 터진 것들이 동시에 큐로 몰린다.
+ *
+ * 건별로는 아무 신호가 아닌데 **함께 놓이면 신호**다 — 그게 이 알림이 있는 이유다.
+ * 그리고 그 순간 운영자가 할 일은 건건이 판정하는 것이 아니라 **오늘이 어떤 날인지
+ * 아는 것**이다(진짜 시장 사건이면 대부분 통과시켜야 하고, 소스 사고면 하나도
+ * 통과시키면 안 된다).
+ *
+ * 상한 급증(10건)보다 문턱이 높은 이유: 이쪽은 **돈이 아직 안 나갔다.** 상한은 이미
+ * 환불이 집행된 뒤라 더 예민해야 하지만, 이쪽은 판정이 멈춰 있을 뿐이다.
+ */
+const IMPLAUSIBLE_SURGE_PER_DAY = 20;
+
+/**
+ * 오늘 이상 시세로 수동 큐에 올라간 카드가 몰렸으면 알린다.
+ *
+ * 세는 기준은 `manualJudgmentOnly`가 **오늘 켜진 카드**가 아니라(그 시각을 따로 안
+ * 남긴다) 배치가 이번 회차에 올린 수다 — 호출자가 넘긴다. 회차마다 부르므로
+ * dedupeKey가 하루 한 번으로 묶는다.
+ */
+export async function flushImplausibleQuoteSurgeAlert(
+  prisma: PrismaClient,
+  todayCount: number,
+  now = new Date(),
+): Promise<{ alerted: boolean; count: number }> {
+  if (todayCount < IMPLAUSIBLE_SURGE_PER_DAY) return { alerted: false, count: todayCount };
+  const day = new Date(now);
+  day.setHours(0, 0, 0, 0);
+
+  await notifyOperators(prisma, {
+    title: `이상 시세 급증: 오늘 ${todayCount}건이 수동 큐로`,
+    body:
+      `하루 변동이 자산군 문턱을 넘었는데 **거래량이 함께 터지지 않은** 카드가 ${todayCount}건입니다.\n` +
+      `건별로는 그 종목의 사고지만, 이만큼 몰렸다면 둘 중 하나입니다 —\n` +
+      `· **진짜 시장 사건**(전쟁·급락 등): 대부분 통과시켜야 합니다\n` +
+      `· **시세 소스 사고**: 하나도 통과시키면 안 됩니다\n` +
+      `먼저 오늘이 어떤 날인지 확인하세요. 건건이 판정하는 것은 그다음입니다.\n` +
+      `(돈은 아직 안 나갔습니다 — 판정이 멈춰 있을 뿐이고, 상한은 살아 있습니다)`,
+    link: '/admin/judgments',
+    type: 'OPS_ALERT',
+    dedupeKey: `implausible-surge:${day.toISOString().slice(0, 10)}`,
+  });
+  return { alerted: true, count: todayCount };
+}

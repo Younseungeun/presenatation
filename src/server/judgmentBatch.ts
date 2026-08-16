@@ -46,6 +46,16 @@ export interface BatchSummary {
   failed: number;
   /** 시한이 STALE_DEFER_DAYS 이상 지났는데 아직 판정 못 한 카드 — 수동 확인 필요 */
   staleDeferred: string[];
+  /**
+   * **이상 시세로 곧장 수동 큐에 올린 카드** (2026-08-16).
+   *
+   * 이월(staleDeferred)과 따로 세는 이유는 처방도 시급성도 다르기 때문이다.
+   * 이월은 기다리면 낫지만 이것은 기다려도 같은 값이 온다. 무엇보다
+   * **건별로는 그 종목의 사고인데 몰리면 시장 사건이거나 소스 사고**이고,
+   * 그 구별을 하려면 분모가 있어야 하는데 한 통에 담으면 분모가 사라진다
+   * (opsAlertFeed.flushImplausibleQuoteSurgeAlert가 이 수를 본다).
+   */
+  implausible: string[];
   /** 상한에 걸려 시스템이 판정 불가로 닫은 카드 — 전액 환불이 나갔으므로 사람이 알아야 한다 */
   hardCapped: string[];
   /** 반복된 판정 불가로 신규 게시를 막은 종목 — 유니버스에서 내린 것이라 사람이 알아야 한다 */
@@ -439,6 +449,7 @@ async function sweepHardCapped(
     deferred: 0,
     failed: 0,
     staleDeferred: [],
+    implausible: [],
     hardCapped: [],
     blockedInstruments: [],
     failures: [],
@@ -616,6 +627,7 @@ export async function judgeAndSettleDueCards(
     deferred: 0,
     failed: 0,
     staleDeferred: [],
+    implausible: [],
     hardCapped: [...manualOnlyCapped.hardCapped],
     blockedInstruments: [],
     failures: [],
@@ -789,7 +801,7 @@ export async function judgeAndSettleDueCards(
           where: { id: card.id },
           data: { manualJudgmentOnly: true },
         });
-        summary.staleDeferred.push(`${card.ticker} (${card.id}): 이상 시세 — 수동 확인 필요`);
+        summary.implausible.push(`${card.ticker} (${card.id}): ${message}`);
         console.error(`이상 시세로 수동 큐 이동 ${card.ticker} (${card.id}):`, message);
         continue;
       }

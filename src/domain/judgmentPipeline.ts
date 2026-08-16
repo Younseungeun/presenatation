@@ -174,10 +174,25 @@ export const IMPLAUSIBLE_DAILY_MOVE: Record<AssetClass, number> = {
  * 있고, 신규 상장처럼 평소 거래량이 없는 경우도 있다 — 그때는 종전대로 걸린다.
  */
 export const REAL_MOVE_VOLUME_MULTIPLE = 5;
-/** 평소 거래량의 기준 — 구간 중앙값. 평균은 그 튀는 하루에 끌려간다 */
-function medianVolume(quotes: DailyQuote[]): number | null {
-  const vs = quotes.map((q) => q.volume).filter((v) => Number.isFinite(v) && v > 0);
-  if (vs.length < 3) return null; // 표본이 없으면 판단하지 않는다
+/** 기준선을 세우는 데 필요한 최소 표본 — 이보다 적으면 판단하지 않고 종전대로 막는다 */
+export const VOLUME_BASELINE_MIN_BARS = 3;
+
+/**
+ * 평소 거래량의 기준 — **재려는 그 하루를 빼고** 낸 중앙값 (2026-08-16 보강).
+ *
+ * 평균이 아니라 중앙값인 이유: 평균은 **그 튀는 하루에 끌려간다.** 기준선이 사건에
+ * 끌려가면 "평소보다 몇 배인가"라는 질문 자체가 무의미해진다.
+ *
+ * 그리고 **재려는 봉을 표본에서 뺀다.** 넣어 두면 기준선이 그 사건을 조금씩 흡수해,
+ * 사건이 클수록 자기 자신을 정상으로 보이게 만든다. 중앙값이라 영향이 작긴 하지만
+ * 작은 것과 없는 것은 다르고, 여기서는 없앨 수 있다.
+ */
+function baselineVolume(quotes: DailyQuote[], exclude: DailyQuote): number | null {
+  const vs = quotes
+    .filter((q) => q !== exclude)
+    .map((q) => q.volume)
+    .filter((v) => Number.isFinite(v) && v > 0);
+  if (vs.length < VOLUME_BASELINE_MIN_BARS) return null; // 표본이 없으면 판단하지 않는다
   const sorted = [...vs].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
@@ -194,7 +209,6 @@ function findImplausibleBar(
   quotes: DailyQuote[],
 ): { date: string; close: number; prev: number; movePct: number } | null {
   const limit = IMPLAUSIBLE_DAILY_MOVE[assetClass];
-  const baseline = medianVolume(quotes);
   let prev = basePrice != null && basePrice > 0 ? basePrice : null;
   for (const q of quotes) {
     if (!(q.close > 0)) {
@@ -203,7 +217,11 @@ function findImplausibleBar(
     if (prev !== null) {
       const move = q.close / prev - 1;
       if (Math.abs(move) > limit) {
-        // 거래량이 함께 터졌으면 데이터 사고가 아니라 시장 사건이다
+        // 거래량이 함께 터졌으면 데이터 사고가 아니라 시장 사건이다.
+        // 기준선은 **이 봉을 뺀** 나머지로 낸다 (baselineVolume) — 넣어 두면 사건이
+        // 클수록 자기 자신을 정상으로 보이게 만든다.
+        // 문턱을 넘은 봉에서만 계산하므로 정상 경로에서는 이 비용이 아예 없다
+        const baseline = baselineVolume(quotes, q);
         const surged =
           baseline !== null && q.volume > 0 && q.volume >= baseline * REAL_MOVE_VOLUME_MULTIPLE;
         if (!surged) {

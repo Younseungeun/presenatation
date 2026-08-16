@@ -17,7 +17,11 @@ import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
 import { notifyOperators, purgeOldNotifications } from '../src/server/opsAlert';
-import { flushHardCapSurgeAlert, flushOpsAlerts } from '../src/server/opsAlertFeed';
+import {
+  flushHardCapSurgeAlert,
+  flushImplausibleQuoteSurgeAlert,
+  flushOpsAlerts,
+} from '../src/server/opsAlertFeed';
 import {
   anotherSchedulerMayBeRunning,
   BEAT_INTERVAL_MS,
@@ -317,6 +321,7 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
     due.deferred += next.deferred;
     due.failed += next.failed;
     due.staleDeferred.push(...next.staleDeferred);
+    due.implausible.push(...next.implausible);
     due.hardCapped.push(...next.hardCapped);
     due.blockedInstruments.push(...next.blockedInstruments);
     due.failures.push(...next.failures);
@@ -480,6 +485,15 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
       '/admin/judgments',
       `judge:bug:${assetClass}`,
     );
+  }
+
+  // ── 이상 시세가 **몰린 날** (2026-08-16) ────────────────────────────
+  // 건별로는 그 종목의 사고라 조용히 큐로 보내지만, 전쟁·급락처럼 시장 전체가
+  // 흔들리는 날에는 여러 개가 한꺼번에 몰린다. 그때 운영자가 할 일은 건건이
+  // 판정하는 것이 아니라 **오늘이 어떤 날인지 아는 것**이다
+  if (due.implausible.length > 0) {
+    console.warn(`  이상 시세로 수동 큐 이동: ${due.implausible.length}건`);
+    await flushImplausibleQuoteSurgeAlert(prisma, due.implausible.length);
   }
 
   if (due.staleDeferred.length > 0) {
