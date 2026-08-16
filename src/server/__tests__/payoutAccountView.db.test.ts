@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb } from './helpers/testDb';
+import { hashCi } from '../authService';
 import {
   ACCOUNT_CHANGE_COOLDOWN_MS,
   freezePayouts,
@@ -17,6 +18,8 @@ import { payoutAccountView } from '../payoutAccountView';
 
 let prisma: PrismaClient;
 const NOW = new Date('2026-08-16T00:00:00Z');
+/** 계좌 등록마다 다시 받는 본인 인증 결과 — CI는 사람마다 달라야 한다(User.identityHash가 unique) */
+const identityFor = (email: string) => ({ ci: `ci-view-${email}`, name: '홍길동' });
 
 beforeAll(async () => {
   prisma = createTestDb('payout-view-');
@@ -27,7 +30,9 @@ afterAll(async () => {
 });
 
 async function makeUser(email: string) {
-  const u = await prisma.user.create({ data: { email, identityVerified: true } });
+  const u = await prisma.user.create({
+    data: { email, identityVerified: true, identityHash: hashCi(identityFor(email).ci) },
+  });
   return u.id;
 }
 
@@ -40,10 +45,11 @@ describe('payoutAccountView — 본인이 보는 정산 계좌', () => {
   });
 
   it('**계좌번호 전체는 나가지 않는다** — 뒤 4자리만', async () => {
-    const userId = await makeUser('reg@p.io');
+    const email = 'reg@p.io';
+    const userId = await makeUser(email);
     await registerPayoutAccount(
       prisma,
-      { researcherUserId: userId, bankCode: '004', accountNumber: '1234567890', actor: userId },
+      { researcherUserId: userId, bankCode: '004', accountNumber: '1234567890', actor: userId, identity: identityFor(email) },
       NOW,
     );
     const v = await payoutAccountView(prisma, userId, NOW);
@@ -55,10 +61,11 @@ describe('payoutAccountView — 본인이 보는 정산 계좌', () => {
   });
 
   it('막 등록·변경한 계좌는 남은 유예 시간을 함께 보여준다', async () => {
-    const userId = await makeUser('cool@p.io');
+    const email = 'cool@p.io';
+    const userId = await makeUser(email);
     await registerPayoutAccount(
       prisma,
-      { researcherUserId: userId, bankCode: '004', accountNumber: '1111222233', actor: userId },
+      { researcherUserId: userId, bankCode: '004', accountNumber: '1111222233', actor: userId, identity: identityFor(email) },
       NOW,
     );
     const soon = new Date(NOW.getTime() + ACCOUNT_CHANGE_COOLDOWN_MS / 2);

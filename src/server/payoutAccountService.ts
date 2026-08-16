@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
-import { encryptField, last4 } from './fieldCrypto';
+import { hashCi } from './authService';
+import { decryptField, encryptField, last4 } from './fieldCrypto';
 import { notifyOperators } from './opsAlert';
 
 // 정산받을 계좌의 등록·검증·관문.
@@ -16,9 +17,16 @@ import { notifyOperators } from './opsAlert';
 // 나갈 뿐이다. 막는 것은 아래 세 겹이고, 지금 있는 것은 앞의 둘뿐이다:
 //   ① 바꾸면 즉시 미검증 — 미검증에는 한 푼도 안 나간다                    ← 있음
 //   ② 변경 쿨다운 — 그 사이 본인 알림이 가서 "내가 안 바꿨다"고 말할 창이 생긴다  ← 있음
-//   ③ 예금주명 ↔ 본인 인증 실명 대조                                    ← **없음**
-// ③이 없는 동안 `VERIFIED`는 **"계좌가 실재한다"까지만** 뜻한다. 그 사실을 이름으로
-// 감추지 않으려고 아래 상수와 오류 문구가 그대로 말한다.
+//   ③ 예금주명 ↔ 본인 인증 실명 대조                                    ← 있음(2026-08-16)
+//   ④ **계좌 등록 시 본인 인증 재확인** — 계정만 뚫어서는 계좌를 못 바꾼다   ← 있음(2026-08-16)
+//
+// ── ④가 ③을 실제로 작동하게 만든다 ─────────────────────────────
+// ③만 있으면 뚫린다: 탈취자가 **자기 이름으로** 본인 인증을 하고 **자기 계좌**를
+// 등록하면 이름이 서로 맞아 통과한다. 대조는 성공하는데 돈은 남에게 간다.
+//
+// 그래서 재인증의 CI 해시가 **계정 주인의 것과 같은지**를 본다. 다르면 거절이다 —
+// 탈취자는 진짜 주인의 명의로 본인 인증을 통과해야 하고, 그건 계정 탈취와 다른 문제다.
+// **대조하는 이름이 "누구의 이름인지"를 묶어 두는 것이 이 방어의 핵심이다.**
 
 export class PayoutAccountError extends Error {
   constructor(message: string) {
@@ -42,11 +50,15 @@ export type AccountStatus = (typeof ACCOUNT_STATUSES)[number];
 export const ACCOUNT_CHANGE_COOLDOWN_MS = 48 * 3_600_000;
 
 /**
- * 계좌를 등록하거나 바꾼다 — **언제나 미검증으로 떨어진다.**
+ * 계좌를 등록하거나 바꾼다 — **언제나 미검증으로 떨어지고, 언제나 재인증을 요구한다.**
  *
  * 같은 값을 다시 저장해도 미검증이 되는데, 그게 맞다: "같은 계좌인지"를 판단하려면
  * 저장된 원문을 복호화해 비교해야 하고, 그 비교를 위해 원문을 꺼내는 것이 이 설계가
  * 피하려는 바로 그 일이다. 사람이 실수로 같은 값을 다시 넣으면 재인증 한 번이 비용이다.
+ *
+ * **재인증을 받는 형태가 곧 강제다.** 인증 결과를 인자로 요구하므로, 이 함수를 부르는
+ * 어떤 경로도 본인 인증 없이 계좌를 바꿀 수 없다 — "부르기 전에 확인하세요"라는
+ * 주석이었다면 언젠가 그냥 지나쳤을 것이다.
  */
 export async function registerPayoutAccount(
   prisma: PrismaClient,
@@ -54,6 +66,11 @@ export async function registerPayoutAccount(
     researcherUserId: string;
     bankCode: string;
     accountNumber: string;
+    /**
+     * **방금 받은 본인 인증 결과.** 이름은 예금주 대조의 상대편이 되고,
+     * CI는 "이 인증이 계정 주인의 것인가"를 확인하는 데 쓰인다(원문은 저장하지 않는다).
+     */
+    identity: { ci: string; name: string };
     /** 누가 바꿨나 — 본인이면 userId, 운영자 개입이면 그 운영자 */
     actor: string;
   },
@@ -66,6 +83,29 @@ export async function registerPayoutAccount(
   if (!input.bankCode.trim()) {
     throw new PayoutAccountError('은행을 선택해주세요');
   }
+  const verifiedName = input.identity.name.trim();
+  if (!verifiedName) {
+    throw new PayoutAccountError('본인 인증 응답에 이름이 없습니다');
+  }
+
+  // ── 이 인증이 **계정 주인의 것인가** ─────────────────────────
+  // 여기가 ④의 전부다. 이 확인이 없으면 탈취자가 자기 이름으로 인증하고 자기 계좌를
+  // 등록해 대조를 통과시킬 수 있다 — 대조는 성공하는데 돈은 남에게 간다.
+  const user = await prisma.user.findUnique({
+    where: { id: input.researcherUserId },
+    select: { identityHash: true },
+  });
+  if (!user) throw new PayoutAccountError('사용자를 찾을 수 없습니다');
+  if (!user.identityHash) {
+    throw new PayoutAccountError('본인 인증을 먼저 완료해주세요');
+  }
+  if (user.identityHash !== hashCi(input.identity.ci)) {
+    // 문구가 "다른 사람의 인증"이라고 말하지 않는다 — 탈취자에게 어느 관문에 걸렸는지
+    // 알려 주는 만큼 다음 시도가 정교해진다
+    throw new PayoutAccountError(
+      '본인 인증 정보가 계정과 일치하지 않습니다 — 계정 주인 명의로 인증해주세요.',
+    );
+  }
 
   const accountNumberEnc = encryptField(digits);
   const accountLast4 = last4(digits);
@@ -76,6 +116,8 @@ export async function registerPayoutAccount(
     // **예금주명은 지우고 시작한다** — 은행 조회로만 채워지는 칸이라
     // 옛 계좌의 이름이 새 계좌에 남으면 그것이 곧 잘못된 대조다
     holderName: null,
+    // 대조의 상대편. 계좌와 함께 갱신되고, 계좌가 사라지면 함께 사라진다
+    verifiedNameEnc: encryptField(verifiedName),
     status: 'UNVERIFIED',
     verifiedAt: null,
     changedAt: now,
@@ -135,10 +177,12 @@ export async function registerPayoutAccount(
  * `holderName`은 은행이 돌려준 값만 들어온다. 본인에게 입력받아 대조하면 양쪽을 다
  * 본인이 적는 것이라 아무것도 막지 못한다.
  *
- * ⚠ **실명 대조는 아직 없다.** 본인 인증 실명을 저장하지 않기 때문이다(개인정보처리방침
- * 확정 전). 그래서 지금 이 함수가 낼 수 있는 결론은 "계좌가 실재하고 예금주명을
- * 받았다"까지다. `expectedHolderName`을 넘기면 그때 대조가 켜진다 — 실명 보유가
- * 확정되면 호출자가 그 값을 넘기기 시작하면 되고, 여기는 안 고쳐도 된다.
+ * 대조 상대편은 **계좌에 붙어 있는 본인 인증 실명**이다(`verifiedNameEnc`). 호출자가
+ * 넘기는 값이 아니라 저장된 값을 쓰는 이유는, 넘기게 두면 언젠가 "본인이 적은 이름"이
+ * 그 자리에 들어오기 때문이다 — 그러면 양쪽을 다 본인이 적는 것이라 아무것도 못 막는다.
+ *
+ * 실명이 없는 계좌(재인증이 붙기 전에 등록된 것)는 **대조하지 않고 미검증으로 남긴다.**
+ * 통과시키면 옛 계좌들만 조용히 무방비가 된다.
  */
 export async function applyHolderLookup(
   prisma: PrismaClient,
@@ -146,8 +190,6 @@ export async function applyHolderLookup(
     researcherUserId: string;
     /** 은행이 돌려준 예금주명 */
     holderName: string;
-    /** 본인 인증 실명 — 없으면 대조하지 않는다 (실명 보유 확정 전) */
-    expectedHolderName?: string | null;
     actor: string;
   },
   now = new Date(),
@@ -156,11 +198,16 @@ export async function applyHolderLookup(
     where: { researcherUserId: input.researcherUserId },
   });
   if (!account) throw new PayoutAccountError('등록된 계좌가 없습니다');
+  if (!account.verifiedNameEnc) {
+    throw new PayoutAccountError(
+      '이 계좌에는 본인 인증 실명이 없습니다 — 계좌를 다시 등록해야 대조할 수 있습니다.',
+    );
+  }
 
+  // 공백·대소문자만 정규화한다. 그 이상 손대면(자모 분해, 유사 문자 치환) **다른 이름을
+  // 같다고 말하기 시작**하고, 이 대조에서 거짓 일치는 곧 남의 계좌로 돈이 나가는 것이다
   const normalize = (s: string) => s.replace(/\s+/g, '').toLowerCase();
-  const matched =
-    input.expectedHolderName == null ||
-    normalize(input.holderName) === normalize(input.expectedHolderName);
+  const matched = normalize(input.holderName) === normalize(decryptField(account.verifiedNameEnc));
   const status: AccountStatus = matched ? 'VERIFIED' : 'HOLDER_MISMATCH';
 
   await prisma.payoutAccount.update({

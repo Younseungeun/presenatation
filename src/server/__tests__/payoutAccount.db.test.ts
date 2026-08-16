@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb } from './helpers/testDb';
+import { hashCi } from '../authService';
 import { decryptField, encryptField, last4 } from '../fieldCrypto';
 import {
   ACCOUNT_CHANGE_COOLDOWN_MS,
@@ -26,10 +27,20 @@ let researcherUserId: string;
 const NOW = new Date('2026-08-16T00:00:00Z');
 const LATER = new Date(NOW.getTime() + ACCOUNT_CHANGE_COOLDOWN_MS + 3_600_000);
 
+/** 계정 주인의 본인 인증 결과 — 계좌 등록마다 이것을 다시 받는다 */
+const OWNER = { ci: 'ci-owner-hong', name: '홍길동' };
+/** 탈취자가 자기 명의로 받은 인증 — 이름은 맞지만 **다른 사람**이다 */
+const ATTACKER = { ci: 'ci-attacker-kim', name: '김철수' };
+
 beforeAll(async () => {
   prisma = createTestDb('payout-account-');
   const u = await prisma.user.create({
-    data: { email: 'r@acct.io', identityVerified: true, researcherProfile: { create: {} } },
+    data: {
+      email: 'r@acct.io',
+      identityVerified: true,
+      identityHash: hashCi(OWNER.ci),
+      researcherProfile: { create: {} },
+    },
   });
   researcherUserId = u.id;
 });
@@ -72,7 +83,7 @@ describe('계좌 등록·검증', () => {
   it('등록하면 언제나 미검증으로 시작한다', async () => {
     const r = await registerPayoutAccount(
       prisma,
-      { researcherUserId, bankCode: '004', accountNumber: '110-234-567890', actor: researcherUserId },
+      { researcherUserId, bankCode: '004', accountNumber: '110-234-567890', actor: researcherUserId, identity: OWNER },
       NOW,
     );
     expect(r.status).toBe('UNVERIFIED');
@@ -101,28 +112,68 @@ describe('계좌 등록·검증', () => {
   it('은행 조회 결과로 검증된다', async () => {
     const status = await applyHolderLookup(
       prisma,
-      { researcherUserId, holderName: '홍길동', actor: 'system:bank', expectedHolderName: '홍길동' },
+      { researcherUserId, holderName: '홍길동', actor: 'system:bank' },
       NOW,
     );
     expect(status).toBe('VERIFIED');
     await expect(assertPayoutAccountReady(prisma, researcherUserId, LATER)).resolves.toBeUndefined();
   });
 
-  // 실명 대조가 **아직 없는 상태**를 그대로 시험한다 — expectedHolderName을 안 넘기면
-  // 대조하지 않는다. 그동안 VERIFIED는 "계좌가 실재한다"까지만 뜻한다
-  it('본인 실명을 모르면 대조하지 않고 통과시킨다 (실명 보유 확정 전)', async () => {
+  // **대조 상대편은 저장된 값이지 호출자가 넘기는 값이 아니다.** 넘기게 두면 언젠가
+  // "본인이 적은 이름"이 그 자리에 들어오고, 그러면 양쪽을 다 본인이 적는 것이 된다
+  it('이름이 다르면 예금주 불일치다 — 호출자가 무엇을 넘기든', async () => {
     const status = await applyHolderLookup(
       prisma,
       { researcherUserId, holderName: '아무개', actor: 'system:bank' },
       NOW,
     );
-    expect(status).toBe('VERIFIED');
+    expect(status).toBe('HOLDER_MISMATCH');
+  });
+
+  // ── ④가 없으면 ③은 뚫린다 ────────────────────────────────
+  // 탈취자가 **자기 이름으로** 인증하고 **자기 계좌**를 등록하면 이름이 서로 맞는다.
+  // 대조는 성공하는데 돈은 남에게 간다. 그래서 인증이 계정 주인의 것인지를 본다
+  it('**다른 사람 명의의 인증으로는 계좌를 바꿀 수 없다**', async () => {
+    await expect(
+      registerPayoutAccount(
+        prisma,
+        {
+          researcherUserId,
+          bankCode: '004',
+          accountNumber: '777-666-555444',
+          actor: researcherUserId,
+          identity: ATTACKER,
+        },
+        NOW,
+      ),
+    ).rejects.toThrow(/계정과 일치하지 않습니다/);
+
+    // 계좌가 바뀌지 않았다 — 실패한 등록이 상태를 건드리면 그 자체가 공격 수단이 된다
+    const saved = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId } });
+    expect(saved.accountLast4).toBe('7890');
+  });
+
+  // 실명은 **평문으로 아무 데도 없다** — 계좌번호와 같은 취급이다
+  it('본인 인증 실명은 암호화되어 계좌에만 붙는다', async () => {
+    const saved = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId } });
+    expect(saved.verifiedNameEnc).not.toContain('홍길동');
+    expect(decryptField(saved.verifiedNameEnc!)).toBe('홍길동');
+
+    // 이력에는 복사하지 않는다 — 같은 사람의 실명은 바뀌지 않아 남길 정보가 없고,
+    // 남기면 개인정보 사본만 계좌 변경 횟수만큼 늘어난다.
+    // (이력이 들고 있는 이름은 **은행이 돌려준 예금주명**이다. 그건 "어떤 계좌로
+    //  바뀌었나"의 일부라 남는 것이 맞다 — 대조의 상대편인 본인 인증 실명과 다르다)
+    const history = await prisma.payoutAccountHistory.findMany({ where: { researcherUserId } });
+    expect(history.length).toBeGreaterThan(0);
+    for (const row of history) {
+      expect(row).not.toHaveProperty('verifiedNameEnc');
+    }
   });
 
   it('예금주가 다르면 지급을 막는다', async () => {
     const status = await applyHolderLookup(
       prisma,
-      { researcherUserId, holderName: '김철수', actor: 'system:bank', expectedHolderName: '홍길동' },
+      { researcherUserId, holderName: '김철수', actor: 'system:bank' },
       NOW,
     );
     expect(status).toBe('HOLDER_MISMATCH');
@@ -138,14 +189,14 @@ describe('변경 방어', () => {
   it('계좌를 바꾸면 검증이 즉시 풀린다', async () => {
     await applyHolderLookup(
       prisma,
-      { researcherUserId, holderName: '홍길동', actor: 'system:bank', expectedHolderName: '홍길동' },
+      { researcherUserId, holderName: '홍길동', actor: 'system:bank' },
       NOW,
     );
     await expect(assertPayoutAccountReady(prisma, researcherUserId, LATER)).resolves.toBeUndefined();
 
     await registerPayoutAccount(
       prisma,
-      { researcherUserId, bankCode: '020', accountNumber: '999-888-777666', actor: researcherUserId },
+      { researcherUserId, bankCode: '020', accountNumber: '999-888-777666', actor: researcherUserId, identity: OWNER },
       LATER,
     );
     const after = await prisma.payoutAccount.findUniqueOrThrow({ where: { researcherUserId } });
@@ -158,7 +209,7 @@ describe('변경 방어', () => {
   it('바꾼 직후에는 검증돼도 지급하지 않는다', async () => {
     await applyHolderLookup(
       prisma,
-      { researcherUserId, holderName: '홍길동', actor: 'system:bank', expectedHolderName: '홍길동' },
+      { researcherUserId, holderName: '홍길동', actor: 'system:bank' },
       LATER,
     );
     // 변경 직후
@@ -198,12 +249,12 @@ describe('정산 동결', () => {
     const past = new Date('2026-09-01T00:00:00Z');
     await registerPayoutAccount(
       prisma,
-      { researcherUserId, bankCode: '004', accountNumber: '110-111-222333', actor: researcherUserId },
+      { researcherUserId, bankCode: '004', accountNumber: '110-111-222333', actor: researcherUserId, identity: OWNER },
       new Date(past.getTime() - ACCOUNT_CHANGE_COOLDOWN_MS - 3_600_000),
     );
     await applyHolderLookup(
       prisma,
-      { researcherUserId, holderName: '홍길동', actor: 'system:bank', expectedHolderName: '홍길동' },
+      { researcherUserId, holderName: '홍길동', actor: 'system:bank' },
       past,
     );
     await expect(assertPayoutAccountReady(prisma, researcherUserId, past)).resolves.toBeUndefined();
@@ -220,7 +271,7 @@ describe('정산 동결', () => {
     const past = new Date('2026-09-02T00:00:00Z');
     await registerPayoutAccount(
       prisma,
-      { researcherUserId, bankCode: '004', accountNumber: '110-999-000111', actor: researcherUserId },
+      { researcherUserId, bankCode: '004', accountNumber: '110-999-000111', actor: researcherUserId, identity: OWNER },
       past,
     );
     // 지금은 미검증 + 쿨다운 + 동결이 전부 걸린 상태

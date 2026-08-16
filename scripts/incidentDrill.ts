@@ -8,6 +8,7 @@ import {
   pauseAndBulkRevert,
   planBulkRevert,
 } from '../src/server/bulkRevertService';
+import { hashCi } from '../src/server/authService';
 import { getPauseState, setJudgmentPause } from '../src/server/judgmentPause';
 import {
   fileDispute,
@@ -63,6 +64,9 @@ import {
 //   ⑧ 시세를 고치고 다시 판정 → 쿨다운 → 지급
 //
 // **일회용 DB를 쓴다** — 개발 DB에 사고를 만들면 그 상태가 남는다.
+
+/** 리허설 리서처의 본인 인증 결과 — 계좌 등록마다 다시 받는 값 */
+const DRILL_IDENTITY = { ci: 'ci-drill-researcher', name: '드릴본인' };
 
 const DB = 'prisma/drill.db';
 const DRAFT = new Date('2026-07-01T00:00:00Z');
@@ -120,6 +124,8 @@ async function main() {
       email: 'r@drill.io',
       penName: '드릴리서처',
       identityVerified: true,
+      // 계좌 등록이 본인 인증 재확인을 요구하므로, 리허설도 실제와 같은 사람이어야 한다
+      identityHash: hashCi(DRILL_IDENTITY.ci),
       researcherProfile: { create: { tier: 'CHALLENGER' } },
     },
     include: { researcherProfile: true },
@@ -139,6 +145,12 @@ async function main() {
       shortable: true,
       active: true,
       source: 'drill',
+      // **σ를 심어 둔다.** 안 심으면 게시 관문이 "표본이 모자란 종목"으로 보고 막는다
+      // (reportService.INSUFFICIENT_MARKET_DATA) — 리허설이 시험하는 것은 사고 대응이지
+      // 신규 상장 방어가 아니라, 여기서 막히면 뒤의 10단계를 하나도 못 돈다.
+      // 조용한 종목으로 두는 이유도 같다: 카드가 크기 하한에 걸리면 안 된다
+      sigmaDaily: 0.02,
+      sigmaSyncedAt: new Date('2026-01-01T00:00:00Z'),
     },
   });
 
@@ -159,7 +171,9 @@ async function main() {
           assetName: '드릴코인',
           direction: 'UP',
           targetType: 'RETURN_PCT',
-          targetValue: 30, // 코인 30일 카드의 크기 하한이 σ 연동으로 26.7%다
+          // 리허설 종목은 σ를 잰 적이 없어 **거친 쪽 폴백**이 쓰인다(UNMEASURED_SIGMA).
+          // 그래서 하한이 31.7%까지 올라간다 — 넉넉히 넘겨 둔다
+          targetValue: 40,
           confidence: 5,
           selfStability: 5,
           deadline: DEADLINE,
@@ -281,7 +295,7 @@ async function main() {
   });
   const manualOnly = await prisma.predictionCard.count({ where: { manualJudgmentOnly: true } });
   note(`사람만 판정할 카드: ${manualOnly}건 (--data-source 였으므로 자동 배치가 손대지 않는다)`);
-  const blocked = await judgeAndSettleDueCards(prisma, registry('KRW-DRL', 135), JUDGE_AT, 'CRYPTO');
+  const blocked = await judgeAndSettleDueCards(prisma, registry('KRW-DRL', 150), JUDGE_AT, 'CRYPTO');
   note(`이 상태로 배치를 돌리면: ${blocked.judged}건 — 자물쇠가 걸려 한 장도 안 잡힌다.`);
   note('⚠ 리허설이 찾은 병목이 여기였다 — 100장을 되돌리면 100장을 손으로 판정해야 했다.');
 
@@ -292,7 +306,7 @@ async function main() {
     JUDGE_AT,
   );
   note(`자동 판정으로 되돌린 카드: ${reopened.cleared}건 (npm run judgment:rejudge)`);
-  const redo = await judgeAndSettleDueCards(prisma, registry('KRW-DRL', 135), JUDGE_AT, 'CRYPTO');
+  const redo = await judgeAndSettleDueCards(prisma, registry('KRW-DRL', 150), JUDGE_AT, 'CRYPTO');
   note(`재판정: ${redo.judged}건 — 이번엔 적중이다.`);
 
   head('쿨다운과 지급');
@@ -321,13 +335,18 @@ async function main() {
       bankCode: '004',
       accountNumber: '110-234-567890',
       actor: researcher.id,
+      // 계좌 등록은 **본인 인증을 다시 받는다** — 계정만 뚫어서는 계좌를 못 바꾼다.
+      // 리허설의 리서처는 seedDrill에서 이 CI로 인증된 사람이다
+      identity: DRILL_IDENTITY,
     },
     // 변경 쿨다운(48시간)을 지나 있어야 지급된다 — 탈취자가 바꾸고 곧바로 빼 가는 경로 방어
     new Date(AFTER_COOLDOWN.getTime() - ACCOUNT_CHANGE_COOLDOWN_MS - 3_600_000),
   );
   await applyHolderLookup(
     prisma,
-    { researcherUserId: researcher.id, holderName: '리서처', actor: 'system:bank' },
+    // 은행이 돌려준 예금주명이 **본인 인증 실명과 같아야** 검증된다 —
+    // 다르면 HOLDER_MISMATCH로 떨어지고 지급이 막힌다(그 경로도 시험이 지킨다)
+    { researcherUserId: researcher.id, holderName: DRILL_IDENTITY.name, actor: 'system:bank' },
     AFTER_COOLDOWN,
   );
   note('계좌 등록 + 은행 예금주 조회 → 검증 완료. 이제 지급할 수 있다.');
