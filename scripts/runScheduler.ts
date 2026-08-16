@@ -30,6 +30,7 @@ import {
 } from '../src/server/schedulerHealth';
 import { seasonOf } from '../src/server/scoreService';
 import { purgeExpiredPaymentIntents } from '../src/server/paymentIntentService';
+import { purgeExpiredChallenges } from '../src/server/passkeyService';
 import { sweepStuckRefundAttempts } from '../src/server/settlementOpsService';
 import { notifyIfOutflowPressure } from '../src/server/payoutVelocity';
 import { sweepPendingCompensations } from '../src/server/compensationService';
@@ -707,6 +708,12 @@ function tick(): void {
       enqueue('만료 결제 의도 정리', async () => {
         const purged = await purgeExpiredPaymentIntents(prisma);
         if (purged > 0) console.log(`  만료 결제 의도 ${purged}건 삭제`);
+      });
+      // 지나간 패스키 챌린지도 같이 쓸어 담는다. 남겨 둬도 위험하진 않지만
+      // (한 번 쓰면 지워지고, 만료 검사도 따로 한다) 안 쓰인 것들이 표에 쌓인다
+      enqueue('만료 로그인 챌린지 정리', async () => {
+        const purged = await purgeExpiredChallenges(prisma);
+        if (purged > 0) console.log(`  만료 로그인 챌린지 ${purged}건 삭제`);
       });
       // **한도에 닿기 전에 부른다** (2026-08-16). 한도는 벽이지 신호가 아니라,
       // 지금까지 운영자가 그것을 아는 유일한 순간이 **거부당했을 때**였다.

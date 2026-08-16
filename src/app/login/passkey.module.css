@@ -1,0 +1,48 @@
+/* 생체 로그인 버튼 — 평소 쓰는 길이라 **가장 눈에 띄어야** 한다.
+   본인 인증은 새 기기일 때만 쓰는 길이라 아래에서 조용히 기다린다. */
+
+.wrap {
+  margin-bottom: 20px;
+}
+
+.button {
+  width: 100%;
+  padding: 15px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent, #1f2937);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #b42318;
+}
+
+/* 가운데 글자가 들어간 구분선 — "여기부터는 다른 길"을 한 줄로 말한다 */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 4px;
+  color: var(--text-3, #6b6b76);
+  font-size: 12px;
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border, #d8d8de);
+}

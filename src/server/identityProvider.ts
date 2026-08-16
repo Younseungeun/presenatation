@@ -49,3 +49,14 @@ export class StubIdentityProvider implements IdentityProvider {
     return { ci, name: input.name.trim(), phone };
   }
 }
+
+/**
+ * 지금 쓸 본인 인증 공급자 — **고르는 자리는 여기 하나다.**
+ *
+ * 부르는 곳마다 스텁을 직접 만들면 실공급자로 갈아 끼울 때 그중 하나를 빠뜨리게 되고,
+ * 빠뜨린 경로만 조용히 스텁으로 남는다. 그 경로가 하필 **계좌 등록**이면 아무것도
+ * 막지 못하는 관문이 된다 — 겉보기에는 인증을 하고 있으므로 눈치채기도 어렵다.
+ */
+export function createDefaultIdentityProvider(): IdentityProvider {
+  return new StubIdentityProvider();
+}

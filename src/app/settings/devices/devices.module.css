@@ -1,0 +1,88 @@
+/* 등록된 기기 목록 — 지우는 버튼이 있어야 목록이 쓸모를 갖는다 */
+
+.list {
+  padding: 0 16px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border, #d8d8de);
+}
+
+.name {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sub {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-3, #6b6b76);
+}
+
+.remove {
+  border: 1px solid var(--border, #d8d8de);
+  background: transparent;
+  color: var(--text-2, #44444d);
+  border-radius: 10px;
+  padding: 7px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.empty {
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-2, #44444d);
+}
+
+.addBox {
+  padding: 16px;
+}
+
+.addLabel {
+  display: block;
+  font-size: 13px;
+  color: var(--text-3, #6b6b76);
+  margin-bottom: 12px;
+}
+
+.input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 11px;
+  border: 1px solid var(--border, #d8d8de);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 14px;
+  background: var(--surface-1, #fff);
+  color: inherit;
+}
+
+.add {
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent, #1f2937);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.add:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error {
+  margin: 0 16px;
+  font-size: 13px;
+  color: #b42318;
+}

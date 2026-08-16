@@ -61,6 +61,11 @@ export default async function SettingsPage() {
                 label="프로필 설정"
                 sub={user.penName ? `필명 ${user.penName}` : "필명이 아직 없습니다"}
               />
+              <Row
+                href="/settings/devices"
+                label="로그인 기기"
+                sub="지문·얼굴로 로그인 · 등록된 기기 관리"
+              />
               {/* 급할 때 찾아야 하는 화면이라 계정 묶음 안, 프로필 바로 아래 둔다.
                   안내 문구에 "동결"을 그대로 적는 이유: 알림을 받고 이 목록을 훑는
                   사람이 찾는 단어가 그 단어다 */}

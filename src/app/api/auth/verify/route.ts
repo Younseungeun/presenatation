@@ -2,11 +2,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { signUpAndSignIn } from '@/server/authService';
 import { prisma } from '@/server/db';
-import { StubIdentityProvider } from '@/server/identityProvider';
+import { createDefaultIdentityProvider } from '@/server/identityProvider';
 import { setSessionCookie } from '@/server/session';
 import { toErrorResponse } from '../../_lib/http';
 
-const provider = new StubIdentityProvider();
+const provider = createDefaultIdentityProvider();
 
 const bodySchema = z.object({
   name: z.string().min(1).max(50),

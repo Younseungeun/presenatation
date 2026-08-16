@@ -123,3 +123,83 @@
   font-size: 13px;
   color: #b42318;
 }
+
+/* ── 계좌 등록 폼 ─────────────────────────────────────────────── */
+
+.addAccount {
+  width: 100%;
+  padding: 14px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent, #1f2937);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.addAccount:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.formBox {
+  padding: 16px;
+  border: 1px solid var(--border, #d8d8de);
+  border-radius: 12px;
+  background: var(--surface-1, #fff);
+}
+
+/* 사기 경고 — 기술 관문을 전부 통과하는 유일한 공격을 막는 자리라
+   폼 안에서 가장 먼저, 가장 또렷하게 보여야 한다 */
+.scamWarning {
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  background: #fff4ed;
+  border: 1px solid #ffd7bd;
+  color: #7a3b12;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.field {
+  display: block;
+  font-size: 13px;
+  color: var(--text-3, #6b6b76);
+  margin-bottom: 14px;
+}
+
+.fieldNote {
+  margin: -4px 0 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-2, #44444d);
+}
+
+.stepDivider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 20px 0 12px;
+  color: var(--text-3, #6b6b76);
+  font-size: 12px;
+}
+
+.stepDivider::before,
+.stepDivider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border, #d8d8de);
+}
+
+.formActions {
+  display: grid;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.sectionGap {
+  padding: 0 16px 24px;
+}
