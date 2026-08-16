@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { assessApprovalHealth } from '@/domain/approvalHealth';
+import { isSoloOperatorMode } from './operatorApprovalService';
 
 // 운영 초기(거래 100건·리서처 10명 구간)에 **매일 눈으로 보는 사업 로직 숫자들.**
 //
@@ -297,7 +298,7 @@ export const OPS_THRESHOLDS = {
 } as const;
 
 export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Promise<OpsMetric[]> {
-  const [lead, payout, zero, revert, repurchase, manual, approvalRows] = await Promise.all([
+  const [lead, payout, zero, revert, repurchase, manual, approvalRows, solo] = await Promise.all([
     judgmentLeadTime(prisma),
     payoutLatency(prisma),
     zeroPurchaseRate(prisma, now),
@@ -308,6 +309,7 @@ export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Pro
       where: { decidedAt: { not: null }, decidedBy: { not: null } },
       select: { requestedAt: true, decidedAt: true, decidedBy: true, status: true },
     }),
+    isSoloOperatorMode(prisma),
   ]);
   const approval = assessApprovalHealth(
     approvalRows.map((r) => ({
@@ -411,19 +413,24 @@ export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Pro
     },
     {
       // 2인 승인의 사망 원인은 우회가 아니라 습관화다 (검토 5차 Q1). 성격이 다른
-      // 신호 셋을 함께 본다 — 시간 하나만 보면 굿하트의 법칙에 걸린다
+      // 신호 셋을 함께 본다 — 시간 하나만 보면 굿하트의 법칙에 걸린다.
+      // **1인 운영 모드에서는 잴 것이 없다** (2026-08-17 사용자 확정) — 승인이라는
+      // 행위 자체가 없어서다. 지표는 남기되 "해당 없음"으로 두고, 운영자가 2명이
+      // 되는 순간 자동으로 측정이 시작된다
       key: 'approvalHealth',
       label: '승인 건강도 (2인 승인)',
-      value:
-        approval.decided === 0
+      value: solo
+        ? '—'
+        : approval.decided === 0
           ? '—'
           : `즉시 승인 ${pct(approval.instant, approval.decided)}`,
-      sample:
-        `결정 ${approval.decided}건 · 반려 ${approval.rejected}건 · ` +
-        `연쇄 승인 ${approval.batchRuns}회`,
+      sample: solo
+        ? '운영자 1명 — 해당 없음 (2명이 되면 자동 측정)'
+        : `결정 ${approval.decided}건 · 반려 ${approval.rejected}건 · ` +
+          `연쇄 승인 ${approval.batchRuns}회`,
       meaning:
         '2인 승인이 장식이 되는 것을 감지합니다. 1분 미만 즉시 승인이 절반을 넘거나, 표본 50건 위에서 반려가 0이거나, 10초 안에 3건이 연속 승인되면 — 검토가 아니라 도장입니다.',
-      alert: approval.alert,
+      alert: solo ? false : approval.alert,
     },
   ];
 }

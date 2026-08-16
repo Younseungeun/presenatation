@@ -101,10 +101,10 @@ export default async function SettingsPage() {
           <>
             <div className={styles.section}>운영</div>
             <div className={styles.list}>
-              {/* 대시보드가 홈이다 — 큐마다 건수가 붙어 있어 들어가 볼 필요를 화면이 말해 준다 */}
+              {/* 대시보드가 홈이다 — 큐마다 건수가 붙어 있어 들어가 볼 필요를 화면이 말해 준다.
+                  승인 대기열은 여기 없다: 1인 모드에서는 승인이라는 행위 자체가 없어서
+                  대시보드가 모드를 보고 그 줄을 그리거나 감춘다 */}
               <Row href="/admin" label="운영 홈" sub="기다리는 일 전부, 건수와 함께" />
-              {/* 맨 위 — 다른 운영자가 기다리고 있는 요청이라 가장 먼저 보여야 한다 */}
-              <Row href="/admin/approvals" label="승인 대기열" sub="2인 승인 — 동결 해제·고액 지급·판정" />
               {/* 동결은 급한 사람의 신고다 — 승인 대기열 바로 아래, 다른 큐보다 앞 */}
               <Row href="/admin/frozen" label="정산 동결 관리" sub="동결된 계정 확인·해제 (2인 승인)" />
               <Row href="/admin/health" label="운영 건강" sub="매일 보는 사업 로직 숫자들" />

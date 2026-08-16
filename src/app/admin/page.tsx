@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
-import { getPendingApprovals } from "@/server/operatorApprovalService";
+import { getPendingApprovals, isSoloOperatorMode } from "@/server/operatorApprovalService";
 import { listFrozenAccounts } from "@/server/payoutAccountService";
 import { getManualJudgmentQueue } from "@/server/manualJudgmentService";
 import { getOpenDisputes, getUpheldPendingRevert } from "@/server/judgmentDisputeService";
@@ -58,8 +58,9 @@ export default async function AdminHomePage() {
   }
 
   const now = new Date();
-  const [approvals, frozen, manualQueue, disputes, pendingRevert, holds, compensations, payouts, refunds, metrics] =
+  const [solo, approvals, frozen, manualQueue, disputes, pendingRevert, holds, compensations, payouts, refunds, metrics] =
     await Promise.all([
+      isSoloOperatorMode(prisma),
       getPendingApprovals(prisma, now),
       listFrozenAccounts(prisma),
       getManualJudgmentQueue(prisma, now),
@@ -79,7 +80,11 @@ export default async function AdminHomePage() {
       <main className={styles.page}>
         <div className={styles.section}>사람을 기다리는 일</div>
         <div className={styles.list}>
-          <Row href="/admin/approvals" label="승인 대기열" count={approvals.length} sub="2인 승인 — 동결 해제·고액 지급·판정" />
+          {/* 1인 운영 모드에서는 승인이라는 행위 자체가 없다 — 두 번째 사람 자리를
+              실행 직전 생체 재확인이 대신한다. 운영자가 2명이 되면 이 줄이 되살아난다 */}
+          {!solo && (
+            <Row href="/admin/approvals" label="승인 대기열" count={approvals.length} sub="2인 승인 — 동결 해제·고액 지급·판정" />
+          )}
           <Row href="/admin/frozen" label="정산 동결" count={frozen.length} sub="본인이 신고한 계정 — 확인 후 해제" />
           <Row href="/admin/judgments" label="수동 판정" count={manualQueue.length} sub="기계가 못 매긴 카드" />
           <Row href="/admin/disputes" label="판정 이의" count={disputes.length + pendingRevert.length} sub="접수된 건은 정산이 멈춰 있다" />
