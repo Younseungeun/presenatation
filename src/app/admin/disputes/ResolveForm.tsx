@@ -17,6 +17,9 @@ export function ResolveForm({ disputeId }: { disputeId: string }) {
   const [resolution, setResolution] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 인정에 2인 승인이 걸려 첫 확정은 "승인 요청 올림"으로 끝난다 — 그건 실패가 아니라
+  // 절차의 절반이므로 오류 색으로 보여주면 안 된다
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function submit() {
     if (resolution.trim().length < 5) {
@@ -25,12 +28,13 @@ export function ResolveForm({ disputeId }: { disputeId: string }) {
     }
     const question =
       verdict === "UPHELD"
-        ? "오류로 인정할까요? 구매자에게 통지되며, 판정 되돌리기는 별도로 실행해야 합니다."
+        ? "오류로 인정할까요? 다른 운영자의 승인이 필요하며, 승인 후 다시 확정하면 구매자에게 통지됩니다. 판정 되돌리기는 별도로 실행해야 합니다."
         : "판정 유지로 확정할까요? 구매자에게 통지되고 이 건의 정산이 다시 열립니다.";
     if (!window.confirm(question)) return;
 
     setBusy(true);
     setError(null);
+    setNotice(null);
     try {
       const res = await fetch("/api/disputes", {
         method: "PATCH",
@@ -39,7 +43,11 @@ export function ResolveForm({ disputeId }: { disputeId: string }) {
       });
       const json = await res.json();
       if (!res.ok) {
-        setError(json.error ?? "확정 실패");
+        if (json.code === "APPROVAL_PENDING") {
+          setNotice(json.error);
+        } else {
+          setError(json.error ?? "확정 실패");
+        }
         return;
       }
       router.refresh();
@@ -84,10 +92,12 @@ export function ResolveForm({ disputeId }: { disputeId: string }) {
       </div>
       {verdict === "UPHELD" && (
         <p className={styles.sub}>
-          인정해도 <strong>판정이 자동으로 되돌아가지는 않습니다</strong> — 돈이 이미
-          나갔는지 따지는 별도 절차입니다. 확정 후 아래 목록에 명령이 뜹니다.
+          인정은 <strong>판정을 뒤집는 결정이라 다른 운영자의 승인이 필요합니다</strong> —
+          첫 확정은 승인 요청을 올리고, 승인되면 다시 확정하세요. 인정해도 판정이
+          자동으로 되돌아가지는 않습니다(별도 절차). 확정 후 아래 목록에 명령이 뜹니다.
         </p>
       )}
+      {notice && <p className={styles.sub}>{notice}</p>}
       {error && <p className={styles.error}>{error}</p>}
     </div>
   );

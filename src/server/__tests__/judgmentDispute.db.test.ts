@@ -15,6 +15,7 @@ import {
   settlementIdsWithOpenDispute,
 } from '../judgmentDisputeService';
 import { revertJudgment } from '../judgmentRevertService';
+import { decideApproval } from '../operatorApprovalService';
 import { getOpsMetrics } from '../opsMetrics';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
@@ -35,6 +36,7 @@ let researcherUserId: string;
 let buyerId: string;
 let strangerId: string;
 let operatorId: string;
+let secondOperatorId: string;
 let purchaseId: string;
 
 const DRAFT_NOW = new Date('2026-07-11T00:00:00Z');
@@ -69,6 +71,12 @@ beforeAll(async () => {
   operatorId = (
     await prisma.user.create({
       data: { email: 'op@dsp.io', identityVerified: true, role: 'OPERATOR' },
+    })
+  ).id;
+  // 인정(판정 뒤집기)에 2인 승인이 걸려 승인자가 따로 필요하다
+  secondOperatorId = (
+    await prisma.user.create({
+      data: { email: 'op2@dsp.io', identityVerified: true, role: 'OPERATOR' },
     })
   ).id;
 
@@ -275,11 +283,62 @@ describe('판정 이의제기', () => {
     expect(m.sample).toContain('전체 판정 1건');
   });
 
+  // **인정은 판정을 뒤집는 결정이라 2인 승인이 걸린다** (2026-08-16 검토 3차).
+  // 판정은 돈이 흐를 방향을 정하는 원천이다 — 내부자와 공모한 구매자가 적중을
+  // 실패로 뒤집어 환불을 뽑는 경로의 첫 관문이 여기다. 기각은 데이터의 판정을
+  // 유지하는 쪽이라 한 사람으로 족하다 (위의 기각 시험이 승인 없이 통과하는 것이 증거)
+  it('인정의 첫 확정은 승인 요청으로 멈추고, 요청자는 자기 요청을 승인할 수 없다', async () => {
+    const [open] = await getOpenDisputes(prisma);
+    await expect(
+      resolveDispute(
+        prisma,
+        {
+          disputeId: open.id,
+          operatorUserId: operatorId,
+          verdict: 'UPHELD',
+          resolution: '공급자가 8/1 종가를 잘못 줬습니다',
+        },
+        BATCH_NOW,
+      ),
+    ).rejects.toMatchObject({ code: 'APPROVAL_PENDING' });
+
+    // 확정이 멈췄으니 구매자에게 "오류 확인" 통지도 아직 없어야 한다 —
+    // 통지가 먼저 나가면 승인이 반려됐을 때 말을 주워 담을 수 없다
+    const early = await prisma.notification.findFirst({
+      where: { userId: buyerId, title: { contains: '오류가 확인' } },
+    });
+    expect(early).toBeNull();
+
+    // 요청은 자동으로 올라가 있고, 판단 근거가 그대로 승인자의 사유가 된다
+    const req = await prisma.operatorApproval.findFirstOrThrow({
+      where: { action: 'DISPUTE_UPHOLD', targetId: open.id, status: 'PENDING' },
+    });
+    expect(req.reason).toContain('8/1 종가');
+
+    // 같은 운영자는 승인 못 한다 — 이 한 줄이 2인 승인의 전부다
+    await expect(
+      decideApproval(
+        prisma,
+        { approvalId: req.id, approverUserId: operatorId, approve: true },
+        BATCH_NOW,
+      ),
+    ).rejects.toThrow(/요청한 사람은 승인할 수 없습니다/);
+  });
+
   // **인정은 판단이고 되돌리기는 돈이다** — 일부러 한 버튼에 묶지 않았다.
   // 그러면 사람이 이어서 해야 하는데, 목록이 없으면 "오류가 확인되었습니다"라고
   // 알린 뒤 아무 일도 안 일어난 건이 조용히 쌓인다. 그게 가장 나쁜 침묵이다
   it('인정한 이의는 되돌릴 때까지 운영자 화면에 남는다', async () => {
     const [open] = await getOpenDisputes(prisma);
+    // 앞 시험이 올린 승인 요청을 다른 운영자가 승인한다 → 이번 확정이 소비한다
+    const req = await prisma.operatorApproval.findFirstOrThrow({
+      where: { action: 'DISPUTE_UPHOLD', targetId: open.id, status: 'PENDING' },
+    });
+    await decideApproval(
+      prisma,
+      { approvalId: req.id, approverUserId: secondOperatorId, approve: true },
+      BATCH_NOW,
+    );
     await resolveDispute(
       prisma,
       {
@@ -290,6 +349,12 @@ describe('판정 이의제기', () => {
       },
       BATCH_NOW,
     );
+    // 승인서는 1회용 — 확정이 써서 없앴다
+    expect(
+      await prisma.operatorApproval.findFirst({
+        where: { action: 'DISPUTE_UPHOLD', targetId: open.id, status: 'EXECUTED' },
+      }),
+    ).not.toBeNull();
 
     const pending = await getUpheldPendingRevert(prisma);
     expect(pending).toHaveLength(1);

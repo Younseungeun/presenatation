@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { auditOp } from './auditLog';
+import { ApprovalError, consumeApproval, requestApproval } from './operatorApprovalService';
 
 // 판정 이의제기 — **구매자 → 플랫폼의 단방향 클레임.**
 //
@@ -38,7 +39,13 @@ export const OBSERVED_MAX_LEN = 100;
 
 export class DisputeError extends Error {
   constructor(
-    readonly code: 'NOT_FOUND' | 'NOT_JUDGED' | 'WINDOW_CLOSED' | 'ALREADY_FILED' | 'BAD_INPUT',
+    readonly code:
+      | 'NOT_FOUND'
+      | 'NOT_JUDGED'
+      | 'WINDOW_CLOSED'
+      | 'ALREADY_FILED'
+      | 'BAD_INPUT'
+      | 'APPROVAL_PENDING',
     message: string,
   ) {
     super(message);
@@ -245,7 +252,9 @@ export async function resolveDispute(
     where: { id: input.disputeId },
     include: {
       purchase: { select: { buyerId: true, reportId: true } },
-      judgment: { select: { predictionCard: { select: { reportId: true } } } },
+      judgment: {
+        select: { predictionCard: { select: { reportId: true, assetName: true, ticker: true } } },
+      },
     },
   });
   if (!dispute || dispute.status !== 'OPEN') {
@@ -268,6 +277,43 @@ export async function resolveDispute(
     if (!dispute.purchase) throw new DisputeError('NOT_FOUND', '구매 내역을 찾을 수 없습니다');
     claimantUserId = dispute.purchase.buyerId;
     reportId = dispute.purchase.reportId;
+  }
+
+  // ── 인정은 2인 승인이다 (2026-08-16 검토 3차) ────────────────
+  // 인정은 **사람이 데이터의 판정을 뒤집는 결정**이고, 그 끝에 환불이라는 형태로
+  // 돈이 움직인다 — 내부자와 공모한 구매자가 노리는 자리가 정확히 여기다.
+  // 기각은 걸지 않는다: 데이터의 판정을 유지하는 쪽이라 사람의 손이 새로 안 들어간다.
+  // 이미 되돌려진 판정(judgmentId가 끊긴 건)의 인정도 걸지 않는다: 뒤집기는 이미
+  // 일어났고 남은 것은 사후 기록과 통지뿐이다 — 결정에 거는 관문을 기록에 걸면
+  // 같은 결정을 두 번 세는 것이다.
+  //
+  // 승인이 없으면 **여기서 승인 요청을 대신 올리고** 멈춘다 — 운영자가 쓴 판단
+  // 근거(resolution)가 그대로 승인자가 읽을 사유가 된다. 승인 뒤 같은 확정을 한 번 더
+  // 실행하면 그때 승인서가 소비된다. (자리는 확정 직전 — 청구인 확인에서 막힐 건에
+  // 승인서를 태우지 않는다)
+  if (input.verdict === 'UPHELD' && dispute.judgmentId) {
+    try {
+      await consumeApproval(prisma, { action: 'DISPUTE_UPHOLD', targetId: dispute.id }, now);
+    } catch (e) {
+      if (!(e instanceof ApprovalError)) throw e;
+      const card = dispute.judgment?.predictionCard;
+      await requestApproval(
+        prisma,
+        {
+          action: 'DISPUTE_UPHOLD',
+          targetId: dispute.id,
+          summary: `${card ? `${card.assetName} (${card.ticker})` : '판정'} 이의 인정 — 판정을 뒤집는 결정`,
+          requestedBy: input.operatorUserId,
+          reason: input.resolution,
+        },
+        now,
+      );
+      throw new DisputeError(
+        'APPROVAL_PENDING',
+        '판정을 뒤집는 결정에는 다른 운영자의 승인이 필요합니다 — 승인 요청을 올려두었습니다. ' +
+          '승인되면 여기서 다시 확정하세요.',
+      );
+    }
   }
 
   await prisma.$transaction([

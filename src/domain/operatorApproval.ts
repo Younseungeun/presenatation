@@ -14,8 +14,17 @@
 //
 //   ① 동결 해제 — 빈도가 낮고, **방어를 스스로 여는 행위**다. 금액과 무관하게 항상
 //   ② 큰 금액의 지급 — 문턱 위만. 소액 일상 정산은 한 사람이 계속 처리한다
+//   ③ 판정 이의 인정 — **사람이 데이터의 판정을 뒤집는 결정**이다 (2026-08-16 검토 3차).
+//      판정은 돈이 흐를 방향을 정하는 원천이라, 내부자가 구매자와 공모해 적중을
+//      실패로 뒤집으면 환불이라는 형태로 돈이 샌다. 기각은 걸지 않는다 — 기각은
+//      데이터의 판정을 **유지**하는 쪽이라 사람의 손이 새로 들어가지 않는다
+//
+// ── 운영자가 1명이면 이 표는 교착이다 ─────────────────────────
+// 그래서 **운영자 계정 2개 확보가 출시 요건**이다 (두 번째는 금고 속 콜드 기기여도
+// 된다). 1인 예외 경로를 코드에 넣지 않는 이유: "24시간 뒤 단독 실행" 같은 우회로는
+// 공격자에게 "계정 하나만 뚫고 기다리면 된다"를 상시 열어 주는 것이다
 
-export const APPROVAL_ACTIONS = ['PAYOUT_UNFREEZE', 'LARGE_PAYOUT'] as const;
+export const APPROVAL_ACTIONS = ['PAYOUT_UNFREEZE', 'LARGE_PAYOUT', 'DISPUTE_UPHOLD'] as const;
 export type ApprovalAction = (typeof APPROVAL_ACTIONS)[number];
 
 export const APPROVAL_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'EXECUTED'] as const;
@@ -42,6 +51,7 @@ export function requiresDualApproval(amountKrw: number): boolean {
 export const APPROVAL_ACTION_LABEL: Record<ApprovalAction, string> = {
   PAYOUT_UNFREEZE: '정산 동결 해제',
   LARGE_PAYOUT: '고액 지급 실행',
+  DISPUTE_UPHOLD: '판정 이의 인정 (판정 뒤집기)',
 };
 
 /**
