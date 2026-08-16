@@ -106,11 +106,13 @@ describe('validateCardDraft', () => {
     expect(validateCardDraft({ ...wild, targetValue: floorAt(0.04) + 0.1 }, NOW)).toEqual([]);
   });
 
-  it('σ가 없으면 자산군 평균으로 물러선다 — 검증이 멈추지 않는다', () => {
+  it('σ가 없으면 **거친 쪽**으로 물러선다 — 검증이 멈추지 않고, 모르는 대가는 리서처가 진다', () => {
     const noSigma = { ...validCard, sigmaDaily: null, targetValue: 10 };
-    // KR σ̄=2%, 92일 → 하한 약 23% → 10%는 거부된다
+    // KR 폴백 7.05%(실측 상위 5분위), 92일 → 하한 약 81%
+    const floor = minMagnitudePct('KR_EQUITY', null, 92);
+    expect(floor).toBeGreaterThan(75);
     expect(validateCardDraft(noSigma, NOW)).not.toEqual([]);
-    expect(validateCardDraft({ ...noSigma, targetValue: 25 }, NOW)).toEqual([]);
+    expect(validateCardDraft({ ...noSigma, targetValue: floor + 1 }, NOW)).toEqual([]);
   });
 
   // 종목 유니버스·하락 예측 제한은 종목 마스터(DB) 검증으로 이동 — instrumentService.test.ts

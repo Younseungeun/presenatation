@@ -20,17 +20,19 @@ import {
   noSkillTouchProbability,
   scoreJudgedCard,
   targetPriceToMagnitudePct,
-
+  UNMEASURED_SIGMA,
 } from '../scoring';
 
 // 점수 모델 v4 (공정배당 이항) — 수학적 성질을 코드로 고정한다.
 // 여기 깨지면 등급·정산의 공정성 주장이 통째로 깨지는 것이다.
 
 describe('무정보 도달 확률 p₀', () => {
-  it('주식 하한(+5%/30일)은 절반을 살짝 넘는다 — 하한 목표가 "거의 공짜"라는 사실', () => {
-    const p = noSkillTouchProbability('UP', 5, 'KR_EQUITY', 30);
-    expect(p).toBeGreaterThan(0.5);
-    expect(p).toBeLessThan(0.62);
+  it('고정 5%/30일은 무정보로도 절반 넘게 닿는다 — 고정 %가 하한이 될 수 없다는 사실', () => {
+    // 자산군 평균 σ(2%)로 재면 0.56. 여기서 σ를 넣지 않으면 **못 잰 종목의 폴백**
+    // (7.05%)이 쓰여 더 높게 나오는데, 그것도 같은 이야기의 강한 판본이다
+    expect(noSkillTouchProbability('UP', 5, 'KR_EQUITY', 30, DAILY_SIGMA.KR_EQUITY)).toBeGreaterThan(0.5);
+    expect(noSkillTouchProbability('UP', 5, 'KR_EQUITY', 30, DAILY_SIGMA.KR_EQUITY)).toBeLessThan(0.62);
+    expect(noSkillTouchProbability('UP', 5, 'KR_EQUITY', 30)).toBeGreaterThan(0.7);
   });
 
   it('크기가 클수록 단조 감소한다', () => {
@@ -57,10 +59,11 @@ describe('무정보 도달 확률 p₀', () => {
     expect(down).toBeGreaterThan(up);
   });
 
-  it('코인 하한(10%)과 주식 하한(5%)의 p₀가 비슷하다 — 하한이 변동성에 맞춰 설계된 증거', () => {
-    const eq = noSkillTouchProbability('UP', 5, 'KR_EQUITY', 30);
-    const cr = noSkillTouchProbability('UP', 10, 'CRYPTO', 30);
-    expect(Math.abs(eq - cr)).toBeLessThan(0.05);
+  it('자산군이 달라도 **하한 카드의 p₀는 같다** — 하한이 변동성에 맞춰 설계된 증거', () => {
+    // 고정 %를 비교하면 자산군마다 다른 답이 나온다. 비교할 것은 각 자산군의 하한이다
+    const at = (assetClass: 'KR_EQUITY' | 'CRYPTO', sigma: number) =>
+      noSkillTouchProbability('UP', minMagnitudePct(assetClass, sigma, 30), assetClass, 30, sigma);
+    expect(Math.abs(at('KR_EQUITY', DAILY_SIGMA.KR_EQUITY) - at('CRYPTO', DAILY_SIGMA.CRYPTO))).toBeLessThan(0.05);
   });
 
   it('극단값은 클램프된다', () => {
@@ -224,9 +227,10 @@ describe('크기 환산 왕복', () => {
 
 describe('기간 반영 크기 상한', () => {
   it('30일 기준값이고 √시간으로 스케일한다', () => {
-    expect(maxMagnitudePct('KR_EQUITY', 30)).toBeCloseTo(50);
-    expect(maxMagnitudePct('KR_EQUITY', 120)).toBeCloseTo(100);
-    expect(maxMagnitudePct('CRYPTO', 30)).toBeCloseTo(120);
+    const sigma = DAILY_SIGMA.KR_EQUITY;
+    expect(maxMagnitudePct('KR_EQUITY', 30, sigma)).toBeCloseTo(50);
+    expect(maxMagnitudePct('KR_EQUITY', 120, sigma)).toBeCloseTo(100);
+    expect(maxMagnitudePct('CRYPTO', 30, DAILY_SIGMA.CRYPTO)).toBeCloseTo(120);
   });
 });
 
@@ -282,11 +286,34 @@ describe('예측 크기 하한 — 종목 변동성 연동', () => {
     );
   });
 
-  it('σ가 없으면 자산군 평균으로 물러선다 — 지어내지 않되 계산은 계속된다', () => {
-    expect(minMagnitudePct('KR_EQUITY', null, 30)).toBeCloseTo(
-      minMagnitudePct('KR_EQUITY', DAILY_SIGMA.KR_EQUITY, 30),
-      6,
-    );
+  it('σ가 없으면 **거친 쪽**으로 물러선다 — 지어내지 않되, 모르는 대가는 리서처가 진다', () => {
+    for (const assetClass of ['KR_EQUITY', 'US_EQUITY', 'CRYPTO'] as const) {
+      expect(minMagnitudePct(assetClass, null, 30)).toBeCloseTo(
+        minMagnitudePct(assetClass, UNMEASURED_SIGMA[assetClass], 30),
+        6,
+      );
+      // 평균으로 물러서면 안 된다 — 그 자리가 무실력 파밍이 열리던 구멍이다
+      expect(minMagnitudePct(assetClass, null, 30)).toBeGreaterThan(
+        minMagnitudePct(assetClass, DAILY_SIGMA[assetClass], 30),
+      );
+    }
+  });
+
+  it('**σ를 못 잰 주식에서 무실력 기대값이 0을 넘지 않는다** — 폴백을 평균으로 되돌리면 깨진다', () => {
+    // 이 시험이 없어서 구멍이 오래 열려 있었다. 실력 0인 사람이 σ 미측정 종목만 골라
+    // 하한 크기로 카드를 낼 때의 카드당 기대 점수를, 실제 σ를 바꿔 가며 확인한다
+    // (scripts/probeNewListingSigma.ts가 같은 계산을 표로 보여준다)
+    for (const days of [7, 14, 30, 90]) {
+      for (const realSigma of [0.04, 0.06, 0.08]) {
+        for (const c of [2, 5, 10]) {
+          const floor = minMagnitudePct('KR_EQUITY', null, days);
+          const trueP = noSkillTouchProbability('UP', floor, 'KR_EQUITY', days, realSigma);
+          const hit = computeReachScore('UP', floor, c, 'KR_EQUITY', days, true, null).score;
+          const miss = computeReachScore('UP', floor, c, 'KR_EQUITY', days, false, null).score;
+          expect(trueP * hit + (1 - trueP) * miss).toBeLessThanOrEqual(0);
+        }
+      }
+    }
   });
 
   it('절대 바닥 아래로 내려가지 않는다 — 왕복 거래비용보다 작은 목표는 조언이 아니다', () => {
@@ -305,9 +332,17 @@ describe('예측 크기 하한 — 종목 변동성 연동', () => {
     }
   });
 
-  it('σ를 모르면 상한은 종전 고정값 그대로 — 검수 규칙의 동작이 바뀌지 않는다', () => {
-    expect(maxMagnitudePct('KR_EQUITY', 30)).toBe(50);
-    expect(maxMagnitudePct('CRYPTO', 30)).toBe(120);
+  it('σ를 모르면 상한도 하한과 **같은 폴백으로** 움직인다 — 창이 조용히 닫히지 않게', () => {
+    // 예전에는 상한만 고정값으로 빠져나갔다. 폴백이 거칠어지자 하한만 올라가
+    // 국내 7일 기준 게시 가능한 창이 2%p까지 좁아졌다
+    for (const assetClass of ['KR_EQUITY', 'US_EQUITY', 'CRYPTO'] as const) {
+      for (const days of [1, 7, 30, 90, 365]) {
+        const lo = minMagnitudePct(assetClass, null, days);
+        const hi = maxMagnitudePct(assetClass, days, null);
+        expect(hi).toBeGreaterThan(lo);
+        expect(hi - lo).toBeGreaterThan(lo * 0.2); // 창이 하한의 20%보다는 넓다
+      }
+    }
   });
 });
 

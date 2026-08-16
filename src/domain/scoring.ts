@@ -172,6 +172,63 @@ export const DAILY_SIGMA: Record<AssetClass, number> = {
 };
 
 /**
+ * σ를 못 잰 종목에 실제로 쓰는 값 — **평균이 아니라 거친 쪽을 가정한다.**
+ *
+ * ── 왜 평균으로 물러서면 안 되나 (2026-08-16 실측) ──────────────
+ * 위 주석이 "σ가 큰 종목에서는 파밍이 일부 열린다"고 이미 적어 두고 있었는데,
+ * **그 "일부"를 아무도 재지 않았다.** 재 보니 일부가 아니었다
+ * (scripts/probeNewListingSigma.ts, 국내주식·평균 폴백 2%):
+ *
+ *   기간   하한    모델 p₀   실제 p₀ (σ=4% / 6% / 8%)
+ *    7일    6.3%    16.0%     40.5%   51.7%   57.6%
+ *   30일   13.1%    20.3%     46.6%   57.9%   63.7%
+ *
+ * 모델은 무정보 도달 확률을 16~23%로 보는데 실제로는 40~64%다. 그 차이가 그대로
+ * 기대 점수가 되어, **실력이 0인 사람이 이런 종목만 골라 써도 카드당 +11 ~ +67점**이
+ * 쌓인다(시니어선 1,200까지 19~110장). vmax의 뼈대 성질인 "무실력자 기대값 ≤ 0"이
+ * 이 자리에서만 뒤집힌다.
+ *
+ * ── 그리고 이 구멍은 하필 가장 잘 튀는 종목에 열린다 ──────────────
+ * σ를 못 재는 종목은 대부분 **표본이 없는 종목 = 상장·거래된 지 얼마 안 된 종목**이다
+ * (fetchRealizedSigma는 20거래일 미만이면 null). 그런 종목이야말로 관심도에 따라
+ * 급등락을 반복하므로, 평균으로 물러서는 것은 **틀린 방향으로 가장 크게 틀리는 선택**이다.
+ * 결측 치유 배치(server/cardDataHealer)도 이 경우는 못 메운다 — 20거래일이 쌓일
+ * 때까지 계속 null이라 메울 값 자체가 없다.
+ *
+ * ── 그래서 거친 쪽으로 가정한다 ───────────────────────────────
+ * 방향이 안전한 이유는 구조적이다: σ를 크게 잡으면 하한이 올라가(닿기 어려워지고)
+ * p₀도 올라간다(신고 확률이 높아져 적중 보상이 줄고 실패 벌점이 는다) —
+ * **과대평가의 대가는 전부 리서처가 지고 구매자는 다치지 않는다.** 과소평가는 위 표다.
+ *
+ * 값은 자산군마다 **실측 분포의 상위 5분위 경계**다. "모르는 종목은 아는 종목들 중
+ * 거친 쪽으로 친다"이고, 그 경계는 짐작이 아니라 잰 값이다:
+ *  · 주식 7.05% — scripts/calibrateStability.ts, 국내 300종목 (STABILITY_SIGMA_BOUNDS의 끝)
+ *  · 코인 4.75% — scripts/measureCryptoSigma.ts, 업비트 KRW 271종목 (중앙값 3.39%, 최대 11.09%)
+ *
+ * ⚠ **자산군 배수로 외삽하지 않는다.** 처음에 주식 배수(7.05÷2 = 3.5)를 코인에 그대로
+ * 곱해 14%/일을 얻었는데, 재 보니 **관측된 적 없는 값**이었다(실측 최대 11.09%).
+ * 코인이 주식보다 거칠 것이라는 직관은 분포의 **중앙**에서는 맞지만 **꼬리**에서는
+ * 틀린다 — 업비트 KRW 마켓은 주식 유니버스보다 오히려 좁다.
+ *
+ * ⚠ **이것은 응급 처치지 해결이 아니다.** 폴백은 실제 σ가 폴백을 넘는 순간부터 다시
+ * 열린다. 주식은 이 값에서 무실력 기대값이 ≤0으로 돌아오지만(실측 σ=8%에서 정확히 0.0),
+ * **코인은 안 돌아온다** — 확립된 코인의 분포가 좁아(최대 11.09%) 상위 5분위가 평균보다
+ * 겨우 0.75%p 위이고, 신규 상장 코인이 그 위에 있으면 카드당 +8 ~ +24가 남는다.
+ * 닫으려면 폴백을 관측된 적 없는 값까지 올려야 하는데 그건 **에두른 금지**다.
+ *
+ * 그래서 진짜 답은 폴백이 아니라 **σ를 못 잰 종목의 게시를 막는 것**이라고 본다
+ * (표본 부족만. 조회 실패는 일시적이라 종전대로 게시를 진행하고 치유 배치가 메운다).
+ * 42차 검토에 올렸다 — docs/reviews/intovill-oplogic-round42-prompt.md
+ *
+ * @근거 시뮬 scripts/probeNewListingSigma.ts — 주식은 이 값에서 무실력 기대값이 ≤0으로 돌아온다
+ */
+export const UNMEASURED_SIGMA: Record<AssetClass, number> = {
+  KR_EQUITY: 0.0705,
+  US_EQUITY: 0.0705,
+  CRYPTO: 0.0475,
+};
+
+/**
  * 종목 σ의 허용 범위 — 데이터 사고(0에 가까운 σ, 정지 종목의 평평한 종가열)가
  * p₀를 0이나 1로 붕괴시키지 않게 한다. **눌러 담는 클램프가 아니다**:
  * 실제로 거친 종목은 거친 대로 반영돼야 변동성 차익이 닫힌다.
@@ -214,13 +271,15 @@ export function maxMagnitudePct(
   /**
    * 그 종목의 실현 변동성. 주면 상한이 **하한 위로 밀려 올라간다** — 아주 거친 종목에서
    * 고정 상한이 하한 아래로 내려앉아 게시 가능한 크기가 사라지는 것을 막는다.
-   * 안 주면 자산군 고정 상한 그대로 (검수 규칙처럼 σ를 모르는 자리).
+   * 안 줘도 **하한과 같은 폴백(UNMEASURED_SIGMA)으로 계산한다** — 예전에는 여기서만
+   * 고정 상한으로 빠져나갔는데, 그러면 하한이 폴백을 따라 올라갈 때 상한이 따라오지
+   * 않아 게시 가능한 창이 조용히 좁아진다(국내 7일 기준 2%p까지). 하한을 누르지 않고
+   * 상한을 미는 이 파일의 원칙은 σ를 아는 자리에서만 지켜질 이유가 없다.
    */
   sigmaDaily?: number | null,
 ): number {
   const days = Math.max(1, horizonDays);
   const fixed = MONTHLY_MAGNITUDE_CAP_PCT[assetClass] * Math.sqrt(days / 30);
-  if (sigmaDaily == null) return fixed;
   return Math.max(fixed, rawMagnitudeFloor(assetClass, sigmaDaily, days) / FLOOR_CAP_RATIO);
 }
 
@@ -232,7 +291,7 @@ function rawMagnitudeFloor(
 ): number {
   const sigma =
     sigmaDaily == null
-      ? DAILY_SIGMA[assetClass]
+      ? UNMEASURED_SIGMA[assetClass]
       : Math.min(SIGMA_MAX, Math.max(SIGMA_MIN, sigmaDaily));
   return MAGNITUDE_FLOOR_K * sigma * Math.sqrt(Math.max(1, horizonDays)) * 100;
 }
@@ -354,14 +413,15 @@ export function noSkillTouchProbability(
   horizonDays: number,
   /**
    * 그 종목의 실현 변동성 (게시 시점 측정값, PredictionCard.sigmaDaily).
-   * null·미지정이면 자산군 σ̄로 물러선다 — 지어내지 않되 계산은 계속된다.
+   * null·미지정이면 **거친 쪽 폴백**으로 물러선다(UNMEASURED_SIGMA) — 지어내지 않되
+   * 계산은 계속되고, 모르는 값 때문에 생기는 오차의 대가는 리서처가 진다.
    */
   sigmaInput?: number | null,
 ): number {
   if (magnitudePct <= 0) throw new Error(`예측 크기는 양수여야 합니다: ${magnitudePct}`);
   const sigmaDaily =
     sigmaInput == null
-      ? DAILY_SIGMA[assetClass]
+      ? UNMEASURED_SIGMA[assetClass]
       : Math.min(SIGMA_MAX, Math.max(SIGMA_MIN, sigmaInput));
   const T = Math.max(1, horizonDays);
   const ratio = magnitudePct / 100;

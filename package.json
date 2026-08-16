@@ -56,6 +56,8 @@
     "judgment:bulk-revert": "tsx scripts/bulkRevertJudgments.ts revert",
     "drill": "tsx scripts/incidentDrill.ts",
     "debt:constants": "tsx scripts/auditConstants.ts",
+    "sim:unmeasured": "tsx scripts/probeNewListingSigma.ts",
+    "measure:cryptosigma": "tsx scripts/measureCryptoSigma.ts",
     "judgment:rejudge": "tsx scripts/bulkRevertJudgments.ts rejudge"
   },
   "dependencies": {
