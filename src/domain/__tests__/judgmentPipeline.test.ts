@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
-import { runJudgment, type JudgeableCard } from '../judgmentPipeline';
+import {
+  REAL_MOVE_VOLUME_MULTIPLE,
+  runJudgment,
+  type JudgeableCard,
+} from '../judgmentPipeline';
 import { settle } from '../settlement';
 
 const NOW = new Date('2026-07-12T05:00:00Z'); // KST 2026-07-12 14:00 (배치 시각)
@@ -66,6 +70,73 @@ describe('runJudgment', () => {
     await expect(runJudgment(baseCard, provider, NOW)).rejects.toMatchObject({
       name: 'JudgmentDeferredError',
       reason: 'EMPTY_RANGE',
+    });
+  });
+
+  // ── 있을 수 없는 일봉: **가격만이 아니라 거래량과 함께 본다** (2026-08-16) ──────
+  //
+  // 절대 폭 필터는 국내(가격제한폭 30%)에서만 진짜 규칙이다. 미국·코인의 값은 표본
+  // 최대치의 2배 남짓으로 고른 추측이라, 소형주의 진짜 급등이 걸려 **가장 크게 맞힌
+  // 리서처가 전액 환불로 끝난다.** 문턱을 올려도 못 고친다 — 하락은 −100%가 바닥이라
+  // ÷10 오류(−90%)와 진짜 폭락(−80%)이 어느 문턱으로도 안 갈린다.
+  //
+  // 그래서 가격이 아니라 **가격과 거래량의 관계**를 본다: 자릿수 오류는 가격만 튀고
+  // 거래량은 평소값이지만, 진짜 사건은 거래량이 함께 터진다.
+  describe('이상 시세 판별', () => {
+    /** 평범한 날들 + 마지막 날에 큰 변동. 거래량은 호출자가 정한다 */
+    function withSpike(spikeClose: number, spikeVolume: number) {
+      const p = new FixtureMarketDataProvider();
+      const normal = [
+        ['2026-06-15', 100000],
+        ['2026-06-20', 101000],
+        ['2026-07-01', 99000],
+        ['2026-07-05', 100500],
+      ] as const;
+      p.setQuotes('005930', [
+        ...normal.map(([date, close]) => ({
+          date,
+          open: close,
+          high: close,
+          low: close,
+          close,
+          volume: 10_000,
+        })),
+        {
+          date: '2026-07-10',
+          open: spikeClose,
+          high: spikeClose,
+          low: spikeClose,
+          close: spikeClose,
+          volume: spikeVolume,
+        },
+      ]);
+      return p;
+    }
+
+    // 자릿수 오류의 모양 — 가격만 10배, 거래량은 평소 그대로
+    it('거래량이 평소값이면 시세 오류로 보고 수동 큐로 보낸다', async () => {
+      await expect(runJudgment(baseCard, withSpike(1_000_000, 10_000), NOW)).rejects.toMatchObject({
+        name: 'JudgmentDeferredError',
+        // **이월이 아니다** — 기다려도 내일 같은 값이 온다. 곧장 사람에게 넘긴다
+        reason: 'IMPLAUSIBLE_QUOTE',
+      });
+    });
+
+    // 진짜 사건의 모양 — 가격과 거래량이 함께 터진다
+    it('거래량이 함께 터졌으면 진짜 급변으로 보고 판정한다', async () => {
+      const { result } = await runJudgment(
+        baseCard,
+        withSpike(1_000_000, 10_000 * REAL_MOVE_VOLUME_MULTIPLE),
+        NOW,
+      );
+      expect(result.outcome).toBe('HIT'); // 목표 120,000을 넘겼다
+    });
+
+    // 거래량이 0이거나 없으면 **판단하지 않고 종전대로 막는다** — 모르면 보수적으로
+    it('거래량을 못 믿을 때는 종전대로 막는다', async () => {
+      await expect(runJudgment(baseCard, withSpike(1_000_000, 0), NOW)).rejects.toMatchObject({
+        reason: 'IMPLAUSIBLE_QUOTE',
+      });
     });
   });
 

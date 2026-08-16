@@ -63,7 +63,19 @@ export class JudgmentDeferredError extends Error {
      * 사유를 나누는 이유는 **문자열 매칭을 피하려는 것**이다. 메시지로 가르면 문구를
      * 다듬는 순간 감시가 조용히 꺼진다.
      */
-    readonly reason: 'DEADLINE_NOT_REACHED' | 'DATA_NOT_AVAILABLE' | 'EMPTY_RANGE',
+    readonly reason:
+      | 'DEADLINE_NOT_REACHED'
+      | 'DATA_NOT_AVAILABLE'
+      | 'EMPTY_RANGE'
+      /**
+       * 있을 수 없는 일봉이 섞였다 — **이월 사다리를 타면 안 된다** (2026-08-16).
+       *
+       * 기다림이 아무것도 바꾸지 않는다: 내일 같은 구간을 다시 물으면 **같은 값**이
+       * 온다. 그런데 이월로 두면 백오프를 돌다 7일에야 큐에 올라가고, 그 사이
+       * 구매자 돈은 묶인 채다. 곧장 사람에게 넘기는 것이 맞다 —
+       * 교차 검증 불일치(JudgmentDisagreementError)와 정확히 같은 성질이다.
+       */
+      | 'IMPLAUSIBLE_QUOTE',
   ) {
     super(message);
     this.name = 'JudgmentDeferredError';
@@ -142,6 +154,36 @@ export const IMPLAUSIBLE_DAILY_MOVE: Record<AssetClass, number> = {
 };
 
 /**
+ * **거래량이 함께 터졌으면 진짜 사건으로 본다** (2026-08-16, 외부 검토 D-α-1).
+ *
+ * ── 절대 폭만으로는 미국·코인에서 안 맞는다 ──────────────────────
+ * 국내 30%는 **거래소 가격제한폭**이라 넘는 것이 물리적으로 불가능하다. 그런데
+ * 미국 60%·코인 150%는 표본 최대치의 2배 남짓으로 고른 **추측**이고, 그 표본은
+ * 대형주였다. 우리 유니버스에는 소형주가 들어와 하루 +100%가 실제로 난다.
+ * 걸리면 이월 → 상한 → 전액 환불이라 **가장 크게 맞힌 리서처가 가장 크게 손해**를 본다.
+ *
+ * 문턱을 올려도 못 고친다: 값은 −100%가 바닥이라 **÷10 오류(−90%)와 진짜 폭락(−80%)이
+ * 어느 문턱으로도 안 갈린다.**
+ *
+ * ── 가격이 아니라 **가격과 거래량의 관계**를 본다 ────────────────
+ * 자릿수 오류·통화 혼동은 **가격만** 튀고 거래량은 평소값이다(같은 체결을 잘못 적은
+ * 것이므로). 진짜 급변은 인수 발표든 임상 결과든 **거래량이 함께 터진다.**
+ * 그래서 절대 폭을 넘어도 거래량이 평소의 이 배수를 넘으면 통과시킨다.
+ *
+ * ⚠ 절대 폭 필터를 **대체하지 않고 완화만 한다.** 거래량도 함께 망가진 응답이 있을 수
+ * 있고, 신규 상장처럼 평소 거래량이 없는 경우도 있다 — 그때는 종전대로 걸린다.
+ */
+export const REAL_MOVE_VOLUME_MULTIPLE = 5;
+/** 평소 거래량의 기준 — 구간 중앙값. 평균은 그 튀는 하루에 끌려간다 */
+function medianVolume(quotes: DailyQuote[]): number | null {
+  const vs = quotes.map((q) => q.volume).filter((v) => Number.isFinite(v) && v > 0);
+  if (vs.length < 3) return null; // 표본이 없으면 판단하지 않는다
+  const sorted = [...vs].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
+}
+
+/**
  * 판정 구간에서 **불가능한 변동폭**을 가진 첫 일봉을 찾는다 (없으면 null).
  * 기준가가 있으면 그것을 첫 비교 대상으로 삼는다 — 구간 첫 종가가 튄 경우도 잡으려면
  * 앞이 있어야 하기 때문이다.
@@ -152,6 +194,7 @@ function findImplausibleBar(
   quotes: DailyQuote[],
 ): { date: string; close: number; prev: number; movePct: number } | null {
   const limit = IMPLAUSIBLE_DAILY_MOVE[assetClass];
+  const baseline = medianVolume(quotes);
   let prev = basePrice != null && basePrice > 0 ? basePrice : null;
   for (const q of quotes) {
     if (!(q.close > 0)) {
@@ -160,7 +203,12 @@ function findImplausibleBar(
     if (prev !== null) {
       const move = q.close / prev - 1;
       if (Math.abs(move) > limit) {
-        return { date: q.date, close: q.close, prev, movePct: move };
+        // 거래량이 함께 터졌으면 데이터 사고가 아니라 시장 사건이다
+        const surged =
+          baseline !== null && q.volume > 0 && q.volume >= baseline * REAL_MOVE_VOLUME_MULTIPLE;
+        if (!surged) {
+          return { date: q.date, close: q.close, prev, movePct: move };
+        }
       }
     }
     prev = q.close;
@@ -348,8 +396,9 @@ export async function runJudgment(
     const bad = findImplausibleBar(card.assetClass, basePrice, windowQuotes);
     if (bad) {
       throw new JudgmentDeferredError(
-        `${card.ticker}: ${bad.date} 종가 ${bad.close}이 직전값 ${bad.prev} 대비 ${(bad.movePct * 100).toFixed(0)}% 변동 — 시세 오류로 보고 판정을 보류합니다`,
-        'DATA_NOT_AVAILABLE',
+        `${card.ticker}: ${bad.date} 종가 ${bad.close}이 직전값 ${bad.prev} 대비 ${(bad.movePct * 100).toFixed(0)}% 변동 — ` +
+          '거래량이 함께 터지지 않아 시세 오류로 봅니다. 사람이 확인해주세요',
+        'IMPLAUSIBLE_QUOTE',
       );
     }
   }

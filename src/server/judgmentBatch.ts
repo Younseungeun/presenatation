@@ -774,6 +774,26 @@ export async function judgeAndSettleDueCards(
         continue;
       }
 
+      // ── 있을 수 없는 일봉 → **곧장 사람에게** (2026-08-16, 외부 검토 D-α-2) ──────
+      //
+      // 예전에는 이월로 처리했는데 **기다림이 아무것도 바꾸지 않는다** — 내일 같은
+      // 구간을 물으면 같은 값이 온다. 그동안 백오프를 돌다 7일에야 큐에 올라가고,
+      // 그 사이 구매자 돈은 묶인 채다. 불일치(JudgmentDisagreementError)와 같은 성질이라
+      // 처리도 같게 한다.
+      //
+      // **자산군 정지는 걸지 않는다.** 불일치는 "소스가 통째로 틀렸을 수 있다"는 신호라
+      // 그 자산군 전체를 멈출 이유가 되지만, 튀는 일봉 한 줄은 **그 종목의 사고**다.
+      // 상한은 살아 있다 — sweepHardCapped('MANUAL_ONLY')가 14일에 닫는다
+      if (e instanceof JudgmentDeferredError && e.reason === 'IMPLAUSIBLE_QUOTE') {
+        await prisma.predictionCard.update({
+          where: { id: card.id },
+          data: { manualJudgmentOnly: true },
+        });
+        summary.staleDeferred.push(`${card.ticker} (${card.id}): 이상 시세 — 수동 확인 필요`);
+        console.error(`이상 시세로 수동 큐 이동 ${card.ticker} (${card.id}):`, message);
+        continue;
+      }
+
       {
         // **상장폐지 판별** — 시세가 안 오는 것만으로는 폐지인지 일시적 결측인지 모른다.
         // 그런데 종목 마스터에서 사라진 종목은 다음 동기화에서 active=false가 되므로,
