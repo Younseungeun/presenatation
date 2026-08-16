@@ -1836,6 +1836,11 @@ Seeking Alpha(기고자 성과 추적), Substack, Smartkarma
     (문턱 절반 주의색·문턱 이상 경고색)가 취지("큰돈은 주의해서 보자")를 잇는다.
     재확인 엔드포인트 `/api/passkey/recheck`(세션 주인의 패스키만 인정),
     `isSoloOperatorMode`·`consumeOperatorRecheck`
+  · **예비 기기 = 본인 계정의 두 번째 패스키** (2026-08-17 사용자 확정): 공기계에
+    본인 명의 풀 로그인 → 패스키 등록 → 금고 보관. 주력 폰을 잃어도 재확인 관문이
+    계속 열린다. **별도 콜드 계정은 만들지 않는다** — CI 없는 계정은 풀 로그인을
+    못 해 패스키 등록이 불가능하다(등록은 방금 인증한 세션만). 콜드 계정 코드는
+    다인 체제 전환 대비로만 남는다
   — `src/domain/operatorApproval.ts`(순수 규칙), `src/server/operatorApprovalService.ts`,
     `/admin/approvals`
 - **관리자는 계정이 아니라 신원이다 (2026-08-17 사용자 확정 구조)**: 창업자의 CI 해시를
