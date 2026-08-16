@@ -15,6 +15,15 @@
 # **어떤 값이 한 번도 유도된 적 없는지**를 처음으로 한자리에 모아 놓은 것.
 # 그 다음 순위도 여기서 나온다: 돈과 판정에 닿는 것부터 갚는다.
 #
+# ── 갚을 수 없는 이유가 따로 있는 것 ──────────────────────────────
+# src/domain/instrumentRisk.ts:MIN_MARKET_CAP
+#   재는 법은 안다 — 시총 구간별 '일일 등락 상위 1%'의 크기를 보고 꼬리가 비선형으로
+#   두꺼워지는 절벽을 찾으면 된다(43차 검토). 못 재는 이유는 **데이터가 없어서**다:
+#   Instrument.marketCap이 전 종목 null이고(scripts/calibrateStability.ts 실측),
+#   업비트·KIS 목록 API가 시총을 주지 않는다. 즉 이 상수가 지키는 SMALL_CAP 규칙은
+#   **지금 사실상 돌지 않는다** — 운영자가 손으로 채운 종목에서만 걸린다.
+#   시총 원천(KRX 통계·CoinGecko 등)을 붙이는 것이 선행 조건이다.
+#
 src/app/directionTrace.ts:TRACE_VARIANTS
 src/app/directionTrace.ts:TRACE_VIEWBOX
 src/domain/cardProgress.ts:TIME_GAUGE_STEPS
@@ -24,8 +33,6 @@ src/domain/learnedPhrases.ts:PHRASE_MAX_LENGTH
 src/domain/learnedPhrases.ts:PHRASE_MIN_LENGTH
 src/domain/learnedPhrases.ts:PHRASE_REVIEW_MIN_MATCHES
 src/domain/learnedPhrases.ts:PHRASE_REVIEW_PRECISION
-src/domain/publishReport.ts:DEADLINE_MIN_DAYS
-src/domain/publishReport.ts:MAX_ACTIVE_CARDS
 src/domain/researcherBio.ts:BIO_MAX_LENGTH
 src/domain/scoring.ts:MONTHLY_MAGNITUDE_CAP_PCT
 src/domain/semanticIndex.ts:MIN_SENTENCE_LENGTH

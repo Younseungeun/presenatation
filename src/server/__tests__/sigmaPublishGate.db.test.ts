@@ -14,9 +14,10 @@ import { PublishValidationError } from '@/domain/publishReport';
 // 실측하면 실력 0인 사람이 그런 종목만 골라 카드당 +11 ~ +67을 벌 수 있었다
 // (scripts/probeNewListingSigma.ts).
 //
-// 이 파일이 지키는 두 성질이 서로를 견제한다:
+// 이 파일이 지키는 세 성질이 서로를 견제한다:
 //   ① 표본이 모자란 종목은 **막힌다** — 안 막으면 파밍이 열린다
-//   ② 시세를 못 받은 종목은 **안 막힌다** — 막으면 소스 장애 한 번이 전체 게시를 세운다
+//   ② 일봉이 0개인데 잰 적도 없으면 **막힌다** — 표본 0이 표본 10보다 쉽게 통과하면 안 된다
+//   ③ 공급자가 던진 것만으로는 **안 막힌다** — 막으면 인프라 사고가 전체 게시를 세운다
 // 하나만 시험하면 반대쪽으로 고치는 것을 아무도 못 잡는다.
 
 let prisma: PrismaClient;
@@ -66,6 +67,7 @@ beforeAll(async () => {
     { ticker: 'KRW-NEW', name: '신규상장', currency: 'KRW' },
     { ticker: 'KRW-OUT', name: '장애종목', currency: 'KRW' },
     { ticker: 'KRW-OLD', name: '오래된종목', currency: 'KRW' },
+    { ticker: 'KRW-ZERO', name: '상장당일', currency: 'KRW' },
   ]);
   const r = await prisma.user.create({
     data: { email: 'r@sigma.io', identityVerified: true, researcherProfile: { create: {} } },
@@ -102,11 +104,30 @@ describe('σ 미측정 종목의 게시 관문', () => {
     expect(after!.status).toBe('DRAFT'); // 막혔으면 초안 그대로 남는다
   });
 
-  it('**시세를 못 받은 것만으로는 막지 않는다** — 소스 장애가 전체 게시를 세우면 안 된다', async () => {
-    const reg = registry('KRW-OUT', []); // 일봉이 아예 안 온다
+  it('**일봉이 0개인데 잰 적도 없으면 막는다** — 표본 0이 표본 10보다 무사통과하면 안 된다', async () => {
+    // 43차에 막은 U자 구멍: 1~19봉은 막고 0봉은 통과했다. 뚫린 자리가 하필
+    // 가장 위험한 자리(상장 당일 종목)였다 — 실패는 차단 쪽으로 나야 한다
+    const reg = registry('KRW-ZERO', []);
+    const draft = await createDraftReport(prisma, draftFor('KRW-ZERO'), DRAFT_NOW);
+
+    await expect(
+      publishReport(prisma, reg, draft.id, researcherId, PUBLISH_NOW),
+    ).rejects.toThrow(PublishValidationError);
+    const after = await prisma.report.findUnique({ where: { id: draft.id } });
+    expect(after!.status).toBe('DRAFT');
+  });
+
+  it('**공급자가 던지는 것만으로는 막지 않는다** — 인프라 사고가 전체 게시를 세우면 안 된다', async () => {
+    const broken: ProviderRegistry = {
+      CRYPTO: new (class extends FixtureMarketDataProvider {
+        async getDailyQuotes(): Promise<DailyQuote[]> {
+          throw new Error('업스트림 500');
+        }
+      })().setCurrentPrice('KRW-OUT', 100),
+    };
     const draft = await createDraftReport(prisma, draftFor('KRW-OUT'), DRAFT_NOW);
 
-    await publishReport(prisma, reg, draft.id, researcherId, PUBLISH_NOW);
+    await publishReport(prisma, broken, draft.id, researcherId, PUBLISH_NOW);
     const card = await cardOf(draft.id);
     expect(card.report.status).toBe('PUBLISHED');
     // σ는 비어 있고, 채점은 거친 쪽 폴백으로 간다 (domain/scoring.UNMEASURED_SIGMA)
@@ -132,6 +153,7 @@ describe('σ 미측정 종목의 게시 관문', () => {
       { ticker: 'KRW-NEW', name: '신규상장', currency: 'KRW' },
       { ticker: 'KRW-OUT', name: '장애종목', currency: 'KRW' },
       { ticker: 'KRW-OLD', name: '오래된종목', currency: 'KRW' },
+      { ticker: 'KRW-ZERO', name: '상장당일', currency: 'KRW' },
       { ticker: 'KRW-FINE', name: '정상종목', currency: 'KRW' },
     ]);
     const reg = registry('KRW-FINE', bars(60));

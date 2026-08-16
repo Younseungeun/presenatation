@@ -32,10 +32,11 @@ const registryWith = (bars: DailyQuote[]) => ({
 });
 
 describe('σ 결측의 이유를 가른다', () => {
-  it('일봉이 아예 안 오면 **일시 장애**로 본다 — 게시를 막지 않는 쪽', async () => {
+  it('일봉이 0개면 **판단을 미룬다** — 신규 상장인지 죽은 공급자인지 시세로는 모른다', async () => {
     const r = await fetchRealizedSigmaResult(registryWith([]), 'CRYPTO', TICKER, NOW);
     expect(r.sigma).toBeNull();
-    expect(r.sigma === null && r.reason).toBe('UNAVAILABLE');
+    // 가르는 데 필요한 것은 시세가 아니라 관측 이력이라, 그것을 아는 자리에서 정한다
+    expect(r.sigma === null && r.reason).toBe('NO_QUOTES');
   });
 
   it('공급자가 던지면 **일시 장애**로 본다', async () => {

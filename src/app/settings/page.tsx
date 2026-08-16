@@ -61,6 +61,14 @@ export default async function SettingsPage() {
                 label="프로필 설정"
                 sub={user.penName ? `필명 ${user.penName}` : "필명이 아직 없습니다"}
               />
+              {/* 급할 때 찾아야 하는 화면이라 계정 묶음 안, 프로필 바로 아래 둔다.
+                  안내 문구에 "동결"을 그대로 적는 이유: 알림을 받고 이 목록을 훑는
+                  사람이 찾는 단어가 그 단어다 */}
+              <Row
+                href="/settings/payout"
+                label="정산 계좌 보호"
+                sub="내가 바꾸지 않은 계좌 변경이라면 — 정산 동결"
+              />
             </div>
           </>
         )}

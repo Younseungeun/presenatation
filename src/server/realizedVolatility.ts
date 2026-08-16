@@ -34,8 +34,12 @@ const CALENDAR_LOOKBACK_DAYS = Math.ceil((MAX_RETURN_SAMPLES + 1) / 0.6);
  * `INSUFFICIENT_SAMPLES`에는 표본 부족만이 아니라 **거래가 말라 σ를 낼 수 없는 종목**도
  * 들어간다(estimateDailySigma의 MIN_MOVING_RATIO). 둘 다 "이 종목은 지금 잴 수 없다"라
  * 처분이 같고, 처분이 같은 것을 나누면 부르는 쪽만 복잡해진다.
+ *
+ * 세 번째 갈래 `NO_QUOTES`(일봉이 0개)는 **여기서 판단하지 않는다.** 같은 빈 응답이
+ * 상장 당일 종목일 수도, 죽은 공급자일 수도 있어서다. 가르는 데 필요한 정보는
+ * 시세가 아니라 **우리의 관측 이력**이라, 그것을 아는 자리(instrumentSigma)에서 정한다.
  */
-export type SigmaFailure = 'INSUFFICIENT_SAMPLES' | 'UNAVAILABLE';
+export type SigmaFailure = 'INSUFFICIENT_SAMPLES' | 'NO_QUOTES' | 'UNAVAILABLE';
 export type SigmaResult = { sigma: number } | { sigma: null; reason: SigmaFailure };
 
 /**
@@ -59,9 +63,9 @@ export async function fetchRealizedSigmaResult(
   } catch {
     return { sigma: null, reason: 'UNAVAILABLE' };
   }
-  // 빈 응답은 **장애 쪽으로 센다** — 공급자가 아무것도 안 준 것과 종목에 이력이 없는 것을
-  // 여기서 구별할 수 없고, 둘을 헷갈릴 때 더 비싼 실수는 멀쩡한 종목의 게시를 막는 쪽이다
-  if (quotes.length === 0) return { sigma: null, reason: 'UNAVAILABLE' };
+  // 빈 응답은 그대로 "빈 응답"이라고만 말한다 — 이것이 신규 상장인지 죽은 공급자인지는
+  // 시세로 알 수 없고, 부르는 쪽이 관측 이력을 보고 정한다
+  if (quotes.length === 0) return { sigma: null, reason: 'NO_QUOTES' };
 
   const sigma = estimateDailySigma(
     {
