@@ -73,7 +73,12 @@ export function LoginForm() {
       // 새로 로그인했으면 검증 현황을 다시 알린다 (이전 방문에서 닫았더라도)
       clearFloatingDismissals();
       // 리서처로 시작했으면 첫 화면은 리포트를 쓰는 자리로
-      router.push(body.researcherId ? `/researcher/${body.researcherId}` : next);
+      const dest = body.researcherId ? `/researcher/${body.researcherId}` : next;
+      // 이 기기에 간편 비밀번호가 없으면 **먼저 만들고** 목적지로 간다 — 필수라서다.
+      // 지금 세션은 방금 인증한 세션이라 설정 관문(최근성)을 자연히 통과한다
+      router.push(
+        body.pinSetupRequired ? `/settings/pin?next=${encodeURIComponent(dest)}` : dest,
+      );
       router.refresh();
     } catch (err) {
       setError((err as Error).message);

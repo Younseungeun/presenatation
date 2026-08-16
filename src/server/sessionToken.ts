@@ -8,9 +8,12 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 // 없으면 두 가지를 못 한다:
 //
 //   ① 최근성 요구 — 패스키 등록은 "방금 본인 인증한 세션"만 허용해야 한다.
-//      없으면 세션을 훔친 사람이 **자기 기기를 심어 영구 로그인 수단**을 만든다
+//      없으면 **임시 접근이 영구 접근으로 승격된다**: 감염된 PC에서 한 번 세션이 새면
+//      악성코드를 지운 뒤에도 심어 둔 열쇠는 남는다.
+//      (⚠ 크기를 정확히: 이것으로 **돈은 못 가져간다** — 계좌 변경은 본인 인증과
+//       은행 예금주 대조가 따로 막는다. 좁은 경로이고, 값싸게 막을 수 있어서 막는다)
 //   ② 경로별 권한 — 패스키가 있는 계정에 **본인 인증으로** 들어온 세션은 위험하다.
-//      유심을 가로챈 공격자가 고르는 경로가 그쪽이기 때문이다
+//      유심을 가로챈 공격자가 고르는 경로가 그쪽이기 때문이다. 이쪽이 ①보다 넓다
 //
 // 서버에 세션 표를 두지 않고 토큰에 담는 이유: 이 값들은 **로그인 순간에 확정되고
 // 그 뒤로 바뀌지 않는다.** 바뀌지 않는 사실은 서명해서 들려 보내면 되고, 그러면
@@ -19,8 +22,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 const AUTH_SECRET = process.env.AUTH_SECRET ?? 'dev-auth-secret-change-me';
 export const SESSION_MAX_AGE_SEC = 60 * 60 * 24 * 30;
 
-/** 어떤 길로 들어왔나 */
-export const LOGIN_METHODS = ['IDENTITY', 'PASSKEY'] as const;
+/** 어떤 길로 들어왔나 — IDENTITY(풀)·PASSKEY(생체)·PIN(간편 비밀번호) */
+export const LOGIN_METHODS = ['IDENTITY', 'PASSKEY', 'PIN'] as const;
 export type LoginMethod = (typeof LOGIN_METHODS)[number];
 
 export interface SessionClaims {
@@ -77,7 +80,9 @@ export function parseSessionClaims(
   if (!rawId || !expStr || Number(expStr) < now) return null;
 
   const method: LoginMethod =
-    methodStr === 'PASSKEY' || methodStr === 'IDENTITY' ? methodStr : 'IDENTITY';
+    methodStr === 'PASSKEY' || methodStr === 'PIN' || methodStr === 'IDENTITY'
+      ? methodStr
+      : 'IDENTITY';
   const verifiedAt = Number(verifiedStr);
   return {
     userId: unb64u(rawId),

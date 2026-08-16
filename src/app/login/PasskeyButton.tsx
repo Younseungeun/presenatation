@@ -71,9 +71,6 @@ export function PasskeyButton() {
         {busy ? "확인하는 중…" : "지문·얼굴로 로그인"}
       </button>
       {error && <p className={styles.error}>{error}</p>}
-      <div className={styles.divider}>
-        <span>처음이거나 새 기기라면</span>
-      </div>
     </div>
   );
 }

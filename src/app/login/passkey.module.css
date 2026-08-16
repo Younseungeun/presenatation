@@ -46,3 +46,49 @@
   height: 1px;
   background: var(--border, #d8d8de);
 }
+
+/* ── 간편 비밀번호 (생체의 폴백 — 생체 버튼 아래에 앉는다) ────── */
+
+.pinWrap {
+  margin-top: 10px;
+}
+
+.pinRow {
+  display: flex;
+  gap: 8px;
+}
+
+.pinInput {
+  flex: 1;
+  padding: 12px;
+  border: 1px solid var(--border, #d8d8de);
+  border-radius: 12px;
+  font: inherit;
+  font-size: 15px;
+  text-align: center;
+  letter-spacing: 4px;
+  background: var(--surface-1, #fff);
+  color: inherit;
+}
+
+.pinButton {
+  padding: 12px 18px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent, #1f2937);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.pinButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.pinHint {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--text-3, #6b6b76);
+}

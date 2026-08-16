@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { RESEARCHER_REQUIRED_DOCS, SIGNUP_REQUIRED_DOCS } from '@/domain/legalDocs';
+import { encryptField } from './fieldCrypto';
 import { recordConsents } from './consentService';
 import type { IdentityProvider, IdentityVerificationInput } from './identityProvider';
 
@@ -37,8 +38,16 @@ export async function verifyAndSignIn(
   const result = await provider.verify(input);
   const identityHash = hashCi(result.ci);
 
+  // ── 실명을 가입 시점에 저장한다 (2026-08-16 사용자 확정) ─────────
+  // 계좌 등록 때 은행 예금주명과 대조할 상대편이다. 인증 응답의 이름만 쓴다 —
+  // 본인이 화면에 적는 이름은 절대 이 칸에 들어오지 않는다.
+  // 풀 로그인마다 갱신하는 이유: 개명한 사람의 통장은 새 이름이라, 옛 이름을
+  // 들고 있으면 정당한 본인이 예금주 불일치로 막힌다.
+  const realNameEnc = encryptField(result.name);
+
   const existing = await prisma.user.findUnique({ where: { identityHash } });
   if (existing) {
+    await prisma.user.update({ where: { id: existing.id }, data: { realNameEnc } });
     return { userId: existing.id, isNewUser: false };
   }
 
@@ -49,6 +58,7 @@ export async function verifyAndSignIn(
       penName: input.penName?.trim() || null,
       identityVerified: true,
       identityHash,
+      realNameEnc,
     },
   });
   return { userId: created.id, isNewUser: true };

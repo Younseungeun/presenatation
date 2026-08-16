@@ -1,9 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { signUpAndSignIn } from '@/server/authService';
 import { prisma } from '@/server/db';
 import { createDefaultIdentityProvider } from '@/server/identityProvider';
 import { notifyElevatedRiskLogin } from '@/server/authGates';
+import { isTrustedDevice } from '@/server/pinService';
 import { setSessionCookie } from '@/server/session';
 import { toErrorResponse } from '../../_lib/http';
 
@@ -47,7 +49,17 @@ export async function POST(req: NextRequest) {
     // 패스키가 있는데 **본인 인증으로** 들어왔다면 평소 경로가 아니다 — 유심을 가로챈
     // 공격자가 고르는 길이 이쪽이라, 본인에게 알리고 48시간 동안 열쇠를 못 심게 한다
     await notifyElevatedRiskLogin(prisma, result.userId);
-    return NextResponse.json(result);
+
+    // 이 기기에 간편 비밀번호가 없으면 설정으로 보낸다 — 간편 비밀번호는 필수다
+    // (2026-08-16 사용자 확정). 기기마다다: 새 기기의 풀 로그인 뒤에는 그 기기의
+    // 간편 로그인을 만들어야 다음부터 휴면-깨우기로 들어온다
+    const store = await cookies();
+    const pinSetupRequired = !(await isTrustedDevice(
+      prisma,
+      result.userId,
+      store.get('rm_device')?.value,
+    ));
+    return NextResponse.json({ ...result, pinSetupRequired });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '입력 형식 오류', issues: e.issues }, { status: 400 });

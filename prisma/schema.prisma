@@ -18,15 +18,48 @@ model User {
   penName          String? // 필명 (공개 표시명)
   identityVerified Boolean  @default(false) // 본인 인증 완료 여부
   identityHash     String?  @unique // 실명 인증 CI 해시 — 계정 재생성 세탁 차단
+  /**
+   * 본인 인증에서 받은 실명 (암호화 — server/fieldCrypto.ts, 2026-08-16 사용자 확정).
+   * 계좌 등록 때 은행 예금주명과 대조할 상대편이다. 풀 로그인마다 갱신한다(개명 반영).
+   * 화면에는 절대 노출하지 않는다 — 필명 플랫폼에서 실명이 새면 필명의 의미가 사라진다.
+   */
+  realNameEnc      String?
   role             String   @default("USER") // USER | OPERATOR — 운영자는 판정 보류 큐 수동 판정 가능
   createdAt        DateTime @default(now())
 
   researcherProfile ResearcherProfile?
   passkeys          Passkey[]
+  trustedDevices    TrustedDevice[]
   purchases         Purchase[]
   cartItems         CartItem[]
   paymentIntents    PaymentIntent[]
   follows           Follow[] // 내가 팔로우한 리서처들
+}
+
+/// 간편 비밀번호가 사는 기기 (2026-08-16 사용자 확정 구조).
+///
+/// **간편 로그인은 기기에 묶인다.** 서버가 인정하는 것은 "이 기기에서 이 비밀번호"이지
+/// 비밀번호 자체가 아니다 — 그래서 비밀번호가 유출돼도 다른 기기에서는 못 쓴다.
+/// 새 기기는 무조건 풀 로그인(본인 인증)이고, 그것이 탈취자를 막는 구조의 뼈대다.
+///
+/// 기기의 정체는 풀 로그인 때 발급하는 난수 토큰(httpOnly 쿠키)이고, 여기엔 그
+/// 해시만 둔다 — 이 표가 새어도 기기를 흉내 낼 수 없다.
+model TrustedDevice {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 기기 쿠키 토큰의 해시 — 원문은 그 기기의 쿠키에만 있다
+  deviceTokenHash String    @unique
+  /// 간편 비밀번호 해시 (scrypt, salt:hash) — 6자리 숫자를 그냥 해시하면 전수조사로 뚫린다
+  pinHash         String
+  /// 연속 실패 수 — 상한에 닿으면 잠기고, 풀 로그인으로만 다시 연다
+  failedAttempts  Int       @default(0)
+  lockedAt        DateTime?
+  label           String
+  createdAt       DateTime  @default(now())
+  lastUsedAt      DateTime?
+
+  @@index([userId])
 }
 
 // 리서처 프로필: 등급·경력 배지·신고 여부

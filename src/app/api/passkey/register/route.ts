@@ -6,11 +6,10 @@ import { finishPasskeyRegistration, startPasskeyRegistration } from '@/server/pa
 import { getSessionClaims } from '@/server/session';
 import { HttpError, toErrorResponse } from '../../_lib/http';
 
-// 기기 등록 — **가장 무거운 관문이 걸린다.**
+// 기기 등록 — **뒤에서 받쳐 줄 것이 없는 자리다.**
 //
-// 여기는 "영구적인 로그인 수단을 심는" 자리다. 계좌 변경은 48시간 쿨다운이 뒤를 받쳐
-// 주지만 열쇠는 심는 순간 곧바로 쓸 수 있어, 뒤에서 막아 줄 것이 없다. 그래서 앞에서
-// 두 겹으로 막는다:
+// 여기는 영구적인 로그인 수단을 심는 곳이다. 계좌 변경은 통과해도 48시간 쿨다운이
+// 뒤를 받치지만, 열쇠는 심는 순간 곧바로 쓸 수 있다. 그래서 앞에서 두 겹으로 막는다:
 //   ① 최근성 — 방금 본인 인증한 세션만 (훔친 세션이 걸어 들어오지 못하게)
 //   ② 경로   — 패스키가 있는 계정에 본인 인증으로 들어왔으면 48시간 유예
 //
