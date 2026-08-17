@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { hashCi } from '../authService';
+import { assertProductionSecrets } from '../envBootCheck';
 import { serializeRecoveryGrant } from '../recoveryToken';
 import { serializeSession } from '../sessionToken';
 
@@ -59,5 +60,39 @@ describe('운영 모드에서 비밀이 없으면 던진다', () => {
   it('개발 모드는 폴백으로 계속 돈다 — 개발 편의는 그대로다', () => {
     expect(() => serializeSession('u_1', { method: 'PIN', verifiedAt: 0, epoch: 0 })).not.toThrow();
     expect(() => hashCi('ci-x')).not.toThrow();
+  });
+});
+
+// 2026-08-18 배선 점검 1차: 호출 시점 검사는 서버가 뜬 뒤 **첫 손님에서** 죽는다.
+// instrumentation.ts가 기동 때 이 함수를 불러 부팅 순간에 죽게 한다(fast fail).
+// 검사 내용은 각 게터 그 자체라 여기와 런타임이 다른 답을 낼 수 없다 —
+// 이 시험이 지키는 것은 **목록의 완전성**(필수 비밀 넷이 전부 검사에 들어 있는가)이다.
+describe('부팅 검사 — 필수 비밀 넷을 한 자리에서', () => {
+  it('운영 모드 + 비밀 없음 → 넷 전부를 한 번에 보고한다', () => {
+    const bare = { NODE_ENV: 'production' } as unknown as NodeJS.ProcessEnv;
+    for (const name of [
+      'AUTH_SECRET',
+      'IDENTITY_PEPPER',
+      'PAYOUT_ENC_KEY',
+      'NEXT_PUBLIC_APP_ORIGIN',
+    ]) {
+      expect(() => assertProductionSecrets(bare)).toThrow(new RegExp(name));
+    }
+  });
+
+  it('전부 있으면 통과한다', () => {
+    const full = {
+      NODE_ENV: 'production',
+      AUTH_SECRET: 's',
+      IDENTITY_PEPPER: 'p',
+      PAYOUT_ENC_KEY: 'a'.repeat(64),
+      NEXT_PUBLIC_APP_ORIGIN: 'https://intovill.example',
+    } as unknown as NodeJS.ProcessEnv;
+    expect(() => assertProductionSecrets(full)).not.toThrow();
+  });
+
+  it('개발 모드는 폴백으로 통과한다 — 빌드·로컬을 막지 않는다', () => {
+    const dev = { NODE_ENV: 'development' } as unknown as NodeJS.ProcessEnv;
+    expect(() => assertProductionSecrets(dev)).not.toThrow();
   });
 });

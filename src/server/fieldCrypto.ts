@@ -33,6 +33,14 @@ function encryptionKey(env = process.env): Buffer {
   return createHash('sha256').update('dev-payout-enc-key').digest();
 }
 
+/**
+ * 부팅 검사용 — 키를 **돌려주지 않고** 로드 가능한지만 확인한다.
+ * 검사 내용은 encryptionKey 그 자체다 — 규칙을 옮겨 적으면 언젠가 둘이 갈라진다.
+ */
+export function assertPayoutEncKeyLoadable(env = process.env): void {
+  encryptionKey(env);
+}
+
 /** `iv:tag:ciphertext` (전부 base64) — 한 문자열로 묶어 컬럼 하나에 넣는다 */
 export function encryptField(plain: string, env = process.env): string {
   const iv = randomBytes(12); // GCM 권장 길이

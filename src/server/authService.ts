@@ -18,7 +18,7 @@ import type { IdentityProvider, IdentityVerificationInput } from './identityProv
  * 경고가 없어 잊은 채 배포해도 겉보기에는 멀쩡히 돈다.
  * AUTH_SECRET·PAYOUT_ENC_KEY와 같은 규칙 — 호출 시점 검사라 빌드는 env 없이 돈다.
  */
-function identityPepper(env = process.env): string {
+export function identityPepper(env = process.env): string {
   const v = env.IDENTITY_PEPPER;
   if (v) return v;
   if (env.NODE_ENV === 'production') {
