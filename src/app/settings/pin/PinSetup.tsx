@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { startRegistration } from "@simplewebauthn/browser";
-import { useSyncExternalStore } from "react";
+import { usePlatformBiometric } from "../../biometricSupport";
 import styles from "./pin.module.css";
 
 // 간편 비밀번호 설정 — **가입 직후 반드시 거치는 화면** (2026-08-16 사용자 확정).
@@ -15,18 +15,12 @@ import styles from "./pin.module.css";
 // 오류)이 있어 폴백 없이는 못 세운다. 생체만 있고 비밀번호가 없으면 그 순간 풀
 // 로그인으로 떨어져 "간편"이 사라진다.
 
-const NO_SUBSCRIBE = () => () => {};
-const useBiometricSupported = () =>
-  useSyncExternalStore(
-    NO_SUBSCRIBE,
-    () => !!window.PublicKeyCredential,
-    () => false,
-  );
-
 export function PinSetup() {
   const router = useRouter();
   const next = useSearchParams().get("next") ?? "/";
-  const biometricSupported = useBiometricSupported();
+  // 지문 장치가 **확실히 없을 때만** 이 단계를 건너뛴다. 아직 모르는 상태(null)에서
+  // 건너뛰면, 지문이 되는 기기의 사용자에게 물어보지도 않고 지나가게 된다
+  const biometricSupported = usePlatformBiometric() !== false;
 
   const [pin, setPin] = useState("");
   const [pin2, setPin2] = useState("");

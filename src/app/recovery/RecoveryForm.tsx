@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { startRegistration } from "@simplewebauthn/browser";
+import { usePlatformBiometric } from "../biometricSupport";
 import styles from "../researcher/researcher.module.css";
 
 // 두 단계짜리 화면이다:
@@ -19,6 +20,9 @@ export function RecoveryForm() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 여기서 막다른 길에 갇히면 가장 나쁘다 — 표는 이미 태워졌고, 다시 서명하려면
+  // 금고를 또 열어야 한다. **표를 내기 전에** 이 기기로 되는지 알려 준다
+  const noBiometric = usePlatformBiometric() === false;
 
   async function redeem() {
     setBusy(true);
@@ -86,6 +90,13 @@ export function RecoveryForm() {
               금고를 연 사람이 본인이 아닐 수 있고, 그 사실을 알아챌 시간이 필요하기 때문입니다.
               (돈을 <strong>막는</strong> 조작인 정산 동결은 그동안에도 됩니다.)
             </p>
+            {noBiometric && (
+              <p className={styles.error}>
+                <strong>이 기기에는 지문·얼굴 장치가 없어 등록이 안 될 수 있습니다.</strong>{" "}
+                표를 내기 전에 확인해주세요 — 표는 <strong>한 번 쓰면 다시 못 씁니다.</strong>{" "}
+                지문·얼굴이 되는 기기(휴대폰)에서 진행하시거나, USB 보안키를 먼저 꽂아주세요.
+              </p>
+            )}
             <label className={styles.field}>
               <span className={styles.label}>복구 표</span>
               <textarea

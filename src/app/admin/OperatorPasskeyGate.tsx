@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { startRegistration } from "@simplewebauthn/browser";
+import { usePlatformBiometric } from "../biometricSupport";
 import styles from "../researcher/researcher.module.css";
 
 // 관리자 부트스트랩 관문 (2026-08-17 검토 6차 Q1) — **패스키 등록 전에는 아무것도 못 한다.**
@@ -14,6 +15,10 @@ import styles from "../researcher/researcher.module.css";
 export function OperatorPasskeyGate() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 이 기기에 지문·얼굴 장치가 없으면 **여기서 등록할 방법이 없다.** 그 사실을 말해 주지
+  // 않으면 이 화면이 막다른 길이 된다 — 관리자는 "등록하라는데 등록이 안 된다"에 갇힌다.
+  // 막지는 않는다(보안키로는 되므로) — 갈 곳만 알려 준다
+  const noBiometric = usePlatformBiometric() === false;
 
   async function register() {
     setBusy(true);
@@ -66,6 +71,13 @@ export function OperatorPasskeyGate() {
           등록은 <strong>본인 인증으로 로그인한 직후 10분 안</strong>에만 됩니다.
           시간이 지났다면 로그아웃 후 본인 인증으로 다시 들어와 주세요.
         </p>
+        {noBiometric && (
+          <p className={styles.sub}>
+            <strong>이 기기에는 지문·얼굴 장치가 없습니다.</strong> 휴대폰에서 본인 인증으로
+            로그인해 등록해주세요 — 한 기기에서 등록하면 관리 기능이 열립니다.
+            (USB 보안키를 꽂으셨다면 아래 버튼으로 그대로 진행하셔도 됩니다.)
+          </p>
+        )}
         <div className={styles.formActions}>
           <button className={styles.primaryBtn} onClick={register} disabled={busy}>
             {busy ? "등록 중…" : "이 기기에 지문·얼굴 등록"}
