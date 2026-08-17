@@ -7,6 +7,7 @@ import {
 } from '@/domain/compensation';
 import { auditOp } from './auditLog';
 import { assertWithinMonthlyBudget } from './compensationBudget';
+import { ApprovalError, consumeOperatorRecheck, isSoloOperatorMode } from './operatorApprovalService';
 import { notifyOperators } from './opsAlert';
 import { assertPayoutAccountReady } from './payoutAccountService';
 import { assertWithinDailyLimit } from './payoutVelocity';
@@ -21,7 +22,11 @@ import { assertWithinDailyLimit } from './payoutVelocity';
 // 얹는 것과 같은 이유이고, 같은 이유로 **대화형 트랜잭션은 쓰지 않는다.**
 
 export class CompensationError extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    /** RECHECK_REQUIRED = 1인 운영 모드 — 화면이 지문·얼굴 확인을 띄우고 재시도한다 */
+    readonly code?: 'RECHECK_REQUIRED',
+  ) {
     super(message);
     this.name = 'CompensationError';
   }
@@ -247,7 +252,13 @@ export async function reviewCompensation(
  */
 export async function executeCompensation(
   prisma: PrismaClient,
-  input: { compensationId: string; operatorUserId: string; bankReference: string },
+  input: {
+    compensationId: string;
+    operatorUserId: string;
+    bankReference: string;
+    /** 생체 재확인 표 (1인 운영 모드) — 생체를 통과한 화면만 가질 수 있다 */
+    recheckToken?: string;
+  },
   now = new Date(),
 ): Promise<void> {
   const c = await prisma.compensationInstruction.findUnique({
@@ -273,6 +284,22 @@ export async function executeCompensation(
   await assertPayoutAccountReady(prisma, c.researcherUserId, now);
   await assertWithinDailyLimit(prisma, c.amountKrw, now);
   await assertWithinMonthlyBudget(prisma, c.amountKrw, now);
+
+  // ── 1인 운영 모드: 실행 직전 지문·얼굴 재확인 (2026-08-17 전수 점검에서 배선) ──
+  //
+  // 지급은 고액(500만↑)만 재확인을 요구한다 — 하루 수십 건에 다 걸면 경보 피로로
+  // 관문이 장식이 되기 때문이다. 보상은 다르다: **연 몇 건의 이례적 사건**이라
+  // 피로해질 반복 자체가 없고, 나가는 돈이 에스크로 위탁이 아니라 **플랫폼 자본**이다.
+  // 금액 문턱 없이 전부 거는 비용이 지문 1초라면, 이 길만 열어 둘 이유가 없다.
+  // (비상 복구 뒤 48시간 돈 정지도 이 한 점을 지나야 보상 경로까지 덮는다)
+  if (await isSoloOperatorMode(prisma)) {
+    try {
+      await consumeOperatorRecheck(prisma, input.operatorUserId, input.recheckToken, now);
+    } catch (re) {
+      if (!(re instanceof ApprovalError)) throw re;
+      throw new CompensationError(re.message, 'RECHECK_REQUIRED');
+    }
+  }
 
   // 검사와 쓰기 사이의 틈을 없앤다 — 조건을 쓰기에 실어 보낸다 (지급 경로와 같은 형태)
   const { count } = await prisma.compensationInstruction.updateMany({
@@ -315,6 +342,20 @@ export async function executeCompensation(
       },
     }),
   ]);
+}
+
+/**
+ * 확정됐지만 아직 실행되지 않은 보상 — 실행 화면이 이 목록을 그린다.
+ * 오래된 순: 확정이 먼저 된 건이 먼저 나가야 한다.
+ */
+export async function getApprovedCompensations(prisma: PrismaClient) {
+  return prisma.compensationInstruction.findMany({
+    where: { status: 'APPROVED' },
+    include: {
+      purchase: { select: { report: { select: { title: true } } } },
+    },
+    orderBy: { reviewedAt: 'asc' },
+  });
 }
 
 /**

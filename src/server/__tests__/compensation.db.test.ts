@@ -24,6 +24,7 @@ import {
   MONTHLY_COMPENSATION_BUDGET_KRW,
   monthCompensatedKrw,
 } from '../compensationBudget';
+import { issueOperatorRecheck } from '../operatorApprovalService';
 import { todayOutflowKrw } from '../payoutVelocity';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
@@ -307,14 +308,38 @@ describe('실행', () => {
     ).rejects.toThrow(CompensationError);
   });
 
+  // 2026-08-18 배선: 보상 실행도 1인 모드의 지문 관문을 지난다 — **플랫폼 자본이
+  // 나가는 다섯 번째 길**이라, 이 표가 없으면 비상 복구 뒤 48시간 돈 정지도
+  // 이 길만 못 덮는다 (consumeOperatorRecheck 한 점을 지나야 유예가 함께 걸린다)
+  it('1인 모드에서는 지문 표 없이 실행할 수 없다 — 승인 상태는 산다', async () => {
+    const row = await prisma.compensationInstruction.findFirstOrThrow({
+      where: { status: 'APPROVED' },
+    });
+    await expect(
+      executeCompensation(
+        prisma,
+        { compensationId: row.id, operatorUserId: OPERATOR, bankReference: 'BK-X' },
+        PAST_CAP,
+      ),
+    ).rejects.toMatchObject({ code: 'RECHECK_REQUIRED' });
+    const after = await prisma.compensationInstruction.findUniqueOrThrow({ where: { id: row.id } });
+    expect(after.status).toBe('APPROVED'); // 관문에 막힌 것이지 승인이 죽은 것이 아니다
+  });
+
   it('실행하면 기록·감사·리서처 알림이 함께 남는다', async () => {
     const row = await prisma.compensationInstruction.findFirstOrThrow({
       where: { status: 'APPROVED' },
       orderBy: { id: 'asc' },
     });
+    const recheckToken = await issueOperatorRecheck(prisma, OPERATOR, PAST_CAP);
     await executeCompensation(
       prisma,
-      { compensationId: row.id, operatorUserId: OPERATOR, bankReference: 'BK-2026-0816-1' },
+      {
+        compensationId: row.id,
+        operatorUserId: OPERATOR,
+        bankReference: 'BK-2026-0816-1',
+        recheckToken,
+      },
       PAST_CAP,
     );
 

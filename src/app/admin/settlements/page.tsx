@@ -8,6 +8,10 @@ import {
   SETTLEMENT_COOLDOWN_HOURS,
 } from "@/server/settlementCooldown";
 import { getPendingPayouts, getPendingRefunds } from "@/server/settlementOpsService";
+import {
+  getApprovedCompensations,
+  getPendingCompensationReviews,
+} from "@/server/compensationService";
 import { DUAL_APPROVAL_THRESHOLD_KRW } from "@/domain/operatorApproval";
 import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../../AppHeader";
@@ -16,6 +20,7 @@ import { fmtDayMonth as fmtDate } from "../../format";
 import { StatusChip } from "../../StatusChip";
 import styles from "../../researcher/researcher.module.css";
 import { ExecuteButton } from "./ExecuteButton";
+import { CompensationExecute, CompensationReview } from "./CompensationActions";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +33,28 @@ export default async function AdminSettlementsPage() {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   if (user?.role !== "OPERATOR") notFound();
 
-  const [refunds, payouts, hold] = await Promise.all([
+  const [refunds, payouts, hold, compensationReviews, compensationsToExecute] = await Promise.all([
     getPendingRefunds(prisma),
     getPendingPayouts(prisma),
     getCooldownHold(prisma),
+    getPendingCompensationReviews(prisma),
+    getApprovedCompensations(prisma),
   ]);
+  // 보상 두 목록의 리서처 표시명 — 지시서에는 userId만 있다
+  const compUserIds = [
+    ...new Set([
+      ...compensationReviews.map((g) => g.researcherUserId),
+      ...compensationsToExecute.map((c) => c.researcherUserId),
+    ]),
+  ];
+  const compNames = new Map(
+    (
+      await prisma.user.findMany({
+        where: { id: { in: compUserIds } },
+        select: { id: true, penName: true, email: true },
+      })
+    ).map((u) => [u.id, u.penName ?? u.email]),
+  );
   const refundTotal = refunds.reduce((a, s) => a + s.buyerRefundKrw, 0);
   const payoutTotal = payouts.reduce((a, s) => a + s.researcherPayoutKrw, 0);
 
@@ -159,6 +181,67 @@ export default async function AdminSettlementsPage() {
           </div>
           );
         })
+      )}
+
+      {/* ── 플랫폼 귀책 보상 (2026-08-18 배선 — 그전에는 확정·실행할 문이 없었다) ──
+          이 돈은 에스크로 위탁이 아니라 **플랫폼 자본**이다. 물어야 하는 것은
+          "그 예측이 맞았을까"가 아니라 "판정을 못 한 것이 우리 탓인가"뿐이다 */}
+      {(compensationReviews.length > 0 || compensationsToExecute.length > 0) && (
+        <>
+          <h3>플랫폼 귀책 보상</h3>
+          <p className={styles.sub}>
+            우리 사정으로 판정하지 못해 전액 환불로 닫힌 카드입니다. 구매자는 이미
+            환불받았고, 리서처는 여기서 확정해야 받습니다 (플랫폼 자본 지출).
+          </p>
+
+          {compensationReviews.map((g) => (
+            <div key={g.predictionCardId} className={styles.card}>
+              <div className={styles.cardTop}>
+                <div className={styles.cardTitle}>
+                  {g.totalKrw.toLocaleString()}원 →{" "}
+                  {compNames.get(g.researcherUserId) ?? g.researcherUserId}
+                </div>
+                <StatusChip status="PENDING_REVIEW" label="귀책 확정 대기" />
+              </div>
+              <div className={styles.meta}>
+                <span>{g.rows[0]?.purchase.report.title}</span>
+                <span>사유 {g.causeLabel}</span>
+                <span>구매 {g.rows.length}건</span>
+                <span>발생 {fmtDate(g.createdAt)}</span>
+              </div>
+              {/* 자동 제외 규칙을 만들지 않는 대신 이 숫자를 사람 앞에 놓는다 —
+                  같은 N회가 우리 피드 장애를 반복해 겪은 정직한 리서처일 수 있다 */}
+              {g.researcherUnjudgeableCards >= 2 && (
+                <p className={styles.sub}>
+                  이 리서처의 최근 180일 시세 미확보 판정 불가: {g.researcherUnjudgeableCards}
+                  장 (이 건 포함) — 반복이면 종목 선택 패턴을 함께 보세요.
+                </p>
+              )}
+              <CompensationReview predictionCardId={g.predictionCardId} />
+            </div>
+          ))}
+
+          {compensationsToExecute.map((c) => (
+            <div key={c.id} className={styles.card}>
+              <div className={styles.cardTop}>
+                <div className={styles.cardTitle}>
+                  {c.amountKrw.toLocaleString()}원 →{" "}
+                  {compNames.get(c.researcherUserId) ?? c.researcherUserId}
+                </div>
+                <StatusChip status="HIT" label="승인됨 — 이체 대기" />
+              </div>
+              <div className={styles.meta}>
+                <span>{c.purchase.report.title}</span>
+                {c.reviewedAt && <span>확정 {fmtDate(c.reviewedAt)}</span>}
+              </div>
+              <p className={styles.sub}>
+                은행에서 이체를 먼저 실행한 뒤, 참조번호로 기록을 닫아주세요. 실행 직전
+                지문·얼굴 확인이 있습니다.
+              </p>
+              <CompensationExecute compensationId={c.id} />
+            </div>
+          ))}
+        </>
       )}
       </main>
     </>

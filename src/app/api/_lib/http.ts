@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { NextResponse, type NextRequest } from 'next/server';
 import { PublishValidationError } from '@/domain/publishReport';
+import { CompensationError } from '@/server/compensationService';
 import { ComplianceTakedownError } from '@/server/complianceService';
 import { ManualJudgmentError } from '@/server/manualJudgmentService';
 import { SettlementOpsError } from '@/server/settlementOpsService';
@@ -103,6 +104,10 @@ export function toErrorResponse(e: unknown): NextResponse {
     return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
   }
   if (e instanceof SettlementOpsError) {
+    // code(RECHECK_REQUIRED)가 있으면 화면이 지문·얼굴 확인을 띄우고 재시도한다
+    return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
+  }
+  if (e instanceof CompensationError) {
     // code(RECHECK_REQUIRED)가 있으면 화면이 지문·얼굴 확인을 띄우고 재시도한다
     return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
   }
