@@ -10,10 +10,17 @@ import type { PrismaClient } from '@prisma/client';
 // 그래서 웹훅을 하나 둔다. 슬랙 incoming webhook 형식({"text": ...})이 사실상 표준이라
 // 디스코드·구글챗·자체 수신기도 대부분 그대로 받는다.
 //
+// **채널은 텔레그램으로 확정 (2026-08-18 창업자 결정)** — TELEGRAM_BOT_TOKEN +
+// TELEGRAM_CHAT_ID를 채우면 봇이 폰 푸시로 보낸다. 슬랙 형식 웹훅(OPS_WEBHOOK_URL)도
+// 그대로 남는다 — 다인 체제로 넘어가면 팀 채널을 하나 더 꽂는 자리다. 채워진 쪽만
+// 나가고, 둘 다 채우면 둘 다 나간다.
+//
 // **설정이 없으면 조용히 넘어간다.** 알림 채널이 없다고 결제나 정산이 실패하면 안 된다 —
 // 이 함수는 본업의 곁가지고, 곁가지가 본업을 죽이는 것이 가장 나쁘다.
 
 const WEBHOOK_URL = process.env.OPS_WEBHOOK_URL;
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 /** 웹훅이 느려도 본업을 붙잡지 않는다 */
 const WEBHOOK_TIMEOUT_MS = 5_000;
 
@@ -64,7 +71,7 @@ function shouldSkip(alert: OpsAlert): boolean {
  */
 export async function notifyOperators(prisma: PrismaClient, alert: OpsAlert): Promise<void> {
   if (shouldSkip(alert)) return;
-  await Promise.all([writeInAppNotifications(prisma, alert), postWebhook(alert)]);
+  await Promise.all([writeInAppNotifications(prisma, alert), postWebhook(alert), postTelegram(alert)]);
 }
 
 /**
@@ -125,5 +132,31 @@ async function postWebhook(alert: OpsAlert): Promise<void> {
   } catch (e) {
     // 웹훅 실패는 로그로만 — 이것 때문에 결제·정산이 실패하면 본말이 전도된다
     console.error('운영자 웹훅 실패:', e);
+  }
+}
+
+async function postTelegram(alert: OpsAlert): Promise<void> {
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return; // 설정 안 됐으면 아무 일도 없다
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
+    try {
+      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // parse_mode를 주지 않는다 — 마크다운 모드는 본문의 *·_ 하나에 **메시지 전체가
+        // 거절**된다. 경보 본문은 자유 문장이라 이스케이프에 기대면 언젠가 새고,
+        // 새는 날이 하필 사고 나는 날이다. 평문이면 항상 도착한다
+        body: JSON.stringify({
+          chat_id: TELEGRAM_CHAT_ID,
+          text: `${alert.title}\n${alert.body}`,
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch (e) {
+    console.error('운영자 텔레그램 알림 실패:', e);
   }
 }
