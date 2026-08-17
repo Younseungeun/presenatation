@@ -19,7 +19,23 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 // 그 뒤로 바뀌지 않는다.** 바뀌지 않는 사실은 서명해서 들려 보내면 되고, 그러면
 // 매 요청마다 세션 조회가 붙지 않는다. (바뀌는 것 — 계좌·기기 목록 — 은 DB가 답한다)
 
-const AUTH_SECRET = process.env.AUTH_SECRET ?? 'dev-auth-secret-change-me';
+/**
+ * 세션 서명 비밀 — **운영에서 값이 없으면 던진다** (2026-08-18 전수 점검).
+ *
+ * 폴백 값은 저장소에 그대로 적혀 있어 **저장소를 본 누구나 안다.** 운영에서 이 값으로
+ * 물러서면 그 사람이 세션(관리자 포함)을 위조할 수 있는데, 아무 경고가 없어 잊은 채
+ * 배포해도 겉보기에는 멀쩡히 돈다 — 조용한 실패 중 가장 나쁜 종류다.
+ * PAYOUT_ENC_KEY·NEXT_PUBLIC_APP_ORIGIN과 같은 규칙이고, 이 둘만 빠져 있었다.
+ * 모듈 로드가 아니라 호출 시점에 검사한다 — 빌드는 env 없이도 돌아야 한다.
+ */
+export function authSecret(env = process.env): string {
+  const v = env.AUTH_SECRET;
+  if (v) return v;
+  if (env.NODE_ENV === 'production') {
+    throw new Error('운영 환경에는 AUTH_SECRET이 반드시 있어야 합니다 (세션 서명 비밀 — 없으면 코드에 적힌 개발용 값으로 물러서고, 그 값은 공개나 다름없다)');
+  }
+  return 'dev-auth-secret-change-me';
+}
 
 /**
  * 세션 수명 — **30일에서 3일로 줄였다** (2026-08-16, 인증 축 검토 2차 Q2).
@@ -54,7 +70,7 @@ export interface SessionClaims {
 }
 
 function sign(payload: string): string {
-  return createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  return createHmac('sha256', authSecret()).update(payload).digest('base64url');
 }
 const b64u = (s: string) => Buffer.from(s, 'utf8').toString('base64url');
 const unb64u = (s: string) => Buffer.from(s, 'base64url').toString('utf8');

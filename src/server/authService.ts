@@ -10,10 +10,25 @@ import type { IdentityProvider, IdentityVerificationInput } from './identityProv
 // 같은 사람(=같은 CI)은 항상 같은 계정으로 매핑되므로, 계정을 다시 만들어 성적을
 // 세탁하려는 시도가 원천 차단된다 (CLAUDE.md §2.4).
 
-const IDENTITY_PEPPER = process.env.IDENTITY_PEPPER ?? 'dev-identity-pepper';
+/**
+ * CI 해시에 섞는 비밀 — **운영에서 값이 없으면 던진다** (2026-08-18 전수 점검).
+ *
+ * 폴백 값은 저장소에 적혀 있어 공개나 다름없다. 운영에서 이 값으로 물러서면
+ * "같은 사람 = 같은 계정" 판정의 기준값을 남이 만들어 볼 수 있게 되는데, 아무
+ * 경고가 없어 잊은 채 배포해도 겉보기에는 멀쩡히 돈다.
+ * AUTH_SECRET·PAYOUT_ENC_KEY와 같은 규칙 — 호출 시점 검사라 빌드는 env 없이 돈다.
+ */
+function identityPepper(env = process.env): string {
+  const v = env.IDENTITY_PEPPER;
+  if (v) return v;
+  if (env.NODE_ENV === 'production') {
+    throw new Error('운영 환경에는 IDENTITY_PEPPER가 반드시 있어야 합니다 (신원 해시 비밀 — 없으면 코드에 적힌 개발용 값으로 물러선다)');
+  }
+  return 'dev-identity-pepper';
+}
 
 export function hashCi(ci: string): string {
-  return createHmac('sha256', IDENTITY_PEPPER).update(ci).digest('hex');
+  return createHmac('sha256', identityPepper()).update(ci).digest('hex');
 }
 
 export interface VerifyAndSignInInput extends IdentityVerificationInput {

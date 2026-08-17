@@ -1,4 +1,6 @@
 import { createHmac, createPrivateKey, createPublicKey, generateKeyPairSync, randomBytes, sign as edSign, timingSafeEqual, verify as edVerify } from 'node:crypto';
+// 세션과 같은 서명 비밀 — 운영에서 값이 없으면 던지는 규칙도 함께 온다
+import { authSecret } from './sessionToken';
 
 // **종이 열쇠** — 인터넷에 존재하지 않는 복구 수단 (2026-08-17 검토 7차 Q1).
 //
@@ -150,7 +152,7 @@ export function verifyRecoveryToken(
 // 등록을 마치면 평소 경로(패스키 로그인)로 돌아가고, 그 뒤의 모든 돈 관문
 // (생체 재확인·48시간 유예)은 하나도 면제되지 않는다.
 
-const AUTH_SECRET = process.env.AUTH_SECRET ?? 'dev-auth-secret-change-me';
+// (인가 쿠키 서명은 세션과 같은 비밀을 쓴다 — 상단 import 참고)
 
 /**
  * 인가의 수명 — 패스키 등록 한 번을 마치기에 넉넉한 만큼만.
@@ -161,7 +163,7 @@ const AUTH_SECRET = process.env.AUTH_SECRET ?? 'dev-auth-secret-change-me';
 export const RECOVERY_GRANT_TTL_MS = 10 * 60_000;
 
 const grantSig = (payload: string) =>
-  createHmac('sha256', AUTH_SECRET).update(payload).digest('base64url');
+  createHmac('sha256', authSecret()).update(payload).digest('base64url');
 
 export function serializeRecoveryGrant(userId: string, now = Date.now()): string {
   const payload = `${b64u(Buffer.from(userId, 'utf8'))}.${now + RECOVERY_GRANT_TTL_MS}`;
