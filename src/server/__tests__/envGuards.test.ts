@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { hashCi } from '../authService';
 import { assertProductionSecrets } from '../envBootCheck';
@@ -95,4 +97,59 @@ describe('부팅 검사 — 필수 비밀 넷을 한 자리에서', () => {
     const dev = { NODE_ENV: 'development' } as unknown as NodeJS.ProcessEnv;
     expect(() => assertProductionSecrets(dev)).not.toThrow();
   });
+
+  // ── 목록 누락 래칫 (2026-08-18 배선 점검 2차) ────────────────────
+  //
+  // 부팅 검사의 유일한 어긋남은 "새 비밀의 게터를 만들고 목록에 안 부르는 것"이다.
+  // 검토자는 ESLint로 process.env 접근을 전면 금지하자고 했지만, 이 저장소는 게터가
+  // 중앙 파일이 아니라 **쓰는 모듈 옆에** 살도록 일부러 설계했고(단일 진실 공급원),
+  // 폴백이 안전한 선택적 env 읽기(OPS_WEBHOOK_URL 등)가 수십 곳이라 전면 금지는
+  // disable 주석 세례가 된다. 대신 constantBasis와 같은 래칫으로 잡는다:
+  //
+  // **"운영 환경에는 X가 반드시" 메시지 규약을 소스에서 스캔해**, 그 이름 전부가
+  // 부팅 검사의 실패 보고에 들어 있기를 요구한다. 새 게터가 규약대로 메시지를 적는
+  // 순간 이 시험이 부팅 목록 추가를 강제한다 — 사람 눈(PR 검토)이 아니라 시험이 잡는다.
+  it('"운영이면 반드시" 비밀은 전부 부팅 검사에 들어 있다 — 목록 누락 래칫', () => {
+    const names = requiredEnvNamesInSource();
+    // 스캔 자체가 살아 있는지 — 지금 알고 있는 넷이 반드시 잡혀야 한다
+    expect(names).toEqual(
+      expect.arrayContaining([
+        'AUTH_SECRET',
+        'IDENTITY_PEPPER',
+        'PAYOUT_ENC_KEY',
+        'NEXT_PUBLIC_APP_ORIGIN',
+      ]),
+    );
+
+    let report = '';
+    try {
+      assertProductionSecrets({ NODE_ENV: 'production' } as unknown as NodeJS.ProcessEnv);
+    } catch (e) {
+      report = (e as Error).message;
+    }
+    for (const name of names) {
+      expect(report).toContain(name);
+    }
+  });
 });
+
+/** src 전체에서 "운영 환경에는 X가 반드시" 규약의 env 이름을 긁는다 (시험 파일 제외) */
+function requiredEnvNamesInSource(): string[] {
+  const names = new Set<string>();
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== '__tests__' && entry.name !== '__fixtures__') walk(full);
+        continue;
+      }
+      if (!/\.tsx?$/.test(entry.name)) continue;
+      const text = readFileSync(full, 'utf8');
+      for (const m of text.matchAll(/운영 환경에는 ([A-Z0-9_]+)[이가]? 반드시/g)) {
+        names.add(m[1]);
+      }
+    }
+  };
+  walk(path.resolve(__dirname, '..', '..'));
+  return [...names];
+}
