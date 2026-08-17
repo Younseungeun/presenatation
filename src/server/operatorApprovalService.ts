@@ -7,6 +7,7 @@ import {
   type ApprovalAction,
   type ApprovalStatus,
 } from '@/domain/operatorApproval';
+import { ELEVATED_RISK_HOLD_MS } from './authGates';
 import { notifyOperators } from './opsAlert';
 
 // 운영자 2인 승인 실행부 — 요청·승인·소비.
@@ -225,13 +226,41 @@ export async function isSoloOperatorMode(prisma: PrismaClient): Promise<boolean>
 }
 
 /**
- * 생체 재확인의 유효 시간 — 재확인하고 실행 버튼을 누르기까지의 여유다.
- * 길게 두면 그만큼 "재확인해 둔 세션"을 훔칠 창이 된다.
- * @근거 설계 재확인 직후 실행을 마치기에 넉넉하되, 훔친 세션이 얹혀 갈 창은 좁게
+ * 재확인 표의 유효 시간 — **5분에서 60초로 줄였다** (2026-08-17 검토 7차 Q3).
+ *
+ * 5분의 근거는 "얹혀 갈 창"이었다. **그 전제가 사라졌다** — 표가 1회용이 되면서
+ * 남이 얹혀 가는 길 자체가 없어졌고, 이제 이 창이 재는 것은 단 하나다:
+ * **표를 쥔 화면이 실행을 마치기까지의 시간.** 실제 흐름은 생체 통과 → 즉시 자동
+ * 재시도라 1초 내외다.
+ *
+ * 그러면 남은 위협은 "발급된 표가 브라우저 메모리에 방치되는 시간"이고, 그건 짧을수록
+ * 좋다. 60초는 네트워크 지연과 잠깐의 주저함을 덮고도 남는다 — 넘으면 화면이 지문을
+ * 한 번 더 받으면 그만이라, 보안도 편의도 잃지 않는다.
+ *
+ * @근거 설계 표가 1회용이 되어 창이 재는 것은 "실행을 마칠 시간"뿐 — 네트워크 지연을 덮는 최소치
  */
-export const OPERATOR_RECHECK_WINDOW_MS = 5 * 60_000;
+export const OPERATOR_RECHECK_WINDOW_MS = 60_000;
 
 const hashRecheckToken = (token: string) => createHash('sha256').update(token).digest('hex');
+
+/**
+ * 비상 복구를 쓴 계정이 돈에 다시 닿을 수 있는 시각 (안 썼으면 null).
+ *
+ * 길이는 `ELEVATED_RISK_HOLD_MS`를 그대로 쓴다 — 근거가 같기 때문이다:
+ * **본인이 알아채고 멈출 수 있는 시간.** 여기서 새 숫자를 만들면 같은 근거의 값이
+ * 둘이 되고, 언젠가 한쪽만 바뀐다.
+ */
+async function recoveryHoldUntil(
+  prisma: PrismaClient,
+  operatorUserId: string,
+): Promise<Date | null> {
+  const row = await prisma.user.findUnique({
+    where: { id: operatorUserId },
+    select: { recoveredAt: true },
+  });
+  if (!row?.recoveredAt) return null;
+  return new Date(row.recoveredAt.getTime() + ELEVATED_RISK_HOLD_MS);
+}
 
 /**
  * 생체를 통과한 화면에 **1회용 표**를 발급한다 (2026-08-17 자체 발견 결함 수정).
@@ -267,6 +296,25 @@ export async function consumeOperatorRecheck(
   const fail = () =>
     new ApprovalError('실행 직전 지문·얼굴 확인이 필요합니다 — 확인 후 다시 실행하세요.');
   if (!token) throw fail();
+
+  // ── 비상 복구 직후 유예 (2026-08-17 검토 7차 Q1 보완 — 자체 발견) ──
+  //
+  // 여기가 **1인 모드에서 돈이 나가는 모든 길이 지나는 한 지점**이다(동결 해제·지급·
+  // 수동 판정·이의 인정). 그래서 이 유예를 여기 하나에만 건다 — 네 곳에 나눠 걸면
+  // 언젠가 다섯 번째 길이 생기고 그 길에는 안 걸린다.
+  //
+  // 막는 상대: **금고의 종이를 훔친 사람.** 그는 복구 화면에서 자기 지문을 등록할 수
+  // 있고, 그러면 그 뒤의 생체 재확인은 그의 지문으로 통과한다. 유예가 없으면
+  // "종이를 훔치면 돈이 나간다"가 되어 복구 경로가 곧 물리 백도어가 된다.
+  const holdUntil = await recoveryHoldUntil(prisma, operatorUserId);
+  if (holdUntil && holdUntil > now) {
+    const hours = Math.ceil((holdUntil.getTime() - now.getTime()) / 3_600_000);
+    throw new ApprovalError(
+      `비상 복구를 쓴 직후에는 돈이 나가는 기능이 ${hours}시간 동안 멈춥니다.\n` +
+        `본인이 복구한 것이 아니라면 지금 바로 종이 열쇠를 폐기하고 공개키를 교체하세요.\n` +
+        `(정산 동결처럼 돈을 **막는** 조작은 지금도 됩니다)`,
+    );
+  }
   const cutoff = new Date(now.getTime() - OPERATOR_RECHECK_WINDOW_MS);
   // 표와 시간을 **한 조건에** 걸고 건수로 판정한다 — 조회 후 삭제로 나누면 같은 표로
   // 두 요청이 동시에 통과한다(승인서 소비와 같은 이유)

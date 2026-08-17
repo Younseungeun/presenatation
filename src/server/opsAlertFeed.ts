@@ -49,6 +49,8 @@ export const HIGH_RISK_ACTIONS: AuditAction[] = [
   'PURCHASE_VOIDED',
   'JUDGMENT_PAUSE_SET',
   'ROLE_CHANGED',
+  // 종이 열쇠는 평생 한 번도 안 쓰이는 것이 정상이다 — 쓰였다면 그 자체가 최우선 경보다
+  'RECOVERY_GRANTED',
 ];
 
 /** 한 회차에 보낼 최대 건수 — 사고로 수백 건이 나도 알림이 폭주하지 않게 */

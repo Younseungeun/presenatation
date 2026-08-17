@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { assertNotElevatedRisk, assertRecentlyVerified, AuthGateError } from '@/server/authGates';
 import { finishPasskeyRegistration, startPasskeyRegistration } from '@/server/passkeyService';
+import { clearRecoveryGrant, readRecoveryGrant } from '@/server/recoveryGrant';
 import { getSessionClaims } from '@/server/session';
 import { HttpError, toErrorResponse } from '../../_lib/http';
 
@@ -16,7 +17,16 @@ import { HttpError, toErrorResponse } from '../../_lib/http';
 // 등록 대상은 **요청에서 받지 않는다.** 세션이 준 id만 쓴다 — 받게 두면 남의 계정에
 // 내 기기를 심는 창구가 된다.
 
+// ── 종이 열쇠로 들어온 경우 (2026-08-17 검토 7차 Q1) ──────────
+// 이 관문의 앞 조건은 전부 **본인 인증 공급자**에 매달려 있다("방금 인증했는가").
+// 공급자가 죽고 기기까지 잃으면 그 조건은 영원히 참이 될 수 없고, 그때 관리자는
+// 자기 시스템에서 잠긴다. 금고 속 종이로 서명된 표가 그 자리를 대신한다 —
+// **여기 하나만 대신한다.** 통과해도 열리는 것은 이 등록 한 번뿐이고,
+// 돈에 닿는 관문(생체 재확인·48시간 유예)은 그대로 서 있다.
 async function gatedUserId(): Promise<string> {
+  const recovering = await readRecoveryGrant();
+  if (recovering) return recovering;
+
   const claims = await getSessionClaims();
   if (!claims) throw new HttpError(401, '로그인이 필요합니다');
   assertRecentlyVerified(claims);
@@ -48,6 +58,9 @@ export async function POST(req: NextRequest) {
       response: body.response,
       label: body.label,
     });
+    // 복구 인가는 **쓰는 순간 끝난다** — 열쇠를 심었으면 할 일이 끝났고, 남겨 두면
+    // 그 뒤 10분 동안 이 브라우저를 잡은 사람이 열쇠를 하나 더 심을 수 있다
+    await clearRecoveryGrant();
     return NextResponse.json(r, { status: 201 });
   } catch (e) {
     if (e instanceof z.ZodError) {

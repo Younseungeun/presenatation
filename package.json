@@ -25,6 +25,8 @@
     "batch:judge": "tsx scripts/runJudgmentBatch.ts",
     "op:grant": "tsx scripts/grantOperator.ts",
     "op:hash": "tsx scripts/printFounderHash.ts",
+    "recovery:key": "tsx scripts/makeRecoveryKey.ts",
+    "recovery:sign": "tsx scripts/signRecovery.ts",
     "judgment:revert": "tsx scripts/revertJudgment.ts",
     "cs:void": "tsx scripts/voidPurchase.ts",
     "risk:us": "tsx scripts/syncUsStatus.ts",
