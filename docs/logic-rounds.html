@@ -1,0 +1,582 @@
+<title>인투빌 로직 43차 수정 기록</title>
+<style>
+  :root {
+    --paper: #F2F6F4;
+    --surface: #FFFFFF;
+    --surface-2: #E8EEEB;
+    --ink: #16211D;
+    --ink-2: #4C5D57;
+    --ink-3: #7D8C86;
+    --rule: #D2DBD6;
+    --rule-strong: #B6C4BE;
+    --mint: #0A7A63;
+    --mint-bright: #12B896;
+    --mint-wash: #E1F0EB;
+    --rust: #9E4238;
+    --rust-wash: #F7E7E4;
+    --amber: #86601E;
+    --amber-wash: #F4EDDD;
+    --shadow: 0 1px 2px rgba(22, 33, 29, .05), 0 8px 24px -16px rgba(22, 33, 29, .28);
+    --sans: 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic',
+            'Noto Sans KR', system-ui, sans-serif;
+    --mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'SF Mono', Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0C1311; --surface: #121A17; --surface-2: #1A2420;
+      --ink: #E3EAE6; --ink-2: #A2B1AB; --ink-3: #6E7F79;
+      --rule: #253129; --rule-strong: #35443C;
+      --mint: #45D7B2; --mint-bright: #12B896; --mint-wash: #0F2E27;
+      --rust: #E29187; --rust-wash: #321B18;
+      --amber: #DCB166; --amber-wash: #2A2213;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0C1311; --surface: #121A17; --surface-2: #1A2420;
+    --ink: #E3EAE6; --ink-2: #A2B1AB; --ink-3: #6E7F79;
+    --rule: #253129; --rule-strong: #35443C;
+    --mint: #45D7B2; --mint-bright: #12B896; --mint-wash: #0F2E27;
+    --rust: #E29187; --rust-wash: #321B18;
+    --amber: #DCB166; --amber-wash: #2A2213;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.7);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--sans); font-size: 16px; line-height: 1.8;
+    -webkit-font-smoothing: antialiased; word-break: keep-all;
+  }
+  .wrap { max-width: 60rem; margin: 0 auto; padding: 0 1.5rem 6rem; }
+  a { color: var(--mint); }
+  :focus-visible { outline: 2px solid var(--mint-bright); outline-offset: 3px; border-radius: 2px; }
+
+  .masthead {
+    padding: 4.5rem 0 2.75rem; border-bottom: 1px solid var(--rule-strong);
+    display: flex; flex-direction: column; gap: 1.25rem;
+  }
+  .eyebrow {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  h1 {
+    margin: 0; font-size: clamp(2rem, 5.4vw, 3.1rem); line-height: 1.22;
+    letter-spacing: -.022em; font-weight: 800; text-wrap: balance;
+  }
+  .thesis { margin: 0; max-width: 46ch; font-size: 1.075rem; color: var(--ink-2); }
+  .thesis strong { color: var(--ink); font-weight: 700; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 0; margin-top: 1rem; border-top: 1px solid var(--rule); }
+  .stat { flex: 1 1 8rem; padding: 1rem 1.25rem 1rem 0; display: flex; flex-direction: column; gap: .1rem; }
+  .stat + .stat { border-left: 1px solid var(--rule); padding-left: 1.25rem; }
+  .stat b {
+    font-family: var(--mono); font-size: 1.55rem; font-weight: 600;
+    font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1.2;
+  }
+  .stat span { font-size: .82rem; color: var(--ink-3); }
+
+  section { padding-top: 3.75rem; }
+  h2 { margin: 0 0 .35rem; font-size: 1.42rem; font-weight: 800; letter-spacing: -.015em; }
+  .lede { margin: 0 0 2rem; max-width: 58ch; color: var(--ink-2); font-size: .96rem; }
+  .lede strong { color: var(--ink); font-weight: 700; }
+
+  /* 기반 카드 */
+  .base {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1px; background: var(--rule); border: 1px solid var(--rule);
+    border-radius: 3px; overflow: hidden;
+  }
+  .base > div { background: var(--surface); padding: 1.35rem 1.4rem; }
+  .base h3 { margin: 0 0 .5rem; font-size: .95rem; font-weight: 700; }
+  .base p { margin: 0; font-size: .9rem; color: var(--ink-2); }
+  .base .tag {
+    display: block; font-family: var(--mono); font-size: .68rem; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: .45rem;
+  }
+
+  /* 장(章) 척추 */
+  .rounds { display: flex; flex-direction: column; }
+  .round { display: grid; grid-template-columns: 5rem 1fr; column-gap: 1.75rem; position: relative; }
+  .round::before {
+    content: ""; position: absolute; left: calc(5rem / 2); top: 0; bottom: 0;
+    width: 1px; background: var(--rule);
+  }
+  .round:first-child::before { top: 1.9rem; }
+  .round:last-child::before { bottom: auto; height: 1.9rem; }
+  .marker { position: relative; padding-top: 1.15rem; }
+  .marker i {
+    position: absolute; left: calc(50% - .5rem); top: 1.35rem; width: 1rem; height: 1rem;
+    border-radius: 50%; background: var(--paper); border: 2px solid var(--rule-strong); font-style: normal;
+  }
+  .marker b {
+    display: block; text-align: center; margin-top: 2.4rem;
+    font-family: var(--mono); font-size: 1.6rem; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--ink-3); letter-spacing: -.03em;
+  }
+  .body { padding: 1rem 0 2.5rem; min-width: 0; }
+  .round-head { margin-bottom: 1.1rem; }
+  .round-head h3 { margin: 0 0 .25rem; font-size: 1.16rem; font-weight: 800; letter-spacing: -.01em; text-wrap: balance; }
+  .round-head p { margin: 0; color: var(--ink-2); font-size: .92rem; max-width: 54ch; }
+  .entries { display: flex; flex-direction: column; gap: .75rem; }
+  .entry {
+    background: var(--surface); border: 1px solid var(--rule); border-radius: 3px;
+    padding: 1.1rem 1.25rem; box-shadow: var(--shadow);
+  }
+  .entry-top { display: flex; align-items: baseline; flex-wrap: wrap; gap: .6rem; margin-bottom: .55rem; }
+  .entry-top h4 { margin: 0; font-size: 1rem; font-weight: 700; letter-spacing: -.008em; }
+  .chip {
+    flex: none; font-family: var(--mono); font-size: .66rem; font-weight: 600;
+    letter-spacing: .1em; padding: .18rem .5rem; border-radius: 2px; white-space: nowrap;
+  }
+  .chip.round { background: var(--surface-2); color: var(--ink-3); }
+  .chip.fix { background: var(--rust-wash); color: var(--rust); }
+  .chip.push { background: var(--amber-wash); color: var(--amber); }
+  .chip.keep { background: var(--mint-wash); color: var(--mint); }
+  .entry p { margin: 0; font-size: .93rem; color: var(--ink-2); }
+  .entry p + p { margin-top: .5rem; }
+  .entry p.easy {
+    padding: .7rem .9rem; background: var(--surface-2); border-radius: 3px; color: var(--ink);
+  }
+  .easy .label, .why .label {
+    display: block; font-family: var(--mono); font-size: .66rem; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: .15rem;
+  }
+  .entry p.why { margin-top: .7rem; padding-left: .9rem; border-left: 2px solid var(--mint-bright); color: var(--ink); }
+  .why b, .easy b { font-weight: 700; }
+
+  code {
+    font-family: var(--mono); font-size: .84em; background: var(--surface-2);
+    padding: .1em .35em; border-radius: 2px; color: var(--ink);
+  }
+
+  .open-list {
+    display: flex; flex-direction: column; gap: 1px; background: var(--rule);
+    border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
+  }
+  .open-row { background: var(--surface); padding: 1.05rem 1.25rem; display: grid; grid-template-columns: 8.5rem 1fr; gap: 1.1rem; align-items: start; }
+  .open-row .k {
+    font-family: var(--mono); font-size: .72rem; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-3); padding-top: .28rem;
+  }
+  .open-row p { margin: 0; font-size: .92rem; color: var(--ink-2); }
+  .open-row p b { color: var(--ink); font-weight: 700; }
+
+  footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule); font-size: .82rem; color: var(--ink-3); }
+  footer code { background: none; padding: 0; color: var(--ink-3); }
+
+  @media (max-width: 40rem) {
+    .round { grid-template-columns: 2.5rem 1fr; column-gap: 1rem; }
+    .round::before { left: 1.25rem; }
+    .marker i { left: calc(50% - .45rem); width: .9rem; height: .9rem; }
+    .marker b { font-size: .95rem; margin-top: 2.1rem; }
+    .open-row { grid-template-columns: 1fr; gap: .35rem; }
+    .stat + .stat { border-left: none; padding-left: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">INTOVILL · 운영 로직 · 판정과 돈</div>
+    <h1>돈이 걸린 심판을 43번 두들겼습니다</h1>
+    <p class="thesis">
+      인투빌의 심장은 <strong>사람 손 없이 예측을 채점하고 돈을 나누는 기계</strong>입니다.
+      기계가 틀리면 남의 돈이 잘못 갑니다 — 그래서 외부 검토 43라운드에 걸쳐
+      <strong>부수려는 시도를 먼저 하고, 뚫린 곳을 막고, 숫자는 전부 측정으로</strong> 정했습니다.
+      이 문서는 그 여정을 쉬운 말로 남긴 기록입니다.
+    </p>
+    <div class="stats">
+      <div class="stat"><b>43</b><span>검토 라운드</span></div>
+      <div class="stat"><b>1,159</b><span>통과 테스트</span></div>
+      <div class="stat"><b>130+</b><span>근거 달린 숫자 상수</span></div>
+      <div class="stat"><b>10단계</b><span>사고 대응 리허설</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>0. 이 기계가 하는 일 — 30초 설명</h2>
+    <p class="lede">
+      뒤의 모든 이야기가 이 네 칸 위에서 벌어집니다.
+    </p>
+    <div class="base">
+      <div>
+        <span class="tag">① 예측 카드</span>
+        <h3>리서처가 예측을 겁니다</h3>
+        <p>"삼성전자가 30일 안에 10% 오른다, 자신도는 7/10" — 종목·방향·크기·기한·자신도를
+           카드에 적어 리포트와 함께 팝니다. <b>한 번 게시하면 고칠 수 없습니다.</b></p>
+      </div>
+      <div>
+        <span class="tag">② 자동 판정</span>
+        <h3>기한이 되면 시세가 채점합니다</h3>
+        <p>사람이 아니라 <b>시장 데이터</b>가 심판입니다. 기한 안에 목표가에 닿은 날이
+           있으면 적중, 없으면 실패.</p>
+      </div>
+      <div>
+        <span class="tag">③ 돈</span>
+        <h3>적중이면 정산, 실패면 환불</h3>
+        <p>구매자가 낸 돈은 판정 전까지 <b>에스크로(보관함)</b>에 있습니다. 맞히면
+           리서처에게, 틀리면 구매자에게 <b>현금으로</b> 돌아갑니다.</p>
+      </div>
+      <div>
+        <span class="tag">④ 점수</span>
+        <h3>실력이 숫자로 쌓입니다</h3>
+        <p>판정 결과가 점수가 되고, 점수가 등급(시니어→마스터→펠로우)과 수수료를
+           정합니다. <b>팔로워 수가 아니라 맞힌 기록</b>이 평판입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>수정의 역사 — 일곱 개의 장</h2>
+    <p class="lede">
+      43라운드를 시간 순서 그대로 나열하면 아무도 못 읽습니다. 대신 <strong>싸움이 벌어진
+      일곱 자리</strong>로 묶었습니다. 각 장마다 "쉽게 말하면"이 먼저 옵니다.
+    </p>
+
+    <div class="rounds">
+
+      <!-- 1장 -->
+      <article class="round">
+        <div class="marker"><i></i><b>1</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>점수 — 정직하게 말하는 사람이 이기는 게임</h3>
+            <p>점수 모델 vmax. 이 시스템에서 가장 수학이 많이 들어간 자리입니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><h4>어떻게 채점하나</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                일기예보 게임입니다. "내일 비 올 확률 90%"라고 말하고 비가 오면 <b>크게
+                따고</b>, 안 오면 <b>크게 잃습니다.</b> "확률 55%"라고 조심스레 말하면
+                따도 조금, 잃어도 조금. 수학적으로 <b>자기가 진짜 믿는 확률을 그대로
+                말하는 것이 유일한 최선</b>이 되게 만든 채점법입니다 — 허풍도 엄살도
+                손해입니다.</p>
+              <p>카드의 "자신도(2~10)"가 곧 확률 신고입니다. 한 칸 올릴 때마다 승산을
+                 1.73배 세게 부르는 것이고, 채점은 그 신고가 <b>아무것도 모르는 사람의
+                 확률(p₀)보다 얼마나 나았는지</b>를 잽니다.</p>
+              <p class="why"><span class="label">왜 이 방식인가</span>
+                이전 모델(v4)은 크게 거는 사람의 점수가 <b>운에 따라 널뛰어서</b>, "점수가
+                낮다"가 "실력이 없다"를 뜻하지 못했습니다. 실측: 준수한 실력자의 하위 5%가
+                −3,354점인데 무실력자의 최악이 −189점 — 뒤집혀 있었죠. vmax로 바꾸자
+                실력 구분 정확도(AUC)가 0.785 → <b>0.939</b>, 오분류 0%.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><h4>무실력자는 뭘 해도 못 번다</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                동전 던지기로 맞히는 사람은 카드를 <b>100장 내든 1,000장 내든</b> 평균이
+                0 이하입니다. 점수를 노리는 꼼수 자체가 수학적으로 막혀 있습니다.</p>
+              <p>확신을 부풀리는 순간 기대값이 음수가 되므로 "숨어서 점수 벌기" 같은
+                 은신처를 따로 막을 필요가 없습니다. 남는 꼼수들은 다른 장치가 막습니다
+                 (2·3장).</p>
+            </div>
+
+          </div>
+        </div>
+      </article>
+
+      <!-- 2장 -->
+      <article class="round">
+        <div class="marker"><i></i><b>2</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>파도의 크기 — 종목마다 다른 잣대</h3>
+            <p>변동성(σ) 측정과 예측 크기 하한. 42~43차의 주인공이기도 합니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><h4>왜 종목마다 재나</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                잔잔한 호수에서 "물결이 일 거예요"는 예측이 아닙니다. 파도가 3m씩 치는
+                바다에서 "파도가 칠 거예요"도 마찬가지고요. 그래서 <b>종목마다 평소 파도
+                크기(σ)를 재고, 그보다 확실히 큰 예측만</b> 인정합니다 — 하한 =
+                1.2 × 파도 × √기간.</p>
+              <p class="why"><span class="label">측정이 찾은 구멍</span>
+                원래는 "주식 5%, 코인 10%"처럼 자산군 공통 하한이었습니다. 재보니 같은
+                5%인데 무실력자가 우연히 닿을 확률이 조용한 종목 21.7% ↔ 거친 종목
+                <b>76.3%</b> — 하한이 막으려던 것을 거친 종목에서 정확히 허용하고
+                있었습니다. 종목별 σ 연동으로 바꾸자 이 확률이 어느 종목이든
+                16~25%로 고정됐습니다.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip round">42차</span><span class="chip fix">구멍 발견</span><h4>파도를 못 잰 종목이 공짜 점수 자판기였다</h4></div>
+              <p>신규 상장처럼 거래 기록이 며칠 없는 종목은 σ를 못 잽니다. 그동안은
+                 "자산군 평균쯤 되겠지"로 짐작해 채웠는데 — <b>실측하니 실력 0인 사람이
+                 그런 종목만 골라도 카드당 +11~+67점</b>을 벌 수 있었습니다.</p>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                갓 상장한 코인은 관심이 쏠려 <b>널뛰기가 유난히 심한데</b>, 시스템은
+                "평범한 파도겠지"로 채점하고 있던 겁니다. 널뛰는 종목에 "오른다"를 걸면
+                우연히 맞을 확률이 실제보론 높은데 배당은 후하게 쳐준 셈이죠.</p>
+              <p class="why"><span class="label">고친 방법 (42차)</span>
+                σ를 못 잰 종목은 <b>아예 게시를 막습니다.</b> 거래일이 쌓이면 자동으로
+                열립니다. 단, "시세 조회가 잠깐 실패한 것"은 안 막습니다 — 그걸 막으면
+                시세 서버 장애 한 번에 전 종목 게시가 서 버리니까요.
+                실측 근거로 폴백 값도 "평균"이 아니라 <b>거친 쪽(상위 80~90분위)</b>으로
+                바꿨습니다 — 업비트 271개 코인의 120일 σ를 직접 쟀습니다.</p>
+              <p class="why"><span class="label">43차 — 관문에 난 U자 구멍</span>
+                고치고 보니: 일봉이 1~19개면 막히는데 <b>0개면 통과</b>하는 구멍이
+                있었습니다(자료가 "부족"한 게 아니라 "전무"라 분기를 안 탔던 것).
+                상장일을 알려주는 곳이 없어, 기댈 사실은 <b>우리의 관측 이력뿐</b> —
+                "한 번도 잰 적 없으면 부족으로 취급"으로 닫았습니다.</p>
+            </div>
+
+          </div>
+        </div>
+      </article>
+
+      <!-- 3장 -->
+      <article class="round">
+        <div class="marker"><i></i><b>3</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>허풍 벌점 — 규율 래더</h3>
+            <p>점수로 못 잡는 것 하나가 남습니다: 계속 과신을 파는 사람.</p>
+          </div>
+          <div class="entries">
+            <div class="entry">
+              <div class="entry-top"><h4>증거가 쌓이면 확신 상한이 내려간다</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                운전면허 벌점과 비슷합니다. 한 번 틀렸다고 처벌하지 않습니다 — 실력자도
+                틀리니까요. 대신 <b>"이 사람의 자신만만함이 실제 성적과 계속 어긋난다"는
+                증거가 수학적 문턱을 넘으면</b>, 그때부터 별 5개짜리 자신도로는 못 팔게
+                상한을 내립니다. 다시 잘 맞히면 자동으로 풀립니다(실측: 평균 3장 적중이면
+                복귀).</p>
+              <p class="why"><span class="label">왜 이렇게 어렵게 만들었나</span>
+                문턱을 감으로 정하면 "정직한 사람을 잘못 잡을 확률"을 말할 수 없습니다.
+                이 래더는 그 확률이 <b>수학적으로 10%·1%·0.1%·0.01% 이하</b>라고 이름에
+                달고 있습니다(빌 부등식). 함정도 둘 잡았습니다: 비슷한 카드 여러 장을
+                동시에 내면 증거가 뻥튀기되는 문제(겹친 기간만큼 나눠 세기), 분기마다
+                증거가 리셋되어 래더가 영영 발동 못 하던 문제(<b>증거는 평생 누적</b>).</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <!-- 4장 -->
+      <article class="round">
+        <div class="marker"><i></i><b>4</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>심판 지키기 — 시세가 거짓말할 때</h3>
+            <p>28~34차의 주전장. 심판(자동 판정)의 눈이 되는 시세 데이터가 문제였습니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip round">28~30차</span><h4>두 번째 심판을 세우다 — 교차검증</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                심판이 한 명이면 그 심판이 잘못 봐도 아무도 모릅니다. 그래서 <b>다른
+                시세 회사의 데이터로 같은 경기를 한 번 더 채점</b>해서, 두 심판의
+                <b>판정 결과</b>가 갈리면 사람에게 올립니다.</p>
+              <p class="why"><span class="label">싸운 지점</span>
+                검토는 "종가 하나를 오차 X% 이내로 대조하라"고 했는데 반박했습니다 —
+                판정은 기간 <b>극값</b>으로 정해져 그 방식은 "잘못된 적중"(구매자가 환불
+                못 받는 쪽)을 통째로 놓치고, X를 고를 방법도 없습니다. "판정이 뒤집히는가"
+                를 대조하면 문턱 자체가 필요 없어집니다. 29차에 두 소스가 <b>진짜 독립인지
+                판별하는 탐침</b>까지 붙였습니다(같은 도매상에서 받아오면 둘 다 같이
+                틀리니까요).</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip round">39차</span><h4>불가능한 값 필터 — 가격과 거래량은 같이 움직인다</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                시세 회사가 실수로 0을 하나 더 붙이면(1,000원 → 10,000원) 하루 만에
+                +900%가 됩니다. 그런 <b>불가능한 값</b>은 판정에 쓰지 않고 사람 큐로
+                보냅니다. 그런데 작은 종목은 진짜로 하루 +100%가 나기도 하죠. 구분법:
+                <b>진짜 사건은 거래량이 함께 터지고, 오타는 가격만 튑니다.</b> 거래량이
+                평소의 5배 이상이면 진짜로 믿어줍니다.</p>
+              <p class="why"><span class="label">왜 중요한가</span>
+                이 필터가 없으면 가장 크게 맞힌 리서처가 "값이 이상하다"는 이유로
+                전액 환불로 끝날 수 있었습니다 — 잘한 사람이 벌받는 구조였죠.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip round">31~34차</span><span class="chip fix">경합 사냥</span><h4>정지 스위치들이 서로 밟고 있었다</h4></div>
+              <p>판정을 멈추는 장치(수동 정지·자동 정지·하드락)가 여럿 생기자, 이번엔
+                 <b>장치끼리 부딪히는 경우</b>가 문제가 됐습니다: 재기동하면 정지가 풀리는
+                 버그, 자동 해제가 수동 정지를 덮어쓰는 경합, 정지가 끝난 직후 밀린
+                 카드가 상한에 우르르 걸리는 문제.</p>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                집에 자동 소화기를 여러 개 달았더니, 이번엔 <b>소화기끼리 서로 물을
+                뿌리는</b> 격이었습니다. 34차에 흩어져 있던 정지 상태를 한 자리로 모아
+                정리했습니다 — 흩어진 상태가 결함의 원인이었으니까요.</p>
+            </div>
+
+          </div>
+        </div>
+      </article>
+
+      <!-- 5장 -->
+      <article class="round">
+        <div class="marker"><i></i><b>5</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>돈의 장부 — 정산·보상 원장</h3>
+            <p>35차에 "판정 코어 동결"을 선언하고 돈 쪽으로 넘어갔습니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip round">35~36차</span><h4>판정 후 48시간은 돌이킬 수 있는 시간</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                은행 이체에 "취소 가능 시간"이 있는 것처럼, 판정이 나도 돈은 <b>48시간
+                동안 보관함에 그대로</b> 있습니다. 그 사이 이의가 들어오면 되돌릴 수
+                있습니다 — <b>나간 돈은 되찾을 수 없지만, 안 나간 돈은 멈출 수
+                있으니까요.</b> 48시간이 지나서 이의가 인정되면? 그때는 플랫폼이
+                자기 돈으로 물어줍니다 — 손실이지만 크기를 아는 손실이 소비자 분쟁에서
+                지는 것보다 쌉니다.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip round">37차</span><h4>우리 잘못이면 우리 돈으로 — 보상 원장</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                시세를 못 구해서 판정을 못 하면 구매자는 전액 환불받는데, <b>리서처는
+                맞았을지도 모르는데 한 푼도 못 받습니다.</b> 콘텐츠는 전달됐으니 팔린
+                만큼을 플랫폼 돈으로 메웁니다. 단, "맞았는지"를 사후에 판정하지 않습니다 —
+                운영자가 결과를 정하기 시작하면 심판 중립이 깨지니까, <b>귀책(누구
+                잘못인가)만</b> 봅니다.</p>
+              <p class="why"><span class="label">자동 승인을 안 만든 이유</span>
+                시스템 오류로 카드 200장이 닫히면 보상 200건이 자동 생성되는 구조는,
+                <b>시스템을 가장 못 믿어야 할 순간에 시스템을 믿는</b> 구조입니다.
+                전부 사람이 확정하고, 쌓인 큐의 길이가 곧 사고 규모 계기판이 됩니다.
+                판정 못 하는 종목만 골라 보상을 챙기는 꼼수도 잡았습니다 — 시세 미확보
+                판정 불가 3장부터 신규 게시가 검토 큐로 갑니다.</p>
+            </div>
+
+          </div>
+        </div>
+      </article>
+
+      <!-- 6장 -->
+      <article class="round">
+        <div class="marker"><i></i><b>6</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>돈이 나가는 문 — 계좌와 동결</h3>
+            <p>38·40·41차. "시스템이 돈이 어디로 가는지 모른다"에서 출발했습니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip round">38·40차</span><h4>계좌 관문 네 겹</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                도둑이 계정을 훔쳐 자기 계좌로 바꿔치기하는 것을 막는 네 겹입니다:
+                ① 계좌를 바꾸면 <b>즉시 미검증</b>(검증 전엔 한 푼도 안 나감)
+                ② 낯선 기기에서 바꾸면 <b>48시간 대기 + 알림</b>
+                ③ <b>은행이 알려준 예금주 이름 ↔ 본인 인증 실명</b> 대조(입력란이
+                없습니다 — 본인이 두 곳에 다 적으면 대조가 아니라 받아쓰기라서)
+                ④ 계좌를 만질 땐 <b>본인 인증을 그 자리에서 다시</b>.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip round">41차</span><h4>동결 버튼 — 기다림을 골든타임으로</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                카드 분실 신고 버튼입니다. "내가 안 바꿨는데 계좌가 바뀌었다"는 알림을
+                받으면 누르는 <b>"내 돈 나가지 마"</b> — 누르면 한 푼도 안 나갑니다.
+                핵심은 비대칭: <b>거는 건 본인 마음대로, 푸는 건 운영자만.</b> 본인이
+                풀 수 있으면 계정을 쥔 도둑도 푸니까요. 48시간 대기의 값어치는 기다림이
+                아니라 <b>그 사이에 진짜 주인이 멈출 수 있다는 것</b>입니다.</p>
+            </div>
+
+          </div>
+        </div>
+      </article>
+
+      <!-- 7장 -->
+      <article class="round">
+        <div class="marker"><i></i><b>7</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>숫자에 이름표 — 상수 래칫</h3>
+            <p>39차에 검증안을 반박했다가, 42차에 더 나은 형태로 스스로 채택했습니다.</p>
+          </div>
+          <div class="entries">
+            <div class="entry">
+              <div class="entry-top"><span class="chip round">39→42차</span><h4>근거 없는 숫자는 틀려도 아무도 모른다</h4></div>
+              <p class="easy"><span class="label">쉽게 말하면</span>
+                코드 곳곳에 "7일", "48시간", "500만원" 같은 숫자가 130개 넘게 삽니다.
+                이제 규칙이 있습니다: <b>모든 숫자에는 "왜 이 값인지" 이름표</b>를 달아야
+                하고(측정했나 · 법이 정했나 · 우리가 골랐나), 못 달겠으면 <b>빚 목록</b>에
+                이름을 올려야 합니다. 빚 목록의 줄 수가 곧 남은 숙제 양이고, 갚기만 되고
+                늘리기는 시험이 막습니다(래칫 — 한쪽으로만 도는 톱니).</p>
+              <p class="why"><span class="label">이 규칙이 태어난 사건</span>
+                "주식 단기 카드 경계 = 7일"이 왜 7인지 아무도 몰랐습니다. 재보니
+                <b>14가 맞았고</b>, 7→14로 바꿔도 시험 1,020개가 전부 통과했습니다 —
+                그 값을 붙잡는 시험이 하나도 없었다는 뜻이죠. <b>근거 미기록과 시험 부재는
+                같은 구멍의 두 얼굴</b>이라, 근거 규칙과 경계 시험을 함께 넣었습니다.
+                첫 전수조사: 130개 중 근거 90 / 빚 40.</p>
+            </div>
+          </div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>검토를 쓰는 방법 — 이 기록의 규칙</h2>
+    <p class="lede">
+      43라운드 내내 지킨 세 가지입니다. 검토자를 믿되, <strong>검토받은 대로만 움직이지
+      않았습니다.</strong>
+    </p>
+    <div class="base">
+      <div>
+        <span class="tag">규칙 1</span>
+        <h3>숫자 싸움은 측정으로 끝낸다</h3>
+        <p>"코인 폴백 σ를 14%로" 하자는 안 → 업비트 271개 코인을 실측하니 <b>역사상
+           최고가 11%</b>. 한 번도 관측된 적 없는 값 대신 실측 분위수를 썼습니다.
+           감이 아니라 자가 이깁니다.</p>
+      </div>
+      <div>
+        <span class="tag">규칙 2</span>
+        <h3>깨진 시험은 좋은 소식이다</h3>
+        <p>관문을 새로 달 때마다 기존 시험이 깨졌습니다 — 그건 사고가 아니라
+           <b>관문이 실제로 그 길목에 섰다는 증거</b>입니다. 안 깨지면 오히려
+           의심했습니다.</p>
+      </div>
+      <div>
+        <span class="tag">규칙 3</span>
+        <h3>고칠 수 없는 상대에겐 관문을 안 세운다</h3>
+        <p>방어는 겹칠 때가 아니라 <b>축이 다를 때</b> 강해집니다. 같은 48시간을 두 번
+           세는 제안, DB를 직접 만질 수 있는 셸에 코드 관문을 다는 제안은 반박하고
+           기각했습니다 — 장식은 방어가 아니니까요.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>아직 남은 것</h2>
+    <p class="lede">코드 안은 수렴했습니다. 남은 것은 성격이 다릅니다.</p>
+    <div class="open-list">
+      <div class="open-row">
+        <div class="k">계약 대기</div>
+        <p><b>본인 인증 실공급자 · 은행 예금주 조회 · SMS · 토스 실키.</b> 붙기 전까지
+           관문들은 형태만 완성입니다 — 지금은 항상 성공하는 연습용 부품이 꽂혀 있습니다.</p>
+      </div>
+      <div class="open-row">
+        <div class="k">데이터 대기</div>
+        <p><b>"초안" 딱지 붙은 상수들</b>(500만원 문턱, 등급 임계값, 관측 창 등)은 운영
+           데이터가 쌓여야 다시 잴 수 있습니다 — 빚 목록에 올라 있습니다.</p>
+      </div>
+      <div class="open-row">
+        <div class="k">설계 대기</div>
+        <p><b>드로다운 배팅</b>(목표 가는 길에 얼마나 역행하나에 거는 상품) 등은 수요
+           확인 후의 과제입니다. <b>화면 디자인</b>은 별도 목록(design-backlog)에
+           정리돼 있습니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    2026-08-17 기준 · 브랜치 <code>claude/session-start-59rfim</code> ·
+    테스트 1,159건(단위 653 + DB 506) 통과 · 인증·거버넌스 축의 기록은
+    별도 문서(인투빌 인증 관문 6라운드)에 있습니다
+  </footer>
+
+</div>

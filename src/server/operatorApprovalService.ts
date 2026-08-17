@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import {
   APPROVAL_ACTION_LABEL,
@@ -230,25 +231,54 @@ export async function isSoloOperatorMode(prisma: PrismaClient): Promise<boolean>
  */
 export const OPERATOR_RECHECK_WINDOW_MS = 5 * 60_000;
 
+const hashRecheckToken = (token: string) => createHash('sha256').update(token).digest('hex');
+
 /**
- * 생체 재확인을 **써서 없앤다** — 승인서와 같은 1회용이다.
- * 재확인 한 번으로 두 가지 실행이 나가면, 두 번째는 확인받지 않은 실행이다.
+ * 생체를 통과한 화면에 **1회용 표**를 발급한다 (2026-08-17 자체 발견 결함 수정).
+ *
+ * 표를 쓰는 이유: 재확인을 사용자 단위로만 찍으면 **훔친 세션이 창업자의 재확인에
+ * 얹혀 간다.** 공격자가 다른 기기에서 세션을 쥐고 기다리다가, 창업자가 지문을 대는
+ * 순간 같이 통과하는 것이다 — 이 장치가 막겠다고 한 바로 그 상대에게 뚫린다.
+ * 표는 생체를 통과한 응답으로만 나가므로, 세션만 있는 쪽은 손에 넣을 수 없다.
+ */
+export async function issueOperatorRecheck(
+  prisma: PrismaClient,
+  operatorUserId: string,
+  now = new Date(),
+): Promise<string> {
+  const token = randomBytes(32).toString('base64url');
+  await prisma.user.update({
+    where: { id: operatorUserId },
+    data: { operatorRecheckAt: now, operatorRecheckTokenHash: hashRecheckToken(token) },
+  });
+  return token;
+}
+
+/**
+ * 재확인 표를 **써서 없앤다** — 승인서와 같은 1회용이다.
+ * 표 하나로 두 가지 실행이 나가면, 두 번째는 확인받지 않은 실행이다.
  */
 export async function consumeOperatorRecheck(
   prisma: PrismaClient,
   operatorUserId: string,
+  token: string | undefined,
   now = new Date(),
 ): Promise<void> {
+  const fail = () =>
+    new ApprovalError('실행 직전 지문·얼굴 확인이 필요합니다 — 확인 후 다시 실행하세요.');
+  if (!token) throw fail();
   const cutoff = new Date(now.getTime() - OPERATOR_RECHECK_WINDOW_MS);
+  // 표와 시간을 **한 조건에** 걸고 건수로 판정한다 — 조회 후 삭제로 나누면 같은 표로
+  // 두 요청이 동시에 통과한다(승인서 소비와 같은 이유)
   const { count } = await prisma.user.updateMany({
-    where: { id: operatorUserId, operatorRecheckAt: { gte: cutoff } },
-    data: { operatorRecheckAt: null },
+    where: {
+      id: operatorUserId,
+      operatorRecheckAt: { gte: cutoff },
+      operatorRecheckTokenHash: hashRecheckToken(token),
+    },
+    data: { operatorRecheckAt: null, operatorRecheckTokenHash: null },
   });
-  if (count === 0) {
-    throw new ApprovalError(
-      '실행 직전 지문·얼굴 확인이 필요합니다 — 확인 후 다시 실행하세요.',
-    );
-  }
+  if (count === 0) throw fail();
 }
 
 /** 대기 중인 요청 (운영자 화면) */

@@ -43,7 +43,7 @@ export function ManualJudgeForm({
         ? "기간 최고가"
         : "기간 최저가";
 
-  async function submit(retried = false) {
+  async function submit(recheckToken?: string) {
     setBusy(true);
     setError(null);
     try {
@@ -63,15 +63,15 @@ export function ManualJudgeForm({
       const res = await fetch("/api/admin/judgments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId, reason, decision }),
+        body: JSON.stringify({ cardId, reason, decision, recheckToken }),
       });
       const body = await res.json();
       if (!res.ok) {
-        if (body.code === "RECHECK_REQUIRED" && !retried) {
-          // 1인 운영 모드 — 두 번째 사람 대신 지문·얼굴이 선다. 확인되면 한 번만 재시도
+        if (body.code === "RECHECK_REQUIRED" && !recheckToken) {
+          // 1인 운영 모드 — 두 번째 사람 대신 지문·얼굴이 선다. 받은 표를 실어 한 번만 재시도
           const recheck = await performOperatorRecheck();
-          if (recheck.ok) {
-            await submit(true);
+          if (recheck.ok && recheck.token) {
+            await submit(recheck.token);
             return;
           }
           if (recheck.error) setError(recheck.error);

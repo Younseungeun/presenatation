@@ -569,6 +569,8 @@ export async function executePayout(
     operatorUserId: string;
     /** 토스 콘솔에서 실제 입금을 확인했다 — 지연 방어선을 넘긴다 */
     confirmedSettled?: boolean;
+    /** 생체 재확인 표 (1인 운영 모드의 고액 지급) — 생체를 통과한 화면만 가질 수 있다 */
+    recheckToken?: string;
   },
   now = new Date(),
 ) {
@@ -635,7 +637,7 @@ export async function executePayout(
   // 이유가 없다. 일일 한도·쿨다운·계좌 검증은 그대로 산다
   if (requiresDualApproval(s.researcherPayoutKrw) && (await isSoloOperatorMode(prisma))) {
     try {
-      await consumeOperatorRecheck(prisma, input.operatorUserId, now);
+      await consumeOperatorRecheck(prisma, input.operatorUserId, input.recheckToken, now);
     } catch (re) {
       if (!(re instanceof ApprovalError)) throw re;
       throw new SettlementOpsError(re.message, 'RECHECK_REQUIRED');

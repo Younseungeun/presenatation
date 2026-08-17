@@ -26,6 +26,8 @@ const bodySchema = z.object({
   researcherUserId: z.string().min(1),
   /** 무엇을 확인하고 푸는가 — 승인자가 읽을 사유가 된다 */
   reason: z.string().min(1).max(300),
+  /** 생체 재확인 표 (1인 운영 모드) — 생체를 통과한 화면이 방금 받은 1회용 값 */
+  recheckToken: z.string().max(200).optional(),
 });
 
 export async function POST(req: NextRequest) {

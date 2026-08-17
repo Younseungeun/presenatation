@@ -22,7 +22,7 @@ export function FrozenList({ initial }: { initial: FrozenRow[] }) {
   const [notice, setNotice] = useState<Record<string, string>>({});
   const [error, setError] = useState<Record<string, string>>({});
 
-  async function unfreeze(id: string, retried = false) {
+  async function unfreeze(id: string, recheckToken?: string) {
     setBusy(id);
     setError((p) => ({ ...p, [id]: "" }));
     setNotice((p) => ({ ...p, [id]: "" }));
@@ -30,17 +30,21 @@ export function FrozenList({ initial }: { initial: FrozenRow[] }) {
       const res = await fetch("/api/admin/frozen", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ researcherUserId: id, reason: (reasons[id] ?? "").trim() }),
+        body: JSON.stringify({
+          researcherUserId: id,
+          reason: (reasons[id] ?? "").trim(),
+          recheckToken,
+        }),
       });
       const json = await res.json();
       if (!res.ok) {
         if (json.code === "APPROVAL_PENDING") {
           setNotice((p) => ({ ...p, [id]: json.error }));
-        } else if (json.code === "RECHECK_REQUIRED" && !retried) {
-          // 1인 운영 모드 — 두 번째 사람 대신 지문·얼굴이 선다. 확인되면 한 번만 재시도
+        } else if (json.code === "RECHECK_REQUIRED" && !recheckToken) {
+          // 1인 운영 모드 — 두 번째 사람 대신 지문·얼굴이 선다. 받은 표를 실어 한 번만 재시도
           const recheck = await performOperatorRecheck();
-          if (recheck.ok) {
-            await unfreeze(id, true);
+          if (recheck.ok && recheck.token) {
+            await unfreeze(id, recheck.token);
             return;
           }
           if (recheck.error) setError((p) => ({ ...p, [id]: recheck.error! }));

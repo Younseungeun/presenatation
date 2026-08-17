@@ -28,6 +28,8 @@ const resolveSchema = z.object({
   disputeId: z.string().min(1),
   verdict: z.enum(['UPHELD', 'REJECTED']),
   resolution: z.string().min(1).max(500),
+  /** 생체 재확인 표 (1인 운영 모드) — 생체를 통과한 화면이 방금 받은 1회용 값 */
+  recheckToken: z.string().max(200).optional(),
 });
 
 /** 접수 (구매자 본인) */

@@ -500,7 +500,13 @@ export async function listFrozenAccounts(prisma: PrismaClient) {
  */
 export async function unfreezePayouts(
   prisma: PrismaClient,
-  input: { researcherUserId: string; operatorUserId: string; reason: string },
+  input: {
+    researcherUserId: string;
+    operatorUserId: string;
+    reason: string;
+    /** 생체 재확인 표 (1인 운영 모드) — 생체를 통과한 화면만 가질 수 있는 1회용 값 */
+    recheckToken?: string;
+  },
   now = new Date(),
 ): Promise<void> {
   if (!input.reason.trim()) {
@@ -531,7 +537,7 @@ export async function unfreezePayouts(
     // 다인 운영: 요청을 대신 올리고 다른 운영자의 승인을 기다린다.
     if (await isSoloOperatorMode(prisma)) {
       try {
-        await consumeOperatorRecheck(prisma, input.operatorUserId, now);
+        await consumeOperatorRecheck(prisma, input.operatorUserId, input.recheckToken, now);
       } catch (re) {
         if (!(re instanceof ApprovalError)) throw re;
         throw new PayoutAccountError(re.message, 'RECHECK_REQUIRED');

@@ -37,6 +37,8 @@ const bodySchema = z.discriminatedUnion('kind', [
     // **아직 우리에게 안 온 돈일 수 있다.** 결제 직후의 지급은 PG 입금 전이라 회사 돈을
     // 먼저 내주는 것이 된다 — 토스 콘솔에서 입금을 눈으로 확인했을 때만 넘긴다
     confirmedSettled: z.boolean().optional(),
+    /** 생체 재확인 표 (1인 운영 모드의 고액 지급) — 생체를 통과한 화면이 방금 받은 1회용 값 */
+    recheckToken: z.string().max(200).optional(),
   }),
 ]);
 
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
         settlementId: body.settlementId,
         operatorUserId,
         confirmedSettled: body.confirmedSettled,
+        recheckToken: body.recheckToken,
       });
     }
     return NextResponse.json({ ok: true });

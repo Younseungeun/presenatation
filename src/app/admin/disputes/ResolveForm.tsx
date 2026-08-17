@@ -22,12 +22,12 @@ export function ResolveForm({ disputeId }: { disputeId: string }) {
   // 절차의 절반이므로 오류 색으로 보여주면 안 된다
   const [notice, setNotice] = useState<string | null>(null);
 
-  async function submit(retried = false) {
+  async function submit(recheckToken?: string) {
     if (resolution.trim().length < 5) {
       setError("판단 근거를 적어주세요 — 이 글이 그대로 구매자에게 갑니다.");
       return;
     }
-    if (!retried) {
+    if (!recheckToken) {
       const question =
         verdict === "UPHELD"
           ? "오류로 인정할까요? 두 번째 확인(다른 운영자 승인 또는 지문·얼굴)이 필요하며, 확정되면 구매자에게 통지됩니다. 판정 되돌리기는 별도로 실행해야 합니다."
@@ -42,17 +42,17 @@ export function ResolveForm({ disputeId }: { disputeId: string }) {
       const res = await fetch("/api/disputes", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ disputeId, verdict, resolution: resolution.trim() }),
+        body: JSON.stringify({ disputeId, verdict, resolution: resolution.trim(), recheckToken }),
       });
       const json = await res.json();
       if (!res.ok) {
         if (json.code === "APPROVAL_PENDING") {
           setNotice(json.error);
-        } else if (json.code === "RECHECK_REQUIRED" && !retried) {
-          // 1인 운영 모드 — 두 번째 사람 대신 지문·얼굴이 선다. 확인되면 한 번만 재시도
+        } else if (json.code === "RECHECK_REQUIRED" && !recheckToken) {
+          // 1인 운영 모드 — 두 번째 사람 대신 지문·얼굴이 선다. 받은 표를 실어 한 번만 재시도
           const recheck = await performOperatorRecheck();
-          if (recheck.ok) {
-            await submit(true);
+          if (recheck.ok && recheck.token) {
+            await submit(recheck.token);
             return;
           }
           if (recheck.error) setError(recheck.error);

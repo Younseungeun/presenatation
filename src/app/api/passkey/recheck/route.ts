@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/server/db';
 import { finishPasskeyLogin, startPasskeyLogin } from '@/server/passkeyService';
+import { issueOperatorRecheck } from '@/server/operatorApprovalService';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 
 // 운영자 생체 재확인 (2026-08-17 사용자 확정 — 1인 운영 모드).
@@ -31,11 +32,11 @@ export async function POST(req: NextRequest) {
       // 다른 계정의 패스키다 — 세션 주인의 생체가 아니면 재확인이 아니다
       return NextResponse.json({ error: '이 기기의 생체로는 확인할 수 없습니다' }, { status: 403 });
     }
-    await prisma.user.update({
-      where: { id: operatorId },
-      data: { operatorRecheckAt: new Date() },
-    });
-    return NextResponse.json({ ok: true });
+    // **표는 이 응답으로만 나간다** — 세션만 훔친 쪽은 생체를 통과할 수 없으므로
+    // 이 값을 손에 넣지 못한다. 사용자 단위로만 도장을 찍으면 훔친 세션이 창업자의
+    // 재확인에 얹혀 가는데, 그건 이 장치가 막겠다고 한 바로 그 상대다
+    const token = await issueOperatorRecheck(prisma, operatorId);
+    return NextResponse.json({ ok: true, token });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '입력 형식 오류', issues: e.issues }, { status: 400 });

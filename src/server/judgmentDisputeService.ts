@@ -252,6 +252,8 @@ export async function resolveDispute(
     verdict: 'UPHELD' | 'REJECTED';
     /** 기각이어도 남긴다 — 같은 유형이 반복되면 그게 진짜 결함의 신호다 */
     resolution: string;
+    /** 생체 재확인 표 (1인 운영 모드) — 생체를 통과한 화면만 가질 수 있는 1회용 값 */
+    recheckToken?: string;
   },
   now = new Date(),
 ) {
@@ -307,7 +309,7 @@ export async function resolveDispute(
       // (2026-08-17 사용자 확정 — unfreezePayouts와 같은 갈림)
       if (await isSoloOperatorMode(prisma)) {
         try {
-          await consumeOperatorRecheck(prisma, input.operatorUserId, now);
+          await consumeOperatorRecheck(prisma, input.operatorUserId, input.recheckToken, now);
         } catch (re) {
           if (!(re instanceof ApprovalError)) throw re;
           throw new DisputeError('RECHECK_REQUIRED', re.message);

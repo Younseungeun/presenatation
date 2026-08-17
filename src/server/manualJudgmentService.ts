@@ -126,6 +126,11 @@ export interface ManualJudgeInput {
   /** 수동 판정 사유 — 필수, 감사 스냅샷에 기록 */
   reason: string;
   decision: ManualDecision;
+  /**
+   * 생체 재확인 표 (1인 운영 모드). 생체를 통과한 화면만 손에 넣을 수 있는 1회용 값이라,
+   * 세션만 훔친 쪽은 이 자리를 채울 수 없다 (operatorApprovalService.issueOperatorRecheck).
+   */
+  recheckToken?: string;
 }
 
 /**
@@ -237,7 +242,7 @@ export async function manualJudgeCard(
       // (2026-08-17 사용자 확정 — unfreezePayouts와 같은 갈림)
       if (await isSoloOperatorMode(prisma)) {
         try {
-          await consumeOperatorRecheck(prisma, input.operatorUserId, now);
+          await consumeOperatorRecheck(prisma, input.operatorUserId, input.recheckToken, now);
         } catch (re) {
           if (!(re instanceof ApprovalError)) throw re;
           throw new ManualJudgmentError(re.message, 'RECHECK_REQUIRED');
