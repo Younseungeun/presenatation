@@ -1,0 +1,1388 @@
+<title>인투빌 인증 관문 8라운드</title>
+<style>
+  :root {
+    /* 종이는 민트 쪽으로 아주 살짝 기운 회녹색 — 원장(ledger) 용지의 결 */
+    --paper: #F2F6F4;
+    --surface: #FFFFFF;
+    --surface-2: #E8EEEB;
+    --ink: #16211D;
+    --ink-2: #4C5D57;
+    --ink-3: #7D8C86;
+    --rule: #D2DBD6;
+    --rule-strong: #B6C4BE;
+    /* 민트 = 플랫폼 검증색(브랜드 규정). 이 문서에서는 "채택됨"을 뜻한다 */
+    --mint: #0A7A63;
+    --mint-bright: #12B896;
+    --mint-wash: #E1F0EB;
+    --rust: #9E4238;
+    --rust-wash: #F7E7E4;
+    --amber: #86601E;
+    --amber-wash: #F4EDDD;
+    --shadow: 0 1px 2px rgba(22, 33, 29, .05), 0 8px 24px -16px rgba(22, 33, 29, .28);
+
+    --sans: 'Pretendard Variable', 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic',
+            'Noto Sans KR', system-ui, sans-serif;
+    --mono: ui-monospace, 'Cascadia Mono', 'Segoe UI Mono', 'SF Mono', Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0C1311;
+      --surface: #121A17;
+      --surface-2: #1A2420;
+      --ink: #E3EAE6;
+      --ink-2: #A2B1AB;
+      --ink-3: #6E7F79;
+      --rule: #253129;
+      --rule-strong: #35443C;
+      --mint: #45D7B2;
+      --mint-bright: #12B896;
+      --mint-wash: #0F2E27;
+      --rust: #E29187;
+      --rust-wash: #321B18;
+      --amber: #DCB166;
+      --amber-wash: #2A2213;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .7);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper: #0C1311;
+    --surface: #121A17;
+    --surface-2: #1A2420;
+    --ink: #E3EAE6;
+    --ink-2: #A2B1AB;
+    --ink-3: #6E7F79;
+    --rule: #253129;
+    --rule-strong: #35443C;
+    --mint: #45D7B2;
+    --mint-bright: #12B896;
+    --mint-wash: #0F2E27;
+    --rust: #E29187;
+    --rust-wash: #321B18;
+    --amber: #DCB166;
+    --amber-wash: #2A2213;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 24px -16px rgba(0, 0, 0, .7);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.78;
+    -webkit-font-smoothing: antialiased;
+    word-break: keep-all;
+  }
+
+  .wrap {
+    max-width: 60rem;
+    margin: 0 auto;
+    padding: 0 1.5rem 6rem;
+  }
+
+  a { color: var(--mint); }
+  :focus-visible {
+    outline: 2px solid var(--mint-bright);
+    outline-offset: 3px;
+    border-radius: 2px;
+  }
+
+  /* ───────── 머리 ───────── */
+  .masthead {
+    padding: 4.5rem 0 2.75rem;
+    border-bottom: 1px solid var(--rule-strong);
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+  }
+  h1 {
+    margin: 0;
+    font-size: clamp(2rem, 5.4vw, 3.1rem);
+    line-height: 1.22;
+    letter-spacing: -.022em;
+    font-weight: 800;
+    text-wrap: balance;
+  }
+  .thesis {
+    margin: 0;
+    max-width: 46ch;
+    font-size: 1.075rem;
+    color: var(--ink-2);
+  }
+  .thesis strong { color: var(--ink); font-weight: 700; }
+
+  .stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    margin-top: 1rem;
+    border-top: 1px solid var(--rule);
+  }
+  .stat {
+    flex: 1 1 8rem;
+    padding: 1rem 1.25rem 1rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+  }
+  .stat + .stat { border-left: 1px solid var(--rule); padding-left: 1.25rem; }
+  .stat b {
+    font-family: var(--mono);
+    font-size: 1.55rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -.02em;
+    line-height: 1.2;
+  }
+  .stat span { font-size: .82rem; color: var(--ink-3); }
+
+  /* ───────── 섹션 ───────── */
+  section { padding-top: 3.75rem; }
+  h2 {
+    margin: 0 0 .35rem;
+    font-size: 1.42rem;
+    font-weight: 800;
+    letter-spacing: -.015em;
+  }
+  .lede {
+    margin: 0 0 2rem;
+    max-width: 58ch;
+    color: var(--ink-2);
+    font-size: .96rem;
+  }
+  .lede strong { color: var(--ink); font-weight: 700; }
+
+  /* ───────── 기반 구조 ───────── */
+  .base {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .base > div { background: var(--surface); padding: 1.35rem 1.4rem; }
+  .base h3 {
+    margin: 0 0 .5rem;
+    font-size: .95rem;
+    font-weight: 700;
+  }
+  .base p { margin: 0; font-size: .9rem; color: var(--ink-2); }
+  .base .tag {
+    display: block;
+    font-family: var(--mono);
+    font-size: .68rem;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: .45rem;
+  }
+
+  /* ───────── 라운드 척추 ───────── */
+  .rounds { display: flex; flex-direction: column; }
+
+  .round {
+    display: grid;
+    grid-template-columns: 5rem 1fr;
+    column-gap: 1.75rem;
+    position: relative;
+  }
+  .round::before {
+    content: "";
+    position: absolute;
+    left: calc(5rem / 2);
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--rule);
+  }
+  .round:first-child::before { top: 1.9rem; }
+  .round:last-child::before { bottom: auto; height: 1.9rem; }
+
+  .marker {
+    position: relative;
+    padding-top: 1.15rem;
+  }
+  .marker i {
+    position: absolute;
+    left: calc(50% - .5rem);
+    top: 1.35rem;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 50%;
+    background: var(--paper);
+    border: 2px solid var(--rule-strong);
+    font-style: normal;
+  }
+  .round[data-open] .marker i { border-color: var(--mint-bright); background: var(--mint-wash); }
+  .marker b {
+    display: block;
+    text-align: center;
+    margin-top: 2.4rem;
+    font-family: var(--mono);
+    font-size: 1.6rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-3);
+    letter-spacing: -.03em;
+  }
+  .round[data-open] .marker b { color: var(--mint); }
+
+  .body { padding: 1rem 0 2.5rem; min-width: 0; }
+  .round-head { margin-bottom: 1.1rem; }
+  .round-head h3 {
+    margin: 0 0 .25rem;
+    font-size: 1.16rem;
+    font-weight: 800;
+    letter-spacing: -.01em;
+    text-wrap: balance;
+  }
+  .round-head p { margin: 0; color: var(--ink-2); font-size: .92rem; max-width: 54ch; }
+
+  .entries { display: flex; flex-direction: column; gap: .75rem; }
+
+  .entry {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    padding: 1.1rem 1.25rem;
+    box-shadow: var(--shadow);
+  }
+  .entry-top {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: .6rem;
+    margin-bottom: .55rem;
+  }
+  .entry-top h4 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: -.008em;
+  }
+  .chip {
+    flex: none;
+    font-family: var(--mono);
+    font-size: .66rem;
+    font-weight: 600;
+    letter-spacing: .1em;
+    padding: .18rem .5rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .chip.adopt { background: var(--mint-wash); color: var(--mint); }
+  .chip.extend { background: var(--amber-wash); color: var(--amber); }
+  .chip.push { background: var(--rust-wash); color: var(--rust); }
+  .chip.self { background: var(--rust-wash); color: var(--rust); }
+
+  .entry p { margin: 0; font-size: .93rem; color: var(--ink-2); }
+  .entry p + p { margin-top: .5rem; }
+  .entry p.why {
+    margin-top: .7rem;
+    padding-left: .9rem;
+    border-left: 2px solid var(--rule-strong);
+    color: var(--ink);
+  }
+  .round[data-open] .entry p.why { border-left-color: var(--mint-bright); }
+  .why b { font-weight: 700; }
+  .why .label,
+  .ex .label {
+    display: block;
+    font-family: var(--mono);
+    font-size: .66rem;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    margin-bottom: .1rem;
+  }
+
+  /* ───────── 예시 상자 ─────────
+     "왜"가 근거라면 이쪽은 장면이다. 종이 위에 붙인 쪽지처럼 바탕을 한 단 눌러
+     본문과 구분하되, 테두리는 주지 않는다 — 카드 안에 카드가 겹쳐 보이지 않게. */
+  .ex {
+    margin-top: .8rem;
+    background: var(--surface-2);
+    border-radius: 3px;
+    padding: .75rem .95rem .85rem;
+  }
+  .ex p { font-size: .9rem; }
+  .ex .label { margin-bottom: .25rem; }
+  .ex b { color: var(--ink); font-weight: 700; }
+
+  /* 장면을 순서로 보여줄 때 — 순서 자체가 정보인 자리에만 쓴다 */
+  .flow {
+    margin: .5rem 0 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: .34rem;
+  }
+  .flow li {
+    display: grid;
+    grid-template-columns: 1.15rem 1fr;
+    gap: .45rem;
+    font-size: .89rem;
+    color: var(--ink-2);
+    line-height: 1.6;
+  }
+  .flow li::before {
+    content: "→";
+    font-family: var(--mono);
+    color: var(--ink-3);
+    line-height: 1.6;
+  }
+  .flow li.no::before { content: "✕"; color: var(--rust); }
+  .flow li.yes::before { content: "✓"; color: var(--mint); }
+  .flow li b { color: var(--ink); font-weight: 700; }
+
+  code {
+    font-family: var(--mono);
+    font-size: .84em;
+    background: var(--surface-2);
+    padding: .1em .35em;
+    border-radius: 2px;
+    color: var(--ink);
+  }
+  .ex code, .flow code { background: var(--paper); }
+
+  .files {
+    margin-top: .85rem;
+    padding-top: .7rem;
+    border-top: 1px dashed var(--rule);
+    font-family: var(--mono);
+    font-size: .74rem;
+    color: var(--ink-3);
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+
+  .chain {
+    margin-top: 1rem;
+    padding: .7rem .95rem;
+    background: var(--surface-2);
+    border-radius: 3px;
+    font-size: .87rem;
+    color: var(--ink-2);
+  }
+  .chain b { color: var(--ink); font-weight: 700; }
+
+  /* ───────── 최종 관문 ───────── */
+  .gates {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+    gap: 1rem;
+  }
+  .gate-group {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 3px solid var(--mint-bright);
+    border-radius: 3px;
+    padding: 1.25rem 1.35rem 1.4rem;
+  }
+  .gate-group h3 {
+    margin: 0 0 .2rem;
+    font-size: 1rem;
+    font-weight: 800;
+  }
+  .gate-group > p {
+    margin: 0 0 1rem;
+    font-size: .84rem;
+    color: var(--ink-3);
+  }
+  .gate-group ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: g;
+    display: flex;
+    flex-direction: column;
+    gap: .8rem;
+  }
+  .gate-group li {
+    counter-increment: g;
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    gap: .6rem;
+    font-size: .89rem;
+  }
+  .gate-group li::before {
+    content: counter(g);
+    font-family: var(--mono);
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--mint);
+    background: var(--mint-wash);
+    border-radius: 2px;
+    height: 1.35rem;
+    display: grid;
+    place-items: center;
+  }
+  .gate-group li b { display: block; font-weight: 700; }
+  .gate-group li span { color: var(--ink-2); font-size: .85rem; }
+
+  /* ───────── 남은 것 ───────── */
+  .open-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .open-row {
+    background: var(--surface);
+    padding: 1.05rem 1.25rem;
+    display: grid;
+    grid-template-columns: 8.5rem 1fr;
+    gap: 1.1rem;
+    align-items: start;
+  }
+  .open-row .k {
+    font-family: var(--mono);
+    font-size: .72rem;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-top: .28rem;
+  }
+  .open-row p { margin: 0; font-size: .92rem; color: var(--ink-2); }
+  .open-row p b { color: var(--ink); font-weight: 700; }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--rule);
+    font-size: .82rem;
+    color: var(--ink-3);
+  }
+  footer code { background: none; padding: 0; color: var(--ink-3); }
+
+  @media (max-width: 40rem) {
+    .round { grid-template-columns: 2.5rem 1fr; column-gap: 1rem; }
+    .round::before { left: 1.25rem; }
+    .marker i { left: calc(50% - .45rem); width: .9rem; height: .9rem; }
+    .marker b { font-size: 1rem; margin-top: 2.1rem; }
+    .open-row { grid-template-columns: 1fr; gap: .35rem; }
+    .stat + .stat { border-left: none; padding-left: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="eyebrow">INTOVILL · 인증 · 거버넌스</div>
+    <h1>돈에 닿는 길을 여덟 번 좁혔습니다</h1>
+    <p class="thesis">
+      외부 검토와 <strong>여덟 번</strong> 주고받았습니다. 매 라운드의 처방이 다음 라운드의
+      구멍을 열었고, 그 사슬이 이 기록의 뼈대입니다. <strong>어려운 말은 쓰지 않았습니다</strong> —
+      거의 모든 항목에 “예를 들면” 상자가 붙어 있습니다.
+    </p>
+    <div class="stats">
+      <div class="stat"><b>8</b><span>검토 라운드</span></div>
+      <div class="stat"><b>2</b><span>스스로 찾아 막은 구멍</span></div>
+      <div class="stat"><b>1인</b><span>운영 모드 — 지문이 두 번째 사람</span></div>
+      <div class="stat"><b>1,177</b><span>통과 테스트</span></div>
+    </div>
+  </header>
+
+  <section>
+    <h2>0. 검토 이전 — 직접 정하신 뼈대</h2>
+    <p class="lede">
+      검토가 시작되기 전에 <strong>로그인을 둘로 나누는 구조</strong>를 직접 확정하셨습니다.
+      이후 여덟 라운드는 전부 이 뼈대 위에 관문을 얹은 것이고, 뼈대 자체는 한 번도 흔들리지
+      않았습니다.
+    </p>
+    <div class="base">
+      <div>
+        <span class="tag">풀 로그인</span>
+        <h3>이 사람이 누구인가</h3>
+        <p>휴대폰 본인 인증. 가입 · 앱 재설치 · 로그아웃 후에만 합니다. 이때
+           <b>본인 확인 번호와 실명</b>을 받아 잠가서 보관합니다 —
+           나중에 계좌 주인이 맞는지 맞춰 볼 상대편입니다.</p>
+      </div>
+      <div>
+        <span class="tag">간편 로그인</span>
+        <h3>아까 그 기기가 맞는가</h3>
+        <p>지문·얼굴(동의한 사람만) 또는 <b>6자리 간편 비밀번호</b>(모두 필수).
+           잠든 앱을 깨우는 것이라 1~2초면 끝납니다.</p>
+      </div>
+      <div>
+        <span class="tag">기기에 묶인다</span>
+        <h3>새 기기는 무조건 풀 로그인</h3>
+        <p>서버가 인정하는 것은 <b>“이 기기에서, 이 얼굴·이 지문·이 비밀번호”</b>입니다.
+           비밀번호가 새어 나가도 다른 기기에서는 못 씁니다.</p>
+      </div>
+      <div>
+        <span class="tag">계좌 등록</span>
+        <h3>이름은 우리가 맞춘다</h3>
+        <p>통신사가 준 이름 ↔ 은행 예금주명. <b>예금주 입력란이 없습니다</b> — 본인이 두 곳에
+           다 적으면 대조가 아니라 받아쓰기입니다.</p>
+      </div>
+      <div>
+        <span class="tag">정산 동결</span>
+        <h3>“내 돈 나가지 마” 정지 버튼</h3>
+        <p><b>낯선 기기에서</b> 계좌가 바뀌면 <b>48시간 동안 돈을 안 내보내고</b> 본인에게
+           묻습니다 — “본인이 바꾸신 게 맞습니까?” <b>“아니요”라고 답하는 방법이 이
+           버튼</b>입니다. 누르면 그 사람에게 나갈 돈이 한 푼도 안 나갑니다.
+           (평소 로그인 기기에서 바꾸면 묻지도 기다리지도 않습니다 — 본인이 방금 한
+           일이니까요.) 계좌를 아직 등록 안 했어도 미리 걸 수 있습니다 — 탈취자가
+           자기 계좌를 넣기 <b>전에</b> 잠그는 게 가장 이른 방어라서요.</p>
+      </div>
+      <div>
+        <span class="tag">동결의 비대칭</span>
+        <h3>걸기는 본인, 풀기는 운영자만</h3>
+        <p>“잠깐 미뤄주세요”가 아니라 <b>카드 분실 신고에 가깝습니다</b> — 본인이
+           “이제 됐어요” 해도 안 풀립니다. 그 순간 <b>“본인이에요”라고 말하는 사람이
+           진짜 본인인지 모르기 때문</b>입니다(계정이 털렸다면 도둑도 똑같이 누릅니다).
+           잘못 걸었을 때의 대가는 “운영자에게 연락”이고, 못 걸었을 때의 대가는 돈이
+           나가는 것입니다.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>라운드별 기록</h2>
+    <p class="lede">
+      각 항목의 <strong>“왜”</strong>가 채택 근거이고, <strong>“예를 들면”</strong>은 그것이
+      실제로 벌어지는 장면입니다. 표식은 네 가지 —
+      <span class="chip adopt">채택</span> 검토안을 그대로,
+      <span class="chip extend">확장</span> 검토안보다 더 나감,
+      <span class="chip push">반박</span> 검토안을 따르지 않음,
+      <span class="chip self">자체 발견</span> 검토가 아니라 우리가 찾아낸 구멍.
+    </p>
+
+    <div class="rounds">
+
+      <!-- 1차 -->
+      <article class="round">
+        <div class="marker"><i></i><b>01</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>로그인 경로를 권한의 차이로 바꾸다</h3>
+            <p>“로그인은 다 같은 로그인인가?”를 물었습니다. 답은 아니라는 것이었습니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>새 기기 등록은 인증 직후 10분만</h4></div>
+              <p>세션에는 <b>“이 사람이 마지막으로 신분증을 보여준 시각”</b>이 도장처럼
+                 찍혀 있습니다. 본인 인증으로 들어오면 그 시각이 찍히고, 지문·얼굴이나 간편
+                 비밀번호로 앱을 깨운 세션에는 <b>“확인한 적 없음”</b>이 찍힙니다.
+                 새 기기 등록은 그 도장이 10분 이내인 사람만 할 수 있습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>아침 9시에 휴대폰 본인 인증으로 로그인했다고 해봅시다.</p>
+                <ul class="flow">
+                  <li class="yes">9시 <b>5분</b>에 지문 등록 → 통과</li>
+                  <li class="no">9시 <b>25분</b>에 지문 등록 → “본인 인증을 다시 해주세요”</li>
+                  <li class="no">어제 켜 둔 앱을 <b>지문으로 깨워서</b> 등록 시도 → 몇 시에 하든 거절.
+                      그 문에는 신분증 도장이 <b>아예 찍혀 있지 않기</b> 때문입니다</li>
+                </ul>
+              </div>
+              <p class="why"><span class="label">왜</span>
+                탈취자가 남의 폰에서 간편 비밀번호를 알아내 들어왔다고 해도,
+                <b>거기서 자기 지문·얼굴을 새로 등록할 수 없습니다.</b> 등록하려면 본인 인증을
+                다시 받아야 하는데 그건 주인 명의 휴대폰 인증입니다.
+                이 관문이 없으면 <b>잠깐 빌린 접근이 스스로 영구 접근이 됩니다.</b></p>
+              <div class="files">src/server/authGates.ts · 인증 유효 창 10분</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>평소와 다른 문으로 들어오면 48시간 유예</h4></div>
+              <p>평소 지문·얼굴로 로그인하던 사람이 갑자기 휴대폰 인증으로 들어오면,
+                 <b>48시간 동안 새 기기 등록을 막고 본인에게 알립니다.</b>
+                 (지문·얼굴을 한 번도 등록한 적 없는 사람은 인증이 유일한 길이라 걸지 않습니다.)</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>늘 지문으로 들어오던 사람이 오늘은 문자 인증으로 들어왔습니다.</p>
+                <ul class="flow">
+                  <li class="yes">들어오는 것 자체는 됩니다 — 진짜로 폰을 바꿨을 수도 있으니까요</li>
+                  <li class="no">하지만 <b>새 지문 등록은 48시간 뒤부터</b></li>
+                  <li>그동안 진짜 주인 폰에 <b>“평소와 다른 방법으로 로그인됐습니다”</b> 알림이 갑니다</li>
+                </ul>
+              </div>
+              <p class="why"><span class="label">왜</span>
+                <b>같은 사람이라도 어느 문으로 들어왔는지가 신호</b>입니다. 평소 지문·얼굴로
+                들어오던 사람이 갑자기 문자 인증으로 들어오면 그 자체가 이상 신호입니다.</p>
+              <div class="files">src/server/authGates.ts · 위험 경로 유예 48시간</div>
+            </div>
+
+          </div>
+          <div class="chain">→ <b>다음 라운드가 물은 것:</b> 가입 직후엔 간편 비밀번호를
+             반드시 설정해야 하는데, 그 세션이 위험 경로면 어떻게 하나?</div>
+        </div>
+      </article>
+
+      <!-- 2차 -->
+      <article class="round">
+        <div class="marker"><i></i><b>02</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>세션을 줄이고, 실행을 둘로 나누다</h3>
+            <p>“간편 비밀번호는 반드시 설정해야 하는데 48시간 유예와 부딪힌다”, 세션 수명,
+               그리고 운영자 계정이 무방비라는 것을 물었습니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>간편 비밀번호는 바로, 지문·얼굴 등록은 48시간 뒤</h4></div>
+              <p>새 기기에서 본인 인증을 마친 직후 — <b>간편 비밀번호 설정은 바로</b>,
+                 <b>지문·얼굴 등록은 48시간 뒤</b>부터 할 수 있습니다(이미 다른 기기에 지문·얼굴을
+                 등록해 둔 계정만 해당).</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>도둑이 유심을 훔쳐서, 자기 폰에 끼우고 문자 인증으로 들어왔습니다.</p>
+                <ul class="flow">
+                  <li class="yes">6자리 비밀번호는 만들 수 있습니다 — 어차피 이미 들어와 있어서
+                      막아도 새로 얻는 것이 없습니다</li>
+                  <li class="no">하지만 <b>지문 등록은 48시간 뒤</b></li>
+                  <li>그 48시간 안에 진짜 주인이 알림을 보고 <b>동결 버튼</b>을 누르면 끝납니다</li>
+                </ul>
+              </div>
+              <p class="why"><span class="label">왜 지문·얼굴만 미루나</span>
+                지문·얼굴을 등록하면 그 기기가 <b>“이 계정이 평소 쓰는 기기”라는 신분</b>을 얻습니다.
+                시스템은 “평소 지문·얼굴로 들어오던 사람이 갑자기 문자 인증으로 들어왔다”를
+                수상하게 보는데, 침입자가 자기 지문·얼굴을 심어 버리면 다음부터는 그것으로
+                들어오니 <b>더 이상 수상하지 않게 되고, 주인에게 가던 알림도 끊깁니다.</b>
+                “수상한 손님”이 “이 집 사람”이 되는 것 — 그걸 48시간 미뤄서
+                <b>그 사이에 진짜 주인이 알림을 보고 정산을 동결</b>하게 합니다.</p>
+              <p class="why"><span class="label">왜 간편 비밀번호는 바로 여나</span>
+                <b>막을 수가 없습니다</b> — 새 기기 로그인 직후 간편 비밀번호 설정은 필수
+                절차라 막으면 가입이 안 끝납니다. <b>막을 이유도 없습니다</b> — 그 사람은
+                이미 로그인해 있어서 지금 못 하던 일을 하게 되는 게 아니고,
+                그 세션에는 여전히 “신분증 확인한 적 없음”이 찍혀 있어 새 열쇠도 못 심습니다.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>세션 수명 30일 → 3일</h4></div>
+              <p>훔친 세션이 살아 있는 창이 한 달에서 사흘로 줄었습니다. 만료되면 지문·얼굴 한 번,
+                 혹은 6자리로 갱신됩니다 — 풀 로그인이 아닙니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>화면 잠금을 안 걸어 둔 폰을 잃어버렸습니다. 주운 사람이 앱을 열면
+                   <b>예전에는 30일</b> 동안 그대로 쓸 수 있었고, <b>지금은 3일</b>이면 문이
+                   닫힙니다. 본인이 치르는 값은 사흘에 한 번 지문 한 번입니다.</p>
+              </div>
+              <p class="why"><span class="label">왜</span>
+                30일의 근거는 “매번 본인 인증시킬 수 없다”였는데, <b>간편 로그인이 생기면서
+                그 전제가 사라졌습니다.</b> 깨우는 마찰이 1~2초면 자주 깨우는 쪽이 자연스럽습니다.</p>
+              <div class="files">src/server/sessionToken.ts · SESSION_MAX_AGE_SEC = 3일</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>운영자 2인 승인 — 올린 사람과 승인하는 사람을 나눈다</h4></div>
+              <p>운영자가 <b>혼자서는 못 하게</b> 만든 일이 둘입니다.</p>
+              <p><b>① 정산 동결 풀기 — 금액과 상관없이 늘 두 사람.</b>
+                 리서처가 걸어 둔 “내 돈 나가지 마”를 다시 여는 일입니다.</p>
+              <p><b>② 리서처에게 돈 보내기 — 500만원을 넘을 때만 두 사람.</b>
+                 그 아래 일상 정산은 한 사람이 계속 처리합니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>은행 금고처럼 <b>열쇠 구멍이 두 개</b>인 문입니다. 두 사람이 각자 열쇠를
+                   같은 시각에 돌려야 열립니다. 한 사람이 나쁜 마음을 먹어도 혼자서는
+                   못 엽니다.</p>
+                <p>그리고 승인이 나면 <b>도장 찍힌 종이 한 장</b>이 생기는데, 쓰고 나면
+                   그 자리에서 찢습니다. 안 찢으면 같은 종이로 돈이 두 번 나갑니다.</p>
+              </div>
+              <p class="why"><span class="label">왜 두 사람이어야 하나</span>
+                지문·얼굴 로그인도, 인증 관문도 전부 <b>“들어오는 것”</b>을 막는 장치입니다.
+                그런데 악의를 품은 내부자는 <b>정당하게 들어옵니다.</b> 문을 지키는 것으로는
+                못 푸는 문제라 <b>실행 자체를 두 사람이 나눕니다.</b></p>
+              <p class="why"><span class="label">왜 동결 해제는 금액을 안 따지나</span>
+                동결 해제는 이 시스템에서 <b>방어를 스스로 여는 유일한 행위</b>입니다.
+                나머지 관문은 전부 막는 쪽인데 이것만 열어주는 쪽이라, 공격자에게 남은
+                마지막 길이 <b>“운영자를 속여서 풀게 하는 것”</b>입니다.
+                운영자 하나만 뚫리면 그 하나로 앞의 모든 방어가 무의미해집니다.</p>
+              <p class="why"><span class="label">왜 지급은 전부에 안 걸었나</span>
+                카드 한 장이 5천~5만원이라 일상 정산은 대부분 수십만원입니다. 여기까지 걸면
+                하루에도 몇 번씩 “승인 좀 눌러줘”를 주고받게 되고,
+                <b>습관이 된 승인은 읽지 않고 누르는 도장</b>이 됩니다. 그러면 2인 승인은
+                이름만 남습니다. 500만원은 <b>하루에 나갈 수 있는 총액(1,000만원)의 절반</b> —
+                평소에는 안 걸리고 이상한 날에만 걸리는 자리입니다.</p>
+              <div class="files">src/domain/operatorApproval.ts · src/server/operatorApprovalService.ts · /admin/approvals</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>기기 목록을 하나로 + 지우면 전 기기 로그아웃</h4></div>
+              <p>지문·얼굴 기기와 간편 비밀번호 기기를 <b>한 목록</b>으로 합쳤습니다.
+                 그리고 목록에서 기기 하나를 지우면 <b>그 계정의 모든 기기가 함께
+                 로그아웃됩니다</b> — 지금 손에 쥔 본인 폰까지요.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>폰을 잃어버려서, 새 폰에서 목록에 들어가 잃어버린 폰을 지웠습니다.</p>
+                <ul class="flow">
+                  <li class="no"><b>잃어버린 폰</b> — 열려 있던 창이 닫히고 <b>열쇠까지 삭제</b>됩니다.
+                      주운 사람이 다시 들어오려면 휴대폰 본인 인증부터 해야 합니다</li>
+                  <li class="yes"><b>내 새 폰</b> — 창만 닫히고 열쇠는 그대로라, 앱을 열고
+                      <b>지문 한 번</b>이면 다시 들어옵니다</li>
+                </ul>
+              </div>
+              <p class="why"><span class="label">왜 한 목록인가</span>
+                나눠 보여주면 잃어버린 폰을 지우려는 사람이 <b>한쪽만 지우고 안심</b>합니다
+                — 지문은 지웠는데 간편 비밀번호가 남아 있는 식으로요.</p>
+              <p class="why"><span class="label">왜 전부 끊나</span>
+                예전에는 기기를 지워도 이미 열린 창은 그대로여서 <b>“지웠는데 그 사람 아직
+                들어와 있습니다”</b>가 됐습니다. 기기를 지우는 순간은 대개
+                <b>“폰을 잃어버렸다”</b>라 확실한 게 하나도 없는 상황이고, 그때는
+                <b>의심스러우면 전부 끊는 쪽</b>이 안전합니다 — 그 대가가 본인 폰에서
+                지문 한 번이라면 치를 만합니다.</p>
+              <div class="files">src/server/deviceService.ts · 계정마다 세션 세대 번호를 하나 올린다</div>
+            </div>
+
+          </div>
+          <div class="chain">→ <b>다음 라운드가 물은 것:</b> 2인 승인은 운영자 2명을 전제하는데,
+             출시 초에 1명이면 <b>동결을 영원히 못 푼다</b> — 방어가 인질이 된다.</div>
+        </div>
+      </article>
+
+      <!-- 3차 -->
+      <article class="round">
+        <div class="marker"><i></i><b>03</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>판정을 뒤집는 손에도 2인을 세우다</h3>
+            <p>교착, 로그아웃의 단위, 그리고 “돈이 나갈 방향을 바꾸는 행위”를 물었습니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>판정 이의 인정에 승인 관문</h4></div>
+              <p>운영자가 “오류 인정”을 누르면 확정이 멈추고 <b>승인 요청이 대신 올라갑니다.</b>
+                 다른 운영자가 승인해야 같은 확정이 실행됩니다. 구매자 통지도 승인 전에는
+                 나가지 않습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>“적중”으로 판정된 카드에 구매자가 “아니에요, 틀렸어요”라고 이의를 냈습니다.
+                   운영자가 <b>“인정”</b>을 누르는 순간 돈의 방향이 바뀝니다 —
+                   리서처에게 갈 돈이 구매자 환불로 돌아섭니다.</p>
+                <p><b>돈의 방향을 바꾸는 버튼은 혼자 못 누릅니다.</b> 그리고 통지는
+                   승인이 난 뒤에 나갑니다 — 먼저 보내 놓고 반려되면 주워 담을 수 없으니까요.</p>
+              </div>
+              <p class="why"><span class="label">왜</span>
+                판정은 <b>돈이 흐를 방향을 정하는 원천</b>입니다. 내부자와 공모한 구매자가
+                적중을 실패로 뒤집으면 환불이라는 형태로 돈이 샙니다.</p>
+              <div class="files">src/server/judgmentDisputeService.ts · DISPUTE_UPHOLD</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip push">반박</span><h4>기각·사후 인정·개발자 명령창에는 걸지 않음</h4></div>
+              <p>기각(판정 유지), 이미 되돌려진 판정의 사후 인정, 개발자가 명령창에서 돌리는
+                 되돌리기 프로그램 — 셋 다 관문을 지나지 않습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>개발자 명령창까지 들어온 사람은 <b>데이터베이스를 직접 고칠 수 있습니다.</b>
+                   거기에 “승인받고 오세요” 창을 띄우는 것은,
+                   <b>담을 넘어 마당에 들어온 사람에게 대문 열쇠를 요구하는 것</b>과 같습니다.
+                   관문처럼 보이지만 아무것도 막지 못하고, 막고 있다는 착각만 만듭니다.</p>
+              </div>
+              <p class="why"><span class="label">왜</span>
+                기각은 <b>데이터의 판정을 유지</b>하는 쪽이라 사람 손이 새로 안 들어갑니다.
+                사후 인정은 뒤집기가 이미 일어난 뒤의 기록이라 <b>같은 결정을 두 번 세는 것</b>입니다.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip push">반박</span><h4>48시간 유예를 계좌 변경에 겹치지 않음</h4></div>
+              <p>검토는 위험 경로 유예를 “민감 행위 전반”으로 넓히라고 했으나, 계좌 변경에는
+                 이미 등록 후 48시간 지급 유예가 있습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p><b>우산을 두 개 쓴다고 비를 덜 맞지 않습니다.</b> 같은 48시간을 두 번 세면
+                   나쁜 사람은 어차피 첫 번째에 걸리고, 착한 사람만 96시간을 기다립니다.</p>
+                <p>방어가 세지는 것은 겹칠 때가 아니라 <b>종류가 다를 때</b>입니다 —
+                   “시간을 벌기”와 “이름을 맞춰 보기”는 다른 종류라 같이 쓰면 세집니다.</p>
+              </div>
+              <p class="why"><span class="label">왜</span>
+                두 유예는 같은 축(시간)입니다. 같은 축을 두 번 겹치면 비용만 두 배가 됩니다.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>운영자 1인 교착은 운영으로, 코드 예외는 없음</h4></div>
+              <p>“24시간 뒤에는 혼자 실행해도 됨” 같은 우회로를 코드에 넣지 않았습니다.
+                 대신 <b>두 번째 열쇠를 실제로 확보하는 것</b>을 출시 요건으로 올렸습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>“24시간 지나면 혼자 열 수 있음”이라고 문에 적어 두면, 도둑은 그냥
+                   <b>24시간을 기다립니다.</b> 급할 때 쓰라고 만든 예외가, 실제로는
+                   <b>항상 열려 있는 뒷문</b>이 됩니다.</p>
+              </div>
+              <p class="why"><span class="label">왜</span>
+                예외를 코드에 넣는 순간 공격자에게 <b>“계정 하나만 뚫고 기다리면 된다”</b>를
+                상시 열어 주는 것입니다. 예외는 코드가 아니라 운영으로 풉니다.</p>
+            </div>
+
+          </div>
+          <div class="chain">→ <b>다음 라운드가 물은 것:</b> 이의 인정을 막았는데, 그 다음
+             단계인 수동 판정 입력은 여전히 무방비다.</div>
+        </div>
+      </article>
+
+      <!-- 4차 -->
+      <article class="round">
+        <div class="marker"><i></i><b>04</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>원천 데이터 입력을 막고, 승인서에 수명을 주다</h3>
+            <p>공모 체인의 마지막 조각, 여벌 열쇠의 회수, 그리고 낡은 승인서를 물었습니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>기계가 한 번도 안 매긴 카드의 수동 판정에 2인</h4></div>
+              <p>수동 판정 대기줄에는 두 종류가 섞여 있습니다. <b>한 번 기계가 매겼다가
+                 취소된 카드</b>(취소하면 기록이 남습니다)와, <b>시세를 못 구해 기계가 아예
+                 손도 못 댄 카드</b>(신규 상장 등)입니다. 그 기록의 유무로 갈랐습니다 —
+                 전자는 관문 없이, 후자는 2인 승인입니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>시험 채점에 비유하면:</p>
+                <ul class="flow">
+                  <li><b>기계가 한 번 채점했다가 취소한 답안</b> — 원래 점수 기록이 남아 있어
+                      선생님이 딴 점수를 적으면 티가 납니다 → 관문 없이 처리</li>
+                  <li class="no"><b>기계가 한 번도 못 본 답안</b> — 선생님이 적는 숫자가
+                      <b>곧 정답</b>이 됩니다. 맞춰 볼 상대가 없습니다 → 두 사람</li>
+                </ul>
+              </div>
+              <p class="why"><span class="label">왜</span>
+                기계가 한 번도 안 매긴 카드는 <b>운영자가 손으로 넣는 숫자가 곧 정답</b>이
+                됩니다. 이 창구가 조작되면 앞의 방어가 전부 무력해집니다.
+                반대로 취소 기록이 있는 카드에 또 걸면, <b>사고 복구 때 수십 장을 손으로
+                판정하는 일이 두 배로 느려질 뿐</b>입니다.</p>
+              <div class="files">src/server/manualJudgmentService.ts · 최초 수동 판정 관문</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>여벌 열쇠 회수를 사람이 아니라 코드가 한다</h4></div>
+              <p>두 번째 <b>진짜</b> 운영자에게 권한을 주는 순간, <b>같은 동작 안에서</b>
+                 여벌 계정의 권한이 내려가고 그 계정의 열려 있는 창도 끊깁니다 — 둘 사이에
+                 틈이 없어서 “권한을 줬는데 여벌도 아직 살아 있는” 순간이 존재하지 않습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>새 직원에게 열쇠를 주는 <b>바로 그 순간</b> 금고 속 여벌 열쇠가 저절로
+                   못 쓰게 됩니다. “나중에 회수해야지”라고 사람이 기억하기로 하면
+                   <b>잊어버리고</b>, 그렇게 <b>잊힌 여벌 열쇠가 제일 오래 살아남습니다.</b></p>
+              </div>
+              <p class="why"><span class="label">왜</span>
+                남겨 두면 “운영자 2명 + 여벌 1개”가 되어 <b>한 사람이 여벌을 쥐고 다시 단독
+                승인 능력</b>을 갖습니다. 회수를 운영 수칙에 맡기면 잊히고,
+                <b>잊힌 백도어가 가장 오래 삽니다.</b></p>
+              <div class="files">src/server/operatorGrantService.ts · User.operatorCold</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip extend">확장</span><h4>승인서 72시간 만료 — 대기와 승인서 모두</h4></div>
+              <p>검토는 대기 중인 요청의 만료를 말했지만, <b>승인이 끝난 종이에도</b> 같은
+                 수명을 걸었습니다. 승인한 시각부터 다시 72시간을 셉니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>자유이용권에 날짜가 없으면, <b>3년 뒤에 와서 쓰겠다는 사람</b>이 생깁니다.
+                   승인도 마찬가지라, 사흘이 지난 판단은 다시 내려야 합니다.</p>
+                <p><b>왜 매일 밤 청소하는 방식을 안 쓰나</b> — 청소 로봇이 하루 고장 나면
+                   그날 하루는 <b>낡은 표가 멀쩡한 표처럼 보입니다.</b> 대신 표를 낼 때마다
+                   그 자리에서 날짜를 봅니다. 보는 순간이 곧 판정 순간이라 틈이 없습니다.</p>
+              </div>
+              <p class="why"><span class="label">왜 더 나갔나</span>
+                대기는 아직 아무 권한도 아니지만 <b>승인이 끝난 종이는 실행 권한</b>입니다.
+                승인만 받아 두고 반년 뒤에 쓰는 종이는 같은 위험의 더 나쁜 형태입니다.</p>
+              <div class="files">승인서 수명 72시간 · 지나면 만료 표시</div>
+            </div>
+
+          </div>
+          <div class="chain">→ <b>다음 라운드가 물은 것:</b> 관문은 다 섰는데, 승인이
+             습관이 되는 것은 무엇으로 감지하나?</div>
+        </div>
+      </article>
+
+      <!-- 5차 -->
+      <article class="round">
+        <div class="marker"><i></i><b>05</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>승인이 장식이 되는 것을 계기판에 올리다</h3>
+            <p>습관화 감지, 본인 인증 없는 여벌 계정, 소리 없이 죽는 만료를 물었습니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>습관화 감지 신호 3종</h4></div>
+              <p>① 1분 미만 즉시 승인이 절반 초과 · ② 결정 50건 위에서 반려 0% ·
+                 ③ 같은 승인자가 10초 안에 3건 연속 승인. 하나라도 켜지면 경고입니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>선생님이 숙제 검사를 <b>1초 만에</b> 도장만 쾅 찍는다면, 정말 읽으신 걸까요?
+                   읽었는지 아닌지는 볼 수 없지만 <b>흔적</b>은 셀 수 있습니다.</p>
+                <p><b>왜 셋을 같이 세나</b> — 하나만 재면 그 하나만 맞추게 됩니다.
+                   일부러 <b>천천히</b> 누르면 ①과 ③은 피할 수 있지만,
+                   <b>한 번도 안 되돌린</b> 기록(②)은 그대로 남습니다. 셋이 서로를 막습니다.</p>
+              </div>
+              <div class="files">src/domain/approvalHealth.ts · 운영 건강 화면 지표</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip extend">확장</span><h4>연쇄 판정에서 반려 제외 · 승인자별로 계산</h4></div>
+              <p>검토는 “10초 내 3건”만 말했습니다. 반려는 연쇄에서 빼고, 승인자별로 나눠
+                 셉니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>두 선생님이 <b>우연히 같은 시각에 각자 한 장씩</b> 처리한 것을
+                   “3연속 도장”으로 잡아 버리면, 그 경보는 며칠 만에 <b>아무도 안 믿게</b> 됩니다.
+                   경보는 틀리는 순간 꺼집니다 — 스위치가 아니라 사람 마음속에서요.</p>
+              </div>
+              <p class="why"><span class="label">왜 더 나갔나</span>
+                반려는 <b>읽었다는 증거</b> 쪽입니다. 안 걸렀다면 이 지표는 정상 운영을
+                습관으로 오인해 <b>스스로 무시당했을 것</b>입니다.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>여벌 계정에는 지문·얼굴 열쇠가 먼저다</h4></div>
+              <p>지문·얼굴 열쇠가 하나도 등록되지 않은 계정에는 여벌 운영자 권한을 주지 않습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>본인 인증은 <b>한 사람당 계정 하나</b>만 허용합니다. 그래서 창업자가
+                   “인증을 마친 계정”을 두 개 가질 수는 없습니다. 두 번째 계정에는
+                   신분증 자리가 <b>비어 있게</b> 되고, 그 빈자리를
+                   <b>여벌 기기 안에만 존재하는 지문·얼굴 열쇠</b>가 대신 채웁니다.</p>
+              </div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip extend">확장</span><h4>만료 알림 — 상태가 바뀌는 그 동작에 묶음</h4></div>
+              <p>48시간 지난 대기 건은 운영자에게 1회 재알림, 만료가 확정되는 순간 요청한
+                 사람에게 알림. 대기 만료와 승인서 만료는 문구가 다릅니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>냉장고 우유는 <b>“지나는 순간”에 스스로 알려 주지 않습니다.</b>
+                   문을 열고 꺼내 볼 때 날짜를 보고 “아, 상했네” 하게 되죠.</p>
+                <p>우리 방식도 똑같아서 “만료되는 순간”이라는 시각이 아예 없습니다.
+                   그래서 <b>“상했네”라고 표시를 바꾸는 바로 그 동작</b>에 알림을 붙였습니다.
+                   표시는 딱 한 번 바뀌므로 알림도 딱 한 번 갑니다.</p>
+              </div>
+              <p class="why"><span class="label">왜 더 나갔나</span>
+                검토는 “만료되는 시점에 알려라”라고 했는데, 그 시점이 우리 구조에는
+                존재하지 않았습니다. <b>없는 순간을 만들지 않고, 있는 동작에 얹었습니다.</b></p>
+            </div>
+
+          </div>
+          <div class="chain">→ <b>다음 라운드가 물은 것:</b> 계기판을 볼 사람이 바로 그
+             습관화된 운영자다. 그리고 지문·얼굴을 강제했더니 여벌 기기 고장이 곧 영구 교착이 됐다.</div>
+        </div>
+      </article>
+
+      <!-- 6차 -->
+      <article class="round">
+        <div class="marker"><i></i><b>06</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>1인 운영 전환 — 두 번째 사람 자리를 지문이 대신한다</h3>
+            <p>설계 주체(창업자)가 확정했습니다: 사업 초기 운영자는 본인 1명.
+               2~5차에 세운 2인 승인 체계를 그 현실에 맞게 갈아끼웠습니다.</p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">확정</span><h4>왜 그대로 두지 않았나</h4></div>
+              <p>2인 승인이 막던 것은 둘 — <b>내부자의 악의</b>와 <b>계정 탈취</b>.
+                 1인 체제에서 내부자 후보는 코드·데이터베이스를 전부 쥔 <b>창업자 본인</b>이라
+                 앱 관문이 막을 수 있는 상대가 아닙니다. 막을 수 없는 상대를 향한 관문은
+                 방어가 아니라 절차이고, 그 비용은 정당한 운영만 냅니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>열쇠 구멍이 두 개인 금고인데, 학교에 선생님이 <b>한 분뿐</b>이라면?
+                   두 번째 구멍은 영원히 안 채워지고, 금고는 영영 안 열립니다.</p>
+                <p>그래서 두 번째 구멍 자리에 <b>지문 인식기</b>를 답니다.</p>
+                <ul class="flow">
+                  <li class="no"><b>세션만 훔친 사람</b> — 지문이 없어서 못 엽니다</li>
+                  <li class="no"><b>폰을 주운 사람</b> — 주인의 얼굴·지문이 없어서 못 엽니다</li>
+                  <li class="yes"><b>창업자 본인</b> — 1초</li>
+                </ul>
+              </div>
+              <p class="why"><span class="label">되돌아오는 조건</span>
+                <b>운영자가 2명이 되는 순간 자동으로 2인 승인으로 복귀</b>합니다 —
+                사람이 스위치를 켜는 것이 아니라 코드가 사람 수를 세서 판단합니다.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">확정</span><h4>고액 지급만은 색이 잇는다</h4></div>
+              <p>500만원 관문의 취지는 “큰돈은 주의해서 보자”였고, 승인자가 없는 체제에서
+                 그 취지는 <b>지시서 화면의 금액 색 강조</b>가 잇습니다 — 250만원 이상
+                 주의색, 500만원 이상 경고색 + “실행 전 한 번 더 확인” 문구.
+                 일일 한도(1,000만원)·48시간 쿨다운·계좌 검증·동결은 전부 그대로 삽니다.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">확정</span><h4>관리자는 계정이 아니라 신원이다</h4></div>
+              <p>창업자의 본인 확인 번호(를 뒤섞어 만든 값)를 서버 설정에 고정 — <b>그 사람의
+                 본인 인증이 곧 관리자 승격</b>입니다. 데이터베이스를 비우거나 앱을 다시 깔아도
+                 풀 로그인 한 번이면 돌아옵니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>“관리자 계정”이라는 <b>아이디와 비밀번호</b>를 따로 두면, 그 한 쌍이 새는
+                   순간 남이 관리자가 됩니다. 그래서 관리자를 <b>계정이 아니라 사람</b>에
+                   묶었습니다 — 그 사람이 본인 인증을 통과하면 어느 계정이든 관리자 화면이
+                   열립니다.</p>
+              </div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip extend">정리</span><h4>예비 기기 = 본인 계정의 두 번째 열쇠</h4></div>
+              <p>별도 “여벌 계정”은 만들지 않습니다 — 본인 인증이 없는 계정은 풀 로그인을
+                 못 해 <b>지문 열쇠를 등록할 방법 자체가 없다</b>는 것이 확인됐습니다(등록은
+                 방금 인증한 세션만). 대신 <b>공기계에 본인 계정의 지문 열쇠를 하나 더</b>
+                 등록해 금고에 둡니다 — 주력 폰을 잃어도 돈 관문이 계속 열립니다.</p>
+              <p>승인 인프라(대기열·만료·재알림·건강도 지표)는 지우지 않고 <b>잠재웁니다</b> —
+                 1인 모드에선 승인서가 안 생겨 저절로 조용하고, 2명이 되면 즉시 살아납니다.</p>
+            </div>
+
+          </div>
+          <div class="chain">→ <b>다음 라운드가 물은 것:</b> 유심 스와핑이 곧 관리자
+             탈취인가 · 고액 지급의 “주의”가 강제력 없이 색뿐이어도 되는가 ·
+             지문 재확인이 못 막는 것(강요·원격 조작)은 어떻게 하나.</div>
+        </div>
+      </article>
+
+      <!-- 7차 -->
+      <article class="round">
+        <div class="marker"><i></i><b>07</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>첫 열쇠를 심는 공백기를 닫고, 얹혀 가던 지문을 떼다</h3>
+            <p>검토는 “관리자가 지문을 아직 등록 안 한 공백기”를 짚었습니다.
+               그것을 막고 나서, <b>우리가 만든 지문 관문 자체에 구멍이 있다는 것을
+               스스로 발견했습니다.</b></p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>지문이 0개면 관리 화면이 통째로 닫힌다</h4></div>
+              <p>관리자로 로그인했더라도 <b>등록된 지문·얼굴이 하나도 없으면</b> 모든 관리
+                 기능이 닫히고, 화면에는 <b>“먼저 이 기기의 지문을 등록하세요”</b>만 뜹니다.
+                 화면만 가리는 것이 아니라 <b>서버도 같은 조건으로 닫습니다</b> —
+                 화면만 가리면 서버를 직접 부르면 그만이니까요.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>관리자 권한이 <b>“그 사람의 신원”</b>에 붙어 있다는 점을 떠올려 봅시다.
+                   그러면 지문을 아직 하나도 등록 안 한 <b>공백기</b>가 위험해집니다.</p>
+                <ul class="flow">
+                  <li class="no">도둑이 유심을 훔쳐 본인 인증으로 들어옵니다</li>
+                  <li class="no">지문이 0개니까 <b>도둑의 지문이 “첫 번째 기기”</b>가 됩니다</li>
+                  <li class="no">첫 기기에는 48시간 유예가 안 걸립니다(원래 아무 기기도 없었으니까요)
+                      → <b>그 자리에서 계정이 넘어갑니다</b></li>
+                </ul>
+                <p>그래서 그 공백기 동안은 <b>아무것도 못 하게</b> 만들었습니다.
+                   첫 지문이 등록돼야 비로소 관리 기능이 열리고, 그 뒤의 유심 훔치기는
+                   <b>48시간 유예 + 본인 알림</b>에 걸립니다.</p>
+              </div>
+              <p class="why"><span class="label">등록하는 문은 왜 안 잠갔나</span>
+                등록까지 이 관문 안에 넣었다면 <b>“지문이 없어서 지문을 등록할 수 없는”</b>
+                교착이 됩니다. 등록 창구는 밖에 두고, 대신 그 창구에 원래 있던 조건
+                (본인 인증 직후 10분)을 그대로 씌웁니다.</p>
+              <div class="files">src/app/api/_lib/http.ts · src/app/admin/layout.tsx</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>고액 지급에도 지문 한 번 — 색만으로는 부족하다</h4></div>
+              <p>6차에서 “큰돈은 색으로 강조”까지만 했는데, 검토가 <b>경보 피로</b>를
+                 지적했습니다. 색 강조는 그대로 두고 그 위에 <b>실행 직전 지문 확인</b>을
+                 얹었습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>빨간 글씨는 <b>사흘만 지나면 안 보입니다.</b> 매일 보는 색은 배경이 됩니다.</p>
+                <p>지문 1초는 색과 종류가 다릅니다 — <b>손이 실제로 멈추기</b> 때문입니다.
+                   그리고 그 1초는 도둑만 막는 게 아니라, 본인이 <b>0을 하나 더 친 실수</b>도
+                   잡아 줍니다.</p>
+              </div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip self">자체 발견</span><h4>훔친 세션이 창업자의 지문에 “얹혀” 갈 수 있었다</h4></div>
+              <p>구현을 끝내고 코드를 다시 읽다 찾았습니다. 지문 확인이 끝나면 <b>“이 사람
+                 확인 완료”라는 도장이 계정에 찍히는</b> 방식이었는데, 그러면 그 계정으로
+                 열려 있는 <b>다른 창</b>도 같이 통과합니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>아파트 공동현관을 떠올려 보세요. 엄마가 비밀번호를 눌러 문이 열리는 순간,
+                   <b>뒤에 서 있던 모르는 사람도 같이 들어옵니다.</b>
+                   문은 “누가 열었는지”만 봤지 “누가 들어가는지”는 안 본 것입니다.</p>
+                <p>우리 코드가 딱 그랬습니다. 도둑이 다른 기기에서 세션을 쥐고 기다리다가,
+                   창업자가 자기 일을 하려고 지문을 대는 <b>그 순간에 같이 통과</b>합니다.
+                   한 번뿐이지만 <b>그 한 번이 동결 해제이거나 고액 지급</b>입니다.</p>
+                <p><b>고친 방법 — 문을 여는 대신, 지문을 댄 그 화면에만 1회용 표를 준다.</b>
+                   실행하려면 그 표를 함께 내야 합니다. 표는 지문을 통과한 화면 밖으로
+                   나가지 않으니, 뒤에 서 있던 사람은 손에 넣을 수 없습니다.</p>
+              </div>
+              <p class="why"><span class="label">왜 중요한가</span>
+                이 장치의 존재 이유가 <b>“세션만 훔친 사람은 지문이 없어 못 한다”</b>였는데,
+                정확히 그 상대에게 뚫려 있었습니다. 실무적으로는 창업자가 1~2초 뒤 스스로
+                써 버려서 창이 좁지만, <b>그건 방어가 아니라 운입니다.</b></p>
+              <p class="why"><span class="label">시험으로 못 박은 것</span>
+                “<b>도장은 찍혀 있는데 표가 없는 요청은 거절된다</b>”를 자동 시험으로
+                고정했습니다. 이 시험이 없으면 같은 실수가 되돌아와도 아무도 모릅니다.</p>
+              <div class="files">src/server/operatorApprovalService.ts · issueOperatorRecheck / consumeOperatorRecheck</div>
+            </div>
+
+          </div>
+          <div class="chain">→ <b>다음 라운드가 물은 것:</b> 관리자 권한을 신원에 묶었더니
+             <b>본인 인증 공급자가 죽으면 관리자가 잠긴다</b> — 하필 사고 대응이 가장
+             필요한 날에.</div>
+        </div>
+      </article>
+
+      <!-- 8차 -->
+      <article class="round" data-open>
+        <div class="marker"><i></i><b>08</b></div>
+        <div class="body">
+          <div class="round-head">
+            <h3>금고 속 종이 열쇠 — 그리고 그것이 돈 열쇠가 되는 것을 막다</h3>
+            <p>“모든 문이 잠겼을 때 어떻게 들어가나”에 답을 만들었고, 그 답이
+               <b>새로운 뒷문이 되려던 순간을 스스로 잡았습니다.</b></p>
+          </div>
+          <div class="entries">
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>서버에는 “확인표”만, 진짜 열쇠는 종이로 금고에</h4></div>
+              <p>사슬이 이렇게 되어 있었습니다 —
+                 <b>관리 화면 ← 지문 필요 ← 등록하려면 본인 인증 직후 ← 본인 인증 회사</b>.
+                 그러니 본인 인증 회사가 멈춘 채 기기까지 잃으면 관리자가 영영 못 들어옵니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>집 열쇠를 전부 잃어버렸는데 <b>열쇠집도 문을 닫은 날</b>입니다.
+                   그래서 여벌 열쇠를 미리 <b>은행 금고</b>에 맡겨 둡니다.</p>
+                <p>중요한 건 <b>어디에 맡기느냐</b>입니다.</p>
+                <ul class="flow">
+                  <li class="no"><b>서버 안에 비상 암호를 숨겨 둔다</b> → 서버를 턴 도둑이
+                      그것도 같이 가져갑니다. 그건 여벌 열쇠가 아니라 <b>상시 뒷문</b>입니다</li>
+                  <li class="no"><b>인증 회사가 멈추면 관문을 자동으로 푼다</b> → 도둑에게
+                      <b>“고장을 내면 문이 열린다”</b>는 스위치를 쥐여 줍니다</li>
+                  <li class="yes"><b>서버에는 도장이 진짜인지 알아보는 “확인표”만</b> 두고,
+                      <b>도장 자체는 종이에 찍어 금고에</b> — 확인표를 훔쳐도 도장은 못 만듭니다</li>
+                </ul>
+                <p>그래서 이 문이 열리는 조건은 코드가 아니라 <b>“금고를 실제로 연다”</b>가
+                   됩니다. 그건 뒷문이 아니라 물리 보안입니다.</p>
+              </div>
+              <div class="files">src/server/recoveryToken.ts · npm run recovery:key / recovery:sign</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip extend">확장</span><h4>표가 스스로 “확인 방식”을 정하지 못하게 했다</h4></div>
+              <p>검토는 흔히 쓰는 표 형식(JWT)을 제안했지만, 그 형식을 쓰지 않았습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>그 형식의 표에는 맨 윗줄에 <b>“제 도장은 이 방식으로 확인해 주세요”</b>가
+                   적혀 있습니다. 그러면 나쁜 사람이 그 줄에
+                   <b>“확인 안 하셔도 됩니다”</b>라고 적어서 냅니다. 실제로 그렇게 뚫린
+                   사고가 세상에 많습니다.</p>
+                <p>그래서 확인 방식을 <b>한 가지로 못 박고 표가 건드릴 수 없게</b> 했습니다.
+                   <b>고를 수 없으면 속일 수도 없습니다.</b></p>
+              </div>
+              <p class="why"><span class="label">하나 더 — 기간을 표가 못 정한다</span>
+                표에는 “언제까지 유효”가 적히는데, 그걸 그대로 믿으면
+                <b>도장 찍는 기계가 고장 났을 때 100년짜리 표</b>가 나옵니다.
+                그래서 <b>받는 쪽이 10분을 넘긴 표는 도장이 진짜여도 거절</b>합니다.
+                자동 시험이 진짜 도장으로 100년짜리를 만들어 거절되는지 매번 확인합니다.</p>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip self">자체 발견</span><h4>종이를 훔친 사람이 “자기 지문”을 등록할 수 있었다</h4></div>
+              <p>다 만들고 다시 읽다 찾았습니다. 복구 화면을 통과한 사람은
+                 <b>그 자리에서 자기 기기에 자기 지문을 등록</b>합니다. 그러면 그 뒤로
+                 모든 지문 확인이 <b>그 사람 지문으로</b> 통과합니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>여벌 열쇠로 집에 들어온 도둑이, 현관 <b>지문 등록기에 자기 손가락을
+                   등록</b>해 버립니다. 이제 그 집은 사실상 그 사람 집입니다.</p>
+                <ul class="flow">
+                  <li class="no">금고를 털면 → 자기 지문을 심고 → <b>동결 해제·지급·판정이 전부 열립니다</b></li>
+                </ul>
+                <p>뒷문을 안 만들려고 종이까지 내려간 설계가, <b>물리 뒷문 하나로
+                   되돌아온 것</b>입니다. “열리는 건 지문 등록 하나뿐”이라는 말은
+                   <b>그 직후를 안 본 말</b>이었습니다.</p>
+                <p><b>고친 방법 — 복구 뒤 48시간은 돈이 나가는 문이 전부 멈춥니다.</b>
+                   그 사이에 진짜 주인이 알림을 보고 종이를 폐기하면 됩니다.
+                   그리고 <b>돈을 막는 쪽(동결)은 그동안에도 됩니다</b> — 급한 건 그쪽이니까요.</p>
+              </div>
+              <p class="why"><span class="label">왜 한 곳에만 걸었나</span>
+                1인 모드에서 <b>돈이 나가는 네 갈래 길이 전부 “지문 확인” 한 지점을
+                지납니다.</b> 거기 하나에만 걸면 빠지는 길이 없습니다.
+                네 곳에 나눠 걸면 <b>언젠가 다섯 번째 길이 생기고, 그 길에는 안 걸립니다.</b></p>
+              <p class="why"><span class="label">왜 48시간인가</span>
+                이미 쓰고 있던 값을 그대로 씁니다 — 계좌 변경 유예, 위험 로그인 유예와
+                <b>근거가 같기 때문</b>입니다(“본인이 알아채고 멈출 수 있는 시간”).
+                <b>같은 근거의 숫자가 둘이 되면 언젠가 한쪽만 바뀝니다.</b></p>
+              <div class="files">src/server/recoveryService.ts · consumeOperatorRecheck의 48시간 유예</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip push">반박</span><h4>지문 표를 세션에 묶지 않았다 — 대신 화면에 방패를 세웠다</h4></div>
+              <p>“1회용 표를 세션에도 묶으면 더 안전하지 않나”를 물었고, 검토도 저희도
+                 <b>아니라고</b> 결론지었습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>화면에 나쁜 코드가 끼어드는 공격은, 도둑의 컴퓨터가 아니라
+                   <b>주인의 브라우저 안에서</b> 돕니다. 즉 <b>도둑이 주인의 손을 붙잡고
+                   주인 손으로 사인하게 만드는 것</b>에 가깝습니다.
+                   여기서 “이거 진짜 주인 손 맞아?”를 아무리 물어도 소용이 없습니다.</p>
+                <p>그래서 관문을 한 겹 더 쌓는 대신, <b>나쁜 코드가 애초에 실행되지 못하게</b>
+                   막았습니다. 학교 알림장에 비유하면 —
+                   <b>우리가 쓴 줄에만 그날의 도장이 찍혀 있고, 도장 없는 줄은 선생님이
+                   아예 안 읽습니다.</b> 도장 모양은 <b>페이지를 열 때마다 새로 바뀝니다.</b></p>
+              </div>
+              <p class="why"><span class="label">확인한 것</span>
+                실제 배포와 같은 모드로 띄워 <b>위반 0건</b>, 우리 코드 17개가 전부 도장을
+                달고 정상 실행되는 것을 확인했습니다.</p>
+              <div class="files">src/proxy.ts · 페이지마다 새 난수 도장(nonce)</div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>지문 표의 유효 시간 5분 → 60초</h4></div>
+              <p>표가 1회용이 되면서 이 시간의 의미가 달라졌습니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p><b>예전</b>: “이 5분 동안은 누구든 얹혀 갈 수 있는 창” — 넓으면 위험.<br />
+                   <b>지금</b>: “표를 손에 쥔 화면이 실행을 마칠 시간” — 실제로는 <b>1초</b>면 끝납니다.</p>
+                <p>놀이기구 표를 받고 바로 타는데 5분을 줄 이유가 없습니다.
+                   60초가 지나면 <b>지문을 한 번 더 대면 그만</b>이라, 보안도 편의도 잃지 않습니다.</p>
+              </div>
+            </div>
+
+            <div class="entry">
+              <div class="entry-top"><span class="chip adopt">채택</span><h4>복구 화면 링크는 만들지 않는다 — 대신 봉투에 주소를 넣는다</h4></div>
+              <p>복구 화면으로 가는 링크는 앱 어디에도 없습니다. 절차서를 보고 주소를
+                 직접 치는 사람만 도달합니다.</p>
+              <div class="ex">
+                <span class="label">예를 들면</span>
+                <p>“계정이 잠겼습니다. 여기를 눌러 복구하세요” — 가장 잘 통하는 사기 문자입니다.
+                   <b>진짜 링크가 존재하면 가짜가 진짜처럼 보입니다.</b></p>
+                <p>대신 그날 필요한 정보를 <b>어차피 열게 되는 그 봉투</b>에 넣습니다.
+                   그러면 링크가 없어서 생기는 손해가 <b>0</b>이 됩니다.</p>
+                <ul class="flow">
+                  <li>봉투 ① <b>종이 열쇠</b></li>
+                  <li>봉투 ② <b>복구 화면 주소</b></li>
+                  <li>봉투 ③ <b>절차 인쇄본</b> (세 줄이면 충분합니다)</li>
+                </ul>
+                <p>노트북까지 잃어도, 새 기기에서 그 주소를 쳐서 들어가면 됩니다.</p>
+              </div>
+              <p class="why"><span class="label">문서에 적는 것으로 끝내지 않았다</span>
+                열쇠를 만드는 <b>바로 그 순간</b>(<code>npm run recovery:key</code>)에
+                “봉투에 이 셋을 넣으세요”가 화면에 뜹니다.
+                <b>종이를 만드는 순간이 곧 봉투를 채우는 순간</b>이라 잊을 자리가 없습니다.</p>
+            </div>
+
+          </div>
+          <div class="chain">→ <b>8차 검토의 답:</b> 세 판단(유예를 판정까지 유지 ·
+             종이는 한 장 · 링크 없음) 모두 확인. <b>“인증·권한 관문에는 더 덧댈 곳이
+             보이지 않는다”</b>로 이 축의 검토가 닫혔습니다.</div>
+        </div>
+      </article>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>지금 서 있는 관문</h2>
+    <p class="lede">
+      여덟 라운드가 남긴 최종 상태입니다. 각 축의 번호는 <strong>실제로 걸리는 순서</strong>입니다.
+    </p>
+    <div class="gates">
+
+      <div class="gate-group">
+        <h3>로그인 축</h3>
+        <p>탈취자가 “들어오는 것”을 막는다</p>
+        <ol>
+          <li><b>풀 로그인</b><span>본인 인증. 가입·재설치·로그아웃 후에만</span></li>
+          <li><b>간편 로그인</b><span>지문·얼굴 → 6자리 비밀번호. 5회 틀리면 잠금 + 본인 알림</span></li>
+          <li><b>기기에 묶인다</b><span>새 기기는 무조건 본인 인증부터</span></li>
+          <li><b>새 기기 등록은 인증 직후 10분만</b><span>지문으로 깨운 세션은 아예 못 한다</span></li>
+          <li><b>평소와 다른 문으로 들어오면 48시간 유예</b><span>그 사이 본인에게 알림이 간다</span></li>
+          <li><b>세션 3일 · 지우면 전 기기 로그아웃</b><span>지운 기기는 열쇠까지 삭제, 본인 폰은 지문 한 번</span></li>
+        </ol>
+      </div>
+
+      <div class="gate-group">
+        <h3>돈 축</h3>
+        <p>들어온 뒤에 돈에 닿는 것을 막는다</p>
+        <ol>
+          <li><b>계좌 등록 시 본인 인증 재확인</b><span>지금 등록하는 사람이 계정 주인인가 (동명이인 차단)</span></li>
+          <li><b>예금주명 대조</b><span>통신사가 준 이름 ↔ 은행이 준 이름. 입력란 없음</span></li>
+          <li><b>낯선 기기에서 바꾸면 48시간 유예 + 고지</b><span>평소 기기는 대기 0 — 그 사이 본인이 멈출 수 있다</span></li>
+          <li><b>정산 동결</b><span>“내 돈 나가지 마” 정지 버튼. 걸기는 본인, 푸는 것은 운영자만</span></li>
+          <li><b>돈 관문 = 지문 재확인 + 1회용 표</b><span>동결 풀기 · 판정 뒤집기 · 첫 수동 판정 · 고액 지급</span></li>
+          <li><b>표와 승인서는 1회용</b><span>한 번의 확인으로 돈이 두 번 나가지 않는다</span></li>
+        </ol>
+      </div>
+
+      <div class="gate-group">
+        <h3>운영자 축</h3>
+        <p>탈취·방치·잠김을 막는다 — 지금은 1인 모드</p>
+        <ol>
+          <li><b>관리자 = 신원 + 첫 열쇠 강제</b><span>본인 인증이 곧 승격 · 지문 0개면 관리 기능이 통째로 닫힌다</span></li>
+          <li><b>실행 직전 지문 재확인 (60초 · 1회용 표)</b><span>표는 지문을 통과한 화면에만 — 훔친 세션은 얹혀 갈 수 없다</span></li>
+          <li><b>고액 지급 = 색 강조 + 지문</b><span>250만↑ 주의색 · 500만↑ 경고색. 색은 익숙해지지만 지문은 손을 멈춘다</span></li>
+          <li><b>예비 기기 + 종이 열쇠</b><span>공기계에 열쇠 하나 더, 그마저 잃으면 금고 속 종이. 복구 뒤 48시간은 돈이 멈춘다</span></li>
+          <li><b>기록과 경보</b><span>권한 변경·판정·지급·동결 해제·복구 사용 전부 남고 즉시 알림이 나간다</span></li>
+          <li><b>2명이 되면</b><span>2인 승인·대기열·만료·건강도 지표가 자동으로 살아난다</span></li>
+        </ol>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <h2>아직 안 된 것</h2>
+    <p class="lede">
+      코드 안의 관문은 닫혔습니다. 남은 것은 <strong>전부 코드 밖</strong>이고,
+      이것들이 붙기 전까지 위 관문들은 형태만 완성입니다.
+    </p>
+    <div class="open-list">
+      <div class="open-row">
+        <div class="k">스텁 3종</div>
+        <p><b>본인 인증 실공급자 · 은행 예금주 조회 · SMS</b> 전부 미계약입니다.
+           지금은 “항상 성공”이라고 답하는 가짜라, 진짜를 붙이기 전까지는 이름 대조도
+           문자 알림도 실제로는 동작하지 않습니다.</p>
+      </div>
+      <div class="open-row">
+        <div class="k">출시 전 준비</div>
+        <p><b>① 공기계에 지문 열쇠 하나 더</b> — 주력 폰을 잃어도 돈 관문이 계속 열립니다.
+           <b>② 종이 열쇠 만들어 금고에</b> — 인터넷이 끊긴 기기에서 만들고, 종이·주소·절차
+           <b>셋을 한 봉투</b>에 넣습니다.</p>
+      </div>
+      <div class="open-row">
+        <div class="k">재조정 대기</div>
+        <p><b>500만원 문턱, 건강도 경고 문턱</b>은 운영 데이터가 답할 값입니다.
+           지금은 “설계” 근거로 빚 목록에 올라가 있습니다.
+           (참고: 카드 가격이 5천~5만원이라 <b>500만원 관문은 사실상 발동하지 않습니다</b> —
+           실제로 서는 것은 색 강조와 지문입니다.)</p>
+      </div>
+      <div class="open-row">
+        <div class="k">법률·지재권</div>
+        <p><b>투자자문업 경계 서면 의견서</b>(약식 3회 완료, 확정은 출시 직전),
+           <b>상표 조사·가출원</b>.</p>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    2026-08-17 기준 · 브랜치 <code>claude/session-start-59rfim</code> ·
+    최종 커밋 <code>efd31d5</code> · 테스트 1,177건(단위 660 + DB 517) 통과,
+    타입체크·린트·상수 근거 감사 통과, 사고 대응 리허설 종주,
+    운영 빌드 성공 + 화면 보안 정책 위반 0건
+  </footer>
+
+</div>
