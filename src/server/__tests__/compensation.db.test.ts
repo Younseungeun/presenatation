@@ -254,8 +254,27 @@ describe('사람 확정', () => {
     ).rejects.toThrow(CompensationError);
   });
 
+  // 2026-08-18 배선 점검 1차: 확정에도 지문이 선다 — 실행에만 걸면 훔친 세션이
+  // 승인만 눌러 두는 **잠복 승인**이 남는다 (1인 모드에서는 reviewedBy가 어차피
+  // 창업자 계정이라 "이체 대기 목록의 낯선 승인"이 걸러지지 않는다)
+  it('1인 모드에서는 지문 표 없이 확정할 수 없다 — 대기 상태는 산다', async () => {
+    const card = await prisma.predictionCard.findFirstOrThrow({ where: { ticker: CAPPED } });
+    await expect(
+      reviewCompensation(
+        prisma,
+        { predictionCardId: card.id, operatorUserId: OPERATOR, decision: 'APPROVE' },
+        PAST_CAP,
+      ),
+    ).rejects.toMatchObject({ code: 'RECHECK_REQUIRED' });
+    const rows = await prisma.compensationInstruction.findMany({
+      where: { predictionCardId: card.id },
+    });
+    expect(rows.every((r) => r.status === 'PENDING_REVIEW')).toBe(true);
+  });
+
   it('카드 하나를 확정하면 그 카드의 지시서가 함께 승인된다 — 감사 로그도 한 줄', async () => {
     const card = await prisma.predictionCard.findFirstOrThrow({ where: { ticker: CAPPED } });
+    const recheckToken = await issueOperatorRecheck(prisma, OPERATOR, PAST_CAP);
     const count = await reviewCompensation(
       prisma,
       {
@@ -263,6 +282,7 @@ describe('사람 확정', () => {
         operatorUserId: OPERATOR,
         decision: 'APPROVE',
         note: '업비트 피드 장애 — 당일 해당 종목 정상 거래 확인',
+        recheckToken,
       },
       PAST_CAP,
     );

@@ -203,6 +203,8 @@ export async function reviewCompensation(
     operatorUserId: string;
     decision: 'APPROVE' | 'EXCLUDE';
     note?: string;
+    /** 생체 재확인 표 (1인 운영 모드) — 확정도 표를 요구한다 */
+    recheckToken?: string;
   },
   now = new Date(),
 ): Promise<number> {
@@ -211,6 +213,33 @@ export async function reviewCompensation(
     // 보상하지 않기로 한 판단은 **근거가 남아야 한다.** 승인은 규칙의 기본값이지만
     // 제외는 예외라, 나중에 "왜 이 리서처만 못 받았나"에 답할 문장이 필요하다
     throw new CompensationError('보상 대상에서 빼려면 사유를 적어주세요 (예: 거래소 공지 확인 — 당일 거래정지)');
+  }
+
+  // 대상이 있는지 먼저 본다 — 이미 처리된 카드에 1회용 표부터 태우지 않는다
+  // (실행 경로가 상태 검사를 벽들 앞에 두는 것과 같은 순서)
+  const pending = await prisma.compensationInstruction.findFirst({
+    where: { predictionCardId: input.predictionCardId, status: 'PENDING_REVIEW' },
+    select: { id: true },
+  });
+  if (!pending) {
+    throw new CompensationError('확정 대기 중인 보상 건이 없습니다 — 이미 처리됐거나 대상이 아닙니다');
+  }
+
+  // ── 1인 운영 모드: 확정에도 지문·얼굴 재확인 (2026-08-18 배선 점검 1차) ──
+  //
+  // 처음에는 실행에만 걸었다 — 돈이 나가는 순간은 실행이니까. 그런데 그러면
+  // **잠복 승인**이 남는다: 세션을 훔친 자가 확정만 눌러 두고 기다리는 경로.
+  // 2인 체제라면 실행자가 "내가 모르는 승인 건"을 알아보지만, 1인 모드에서는
+  // 확정자(reviewedBy)가 **어차피 창업자 계정**이라 창업자가 자기 과거 승인으로
+  // 착각하고 무심코 실행할 수 있다. 확정을 막으면 큐 자체가 오염되지 않는다.
+  // 비용은 연 몇 건에 지문 한 번 — 실행과 합쳐 두 번이어도 습관화될 반복이 없다.
+  if (await isSoloOperatorMode(prisma)) {
+    try {
+      await consumeOperatorRecheck(prisma, input.operatorUserId, input.recheckToken, now);
+    } catch (re) {
+      if (!(re instanceof ApprovalError)) throw re;
+      throw new CompensationError(re.message, 'RECHECK_REQUIRED');
+    }
   }
 
   const status = input.decision === 'APPROVE' ? 'APPROVED' : 'EXCLUDED';

@@ -19,6 +19,7 @@ const bodySchema = z.discriminatedUnion('kind', [
     predictionCardId: z.string().min(1),
     decision: z.enum(['APPROVE', 'EXCLUDE']),
     note: z.string().max(300).optional(),
+    recheckToken: z.string().optional(),
   }),
   z.object({
     kind: z.literal('EXECUTE'),
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
         operatorUserId,
         decision: body.decision,
         note: body.note,
+        recheckToken: body.recheckToken,
       });
       return NextResponse.json({ ok: true, instructions: count });
     }

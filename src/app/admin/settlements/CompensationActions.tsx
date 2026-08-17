@@ -11,14 +11,14 @@ import styles from "../../researcher/researcher.module.css";
 // 확정은 "우리 탓인가"라는 **판단**이고 실행은 은행 이체 뒤의 **기록**이라,
 // 합치면 이체도 안 했는데 실행된 것으로 기록하는 길이 생긴다.
 
-/** 귀책 확정 — 보상(APPROVE) 또는 대상 제외(EXCLUDE, 사유 필수) */
+/** 귀책 확정 — 보상(APPROVE) 또는 대상 제외(EXCLUDE, 사유 필수). 확정 직전 지문 확인 */
 export function CompensationReview({ predictionCardId }: { predictionCardId: string }) {
   const router = useRouter();
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function decide(decision: "APPROVE" | "EXCLUDE") {
+  async function decide(decision: "APPROVE" | "EXCLUDE", recheckToken?: string) {
     if (decision === "EXCLUDE" && !note.trim()) {
       setError("보상 대상에서 빼려면 사유를 적어주세요 (예: 거래소 공지 확인 — 당일 거래정지)");
       return;
@@ -34,10 +34,23 @@ export function CompensationReview({ predictionCardId }: { predictionCardId: str
           predictionCardId,
           decision,
           note: note.trim() || undefined,
+          ...(recheckToken ? { recheckToken } : {}),
         }),
       });
       const body = await res.json();
       if (!res.ok) {
+        if (body.code === "RECHECK_REQUIRED" && !recheckToken) {
+          // 확정에도 지문이 선다 — 실행에만 걸면 훔친 세션이 승인만 눌러 두는
+          // "잠복 승인"이 남는다 (1인 모드에서는 확정자와 실행자가 같은 계정이라
+          // 이체 대기 목록이 낯선 승인을 걸러 주지 못한다)
+          const recheck = await performOperatorRecheck();
+          if (recheck.ok && recheck.token) {
+            await decide(decision, recheck.token);
+            return;
+          }
+          if (recheck.error) setError(recheck.error);
+          return;
+        }
         setError(body.error ?? "확정 실패");
         return;
       }
