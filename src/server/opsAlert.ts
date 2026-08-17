@@ -120,12 +120,14 @@ async function postWebhook(alert: OpsAlert): Promise<void> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
     try {
-      await fetch(WEBHOOK_URL, {
+      const res = await fetch(WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: `*${alert.title}*\n${alert.body}` }),
         signal: controller.signal,
       });
+      // 거절도 **소리를 내야 한다** — fetch는 400에도 예외를 안 던진다
+      if (!res.ok) console.error(`운영자 웹훅 거절: HTTP ${res.status}`);
     } finally {
       clearTimeout(timer);
     }
@@ -141,7 +143,7 @@ async function postTelegram(alert: OpsAlert): Promise<void> {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), WEBHOOK_TIMEOUT_MS);
     try {
-      await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+      const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // parse_mode를 주지 않는다 — 마크다운 모드는 본문의 *·_ 하나에 **메시지 전체가
@@ -153,6 +155,17 @@ async function postTelegram(alert: OpsAlert): Promise<void> {
         }),
         signal: controller.signal,
       });
+      // ── 거절은 조용히 지나가면 안 된다 (2026-08-18 연결 시험에서 발견) ──
+      // fetch는 "chat not found"·"토큰 폐기됨"에도 **예외를 던지지 않는다.** 검사하지
+      // 않으면 방 번호가 바뀌거나 토큰을 재발급한 날부터 경보가 통째로 사라지는데
+      // 아무도 모른다 — 알림 채널의 침묵은 "사고 없음"과 구별되지 않는다.
+      if (!res.ok) {
+        const body = (await res.json().catch(() => null)) as { description?: string } | null;
+        console.error(
+          `운영자 텔레그램 거절: HTTP ${res.status}${body?.description ? ` — ${body.description}` : ''}` +
+            ' (TELEGRAM_CHAT_ID·TELEGRAM_BOT_TOKEN을 확인하세요)',
+        );
+      }
     } finally {
       clearTimeout(timer);
     }
