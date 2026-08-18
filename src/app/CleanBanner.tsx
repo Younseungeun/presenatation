@@ -6,7 +6,9 @@ import styles from "./cleanBanner.module.css";
 
 // 클린 리서치 신고 배너 — 출시 초기 자동 감시가 성숙하기 전 이용자 신고가 1차 탐지망.
 // 흰 화면에서 유일한 다크(브랜드 Deep Ink) 요소라 시선이 가고, 장식 대신
-// 살아있는 잔여 쿠폰 숫자(선착순)가 시선 포인트다.
+// 살아있는 잔여 보상 수량(선착순)이 시선 포인트다.
+//  ⚠ 문구에 "쿠폰"을 쓰지 않는다 (2026-08-18) — 쿠폰 발행·사용 기능이 아직 없다.
+//    보상은 실제로 하되 수단은 확인 후 개별 안내다 (clean/page.tsx 주석 참고)
 //  · 리더보드(카드를 사는 화면 = 위반을 목격하는 자리)에서는 강조형(emphasis)
 //  · 홈에서는 맨 아래 잔잔한 기본형
 export async function CleanBanner({ emphasis = false }: { emphasis?: boolean }) {
@@ -22,7 +24,7 @@ export async function CleanBanner({ emphasis = false }: { emphasis?: boolean }) 
       <ReportReviewIcon size={emphasis ? 44 : 40} tone="light" className={styles.icon} />
       <span className={styles.copy}>
         {emphasis && <span className={styles.eyebrow}>클린 리서치</span>}
-        <strong className={styles.title}>리포트 신고하고 쿠폰 받기</strong>
+        <strong className={styles.title}>리포트 신고하고 보상 받기</strong>
         <span className={styles.sub}>1:1 상담·투자 권유는 신고 대상이에요</span>
       </span>
       <span className={styles.count}>

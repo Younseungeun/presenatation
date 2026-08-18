@@ -13,7 +13,12 @@ import { CleanReportForm } from "./CleanReportForm";
 export const dynamic = "force-dynamic";
 
 // 클린 리서치 신고 — 1:1 상담·투자 권유 등 유사투자자문업 범위를 넘는 행위 신고 안내·접수.
-// 출시 초기 자동 감시가 성숙하기 전까지 이용자 신고가 1차 탐지망이다 (확인 시 선착순 쿠폰 보상).
+// 출시 초기 자동 감시가 성숙하기 전까지 이용자 신고가 1차 탐지망이다 (확인 시 선착순 보상).
+//
+// ⚠ **지급 수단을 문구에 적지 않는다** (2026-08-18): 쿠폰 발행·사용 기능이 아직 없다.
+// 예전 문구는 "리포트 구매 쿠폰을 드립니다"였는데, 그건 만들지 않은 것을 약속하는 말이었다.
+// 보상 자체는 실제로 한다(선착순 쿼터는 DB가 세고, 운영자가 개별로 안내). 쿠폰이 생기면
+// 그때 문구를 되돌린다 — 수단을 먼저 짓고 말을 나중에 하는 순서다.
 
 const TARGETS = [
   "1:1 상담·개별 연락 유도 — 오픈채팅, 전화, DM 등으로 개별 상담을 권하는 행위",
@@ -35,7 +40,7 @@ export default async function CleanPage() {
       <main className={styles.page} style={{ maxWidth: 720 }}>
         <p className={styles.sub}>
           인투빌의 모든 리포트는 불특정 다수를 위한 공개 분석이어야 합니다. 아래 행위를
-          발견하면 신고해 주세요 — 확인된 신고에는 선착순으로 리포트 구매 쿠폰을 드립니다.
+          발견하면 신고해 주세요 — 확인된 신고에는 선착순으로 보상을 드립니다.
         </p>
 
         <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 20 }}>
@@ -62,8 +67,8 @@ export default async function CleanPage() {
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>보상과 절차</h2>
             <p style={{ fontSize: 14, lineHeight: 1.7, color: "var(--text-weak)" }}>
               접수된 신고는 운영자가 직접 검토하며, 위반이 확인된 신고에 한해 선착순{" "}
-              {REWARD_QUOTA}건까지 리포트 구매에 쓸 수 있는 쿠폰을 무상으로 드립니다 (현재
-              잔여 {remaining.toLocaleString()}건). 검토 결과는 알림으로 안내됩니다.
+              {REWARD_QUOTA}건까지 보상을 드립니다 (현재 잔여 {remaining.toLocaleString()}건).
+              검토 결과는 알림으로 안내되며, 보상 지급 방법은 확인 후 개별로 안내드립니다.
             </p>
           </section>
 

@@ -18,7 +18,11 @@ import { ReviewForm } from "./ReviewForm";
 
 export const dynamic = "force-dynamic";
 
-// 클린 리서치 신고 검토 콘솔 — 확인(선착순 쿠폰 보상 판단 포함)·기각.
+// 클린 리서치 신고 검토 콘솔 — 확인(선착순 보상 대상 판단 포함)·기각.
+//
+// ⚠ 확인해도 **지급 수단은 아직 없다** (2026-08-18). rewarded 플래그는 "보상 대상"까지만
+// 뜻하고, 실제 지급은 운영자가 개별로 안내한다. 쿠폰 발행·사용을 만들면 이 목록이
+// 소급 발행의 대상이 된다 — 그래서 대상 표시는 지금부터 남긴다.
 // 운영자(role=OPERATOR)가 아니면 존재 자체를 숨긴다 (404).
 
 export default async function AdminAbuseReportsPage() {
@@ -38,9 +42,10 @@ export default async function AdminAbuseReportsPage() {
         <div className={styles.header}>
           <div>
             <p className={styles.sub}>
-              클린 리서치 신고를 검토합니다. 확인하면 선착순 쿼터 안에서 쿠폰 보상 대상으로
-              표시되고 신고자에게 알림이 갑니다. 기각 사유는 반복 무고 제재의 근거로
-              남습니다. 보상 잔여 {Math.max(0, REWARD_QUOTA - used).toLocaleString()}건 /{" "}
+              클린 리서치 신고를 검토합니다. 확인하면 선착순 쿼터 안에서 보상 대상으로
+              표시되고 신고자에게 알림이 갑니다 — <b>지급은 개별 안내이고 자동으로 나가지
+              않습니다.</b> 기각 사유는 반복 무고 제재의 근거로 남습니다. 보상 잔여{" "}
+              {Math.max(0, REWARD_QUOTA - used).toLocaleString()}건 /{" "}
               {REWARD_QUOTA}건. <Link href="/admin/judgments">판정 보류 큐 →</Link>
             </p>
           </div>
@@ -84,7 +89,7 @@ export default async function AdminAbuseReportsPage() {
                   <span className={styles.badge}>
                     {r.status === "CONFIRMED"
                       ? r.rewarded
-                        ? "확인 · 쿠폰 지급"
+                        ? "확인 · 보상 대상"
                         : "확인 · 선착순 마감"
                       : "기각"}
                   </span>
