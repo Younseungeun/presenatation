@@ -318,6 +318,42 @@ export function MoneyIcon() {
 }
 
 /**
+ * 공지 — 확성기. 윤곽 뿔 + 채운 손잡이 + 파동 둘.
+ * 연필이 같은 축의 뾰족한 대각선이라 벌어짐을 연필의 두 배로 급하게 뒀다
+ * (입 13.4 대 뒤 6.6). 종은 이미 알림이므로 이건 한꺼번에 나가는 것을 뜻한다.
+ * 손잡이가 확성기와 스피커 콘을 가른다 — 껍데기 밖에 달리는 건 종의 추·환불
+ * 화살표와 같다. 파동 획 1.6 — 물건이 아니라 물건이 내보내는 것이라서.
+ * 파동은 둘. 셋은 24px에서 입 바깥이 통째로 회색 얼룩이 됐다.
+ */
+export function AnnounceIcon() {
+  return (
+    <svg {...BOX}>
+      <g transform="translate(-0.63 -0.25)">
+        <path
+          d="M3.17 11.30 L13.66 3.86 L18.24 16.45 L5.43 17.50 Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <path d="M6.46 17.42 L11.01 17.05 L12.51 21.18 L7.97 21.55 Z" fill="currentColor" />
+        <g
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        >
+          <path d="M17.29 7.14 A3.30 3.30 0 0 1 18.92 11.61" />
+          <path d="M19.05 4.79 A6.20 6.20 0 0 1 21.78 12.28" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+/**
  * 문의하기 — 말풍선 하나에 물음표 하나. 개수가 뜻이다.
  * 말풍선 둘이 기본형이고 수치도 더 낫지만(덩어리 78 대 115) 이 제품에 없는 채팅을
  * 약속한다 — 문의 화면은 주제를 고르고 정해진 답을 먼저 보여주는 창구다. 헤드셋도
