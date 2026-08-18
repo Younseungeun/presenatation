@@ -12,6 +12,11 @@ import {
   resolveDispute,
   voidPurchase,
 } from '../purchaseVoidService';
+import {
+  DAILY_OUTFLOW_LIMIT_KRW,
+  VelocityLimitExceeded,
+  todayOutflowKrw,
+} from '../payoutVelocity';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
 
@@ -82,7 +87,7 @@ beforeAll(async () => {
   prisma = createTestDb('purchase-void-');
   await seedTestInstruments(
     prisma,
-    ['KRW-V1', 'KRW-V2', 'KRW-V3', 'KRW-V4'].map((ticker) => ({
+    ['KRW-V1', 'KRW-V2', 'KRW-V3', 'KRW-V4', 'KRW-V5', 'KRW-V6'].map((ticker) => ({
       assetClass: 'CRYPTO',
       ticker,
       name: ticker,
@@ -188,6 +193,58 @@ describe('CS 환불 — 거래 무효화', () => {
         NOW,
       ),
     ).rejects.toMatchObject({ code: 'IN_FLIGHT' });
+  });
+
+  // ── 일일 출금 한도 (2026-08-18 배선 점검에서 붙였다) ──────────────
+  //
+  // CS 무효화만 벽 밖에 있었다. 판정 환불 쪽에는 "환불만 열어 두면 '전부 환불' 한 번으로
+  // 에스크로가 통째로 빈다"고 적어 놓고 **같은 모양의 길**을 여기 열어 둔 셈이었다.
+  // 이 길의 위험은 절도가 아니라 파괴다(PG 취소는 원결제 카드로만 돌아간다) — 그래도
+  // 거는 이유는 한도가 막으려는 대상에 **우리 코드의 버그**가 함께 들어 있기 때문이다.
+  it('CS 무효화도 오늘 나간 돈에 들어간다 — 정산 행이 없어 따로 세야 한다', async () => {
+    const { purchaseIds } = await published('KRW-V5', [buyerId]);
+    const before = await todayOutflowKrw(prisma, NOW);
+
+    await voidPurchase(
+      prisma,
+      { purchaseId: purchaseIds[0], operatorUserId: operatorId, reason: '중복 결제' },
+      NOW,
+    );
+
+    expect(await todayOutflowKrw(prisma, NOW)).toBe(before + 10_000);
+    // 날이 바뀌면 다시 0에서 센다 — 한도는 달력 하루 단위다
+    expect(await todayOutflowKrw(prisma, new Date('2026-07-14T00:00:00Z'))).toBe(0);
+  });
+
+  it('한도를 넘으면 막고, 막힌 요청은 흔적을 남기지 않는다', async () => {
+    const { purchaseIds } = await published('KRW-V6', [buyerId, buyer2Id]);
+    // 오늘 이미 한도만큼 나간 상태로 둔다 (다른 구매의 무효화로)
+    await prisma.refundAttempt.create({
+      data: {
+        type: 'CS_CANCEL',
+        purchaseId: purchaseIds[1],
+        amountKrw: DAILY_OUTFLOW_LIMIT_KRW,
+        method: 'PG_CANCEL',
+        operatorId,
+        status: 'SUCCEEDED',
+        finishedAt: NOW,
+      },
+    });
+
+    await expect(
+      voidPurchase(
+        prisma,
+        { purchaseId: purchaseIds[0], operatorUserId: operatorId, reason: 'x' },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(VelocityLimitExceeded);
+
+    // **막힌 요청이 PENDING 행을 남기면 안 된다** — 남으면 그 행이 다음 무효화를
+    // IN_FLIGHT로 막아, 한도가 풀린 뒤에도 이 구매는 영영 무효화할 수 없게 된다
+    expect(await prisma.refundAttempt.count({ where: { purchaseId: purchaseIds[0] } })).toBe(0);
+    // 구매도 그대로 살아 있다 — 벽에 막힌 것이지 처리된 것이 아니다
+    const purchase = await prisma.purchase.findUniqueOrThrow({ where: { id: purchaseIds[0] } });
+    expect(purchase.escrowStatus).toBe('HELD');
   });
 });
 

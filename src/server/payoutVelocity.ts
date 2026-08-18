@@ -55,15 +55,21 @@ function startOfDay(now: Date): Date {
 }
 
 /**
- * 오늘 이미 실행된 **지급 + 환불 + 보상**의 합.
+ * 오늘 이미 실행된 **지급 + 판정 환불 + 보상 + CS 무효화**의 합.
  *
- * 보상(CompensationInstruction)은 2026-08-16에 들어왔다. 돈이 나가는 네 번째 경로가
- * 생겼는데 여기 안 세면 **한도가 그만큼 헐거워진다** — 벽의 목적이 "오늘 나간 총액"인
- * 이상, 새 경로가 생길 때마다 여기 붙는 것이 이 함수의 계약이다.
+ * 보상(CompensationInstruction)은 2026-08-16에, **CS 무효화는 2026-08-18에** 들어왔다.
+ * 돈이 나가는 경로가 생겼는데 여기 안 세면 **한도가 그만큼 헐거워진다** — 벽의 목적이
+ * "오늘 나간 총액"인 이상, 새 경로가 생길 때마다 여기 붙는 것이 이 함수의 계약이다.
+ * (두 번 다 그 계약을 놓쳤다가 뒤늦게 붙였다 — 세 번째가 있으면 여기부터 볼 것)
+ *
+ * CS 무효화는 **정산 행이 없다**(판정 전 구매라 Settlement이 아직 없고, 있으면 오히려
+ * 거절된다). 그래서 Settlement만 훑는 위 두 집계에 구조적으로 안 잡히고, 시도 표를
+ * 직접 봐야 한다. `SUCCEEDED`만 세는 이유: PENDING은 "나갔는지 우리가 모른다"는 뜻이라
+ * 여기 넣으면 한 번도 안 나간 돈이 한도를 갉아먹는다.
  */
 export async function todayOutflowKrw(prisma: PrismaClient, now = new Date()): Promise<number> {
   const from = startOfDay(now);
-  const [payouts, refunds, compensations] = await Promise.all([
+  const [payouts, refunds, compensations, csVoids] = await Promise.all([
     prisma.settlement.aggregate({
       where: { payoutExecutedAt: { gte: from } },
       _sum: { researcherPayoutKrw: true },
@@ -76,11 +82,16 @@ export async function todayOutflowKrw(prisma: PrismaClient, now = new Date()): P
       where: { executedAt: { gte: from } },
       _sum: { amountKrw: true },
     }),
+    prisma.refundAttempt.aggregate({
+      where: { type: 'CS_CANCEL', status: 'SUCCEEDED', finishedAt: { gte: from } },
+      _sum: { amountKrw: true },
+    }),
   ]);
   return (
     (payouts._sum.researcherPayoutKrw ?? 0) +
     (refunds._sum.buyerRefundKrw ?? 0) +
-    (compensations._sum.amountKrw ?? 0)
+    (compensations._sum.amountKrw ?? 0) +
+    (csVoids._sum.amountKrw ?? 0)
   );
 }
 

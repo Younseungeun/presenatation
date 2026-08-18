@@ -6,6 +6,7 @@ import {
   retryCsRefund,
   voidPurchase,
 } from '../src/server/purchaseVoidService';
+import { VelocityLimitExceeded } from '../src/server/payoutVelocity';
 import { SettlementOpsError } from '../src/server/settlementOpsService';
 
 // CS 도구 — **런칭 첫날부터 있어야 하는 것.**
@@ -143,6 +144,17 @@ async function main() {
       console.error(`PG 취소가 끝나지 않았습니다\n${e.message}`);
       console.error('\n  이어받기: npm run cs:void -- --retry <시도 id>');
       console.error('  (구매 상태는 그대로입니다 — 취소가 확정될 때까지 열람도 닫히지 않습니다)');
+      process.exitCode = 1;
+      return;
+    }
+    // 일일 출금 한도에 막힌 경우 (2026-08-18 CS 무효화도 한도를 지나게 되면서 생겼다).
+    // 위 둘과 같은 이유로 스택 트레이스로 내보내지 않는다 — 메시지에 "얼마 남았는지"와
+    // "먼저 감사 로그를 보라"가 이미 적혀 있다
+    if (e instanceof VelocityLimitExceeded) {
+      console.error(`일일 출금 한도에 막혔습니다\n${e.message}`);
+      console.error('\n  아무것도 나가지 않았고 구매도 그대로입니다 — 내일 다시 실행하면 됩니다.');
+      console.error('  급하면 한도를 올려야 하는데, 그건 화면이 아니라 배포로만 바뀝니다');
+      console.error('  (DAILY_OUTFLOW_LIMIT_KRW — 탈취된 세션이 벽을 스스로 올리지 못하게).');
       process.exitCode = 1;
       return;
     }

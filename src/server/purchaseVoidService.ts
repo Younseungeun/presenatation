@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { assertWithinDailyLimit } from './payoutVelocity';
 import { cancelViaPg } from './settlementOpsService';
 
 // CS 환불 = **거래 자체의 무효화(void)**. 판정이 만든 환불과 다른 일이다.
@@ -96,6 +97,24 @@ export async function voidPurchase(
         '나갔는지 확인되기 전에 새로 만들면 두 번 빠집니다.',
     );
   }
+
+  // **CS 무효화도 나가는 돈이다** (2026-08-18 배선 점검에서 붙였다).
+  //
+  // 그전까지 이 길만 일일 한도 밖이었다. 판정 환불 쪽에 "환불만 열어 두면 '전부 환불'
+  // 한 번으로 에스크로가 통째로 비는 길이 남는다"고 적어 놓고, 정작 **같은 모양의 길**을
+  // 여기 열어 둔 셈이다.
+  //
+  // ⚠ 이 길의 위험은 **절도가 아니라 파괴**다 — PG 취소는 원결제 카드로만 돌아가므로
+  // 탈취자가 자기 주머니로 돌릴 수 없다. 그래도 거는 이유는 한도가 막으려는 대상에
+  // **우리 코드의 버그·스크립트 오작동**이 함께 들어 있기 때문이다: 조건을 잘못 쓴
+  // 정리 스크립트가 진행 중인 구매를 훑으면 벽 없이 끝까지 간다.
+  //
+  // **시도 행을 만들기 전에** 검사한다 — 뒤에 두면 막힌 요청이 PENDING 행을 남기고,
+  // 그 행이 다음 무효화를 IN_FLIGHT로 막아 버린다.
+  // 재시도(retryCsRefund)에는 걸지 않는다: 같은 멱등키를 이어받는 것이라 **새 돈이
+  // 아니고**, 거기서 막으면 "나갔는지 모르는" 시도가 영영 안 닫힌다 (판정 환불의
+  // retryRefundAttempt와 같은 규칙).
+  await assertWithinDailyLimit(prisma, purchase.amountKrw, now);
 
   // **시도 행을 먼저 만든다** — 그 id가 곧 멱등키다. 호출 전에 만들어야
   // 응답을 못 받았을 때 같은 키로 이어받을 수 있다 (RefundAttempt 주석)
