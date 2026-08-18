@@ -208,6 +208,39 @@ export function RefundIcon() {
 }
 
 /**
+ * 문의하기 — 말풍선 하나에 물음표 하나. 개수가 뜻이다.
+ * 말풍선 둘이 기본형이고 수치도 더 낫지만(덩어리 78 대 115) 이 제품에 없는 채팅을
+ * 약속한다 — 문의 화면은 주제를 고르고 정해진 답을 먼저 보여주는 창구다. 헤드셋도
+ * 같은 이유로 버렸다(상담원이 없다).
+ * 물음표 획만 2.0 — 안쪽 표식이 껍데기보다 무거워야 하고, 더 굵으면 고리 안쪽이
+ * 2.5 아래로 내려가 24px에서 닫힌다. 안쪽 간격은 전부 1.7이라 20px까지 읽힌다.
+ */
+export function SupportIcon() {
+  return (
+    <svg {...BOX}>
+      <path
+        d="M6 2.8 H18 A3.2 3.2 0 0 1 21.2 6 V15.2 A3.2 3.2 0 0 1 18 18.4
+           H11.4 L6 21.2 V18.4 A3.2 3.2 0 0 1 2.8 15.2 V6 A3.2 3.2 0 0 1 6 2.8 Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <path
+        d="M9.75 8.65 A2.25 2.25 0 1 1 14.08 9.51 Q13.62 10.1 12 10.9"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="14.7" r="1.1" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
  * 에스크로 보관 — 윤곽 케이스·손잡이 + 잠금선 + 그 위에 얹힌 작은 걸쇠.
  * 채운 띠(16.6×2.8)였을 때 세트에서 가장 무거워(27%) 쨍했다. 선 + 걸쇠가 같은 말을
  * 훨씬 적은 덩어리로 한다. 손잡이는 장식이 아니다 — 빼면 24px에서 카드지갑과 헷갈린다.

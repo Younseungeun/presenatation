@@ -15,6 +15,7 @@ export {
   PenIcon,
   RefundIcon,
   SettingsIcon,
+  SupportIcon,
 } from "../brand/Icons";
 
 const S = {
