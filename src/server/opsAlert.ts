@@ -24,6 +24,31 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 /** 웹훅이 느려도 본업을 붙잡지 않는다 */
 const WEBHOOK_TIMEOUT_MS = 5_000;
 
+/**
+ * **시험 중에는 앱 밖으로 한 통도 내보내지 않는다** (2026-08-18, 실제 사고 뒤 추가).
+ *
+ * 텔레그램을 붙인 날 밤, `npm test` 한 번에 창업자 폰으로 **가짜 경보 수십 통**이
+ * 갔다. 시험이 만드는 값("AAA 종목", "newcomer", 8,000원 보상)이 실제 경보 채널에
+ * 그대로 흘러간 것이다.
+ *
+ * 왜 여태 안 드러났나 — `OPS_WEBHOOK_URL`이 한 번도 설정된 적이 없어 `postWebhook`이
+ * 늘 조용히 빠져나갔다. 채널을 실제로 연결하는 순간 잠재해 있던 경로가 살아났다.
+ *
+ * 왜 시험에 값이 있나 — **Prisma Client가 `.env`를 스스로 읽는다.** vitest는 .env를
+ * 안 읽지만(유닛 갈래에서는 값이 없다), DB 갈래는 PrismaClient를 임포트하는 순간
+ * `.env` 전체가 `process.env`에 얹힌다. 시험 설정을 아무리 봐도 안 보이는 이유다.
+ *
+ * `VITEST`로 판단하는 이유: 시험 실행기 자신이 켜는 값이라 **운영에서 참이 될 수 없다.**
+ * `NODE_ENV`는 사람이 실수로 넘길 수 있고, 그러면 경보가 조용히 멈춘다 — 알림 채널의
+ * 침묵은 "사고 없음"과 구별되지 않으므로 그 위험을 지는 판단은 쓰지 않는다.
+ *
+ * 앱 **안** 알림(Notification 행)은 그대로 쓴다 — 시험이 그것을 검사하고, 밖으로
+ * 나가지도 않는다. 막는 것은 네트워크뿐이다.
+ */
+function outboundBlocked(): boolean {
+  return !!process.env.VITEST;
+}
+
 export interface OpsAlert {
   /** 한 줄 제목 — 휴대폰 알림에 그대로 뜬다 */
   title: string;
@@ -115,6 +140,7 @@ async function writeInAppNotifications(prisma: PrismaClient, alert: OpsAlert): P
 }
 
 async function postWebhook(alert: OpsAlert): Promise<void> {
+  if (outboundBlocked()) return;
   if (!WEBHOOK_URL) return; // 설정 안 됐으면 아무 일도 없다
   try {
     const controller = new AbortController();
@@ -138,6 +164,7 @@ async function postWebhook(alert: OpsAlert): Promise<void> {
 }
 
 async function postTelegram(alert: OpsAlert): Promise<void> {
+  if (outboundBlocked()) return;
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) return; // 설정 안 됐으면 아무 일도 없다
   try {
     const controller = new AbortController();
