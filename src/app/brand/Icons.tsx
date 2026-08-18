@@ -207,6 +207,116 @@ export function RefundIcon() {
   );
 }
 
+/** 홈 — 오각형 윤곽 + 채운 문. 문이 바닥선에 붙어 있어 채움이 윤곽과 이어진다.
+ *  처마는 그렸다가 잘랐다 — 벽 밖 1.8 토막 둘이 24px에서 발처럼 읽혔다. */
+export function HomeIcon() {
+  return (
+    <svg {...BOX}>
+      <g transform="translate(0 0.15)">
+        <path
+          d="M3.2 10.6 L12 3 L20.8 10.6 V18.6 A2.2 2.2 0 0 1 18.6 20.8
+             H5.4 A2.2 2.2 0 0 1 3.2 18.6 Z"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <path d="M9.2 20.8 V15 A2.8 2.8 0 0 1 14.8 15 V20.8 Z" fill="currentColor" />
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * 보안 — 자물쇠. 문제는 에스크로 가방이 이미 윤곽 둥근 사각형 + 얹은 것이라는 점.
+ * 셋으로 가른다: 반원 고리(8.6×4.3) 대 각진 손잡이(6.4×3.2), 세로 17.5×19 대
+ * 가로 20×18, 열쇠구멍 대 선+걸쇠. 몸통이 12.6인 것도 계산이다 — 11.8이면
+ * 안쪽 10.0이라 원 4.8 + 슬롯 2.6 앞뒤로 1.7씩을 못 준다.
+ * 슬롯은 좁아지지 않는 직선 — 좁히면 원과 붙어 물방울이 된다.
+ */
+export function SecurityIcon() {
+  return (
+    <svg {...BOX}>
+      <path
+        d="M7.7 7.85 A4.3 4.3 0 0 1 16.3 7.85"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <rect
+        x="4.2"
+        y="7.85"
+        width="15.6"
+        height="12.6"
+        rx="2.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12.85" r="2.4" fill="currentColor" />
+      <rect x="11.1" y="14.95" width="1.8" height="2.6" rx="0.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
+ * 상태 — 다이얼. 아래가 열린 속도계 호는 네 번 그렸고 전부 납작하고 창백했다
+ * (18.5×13.8, 잉크 12.6%). 테두리를 닫으니 20×20에 22.4%로 세트에 붙는다.
+ * 과녁과 겹치지 않는다 — 저쪽은 끊긴 동심원 둘 + 깃 달린 화살, 이쪽은 링 하나 +
+ * 방사 눈금 + 허브에서 뻗은 바늘.
+ * 바늘은 67.5°, 45°와 90° 눈금의 한가운데라 양쪽까지 2.0으로 같다.
+ * 아래에는 눈금이 없다 — 그게 시계 문자판과 계기판을 가른다.
+ */
+export function StatusIcon() {
+  return (
+    <svg {...BOX}>
+      <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M8.32 15.68 L7.47 16.53" />
+        <path d="M6.80 12 L5.60 12" />
+        <path d="M8.32 8.32 L7.47 7.47" />
+        <path d="M12 6.80 V5.60" />
+        <path d="M15.68 8.32 L16.53 7.47" />
+        <path d="M17.20 12 H18.40" />
+        <path d="M15.68 15.68 L16.53 16.53" />
+      </g>
+      <path d="M13.76 7.75 L13.66 12.69 L10.34 11.31 Z" fill="currentColor" />
+      <circle cx="12" cy="12" r="1.9" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
+ * 돈 — 원화 기호를 든 동전. 지폐는 지갑·가방·정산에 이어 둥근 사각형 넷째가 되고,
+ * 기호 단독은 세트에서 유일하게 아무것도 감싸지 않은 아이콘이 된다.
+ * 기호 획 2.0 — 안에 든 것이 드는 것보다 무거워야 한다(문의 말풍선과 같은 논리).
+ * 가로줄 1.5 — 구조가 아니라 부호라, 1.8이면 세 번째 팔로 읽혀 낙서가 된다.
+ * 세트 하한 20px에 가장 먼저 닿는 아이콘이다.
+ */
+export function MoneyIcon() {
+  return (
+    <svg {...BOX}>
+      <circle cx="12" cy="12" r="9.2" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path
+        d="M7.90 8.20 L10.93 15.80 L12 10.86 L13.07 15.80 L16.10 8.20"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <g fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+        <path d="M7.30 10.4 H16.70" />
+        <path d="M7.30 13.6 H16.70" />
+      </g>
+    </svg>
+  );
+}
+
 /**
  * 문의하기 — 말풍선 하나에 물음표 하나. 개수가 뜻이다.
  * 말풍선 둘이 기본형이고 수치도 더 낫지만(덩어리 78 대 115) 이 제품에 없는 채팅을
