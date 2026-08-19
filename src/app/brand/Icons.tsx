@@ -318,6 +318,45 @@ export function MoneyIcon() {
 }
 
 /**
+ * 신고 — 경광등. 윤곽 등 + 채운 받침 + 광선 셋.
+ * 이름이 report가 아닌 이유: 이 앱에서 리포트는 리서치 리포트다.
+ * 어려운 건 종이었다 — 종도 림 위의 돔, 경광등도 받침 위의 돔이다. 셋으로 갈랐다:
+ * 광선(종엔 없고, 세트에서 직선을 방사하는 건 이것뿐 — 확성기는 호, 계기판은 원 둘레),
+ * 서는 방식(폭 18.4 슬래브 위 vs 림 아래 매달린 추), 비율(폭 10.6 높은 등 vs 폭 11.2
+ * 눌린 돔).
+ * 광선은 셋. 레퍼런스는 다섯이지만 반지름 4.5에서 46°면 이웃까지 2.0, 27°면 1.5로
+ * 24px에서 닫힌다. 획 1.6 — 물건이 아니라 물건이 내보내는 것이라서.
+ */
+export function SirenIcon() {
+  return (
+    <svg {...BOX}>
+      <g transform="translate(0 1.38)">
+        <path
+          d="M6.7 17 V12.8 A5.3 5.3 0 0 1 17.3 12.8 V17"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        <rect x="2.8" y="17" width="18.4" height="3.9" rx="1.3" fill="currentColor" />
+        <g
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        >
+          <path d="M15.24 4.37 L16.60 3.05" />
+          <path d="M12 3 V1.1" />
+          <path d="M8.76 4.37 L7.40 3.05" />
+        </g>
+      </g>
+    </svg>
+  );
+}
+
+/**
  * 공지 — 확성기. 벌어진 나팔 + 채운 몸통·손잡이 + 파동 둘.
  * 첫 안은 뿔이 직선 사다리꼴이라 확성기가 아니라 쐐기로 읽혔다. 옆선을 휘어
  * 목에서 붙들었다가 입에서 빠르게 열고(반높이 2.9 → 절반 지점 3.1 → 6.8),
