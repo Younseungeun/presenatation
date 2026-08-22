@@ -34,6 +34,8 @@ interface Board {
     mode: "live" | "shadow" | "off";
     reviewerId: string | null;
     usable: boolean;
+    /** 못 쓸 때만 채워진다 — 쓸 수 있는데 사유를 적으면 그 줄이 배경음이 된다 */
+    unavailableReason?: string | null;
     /**
      * 사이드카가 **실제로 적재한** 가중치의 지문 (3회차 B-1 → 회신 3호 (가) 채택).
      *
@@ -254,6 +256,16 @@ export function StudentValvePanel() {
             창구가 닫혀 있어 <b>게시가 전부 보류되고 있습니다.</b> 창구를 다시 여는 것이
             정답이고, 그때까지 큐가 감당이 안 되면 아래 임시 통로를 열 수 있습니다 —
             <b>통로가 열린 동안에는 규칙만 보고 게시됩니다.</b>
+            {/* **왜 닫혔는지가 여기 있어야 한다.** 사유는 장애 알림으로도 나가지만 그건
+                상태가 **바뀌는 순간** 한 번뿐이고, 고치러 오는 사람이 보는 곳은 알림함이
+                아니라 이 화면이다. 2026-08-22 에 토크나이저 지문이 갈렸을 때 화면에는
+                "결근"만 있어서 사이드카를 직접 열어 봐야 원인을 알 수 있었다 */}
+            {student.unavailableReason && (
+              <>
+                <br />
+                <b>사유</b> — {student.unavailableReason}
+              </>
+            )}
           </div>
         )}
 
