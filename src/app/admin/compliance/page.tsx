@@ -413,6 +413,74 @@ function TeacherRelayPanel({
   );
 }
 
+/** @근거 계약 — 회신 8호 §2-b 확정: 코드 이식 후보의 네 조건 */
+const PROMOTION_MIN_MATCHES = 30;
+const PROMOTION_MIN_RESEARCHERS = 5;
+const PROMOTION_MIN_AGE_DAYS = 30;
+/** 리서처 수 집계가 시작된 날 — 그 전 매칭은 셀 수 없어 0 이다 (기록 이전 ≠ 한 사람) */
+const HIT_LOG_SINCE = "2026-08-22";
+
+/**
+ * **코드 이식 후보** — 즉시 거절로 가는 유일한 길의 문 앞.
+ *
+ * 사전 항목은 아무리 정확해져도 저절로 세지지 않는다(회신 7호 §3, 영구 확정). 대신
+ * 실적이 쌓이면 **코드 패턴으로 이식할 후보**가 된다 — 문맥 조건을 적고, 대조군에서
+ * 오탐 0 을 재고, 배포한다.
+ *
+ * ── 네 조건을 모두 그린다 (하나만 빠져도 배지가 거짓말이 된다) ──
+ * 특히 **서로 다른 리서처 수**가 이 배지의 값어치다. 그것 없이 "30회 · 100%" 만 보면
+ * 한 사람이 같은 문구를 30번 써서 만든 30회가 후보로 뜨는데, 즉시 거절이 지키는 상대는
+ * "지금 리서처"가 아니라 "아직 안 온 정상 문장"이다.
+ *
+ * ── 못 채운 조건을 감추지 않는다 ──
+ * 채운 것만 보여주면 "거의 다 됐다"로 읽힌다. 넷을 다 늘어놓고 못 채운 것을 흐리게
+ * 그린다 — 무엇이 남았는지가 이 줄의 정보다.
+ */
+function PromotionCandidate({
+  p,
+  now,
+}: {
+  p: { matchCount: number; confirmedCount: number; createdAt: Date; distinctResearcherCount: number };
+  now: Date;
+}) {
+  const ageDays = Math.floor((now.getTime() - p.createdAt.getTime()) / 86_400_000);
+  const checks = [
+    { ok: p.matchCount >= PROMOTION_MIN_MATCHES, label: `걸림 ${p.matchCount}/${PROMOTION_MIN_MATCHES}` },
+    {
+      ok: p.matchCount > 0 && p.confirmedCount === p.matchCount,
+      label: p.matchCount > 0 ? `확정 ${Math.round((p.confirmedCount / p.matchCount) * 100)}%/100%` : "확정 —",
+    },
+    { ok: ageDays >= PROMOTION_MIN_AGE_DAYS, label: `${ageDays}/${PROMOTION_MIN_AGE_DAYS}일` },
+    {
+      ok: p.distinctResearcherCount >= PROMOTION_MIN_RESEARCHERS,
+      label: `리서처 ${p.distinctResearcherCount}/${PROMOTION_MIN_RESEARCHERS}명`,
+    },
+  ];
+  const done = checks.every((c) => c.ok);
+
+  // 아직 한 번도 안 걸린 항목에는 그리지 않는다 — 갓 등록한 카드마다 0/30 이 붙으면
+  // 목록이 진행 막대로 덮이고, 그 줄이 말하는 것은 "아무 일도 없었다"뿐이다
+  if (p.matchCount === 0) return null;
+
+  return (
+    <div className={a.meta}>
+      <span style={{ color: done ? "var(--text)" : "var(--text-faint)", fontWeight: done ? 600 : 400 }}>
+        {done ? "코드 규칙 후보" : "코드 규칙 후보까지"}
+      </span>
+      {checks.map((c) => (
+        <span key={c.label} style={{ color: c.ok ? "var(--text-weak)" : "var(--text-faint)" }}>
+          {c.ok ? "✓" : "·"} {c.label}
+        </span>
+      ))}
+      {/* **0 명은 "한 사람"이 아니라 "기록 이전"이다** (회신 8호 §1) — 이 구별을 안 적으면
+          옛 항목이 전부 "리서처 1명 미만"으로 읽혀 부당하게 후보에서 밀린다 */}
+      {p.distinctResearcherCount === 0 && p.matchCount > 0 && (
+        <span>리서처 수는 {HIT_LOG_SINCE} 이후 매칭부터 셉니다</span>
+      )}
+    </div>
+  );
+}
+
 function ReviewCard({
   review,
   now,
@@ -1323,6 +1391,7 @@ export default async function AdminCompliancePage({
                 {!p.phoneticEligible && <span>근사 표기 제외 — 등록 시 충돌</span>}
                 {p.capExempt && <span>밀어내기 면제</span>}
               </div>
+              {p.active && <PromotionCandidate p={p} now={now} />}
               {p.note && <p className={a.hint}>{p.note}</p>}
               {p.needsReview && (
                 <p className={a.hint} style={{ color: "var(--warn)", fontWeight: 600 }}>

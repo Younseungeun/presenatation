@@ -42,6 +42,20 @@ interface Board {
      * 2026-08-21 하루에 모델이 세 번 갈리는 동안 표식이 그대로였다.
      */
     modelSha: string | null;
+    /**
+     * 마지막 승격 기록 (회신 8호 §3). `student:promote` 가 지문 대조를 통과한 뒤에만
+     * 쓴다 — 기록이 먼저 생기므로 재기동이 실패하면 "기록은 새 지문, 라이브는 옛 지문"이
+     * 되고, 그 어긋남이 곧 신호다.
+     */
+    promoted: { sha: string; at: string } | null;
+    /**
+     * 적재 지문 === 승격 지문.
+     *
+     * **false 는 경고가 아니라 사고다** — 승격 명령이 라이브에 오르는 유일한 경로이므로,
+     * 그것 없이 지문이 바뀌었다는 것은 기각본이 재기동으로 올라왔다는 뜻이다.
+     * null 은 비교할 값이 없는 것(승격 이력 없음 또는 사이드카 무응답)이라 사고가 아니다.
+     */
+    promotionMatches: boolean | null;
   };
 }
 
@@ -207,6 +221,30 @@ export function StudentValvePanel() {
             ) : (
               // 지문이 없으면 침묵하지 않는다 — 빈자리는 "안 바뀌었다"로 읽힌다
               <span>적재 지문 — 사이드카가 답하지 않습니다</span>
+            )}
+            {/* **지문만으로는 사고를 못 알아본다** (회신 8호 §3). 화면이 현재 값만 그리면
+                "바뀌었다"를 알려면 사람이 어제 값을 기억해야 하는데, 실제로 하루에 세 번
+                갈린 날 아무도 못 알아챘다(그중 승격은 하나뿐이었다).
+                승격 기록과 대조해야 비로소 화면이 그날 말할 수 있다 */}
+            {student.promotionMatches === true && <span>✓ 승격 기록과 일치</span>}
+          </div>
+        )}
+
+        {/* **일치하지 않으면 경고가 아니라 사고다** — 승격 명령이 라이브에 오르는 유일한
+            경로이므로, 그것 없이 지문이 바뀌었다는 것은 기각본이 재기동으로 올라왔다는
+            뜻이다. 그래서 색이 주의(노랑)가 아니라 위험(빨강)이다 */}
+        {student.promotionMatches === false && (
+          <div className={`${a.note} ${a.noteNeg}`}>
+            <b>승격 기록에 없는 지문입니다 — 재기동으로 올라온 것일 수 있습니다.</b>{" "}
+            승격 명령이 라이브에 오르는 유일한 경로이므로, 지금 돌고 있는 모델은{" "}
+            <b>채택되지 않은 것일 수 있습니다.</b>
+            {student.promoted && (
+              <>
+                <br />
+                마지막 승격 <code>{student.promoted.sha.slice(0, SHA_PREFIX)}</code> ·{" "}
+                {new Date(student.promoted.at).toLocaleString("ko-KR")} — 지금 적재된 것은{" "}
+                <code>{student.modelSha?.slice(0, SHA_PREFIX)}</code> 입니다.
+              </>
             )}
           </div>
         )}
