@@ -66,7 +66,10 @@ import {
   GRADUATION_WATCH_DAYS,
 } from "@/server/phraseGraduationService";
 import { countHardNegatives } from "@/server/retrainSignalService";
-import { getDecisionSpeedByCategory } from "@/server/decisionSpeedService";
+import {
+  getApprovedElapsedCoverage,
+  getDecisionSpeedByCategory,
+} from "@/server/decisionSpeedService";
 import { DecisionSpeedPanel } from "./DecisionSpeedPanel";
 import { GraduateButton } from "./GraduateButton";
 import { GraduationWatch } from "./GraduationWatch";
@@ -845,6 +848,7 @@ export default async function AdminCompliancePage({
     retrain,
     regressionCases,
     decisionSpeed,
+    elapsedCoverage,
   ] = await Promise.all([
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
@@ -863,6 +867,7 @@ export default async function AdminCompliancePage({
     countHardNegatives(prisma),
     getRegressionCases(prisma),
     getDecisionSpeedByCategory(prisma),
+    getApprovedElapsedCoverage(prisma),
   ]);
   // 문항은 사전 항목에 붙어 있다 — 졸업이 만든 것이라 그 항목 카드에서 닿는 것이 맞다.
   // (관찰 큐는 7일짜리 임시 자리고 문항은 영구라 수명이 안 맞는다 — 회신 4호 §4-b)
@@ -1024,7 +1029,7 @@ export default async function AdminCompliancePage({
 
       {/* 정확도 옆자리다 — 저쪽은 **무엇을 틀렸나**, 이쪽은 **읽고 틀렸나**를 말한다.
           둘이 떨어져 있으면 "오탐이 많다"와 "그래서 안 읽고 넘긴다"가 따로 읽힌다 */}
-      <DecisionSpeedPanel rows={decisionSpeed} />
+      <DecisionSpeedPanel rows={decisionSpeed} coverage={elapsedCoverage} />
 
       {/* 재학습 신호는 학생 순이익과 **같은 질문의 다른 면**이다 — 저쪽은 "지금 학생이
           쓸 만한가", 이쪽은 "다시 가르칠 때가 됐나". 전용 화면을 따로 두면 숫자 하나를

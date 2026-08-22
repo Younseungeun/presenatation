@@ -1,7 +1,20 @@
 import { RISK_CATEGORY_LABEL, type RiskCategory } from "@/domain/compliance";
-import type { DecisionSpeedRow } from "@/server/decisionSpeedService";
+import type {
+  ApprovedElapsedCoverage,
+  DecisionSpeedRow,
+} from "@/server/decisionSpeedService";
 import { SecHead } from "../Why";
 import a from "../admin.module.css";
+
+/**
+ * 판단 시간을 실제로 재기 시작한 날. 집계 창(7일)이 이 날짜를 넘어설 때까지는
+ * "시간 없음"의 대부분이 **측정 도입 전 승인**이라 결함이 아니다 — 그 사실을 한 줄로
+ * 덧붙이되, 창이 지나가면 저절로 사라진다. 사람이 지우는 것을 기억해야 하는 문구는
+ * 언젠가 낡은 채로 남는다.
+ */
+const MEASURE_START = Date.UTC(2026, 7, 22);
+const MEASURE_START_LABEL = "8월 22일";
+const WINDOW_DAYS = 7;
 
 /**
  * **판단 소요 시간** (26차 CC-1 반증 조건 — 피로도 함정 감지).
@@ -20,12 +33,25 @@ import a from "../admin.module.css";
  * 를 세우지 않으므로 화면도 그 판단을 존중하고, 대신 **표본 수를 함께 적는다** —
  * "2건 중앙값 3초"를 근거로 사람을 의심하게 두면 안 된다.
  */
-export function DecisionSpeedPanel({ rows }: { rows: DecisionSpeedRow[] }) {
+export function DecisionSpeedPanel({
+  rows,
+  coverage,
+}: {
+  rows: DecisionSpeedRow[];
+  coverage: ApprovedElapsedCoverage;
+}) {
+  const missing = coverage.approvedWithoutElapsed;
+
   // 잰 것이 하나도 없으면 그리지 않는다 — 빈 표는 정보가 아니라 장식이고,
-  // 매일 보이면 곧 안 보이게 된다 (학생 순이익 패널과 같은 규칙)
-  if (rows.length === 0) return null;
+  // 매일 보이면 곧 안 보이게 된다 (학생 순이익 패널과 같은 규칙).
+  // **다만 못 잰 건이 있으면 그린다** — 표가 비어 있는데 승인은 있었다는 것이
+  // 이 패널이 낼 수 있는 가장 큰 소리다. 거기서 침묵하면 "아무 일도 없었다"로 읽힌다
+  if (rows.length === 0 && missing === 0) return null;
 
   const suspects = rows.filter((r) => r.fatigueSuspect);
+  // 집계 창이 아직 측정 시작일을 물고 있는가
+  const windowStart = Date.now() - WINDOW_DAYS * 86_400_000;
+  const spansPreMeasure = windowStart < MEASURE_START;
 
   return (
     <>
@@ -80,12 +106,33 @@ export function DecisionSpeedPanel({ rows }: { rows: DecisionSpeedRow[] }) {
             있습니다 — 오탐이 잦은 유형이라면 그 규칙·프롬프트를 고치는 것이 답이지,
             빠르게 넘기는 것이 답이 아닙니다.
           </div>
-        ) : (
+        ) : rows.length > 0 ? (
           <div className={a.note}>
             유독 빠른 유형이 없습니다. 표본이 5건 미만인 유형은 판정하지 않습니다 — 한두
             건의 빠른 클릭은 피로가 아니라 우연입니다.
           </div>
-        )}
+        ) : null}
+
+        {/* **분모에서 사라진 건을 적는다.** 위 표는 시간이 있는 건만 모으므로, 시간이
+            없는 승인은 느린 쪽에도 빠른 쪽에도 안 잡히고 그냥 없는 일이 된다. 학습의
+            3초 필터도 같은 건들을 못 본다 — 비율이 높으면 위 표가 재고 있는 것이
+            승인 전체가 아니라 그 일부다 */}
+        {missing > 0 ? (
+          <div className={a.note}>
+            최근 {WINDOW_DAYS}일 승인 <b>{coverage.approvedTotal}건 중 {missing}건</b>에
+            판단 시간이 없습니다 — 위 표의 분모에서도 빠져 있고, 학습의 3초 필터도 이
+            건들은 보지 못합니다.
+            {spansPreMeasure ? (
+              <>
+                {" "}
+                측정은 <b>{MEASURE_START_LABEL}</b>에 시작해, 그 전 승인이 아직 이 창에
+                남아 있습니다. 창이 지나면 이 줄은 사라집니다.
+              </>
+            ) : (
+              <> 큐에서 펼친 카드가 아닌 경로로 승인됐거나, 시간이 실려 오지 않았습니다.</>
+            )}
+          </div>
+        ) : null}
       </div>
     </>
   );
