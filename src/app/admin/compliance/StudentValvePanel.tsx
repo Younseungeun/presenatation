@@ -127,16 +127,38 @@ function nextCanaryAt(now: number): number {
   return top.getTime() + 3_600_000;
 }
 
+/**
+ * **화면이 잰 값의 유효기간** (2026-08-23 창업자 지적).
+ *
+ * 점은 화면을 **연 순간** 카나리아를 돌려 나온 값이라, 켜 두면 그때 그대로 멈춘다 —
+ * 14:00 에 열고 14:02 에 규칙이 죽으면 14:30 에도 초록이다. 30분째 거짓말이다.
+ *
+ * 그래서 늙으면 **초록을 내린다.** 빨강으로 바꾸지 않는 것이 중요하다 — 깨졌다는
+ * 근거가 없고 **모른다**는 뜻이라, 회색(`dotIdle`)이 맞는 답이다. 여기서 빨강을
+ * 쓰면 "규칙이 깨졌다"로 읽혀 없는 사고를 쫓게 된다.
+ *
+ * 5분인 이유: 스케줄러 카나리아 주기와 맞춘다(회신 15호 ①). 그보다 오래된 값은
+ * 어차피 자동 점검이 더 새 답을 갖고 있다.
+ */
+const MEASURE_FRESH_MS = 5 * 60_000;
+
 function RuleRow({
   failures,
   heartbeatStale,
   nowMs,
+  measuredAt,
 }: {
   failures: { layer: string }[];
   heartbeatStale: boolean;
   nowMs: number;
+  /** 이 화면이 카나리아를 돌린 시각 — 서버 렌더 시점 */
+  measuredAt: number;
 }) {
   const broken = failures.length > 0;
+  const ageMin = Math.floor((nowMs - measuredAt) / 60_000);
+  /* 이미 틀린 것을 봤으면 늙었다고 흐리지 않는다 — 실패는 확인된 사실이고,
+     시간이 지난다고 사라지지 않는다. 흐려도 되는 것은 '통과' 쪽뿐이다 */
+  const measurementStale = !broken && nowMs - measuredAt > MEASURE_FRESH_MS;
   /* **멈춰 있을 때는 남은 시간을 적지 않는다** (2026-08-23).
      ✗ 는 "타이머가 안 돈다"는 뜻이라, 그 옆에 "12분 뒤"를 붙이면 오지 않을 약속을
      적는 것이 된다. 기다리면 해결된다고 읽혀 고치러 가지 않게 만든다 — 표시가
@@ -151,9 +173,19 @@ function RuleRow({
           !
         </span>
       ) : (
-        <span className={s.dot} aria-hidden="true" />
+        <span
+          className={`${s.dot} ${measurementStale ? s.dotIdle : ""}`}
+          aria-hidden="true"
+        />
       )}
       <span className={s.ruleName}>검수 규칙</span>
+      {/* 늙은 값이면 **언제 잰 것인지**를 적는다. 회색 점만으로는 "꺼졌나"로도 읽혀서,
+          숫자가 있어야 "새로고침하면 된다"가 전달된다 */}
+      {measurementStale && (
+        <span className={s.due} title="이 화면이 잰 값입니다 — 새로고침하면 다시 잽니다">
+          {ageMin}분 전 측정
+        </span>
+      )}
       {/* **IRIS 의 `IRIS.v5 ✓` 와 같은 자리** — 이름 옆에서 "그게 참인가"를 말하는 값.
           다만 여기서 참인 것은 이름이 아니라 **누가 지켜보고 있나**다.
           점을 물들이지 않는 이유(창업자 확정): 규칙이 멀쩡한 날에도 빨간불이 켜지면
@@ -184,10 +216,13 @@ function RuleRow({
 export function StudentValvePanel({
   canaryFailures = [],
   heartbeatStale = false,
+  measuredAt,
 }: {
   canaryFailures?: { layer: string }[];
   /** 자동 점검이 하루 넘게 성공하지 않았는가 — 점은 물들이지 않고 ✓/✗ 로만 말한다 */
   heartbeatStale?: boolean;
+  /** `canaryFailures` 를 잰 시각(서버 렌더 시점) — 없으면 늙지 않는 값으로 본다 */
+  measuredAt?: number;
 }) {
   const router = useRouter();
   const [board, setBoard] = useState<Board | null>(null);
@@ -349,7 +384,12 @@ export function StudentValvePanel({
         {/* **검수하는 것이 둘이다** — 규칙 엔진과 IRIS. 화면에서 멀리 떨어져 있던 둘을
             한 상자에 같은 위상으로 놓는다 (창업자 지시). "지금 검수가 돌고 있나"에
             한 눈으로 답이 나와야 하고, 그 답은 두 줄이다 */}
-        <RuleRow failures={canaryFailures} heartbeatStale={heartbeatStale} nowMs={now} />
+        <RuleRow
+          failures={canaryFailures}
+          heartbeatStale={heartbeatStale}
+          nowMs={now}
+          measuredAt={measuredAt ?? now}
+        />
 
         {/* **지문은 어긋날 때만 펼친다.** 일치하면 제목 옆 ✓ 가 이미 결론이라
             8자리를 매일 읽을 이유가 없다 — 화재경보기는 있어야 하지만 평소에 숫자를
