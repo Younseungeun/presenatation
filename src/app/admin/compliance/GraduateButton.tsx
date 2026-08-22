@@ -25,7 +25,7 @@ export function GraduateButton(props: {
   if (!open) {
     return (
       <button type="button" className={`${a.btn} ${a.btnGhost}`} onClick={() => setOpen(true)}>
-        졸업시키기 — 학생에게 넘기고 대비쌍을 남깁니다
+        졸업시키기 — IRIS에게 넘기고 대비쌍을 남깁니다
       </button>
     );
   }

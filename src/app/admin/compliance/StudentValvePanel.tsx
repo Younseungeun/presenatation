@@ -5,10 +5,10 @@ import { useRouter } from "next/navigation";
 import { WhyBody, WhyGroup, WhyToggle } from "../Why";
 import a from "../admin.module.css";
 
-// **학생 검사기 출근 상태** (인계 3호 · 2026-08-21 밤).
+// **IRIS 출근 상태** (인계 3호 · 2026-08-21 밤).
 //
 // ── 문구는 비유를 따른다 (창업자 확정 멘탈 모델) ────────────────
-//   학생 모델   = 직원 본인
+//   IRIS   = 직원 본인
 //   사이드카     = 그 직원이 출근해 앉는 창구
 //   usable 검사  = 출근 확인 (자리에 있고 전화를 받는가 + 실제로 문제를 푸는가)
 //   밸브         = 창구가 닫혔을 때의 2시간짜리 임시 통로
@@ -187,7 +187,7 @@ export function StudentValvePanel() {
       >
         <div className={a.row}>
           <div className={a.ttl}>
-            학생 검사기 출근 상태
+            IRIS 출근 상태
             <WhyToggle />
           </div>
           <span className={a.rowTags}>
@@ -272,7 +272,7 @@ export function StudentValvePanel() {
         {bypassing && (
           <div className={`${a.note} ${a.noteWarn}`}>
             <b>임시 통로 열림 · {left} 뒤 자동으로 닫힙니다</b> — 지금 올라오는 리포트는
-            학생 검사 없이 규칙만 보고 게시됩니다. 닫힌 뒤에도 창구가 그대로면 다시 전부
+            IRIS 검사 없이 규칙만 보고 게시됩니다. 닫힌 뒤에도 창구가 그대로면 다시 전부
             보류됩니다.
           </div>
         )}

@@ -353,7 +353,7 @@ function TeacherRelayPanel({
   stale: boolean;
 }) {
   // 물어볼 일이 아직 없었으면 그리지 않는다 — 0건짜리 계기판은 정보가 아니라 장식이고,
-  // 매일 보이면 곧 안 보이게 된다 (학생 모델 순이익 패널과 같은 규칙)
+  // 매일 보이면 곧 안 보이게 된다 (IRIS 순이익 패널과 같은 규칙)
   if (coverage.decided === 0 && pending.length === 0) return null;
 
   const unasked = coverage.decided - coverage.asked;
@@ -884,7 +884,7 @@ export default async function AdminCompliancePage({
   const now = new Date();
   // **`usable()` 은 부르지 않는다** — 그건 사이드카에 실제로 묻는 일이라 목록을 그리는
   // 값싼 경로에 둘 것이 아니고, 출근 상태 카드가 이미 그 답을 갖고 있다. 여기서 알고
-  // 싶은 것은 "학생이 판정에 끼는 체제인가" 하나뿐이고 그건 설정값(env) 한 줄이다
+  // 싶은 것은 "IRIS가 판정에 끼는 체제인가" 하나뿐이고 그건 설정값(env) 한 줄이다
   const mode = studentMode();
   const instrumentHolds = pending.filter((r) => isInstrumentOnlyHold(parseFindings(r.findingsJson)));
   const contentHolds = pending.filter((r) => !isInstrumentOnlyHold(parseFindings(r.findingsJson)));
@@ -1015,7 +1015,7 @@ export default async function AdminCompliancePage({
       {/* **맥박이 성적보다 먼저다** — 정확도는 지난 90일의 결과지만 이 줄은 지금
           이 순간 기계가 도는지를 말한다. 규칙이 죽어 있으면 정확도 숫자는
           어제까지의 이야기일 뿐이다 */}
-      {/* **장애가 규칙 상태보다 먼저다** — 규칙이 전부 초록이어도 학생이 죽어 있으면
+      {/* **장애가 규칙 상태보다 먼저다** — 규칙이 전부 초록이어도 IRIS가 죽어 있으면
           지금 게시가 멈춰 있다. 그 사실이 아래 어느 숫자보다 급하다 */}
       <StudentValvePanel />
       <CanaryPanel screen={canary} now={now} />
@@ -1031,12 +1031,12 @@ export default async function AdminCompliancePage({
           둘이 떨어져 있으면 "오탐이 많다"와 "그래서 안 읽고 넘긴다"가 따로 읽힌다 */}
       <DecisionSpeedPanel rows={decisionSpeed} coverage={elapsedCoverage} />
 
-      {/* 재학습 신호는 학생 순이익과 **같은 질문의 다른 면**이다 — 저쪽은 "지금 학생이
+      {/* 재학습 신호는 IRIS 순이익과 **같은 질문의 다른 면**이다 — 저쪽은 "지금 IRIS가
           쓸 만한가", 이쪽은 "다시 가르칠 때가 됐나". 전용 화면을 따로 두면 숫자 하나를
           보러 가는 길이 하나 더 생기고, 그 길은 곧 안 걸어가게 된다 */}
       <RetrainGauge {...retrain} />
 
-      {/* 학생 모델을 계속 켜 둘 것인가 (9차 G-4).
+      {/* IRIS을 계속 켜 둘 것인가 (9차 G-4).
           채택선과 **같은 공식**(순이익)으로 최근 창을 다시 잰다 — 켤 때와 끌 때의
           잣대가 다르면 두 판단이 서로를 반박한다.
           표본이 없을 때는 그리지 않는다: 0건짜리 계기판은 정보가 아니라 장식이고,
@@ -1054,12 +1054,12 @@ export default async function AdminCompliancePage({
             color: "var(--text-weak)",
           }}
         >
-          <strong style={{ color: "var(--text)" }}>학생 모델 순이익</strong>{" "}
+          <strong style={{ color: "var(--text)" }}>IRIS 순이익</strong>{" "}
           <span style={{ color: "var(--text-faint)" }}>· 운영자 판정 기준</span>
           <br />
           {rollback.summary}
           {/* 격하됐으면 **그 사실이 먼저다.** 위 순이익은 격하 이후로 갱신되지 않는다 —
-              학생이 소견을 안 내므로 잴 재료 자체가 없다. 그 사실을 말하지 않으면
+              IRIS가 소견을 안 내므로 잴 재료 자체가 없다. 그 사실을 말하지 않으면
               운영자가 "숫자가 안 나빠졌으니 괜찮다"로 읽는다 (10차 I-6). */}
           {autoShadowed ? (
             <>
@@ -1068,7 +1068,7 @@ export default async function AdminCompliancePage({
                 자동 격하됨 — 지금 규칙 단독으로 검수 중입니다.
               </strong>
               <br />
-              위 수치는 격하 시점에 멈춰 있습니다(끈 동안에는 학생의 성적을 잴 수 없습니다).
+              위 수치는 격하 시점에 멈춰 있습니다(끈 동안에는 IRIS의 성적을 잴 수 없습니다).
               재학습하고 <code>npm run eval:student</code> 로 채택선을 다시 통과시킨 뒤
               해제하십시오.
               <StudentShadowRelease />
@@ -1133,14 +1133,14 @@ export default async function AdminCompliancePage({
                 {contentHolds.length}
               </span></>}>게시되기 <b>전</b>에 규칙·AI가 막았습니다. 아직 아무도 못 샀습니다 — 판매
               시작이 운영자 결정에 달려 있습니다.</SecHead>
-          {/* **학생이 판정에 안 끼는 동안은 목록 머리에서 한 번만 말한다** (3회차 C-4 →
-              회신 3호). 카드마다 붙이면 상시 문구가 반복돼 노이즈가 되고, 학생이 라이브로
+          {/* **IRIS가 판정에 안 끼는 동안은 목록 머리에서 한 번만 말한다** (3회차 C-4 →
+              회신 3호). 카드마다 붙이면 상시 문구가 반복돼 노이즈가 되고, IRIS가 라이브로
               돌아오는 날 전 카드의 문구를 떼야 하는 동기화 부담이 생긴다.
-              카드 단위 표시는 라이브일 때의 `[학생 · 확신 N%]` 배지 하나로 충분하다.
-              — 이 줄이 없으면 큐 카드만 보는 운영자는 "학생이 아무것도 안 잡네"로 읽는다 */}
+              카드 단위 표시는 라이브일 때의 `[IRIS · 확신 N%]` 배지 하나로 충분하다.
+              — 이 줄이 없으면 큐 카드만 보는 운영자는 "IRIS가 아무것도 안 잡네"로 읽는다 */}
           {mode !== "live" && contentHolds.length > 0 && (
             <div className={a.note}>
-              <b>학생 검사기: {mode === "shadow" ? "연수 중(기록만)" : "꺼짐"}</b> — 이 큐의
+              <b>IRIS: {mode === "shadow" ? "연수 중(기록만)" : "꺼짐"}</b> — 이 큐의
               소견은 규칙 단독입니다.
             </div>
           )}
@@ -1299,15 +1299,15 @@ export default async function AdminCompliancePage({
         <SecHead title={TOOLS[tab as ToolKey].label}>{TOOLS[tab as ToolKey].description}</SecHead>
       )}
 
-      {/* **졸업 직후 7일이 가장 위험하다** — 사전 보호가 꺼지고 학생만 남는 창이다.
+      {/* **졸업 직후 7일이 가장 위험하다** — 사전 보호가 꺼지고 IRIS만 남는 창이다.
           목록 위에 얹는 이유: 졸업시킨 사람이 결과를 보러 갈 곳을 따로 기억하지 않게 */}
       {tab === "phrases" && graduationWatch.length > 0 && (
         <>
           <SecHead title={<>졸업 관찰{" "}
               <span className={`${a.n} ${graduationWatch.some((r) => r.studentMissCount > 0) ? "" : a.nCalm}`}>
                 {graduationWatch.length}
-              </span></>}>사전에서 <b>내린 지 {GRADUATION_WATCH_DAYS}일 안</b>인 표현입니다. 지금은 학생만 이
-              표현을 맡고 있어, 학생이 놓치면 <b>아무도 막지 않습니다.</b> 놓친 것이 쌓이면
+              </span></>}>사전에서 <b>내린 지 {GRADUATION_WATCH_DAYS}일 안</b>인 표현입니다. 지금은 IRIS만 이
+              표현을 맡고 있어, IRIS가 놓치면 <b>아무도 막지 않습니다.</b> 놓친 것이 쌓이면
               졸업이 성급했다는 증거이므로 되살리십시오.</SecHead>
           {/* `getGraduationWatch` 는 `graduatedAt: { gte: cutoff }` 로 이미 걸렀지만
               프리즈마 타입은 여전히 nullable 이다. 있을 수 없는 행을 위한 빈 화면을
@@ -1355,7 +1355,7 @@ export default async function AdminCompliancePage({
                     <span className={`${a.chip} ${a.chipWarn}`}>재검토 권장</span>
                   )}
                   {/* **꺼진 이유가 둘인데 얼굴이 하나였다** (회신 5호 Q3 계약):
-                        졸업   = active false + graduatedAt 있음 — 학생에게 넘겼다
+                        졸업   = active false + graduatedAt 있음 — IRIS에게 넘겼다
                         비활성 = active false + graduatedAt 없음 — 오탐이라 꺼 뒀다
                       둘 다 "비활성"으로 그리면 "다시 활성화"가 무슨 뜻인지 갈린다 —
                       한쪽은 되살리기고 다른 쪽은 졸업 취소다.
@@ -1364,7 +1364,7 @@ export default async function AdminCompliancePage({
                   <span
                     className={`${a.chip} ${p.active ? a.chipMint : p.graduatedAt ? a.chipWarn : ""}`}
                   >
-                    {p.active ? "활성" : p.graduatedAt ? "졸업 — 학생이 맡음" : "비활성"}
+                    {p.active ? "활성" : p.graduatedAt ? "졸업 — IRIS가 맡음" : "비활성"}
                   </span>
                 </div>
               </div>
@@ -1383,7 +1383,7 @@ export default async function AdminCompliancePage({
                   층 번호(L1~L6)는 쓰지 않는다 — 운영자 어휘가 아니다 */}
               {/* **꺼진 항목은 아무것도 감시하지 않는다.** 어제 이 줄을 넣을 때 활성 여부를
                   안 봐서, 졸업했거나 꺼 둔 항목에도 현재형으로 "감시:" 가 붙어 있었다 —
-                  카드가 바로 위에서 `졸업 — 학생이 맡음` 이라고 말해 놓고 다음 줄에서
+                  카드가 바로 위에서 `졸업 — IRIS가 맡음` 이라고 말해 놓고 다음 줄에서
                   자기가 감시한다고 말하는 꼴이었다.
                   꺼진 항목에도 층 정보는 남긴다(되찾을지 판단하는 재료다) — 다만 시제를
                   바꿔 **조건문**으로 적는다 */}
@@ -1406,7 +1406,7 @@ export default async function AdminCompliancePage({
               )}
               <PhraseToggle phraseId={p.id} active={p.active} graduated={!!p.graduatedAt} />
               {/* **졸업한 항목에만** 문항이 붙는다 — 문항은 졸업이 만든 것이고, 되찾아
-                  온 항목에도 그대로 남아 있어야 한다(이중 방어라 계속 학생을 시험한다).
+                  온 항목에도 그대로 남아 있어야 한다(이중 방어라 계속 IRIS를 시험한다).
                   그래서 조건은 graduatedAt 이지 active 가 아니다 */}
               {p.graduatedAt && (
                 <RegressionCases
