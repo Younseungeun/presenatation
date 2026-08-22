@@ -112,14 +112,38 @@ type Tone = "ok" | "warn" | "neutral";
  * 있나"라 축이 다르고, 섞으면 규칙이 멀쩡한 날에도 빨간불이 켜져 신호가 죽는다.
  * 그 사실은 아래 카나리아 패널이 경고문으로 따로 말한다.
  */
+/**
+ * **다음 점검 예정 시각** — 지금 스케줄이 '매시 정각'이라(`runScheduler.ts` 의
+ * `kstClock.endsWith(':00')`) 다음 정각이다.
+ *
+ * **여기에 주기가 적혀 있는 것이 위험 지점이다.** 스케줄이 5분 간격으로 바뀌면 이 함수도
+ * 같이 바뀌어야 하고, 안 바뀌면 화면이 조용히 거짓말한다 — 이 저장소가 반복해 만난
+ * 모양이다. 회신 15호에서 스케줄러가 `canary.nextAt` 을 직접 써 주도록 요청해 두었고,
+ * 그것이 오면 이 함수는 지운다.
+ */
+function nextCanaryAt(now: number): number {
+  const top = new Date(now);
+  top.setMinutes(0, 0, 0);
+  return top.getTime() + 3_600_000;
+}
+
 function RuleRow({
   failures,
   heartbeatStale,
+  nowMs,
 }: {
   failures: { layer: string }[];
   heartbeatStale: boolean;
+  nowMs: number;
 }) {
   const broken = failures.length > 0;
+  /* **멈춰 있을 때는 남은 시간을 적지 않는다** (2026-08-23).
+     ✗ 는 "타이머가 안 돈다"는 뜻이라, 그 옆에 "12분 뒤"를 붙이면 오지 않을 약속을
+     적는 것이 된다. 기다리면 해결된다고 읽혀 고치러 가지 않게 만든다 — 표시가
+     행동을 막는 쪽으로 틀리는 경우라 비워 두는 편이 정확하다. */
+  const leftMin = heartbeatStale
+    ? null
+    : Math.max(0, Math.ceil((nextCanaryAt(nowMs) - nowMs) / 60_000));
   return (
     <div className={s.ruleRow}>
       {broken ? (
@@ -140,6 +164,9 @@ function RuleRow({
           <span className={s.stale}>✗</span>
         ) : (
           <span className={s.ok}>✓</span>
+        )}
+        {leftMin !== null && (
+          <span className={s.due}> · 다음 {leftMin < 1 ? "곧" : `${leftMin}분 뒤`}</span>
         )}
       </span>
       {/* **무엇이 틀렸는지를 이름으로 적는다** — "1건 실패"는 어디를 봐야 할지
@@ -322,7 +349,7 @@ export function StudentValvePanel({
         {/* **검수하는 것이 둘이다** — 규칙 엔진과 IRIS. 화면에서 멀리 떨어져 있던 둘을
             한 상자에 같은 위상으로 놓는다 (창업자 지시). "지금 검수가 돌고 있나"에
             한 눈으로 답이 나와야 하고, 그 답은 두 줄이다 */}
-        <RuleRow failures={canaryFailures} heartbeatStale={heartbeatStale} />
+        <RuleRow failures={canaryFailures} heartbeatStale={heartbeatStale} nowMs={now} />
 
         {/* **지문은 어긋날 때만 펼친다.** 일치하면 제목 옆 ✓ 가 이미 결론이라
             8자리를 매일 읽을 이유가 없다 — 화재경보기는 있어야 하지만 평소에 숫자를
