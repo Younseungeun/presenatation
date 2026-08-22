@@ -39,8 +39,24 @@ const categories = z.array(z.enum(RISK_CATEGORIES)).max(RISK_CATEGORIES.length).
 const phrase = z.string().trim().max(PHRASE_MAX_LENGTH * 3).optional();
 
 // 관리자 화면이 잰 "열람 → 판정" 시간 (26차 CC-1 피로도 감지 — decisionSpeedService).
-// 화면이 안 보내면 그냥 빈 칸이다 — 텔레메트리가 판정을 막으면 안 된다
-const decisionElapsedMs = z.number().int().positive().max(86_400_000).optional();
+// 화면이 안 보내면 그냥 빈 칸이다 — 텔레메트리가 판정을 막으면 안 된다.
+//
+// **`.catch(undefined)` 가 그 문장을 실제로 지킨다.** 이게 없으면 범위 밖 값 하나가
+// 판정 요청 **전체**를 400 으로 떨어뜨렸다 — 금요일에 카드를 펼쳐 놓고 월요일에
+// 누르면 경과가 하루를 넘어 승인이 아예 안 됐고, 화면에는 이유가 안 나와 카드를
+// 닫았다 다시 열기 전까지 계속 실패했다. 텔레메트리가 판정을 막던 자리다.
+//
+// **자르지 않고 버린다.** 하루를 넘는 값은 측정이 아니라 방치이므로(탭을 열어 둔 채
+// 퇴근 — decisionSpeedService.MAX_ELAPSED_MS 의 근거), 상한으로 접어 넣으면 재지도
+// 않은 것을 "24시간 숙고"로 적게 된다. 빈 칸으로 두면 `getApprovedElapsedCoverage`
+// 가 "못 쟀다"로 세어 화면에 적는다 — 조용히 사라지지 않는다.
+const decisionElapsedMs = z
+  .number()
+  .int()
+  .positive()
+  .max(86_400_000)
+  .optional()
+  .catch(undefined);
 
 const bodySchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('RESOLVE'), reviewId: z.string().min(1) }),
