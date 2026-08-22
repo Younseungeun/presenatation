@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RISK_CATEGORIES, RISK_CATEGORY_LABEL, type RiskCategory } from "@/domain/compliance";
 import a from "../admin.module.css";
 import { PhraseField } from "../PhraseField";
@@ -38,6 +38,7 @@ export function ResolveButton({
   heldAmountKrw,
   flaggedCategories = [],
   suggestedPhrase = "",
+  measure = false,
 }: {
   /** 검토 큐 항목일 때만 존재 — 판매 중 목록에서 온 건은 없다 */
   reviewId?: string;
@@ -49,8 +50,20 @@ export function ResolveButton({
   flaggedCategories?: RiskCategory[];
   /** 학습 표현 등록란의 기본값 (검수 인용문 중 가장 짧은 것) */
   suggestedPhrase?: string;
+  /**
+   * 판단 소요 시간을 재서 함께 보낼 것인가.
+   * **큐에서 펼친 카드에서만 참이다** — 이 컴포넌트의 마운트가 곧 열람인 자리.
+   */
+  measure?: boolean;
 }) {
   const router = useRouter();
+  // 마운트 시각 = 이 건을 펼친 시각. 렌더가 다시 돌아도 흔들리면 안 되므로 ref 다.
+  // **렌더 중에 찍지 않는다** — `useRef(Date.now())` 는 렌더가 순수해야 한다는 규칙을
+  // 어기고(재렌더마다 다른 값이 나올 수 있다), 린트가 막는다. 효과에서 한 번만 찍는다
+  const openedAt = useRef<number | null>(null);
+  useEffect(() => {
+    openedAt.current = Date.now();
+  }, []);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,6 +102,28 @@ export function ResolveButton({
     setCategories((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   }
 
+  /**
+   * **열람 → 판정까지 걸린 시간** (26차 CC-1 반증 조건 — 피로도 함정 감지).
+   *
+   * 라이브 학생을 유지하는 대가는 오탐 흡수인데, 오탐 승인과 정상 승인이 화면에서
+   * **같은 클릭**이라 결과만으로는 구별되지 않는다. 갈라 주는 유일한 신호가 시간이다:
+   * 특정 유형의 판단이 다른 유형의 절반 밑으로 떨어지면 그 소견은 읽히지 않고 있다.
+   *
+   * **재는 자리가 곧 정의다.** 이 컴포넌트는 큐 카드가 *펼쳐졌을 때만* 마운트되므로
+   * (`ReviewCard` 는 접힌 상태에서 링크만 그린다) 마운트 시각이 곧 열람 시각이다.
+   * 반면 판매 중 목록은 카드마다 이 폼을 한꺼번에 그리므로 마운트가 "열었다"가
+   * 아니다 — 거기서 재면 페이지를 띄워 둔 시간이 판단 시간으로 둔갑한다.
+   * 그래서 `measure` 를 명시적으로 받는다.
+   *
+   * 창 비활성 시간은 빼지 않는다(과공학) — 자리를 비워 부푼 값은 서버가 하루 상한으로
+   * 자른다. **짧은 것이 신호이고 긴 것은 신중이라**, 위쪽 오차는 이 지표를 안 망친다.
+   */
+  function elapsedField(action: unknown): { decisionElapsedMs?: number } {
+    if (!measure || openedAt.current === null) return {};
+    if (action !== "APPROVE" && action !== "REJECT" && action !== "TAKEDOWN") return {};
+    return { decisionElapsedMs: Math.max(1, Date.now() - openedAt.current) };
+  }
+
   async function post(body: Record<string, unknown>, failMessage: string) {
     setBusy(true);
     setError(null);
@@ -96,7 +131,7 @@ export function ResolveButton({
       const res = await fetch("/api/admin/compliance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ ...body, ...elapsedField(body.action) }),
       });
       const payload = await res.json();
       if (!res.ok) {

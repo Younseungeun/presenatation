@@ -66,6 +66,8 @@ import {
   GRADUATION_WATCH_DAYS,
 } from "@/server/phraseGraduationService";
 import { countHardNegatives } from "@/server/retrainSignalService";
+import { getDecisionSpeedByCategory } from "@/server/decisionSpeedService";
+import { DecisionSpeedPanel } from "./DecisionSpeedPanel";
 import { GraduateButton } from "./GraduateButton";
 import { GraduationWatch } from "./GraduationWatch";
 import { RegressionCases } from "./RegressionCases";
@@ -138,7 +140,15 @@ const TOOLS: Record<ToolKey, { label: string; description: string }> = {
   phrases: {
     label: "운영자 사전",
     description:
-      "반려·철회하며 등록한 표현입니다. 리서처의 작성 화면에서 실시간으로 경고를 띄우고, 게시 시 검수에도 같은 표현이 적용됩니다(항상 보류, 즉시 거절은 하지 않습니다). 걸린 횟수 대비 실제 반려 비율이 낮으면 오탐을 내고 있다는 뜻이므로 비활성화해주세요.",
+      "반려·철회하며 등록한 표현입니다. 리서처의 작성 화면에서 실시간으로 경고를 띄우고, 게시 시 검수에도 같은 표현이 적용됩니다. " +
+      // **여기서 하는 일은 코드 규칙에 잡을 것을 더하는 것**이지 별개 검사기를 만드는
+      // 것이 아니다 — 사전 항목은 코드 패턴과 같은 배열에 들어가 같은 층·같은 가드를
+      // 지난다(applyRules 의 activeRules). 다만 **심각도만 갈린다**: 즉시 거절은
+      // ① 문맥 조건을 코드로 적을 수 있고 ② 대조군에서 오탐 0 이 측정됐고
+      // ③ 코드 배포를 거친 패턴에만 있다 (회신 7호 §2 확정). 사전은 문자열 하나라
+      // "어떤 문맥에서 위반인지"를 적을 자리가 없고, 운영 중 사람 손으로 바뀐다.
+      "여기서 더하는 것은 코드 규칙이 잡을 표현이고, 별개의 검사기가 아닙니다 — 같은 층을 같은 순서로 지납니다. 다만 사전 항목은 언제나 보류까지입니다. 즉시 거절은 문맥 조건을 코드로 적고 대조군 검사를 통과한 패턴에만, 코드 배포로만 생깁니다. " +
+      "걸린 횟수 대비 실제 반려 비율이 낮으면 오탐을 내고 있다는 뜻이므로 비활성화해주세요.",
   },
 };
 
@@ -610,6 +620,10 @@ function ReviewCard({
         heldAmountKrw={heldAmountKrw}
         flaggedCategories={[...new Set(findings.map((f) => f.category))]}
         suggestedPhrase={suggestPhrase(findings)}
+        // **여기서만 시간을 잰다.** 이 카드는 펼쳐졌을 때만 폼을 그리므로(접힌 상태는
+        // 위의 `if (!open)` 링크다) 폼의 마운트가 곧 열람이다. 판매 중 목록은 카드마다
+        // 폼을 한꺼번에 그려 마운트가 열람이 아니므로 재지 않는다
+        measure
       />
 
       {/* **사유 말고 할 말** (2026-08-20 사용자 지시) — 신고 카드의 철회 확인 창에 있는
@@ -762,6 +776,7 @@ export default async function AdminCompliancePage({
     graduationWatch,
     retrain,
     regressionCases,
+    decisionSpeed,
   ] = await Promise.all([
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
@@ -779,6 +794,7 @@ export default async function AdminCompliancePage({
     getGraduationWatch(prisma),
     countHardNegatives(prisma),
     getRegressionCases(prisma),
+    getDecisionSpeedByCategory(prisma),
   ]);
   // 문항은 사전 항목에 붙어 있다 — 졸업이 만든 것이라 그 항목 카드에서 닿는 것이 맞다.
   // (관찰 큐는 7일짜리 임시 자리고 문항은 영구라 수명이 안 맞는다 — 회신 4호 §4-b)
@@ -937,6 +953,10 @@ export default async function AdminCompliancePage({
         stale={teacher.stale}
       />
       <AccuracyPanel summary={accuracy} />
+
+      {/* 정확도 옆자리다 — 저쪽은 **무엇을 틀렸나**, 이쪽은 **읽고 틀렸나**를 말한다.
+          둘이 떨어져 있으면 "오탐이 많다"와 "그래서 안 읽고 넘긴다"가 따로 읽힌다 */}
+      <DecisionSpeedPanel rows={decisionSpeed} />
 
       {/* 재학습 신호는 학생 순이익과 **같은 질문의 다른 면**이다 — 저쪽은 "지금 학생이
           쓸 만한가", 이쪽은 "다시 가르칠 때가 됐나". 전용 화면을 따로 두면 숫자 하나를
