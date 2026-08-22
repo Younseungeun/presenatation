@@ -37,6 +37,7 @@ import {
   CANARY_STALE_MS,
   getCanaryScreen,
 } from "@/server/screeningCanaryRunner";
+import { readHeartbeat } from "@/server/schedulerHealth";
 import { FindingRow } from "../FindingRow";
 import { StudentValvePanel } from "./StudentValvePanel";
 import { AskTeacher } from "./AskTeacher";
@@ -844,6 +845,7 @@ export default async function AdminCompliancePage({
     manualQueue,
     pause,
     canary,
+    schedulerBeat,
     teacherPending,
     teacherCoverage,
     teacher,
@@ -863,6 +865,9 @@ export default async function AdminCompliancePage({
     getManualJudgmentQueue(prisma),
     getPauseState(prisma),
     getCanaryScreen(prisma),
+    // 스케줄러가 아예 멎어 있으면 자동 점검 표시를 걷는다 — 그 고장은 홈 화면의
+    // ON/OFF 가 이미 2분 안에 말하고, 한 고장을 두 곳에서 띄우면 원인을 두 번 쫓는다
+    readHeartbeat(prisma),
     getTeacherAnswerPending(prisma),
     getTeacherAskCoverage(prisma),
     getTeacherTag(prisma),
@@ -1025,7 +1030,8 @@ export default async function AdminCompliancePage({
         measuredAt={now.getTime()}
         canaryNextAt={canary.nextAt}
         canaryIntervalMs={CANARY_INTERVAL_MS}
-        canaryStaleMs={CANARY_STALE_MS} />
+        canaryStaleMs={CANARY_STALE_MS}
+        schedulerOff={schedulerBeat.stale} />
       {/* 검수 규칙 띠지(CanaryPanel)는 2026-08-23에 걷었다 — 같은 사실을 위 IRIS 상자의
           `검수 규칙` 줄이 말한다. 층별 통과 여부를 여섯 칸으로 늘어놓던 자리인데, 전부
           통과일 때는 초록 여섯 개가 아무 말도 하지 않고 화면만 먹었다. 실패했을 때

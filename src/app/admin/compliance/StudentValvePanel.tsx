@@ -125,6 +125,62 @@ type Tone = "ok" | "warn" | "neutral";
  * 터진다** — 실제로 한 번 터뜨려 확인했다. 서버 페이지가 숫자만 넘긴다.
  */
 
+/**
+ * **초 단위로 도는 시계** — 이 줄에만 둔다.
+ *
+ * 패널 전체의 `now` 는 30초마다 움직이는데, 초가 흐르는 타이머를 그러려면 패널이
+ * 통째로 초마다 다시 그려진다. 훅을 이 컴포넌트 안에 두면 다시 그려지는 것은
+ * 이 한 줄뿐이다. 그릴 것이 없으면(`active === false`) 시계도 돌지 않는다.
+ */
+function useTicker(active: boolean): number {
+  const [t, setT] = useState(() => Date.now());
+  useEffect(() => {
+    if (!active) return;
+    const id = setInterval(() => setT(Date.now()), 1_000);
+    return () => clearInterval(id);
+  }, [active]);
+  return t;
+}
+
+/**
+ * **밀린 만큼 색이 오른다** (2026-08-23 창업자 지시).
+ *
+ * 자동 점검은 5분마다 돌아야 하는데 `✗` 는 15분이 지나야 뜬다. 그 사이 10분은
+ * 예전에는 `✓` 하나로 덮여 있어서 **한 번 걸렀는지 두 번 걸렀는지 알 수 없었다** —
+ * 문턱이 넉넉한 것과 그 동안 아무 말도 안 하는 것은 다른 문제다.
+ *
+ * 그래서 5분짜리 칸 셋으로 나눈다. 각 칸은 자기 몫의 5분을 세고, 넘어갈 때마다
+ * 색이 오른다. 셋째 칸이 끝나는 지점이 정확히 `CANARY_STALE_MS`(= 주기 × 3)라
+ * **눈금과 문턱이 어긋날 수 없다** — 15분이 다른 값이 되면 칸도 같이 움직인다.
+ *
+ *   0~5분   회색   제때 돌고 있다 — 다음 점검까지 남은 시간
+ *   5~10분  노랑   한 번 걸렀다
+ *   10~15분 빨강   두 번 걸렀다 — 다음은 ✗
+ */
+function countdownBand(
+  nextAt: Date,
+  nowMs: number,
+  bandMs: number,
+): { band: 0 | 1 | 2; text: string } {
+  const over = nowMs - nextAt.getTime();
+  const band = (over < 0 ? 0 : Math.min(2, Math.floor(over / bandMs) + 1)) as 0 | 1 | 2;
+  const remain = Math.max(0, nextAt.getTime() + band * bandMs - nowMs);
+  const total = Math.ceil(remain / 1_000);
+  return {
+    band,
+    text: `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`,
+  };
+}
+
+const TIMER_TONE = [s.timerOk, s.timerWarn, s.timerBad] as const;
+
+/** 색만으로는 "왜 노랗지"에 답이 없다 — 무엇을 세고 있는지 글로도 남긴다 */
+const TIMER_HINT = [
+  "다음 자동 점검까지 남은 시간입니다.",
+  "예정 시각을 한 번 넘겼습니다 — 이 시간이 지나면 빨간색이 됩니다.",
+  "예정 시각을 두 번 넘겼습니다 — 이 시간이 지나면 자동 점검이 ✗ 로 바뀝니다.",
+] as const;
+
 function RuleRow({
   failures,
   heartbeatStale,
@@ -133,6 +189,7 @@ function RuleRow({
   nextAt,
   freshMs,
   staleMs,
+  schedulerOff,
 }: {
   failures: { layer: string }[];
   heartbeatStale: boolean;
@@ -141,6 +198,8 @@ function RuleRow({
   freshMs: number;
   /** 자동 점검이 이만큼 성공하지 않으면 ✗ (스케줄러의 CANARY_STALE_MS) */
   staleMs: number;
+  /** 스케줄러 자체가 멎어 있는가 — 그러면 자동 점검 표시를 아예 그리지 않는다 */
+  schedulerOff: boolean;
   /** 이 화면이 카나리아를 돌린 시각 — 서버 렌더 시점 */
   measuredAt: number;
   /**
@@ -157,13 +216,11 @@ function RuleRow({
   /* 이미 틀린 것을 봤으면 늙었다고 흐리지 않는다 — 실패는 확인된 사실이고,
      시간이 지난다고 사라지지 않는다. 흐려도 되는 것은 '통과' 쪽뿐이다 */
   const measurementStale = !broken && nowMs - measuredAt > freshMs;
-  /* 멈춰 있으면(`✗`) 남은 시간을 적지 않는다 — 오지 않을 약속이고, 기다리면 해결된다고
+  const tick = useTicker(!heartbeatStale && !!nextAt);
+  /* 멈춰 있으면(`✗`) 타이머를 그리지 않는다 — 오지 않을 약속이고, 기다리면 해결된다고
      읽혀 고치러 가지 않게 만든다. 예정 시각을 못 받았을 때도 마찬가지로 비운다:
      주기를 여기서 짐작해 채우면 예전의 "다음 59분 뒤" 거짓말이 되돌아온다 */
-  const leftMin =
-    heartbeatStale || !nextAt
-      ? null
-      : Math.max(0, Math.ceil((nextAt.getTime() - nowMs) / 60_000));
+  const timer = heartbeatStale || !nextAt ? null : countdownBand(nextAt, tick, freshMs);
   return (
     <div className={s.ruleRow}>
       {broken ? (
@@ -188,6 +245,14 @@ function RuleRow({
           다만 여기서 참인 것은 이름이 아니라 **누가 지켜보고 있나**다.
           점을 물들이지 않는 이유(창업자 확정): 규칙이 멀쩡한 날에도 빨간불이 켜지면
           신호가 죽는다. 그래서 작고 흐리게, 다만 멈췄을 때는 주의색으로 보이게 */}
+      {/* **스케줄러가 꺼져 있으면 이 줄을 통째로 그리지 않는다** (2026-08-23 창업자 지시).
+          자동 점검이 안 도는 것은 그때 당연한 결과라 `✗` 가 새 사실을 하나도 더하지
+          않는다. 그 고장은 **스케줄러 ON/OFF 표시가 이미 2분 안에** 말하고 있고,
+          한 고장을 두 곳에서 증상으로 띄우면 운영자가 원인을 두 번 쫓는다.
+          꺼진 줄 모르고 볼 때만 이 자리가 필요한데, 그때는 저쪽이 먼저 답한다.
+          반대로 **스케줄러는 살아 있는데 이 점검만 안 도는 경우**가 이 표시의
+          존재 이유 전부다 — 그건 저쪽 표시로 절대 보이지 않는다 */}
+      {schedulerOff ? null : (
       <span
         className={s.name}
         title={
@@ -202,10 +267,16 @@ function RuleRow({
         ) : (
           <span className={s.ok}>✓</span>
         )}
-        {leftMin !== null && (
-          <span className={s.due}> · 다음 {leftMin < 1 ? "곧" : `${leftMin}분 뒤`}</span>
+        {timer && (
+          <span
+            className={`${s.timer} ${TIMER_TONE[timer.band]}`}
+            title={TIMER_HINT[timer.band]}
+          >
+            {timer.text}
+          </span>
         )}
       </span>
+      )}
       {/* **무엇이 틀렸는지를 이름으로 적는다** — "1건 실패"는 어디를 봐야 할지
           알려주지 않는다. 층 이름이 곧 고칠 자리다 */}
       {broken &&
@@ -225,12 +296,15 @@ export function StudentValvePanel({
   canaryNextAt = null,
   canaryIntervalMs,
   canaryStaleMs,
+  schedulerOff = false,
 }: {
   canaryFailures?: { layer: string }[];
   /** 카나리아 주기 (스케줄러 `CANARY_INTERVAL_MS`) — 화면이 잰 값의 유효기간을 겸한다 */
   canaryIntervalMs: number;
   /** 자동 점검 ✗ 문턱 (스케줄러 `CANARY_STALE_MS`) — 안내 문구에만 쓴다 */
   canaryStaleMs: number;
+  /** 스케줄러 심박이 낡았는가(= OFF). 그러면 자동 점검 표시를 걷는다 */
+  schedulerOff?: boolean;
   /** 자동 점검이 문턱(CANARY_STALE_MS) 넘게 성공하지 않았는가 — 점은 물들이지 않고 ✓/✗ 로만 */
   heartbeatStale?: boolean;
   /** `canaryFailures` 를 잰 시각(서버 렌더 시점) — 없으면 늙지 않는 값으로 본다 */
@@ -406,6 +480,7 @@ export function StudentValvePanel({
           nextAt={canaryNextAt}
           freshMs={canaryIntervalMs}
           staleMs={canaryStaleMs}
+          schedulerOff={schedulerOff}
         />
 
         {/* **지문은 어긋날 때만 펼친다.** 일치하면 제목 옆 ✓ 가 이미 결론이라
