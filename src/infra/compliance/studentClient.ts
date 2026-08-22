@@ -510,7 +510,22 @@ class HttpStudentClient implements StudentClient {
       token_ids_head: number[];
       stub: boolean;
     }>('/screen', { text: buildStudentText(input), threshold: this.threshold });
-    if (!raw) return null;
+    if (!raw) {
+      // **"출근했다"는 기억을 지운다** (2026-08-23 창업자 지적).
+      //
+      // 걸쇠는 성공을 **프로세스 수명 내내** 캐시한다(`usable()` 첫 줄) — 리포트마다
+      // /health 를 부르지 않으려는 설계고, 그 자체는 맞다. 문제는 첫 확인 뒤에 학생이
+      // 죽었을 때다: 게시는 `studentFailed` 가 잡아 보류로 돌리지만(complianceService),
+      // 걸쇠는 계속 참이라 **계기판이 초록으로 "출근 중"을 띄우고 장애 알림도 안 나간다.**
+      // 보류 카드만 쌓이고 원인이 화면에 없는 상태 — 고치러 갈 곳을 표시가 가린다.
+      //
+      // 실제로 물었는데 대답이 없었다는 것은 헬스체크보다 **강한 증거**다. 그 증거로
+      // 캐시를 무효화하면 다음 `usable()` 이 다시 재고, `noteAvailability` 가 전이를
+      // 잡아 알림이 나간다. 창 호출(아래)의 실패는 여기 넣지 않는다 — 그쪽은 주석대로
+      // 결측으로 감내하는 자리고, 통짜 호출이 이미 성공했으면 창구는 열려 있다.
+      this.gate = null;
+      return null;
+    }
     const whole: StudentOutput = {
       // 스텁 모드(가중치 없음)에서는 사이드카가 빈 배열을 준다 — 배관만 검증되는 상태
       findings: toFindings(raw, this.enabled),
