@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { WhyBody, WhyGroup, WhyToggle } from "../Why";
 import a from "../admin.module.css";
+import s from "./irisStatus.module.css";
 
 // **IRIS 출근 상태** (인계 3호 · 2026-08-21 밤).
 //
@@ -194,18 +196,55 @@ export function StudentValvePanel() {
         className={a.card}
         style={{
           marginBottom: 14,
+          position: "relative",
           ...(tone === "warn" ? { borderLeft: "4px solid #c4303b" } : {}),
         }}
       >
         <div className={a.row}>
-          <div className={a.ttl}>
-            IRIS 출근 상태
-            <WhyToggle />
-          </div>
-          <span className={a.rowTags}>
-            {/* **근무 중은 무채색이다** — 민트는 플랫폼 검증 전용이라 여기 쓰면
-                "이 판정기를 우리가 보증한다"로 읽힌다 (브랜드 §4-3) */}
-            <span className={`${a.chip} ${tone === "warn" ? a.chipNeg : ""}`}>{label}</span>
+          {/* **박스 전체가 상세로 가는 문이다** (창업자 지시). 도장·지문·회차 기록은
+              지운 것이 아니라 `/admin/compliance/iris` 로 옮겼다 — 되짚을 때만 필요한
+              값이라 매일 보는 화면에서 자리를 차지할 이유가 없다.
+              링크의 가짜 요소가 카드를 덮고, 밸브 버튼만 그 위로 올라온다 */}
+          <Link href="/admin/compliance/iris" className={s.head}>
+            {/* **상태는 글자가 아니라 형태로 말한다.** 배지("근무 중")는 읽어야 하고
+                읽는 동안 다른 글자와 경쟁한다 — 상태는 곁눈질로 잡혀야 하는 값이다.
+                이상은 색만 바꾸지 않고 **모양을 바꾼다**: 색각 이상·흑백 화면에서도
+                초록 점과 빨간 느낌표는 구별되지만 초록 점과 빨간 점은 같아 보인다 */}
+            {tone === "warn" ? (
+              <span className={s.alert} aria-hidden="true">
+                !
+              </span>
+            ) : (
+              <span
+                className={`${s.dot} ${tone === "ok" ? "" : s.dotIdle}`}
+                aria-hidden="true"
+              />
+            )}
+            <span className={a.ttl} style={{ display: "inline" }}>
+              IRIS
+            </span>
+            {/* 이름과 대조 결과는 제목 옆에 붙는다 — "지금 누가 근무 중인가"가 한 줄로
+                읽히고, ✓ 는 그 이름이 참인지를 말하므로 이름에서 떨어지면 안 된다 */}
+            {student.reviewerId && (
+              <span className={s.name}>
+                {student.name ?? student.reviewerId}
+                {student.promotionMatches === true && (
+                  <>
+                    {" "}
+                    <span className={s.ok} title="적재 지문이 승격 기록과 일치합니다">
+                      ✓
+                    </span>
+                  </>
+                )}
+              </span>
+            )}
+            {/* 상태 글자는 정상일 때 지웠지만 **이상일 때는 남긴다** — 그때는 읽어야 한다 */}
+            {tone !== "ok" && <span className={a.chip}>{label}</span>}
+            <span className={s.name} aria-hidden="true">
+              ›
+            </span>
+          </Link>
+          <span className={`${a.rowTags} ${s.above}`}>
             {tone === "warn" && board.outageSince && (
               <span className={`${a.chip} ${a.chipNeg}`}>{elapsed(board.outageSince, now)}</span>
             )}
@@ -214,50 +253,25 @@ export function StudentValvePanel() {
                 보류 {board.outageHolds}건
               </span>
             )}
+            {/* 도움말은 카드 우측 상단 — 상태가 왼쪽 신호등으로 옮겨 가며 비운 자리다 */}
+            <WhyToggle />
           </span>
         </div>
 
-        {/* **이름이 주인공이고 도장은 물러난다** (2026-08-23 창업자 지시).
-            `student:IRIS.v5@t0.7/L7` 은 소견에 박히는 **기계용 도장**인데 그것을 사람에게
-            그대로 내밀고 있었다. 이름은 크게, 도장은 작게 — 값은 하나도 안 줄인다.
-
-            **이름은 이제 파일이 들고 온다** (회신 14호 §3): `config.json` 의 `name` →
-            `/health` → 여기. `.env` 태그는 첫 `/health` 이전의 폴백일 뿐이라, 어제처럼
-            설정에 옛 이름이 남아 있어도 화면과 소견에는 파일 쪽 이름이 뜬다.
-
-            **`run` 이 아니라 `name` 이다** — `run` 은 대장과 같은 회차 기록 문장이라
-            이름 자리에 쓰면 화면에 문장이 통째로 뜬다. 실제로 하루 그랬다. */}
-        {student.reviewerId && (
+        {/* **지문은 어긋날 때만 펼친다.** 일치하면 제목 옆 ✓ 가 이미 결론이라
+            8자리를 매일 읽을 이유가 없다 — 화재경보기는 있어야 하지만 평소에 숫자를
+            보고 있을 필요는 없다. 대조는 계속 돈다, 숫자만 안 보일 뿐이다.
+            사이드카가 답하지 않으면 침묵하지 않는다 — 빈자리는 "안 바뀌었다"로 읽힌다 */}
+        {student.reviewerId && student.promotionMatches !== true && (
           <div className={a.meta}>
-            <span>근무자</span>
-            <b>{student.name ?? student.reviewerId}</b>
-            {/* **지문 값은 일치할 때 접는다** (창업자 지적) — 결론이 이미 답이라
-                8자리를 매일 읽을 이유가 없다. 화재경보기는 있어야 하지만 평소에
-                숫자를 보고 있을 필요는 없다. 불일치·기록 없음일 때만 펼친다:
-                그때는 두 값을 나란히 봐야 무엇이 어긋났는지 알 수 있다 */}
-            {student.promotionMatches === true ? (
-              <span>✓ 승격 기록과 일치</span>
-            ) : student.modelSha ? (
+            {student.modelSha ? (
               <>
                 <span>적재 지문</span>
                 <code style={{ fontSize: 11.5 }}>{student.modelSha.slice(0, SHA_PREFIX)}</code>
               </>
             ) : (
-              // 지문이 없으면 침묵하지 않는다 — 빈자리는 "안 바뀌었다"로 읽힌다
               <span>적재 지문 — 사이드카가 답하지 않습니다</span>
             )}
-          </div>
-        )}
-
-        {/* **도장은 남기되 물러난다.** 소견에 실제로 박히는 문자열이라, 다른 화면에서 그
-            값을 보고 "지금 근무자와 같은가"를 맞춰 볼 일이 있다 — 화면과 데이터가 다른
-            말을 쓰면 그때 못 잇는다. 그리고 이 줄이 **승격 대조가 보지 않는 축**을 혼자
-            지킨다: 임계값과 라벨 수는 파일이 아니라 설정이라 지문이 그대로여도 바뀐다
-            (같은 모델이 t0.5 에서 탐지 24%, t0.7 에서 6% — 인수인계서 §6) */}
-        {student.reviewerId && (
-          <div className={a.meta} style={{ opacity: 0.55 }}>
-            <span>소견에 박히는 도장</span>
-            <code style={{ fontSize: 11 }}>{student.reviewerId}</code>
           </div>
         )}
 
@@ -317,7 +331,7 @@ export function StudentValvePanel() {
         {tone === "warn" && (
           // **재시작 버튼을 만들지 않는다** (인계 3호 §5) — 재기동은 OS(watchdog)의 몫이고,
           // 화면이 프로세스를 만지기 시작하면 장애 원인이 "누가 껐다 켰나"부터 불투명해진다
-          <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          <div className={s.above} style={{ display: "flex", gap: 8, marginTop: 10 }}>
             <button type="button" className={a.btn} disabled={busy} onClick={() => send("engage")}>
               {bypassing ? "2시간 더 열어 두기" : "임시 통로 열기 — 2시간"}
             </button>
