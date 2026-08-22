@@ -100,7 +100,68 @@ function countdown(until: string | null, now: number): string | null {
 
 type Tone = "ok" | "warn" | "neutral";
 
-export function StudentValvePanel() {
+/**
+ * **검수 규칙의 한 줄 요약** — IRIS 바로 아래, 같은 위상 (2026-08-23 창업자 지시).
+ *
+ * 검수하는 것이 둘(규칙 엔진 · IRIS)인데 화면에서는 멀리 떨어져 있었다. 한 상자에
+ * 나란히 놓으면 "지금 검수가 돌고 있나"에 한 눈으로 답이 나온다.
+ *
+ * ── 빨간불의 기준은 **문제를 풀어서 틀렸을 때만** (창업자 확정) ──
+ * 층 여섯 개 문항 중 하나라도 틀리면 비정상이다. `heartbeatStale`(자동 점검이 안 도는
+ * 것)은 **여기에 넣지 않는다** — 그건 "규칙이 고장났나"가 아니라 "지켜보는 사람이
+ * 있나"라 축이 다르고, 섞으면 규칙이 멀쩡한 날에도 빨간불이 켜져 신호가 죽는다.
+ * 그 사실은 아래 카나리아 패널이 경고문으로 따로 말한다.
+ */
+function RuleRow({
+  failures,
+  heartbeatStale,
+}: {
+  failures: { layer: string }[];
+  heartbeatStale: boolean;
+}) {
+  const broken = failures.length > 0;
+  return (
+    <div className={s.ruleRow}>
+      {broken ? (
+        <span className={s.alert} aria-hidden="true">
+          !
+        </span>
+      ) : (
+        <span className={s.dot} aria-hidden="true" />
+      )}
+      <span className={s.ruleName}>검수 규칙</span>
+      {/* **IRIS 의 `IRIS.v5 ✓` 와 같은 자리** — 이름 옆에서 "그게 참인가"를 말하는 값.
+          다만 여기서 참인 것은 이름이 아니라 **누가 지켜보고 있나**다.
+          점을 물들이지 않는 이유(창업자 확정): 규칙이 멀쩡한 날에도 빨간불이 켜지면
+          신호가 죽는다. 그래서 작고 흐리게, 다만 멈췄을 때는 주의색으로 보이게 */}
+      <span className={s.name} title={heartbeatStale ? "자동 점검이 하루 넘게 성공하지 않았습니다 — 스케줄러를 확인하세요" : "자동 점검이 최근에 통과했습니다"}>
+        자동 점검{" "}
+        {heartbeatStale ? (
+          <span className={s.stale}>✗</span>
+        ) : (
+          <span className={s.ok}>✓</span>
+        )}
+      </span>
+      {/* **무엇이 틀렸는지를 이름으로 적는다** — "1건 실패"는 어디를 봐야 할지
+          알려주지 않는다. 층 이름이 곧 고칠 자리다 */}
+      {broken &&
+        failures.map((f) => (
+          <span key={f.layer} className={`${a.chip} ${a.chipNeg}`}>
+            {f.layer}
+          </span>
+        ))}
+    </div>
+  );
+}
+
+export function StudentValvePanel({
+  canaryFailures = [],
+  heartbeatStale = false,
+}: {
+  canaryFailures?: { layer: string }[];
+  /** 자동 점검이 하루 넘게 성공하지 않았는가 — 점은 물들이지 않고 ✓/✗ 로만 말한다 */
+  heartbeatStale?: boolean;
+}) {
   const router = useRouter();
   const [board, setBoard] = useState<Board | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -257,6 +318,11 @@ export function StudentValvePanel() {
             <WhyToggle />
           </span>
         </div>
+
+        {/* **검수하는 것이 둘이다** — 규칙 엔진과 IRIS. 화면에서 멀리 떨어져 있던 둘을
+            한 상자에 같은 위상으로 놓는다 (창업자 지시). "지금 검수가 돌고 있나"에
+            한 눈으로 답이 나와야 하고, 그 답은 두 줄이다 */}
+        <RuleRow failures={canaryFailures} heartbeatStale={heartbeatStale} />
 
         {/* **지문은 어긋날 때만 펼친다.** 일치하면 제목 옆 ✓ 가 이미 결론이라
             8자리를 매일 읽을 이유가 없다 — 화재경보기는 있어야 하지만 평소에 숫자를

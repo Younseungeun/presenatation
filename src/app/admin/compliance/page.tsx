@@ -1017,7 +1017,8 @@ export default async function AdminCompliancePage({
           어제까지의 이야기일 뿐이다 */}
       {/* **장애가 규칙 상태보다 먼저다** — 규칙이 전부 초록이어도 IRIS가 죽어 있으면
           지금 게시가 멈춰 있다. 그 사실이 아래 어느 숫자보다 급하다 */}
-      <StudentValvePanel />
+      <StudentValvePanel canaryFailures={canary.failures.map((f) => ({ layer: f.layer }))}
+        heartbeatStale={canary.heartbeatStale} />
       <CanaryPanel screen={canary} now={now} />
       <TeacherRelayPanel
         pending={teacherPending}
