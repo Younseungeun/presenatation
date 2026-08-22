@@ -110,62 +110,60 @@ type Tone = "ok" | "warn" | "neutral";
  * 층 여섯 개 문항 중 하나라도 틀리면 비정상이다. `heartbeatStale`(자동 점검이 안 도는
  * 것)은 **여기에 넣지 않는다** — 그건 "규칙이 고장났나"가 아니라 "지켜보는 사람이
  * 있나"라 축이 다르고, 섞으면 규칙이 멀쩡한 날에도 빨간불이 켜져 신호가 죽는다.
- * 그 사실은 아래 카나리아 패널이 경고문으로 따로 말한다.
+ * 그 사실은 `자동 점검 ✓/✗` 가 옆에서 따로 말한다.
+ *
+ * ── 화면이 잰 값에는 유효기간이 있다 (창업자 지적) ──
+ * 점은 화면을 **연 순간** 카나리아를 돌려 나온 값이라 켜 두면 그때 그대로 멈춘다 —
+ * 14:00 에 열고 14:02 에 규칙이 죽으면 14:30 에도 초록이었다. 30분째 거짓말이고,
+ * 하필 계기판에서 가장 신뢰받는 자리다. 그래서 늙으면 **초록을 내린다.**
+ * 빨강으로 바꾸지 않는 것이 중요하다 — 깨졌다는 근거가 없고 **모른다**는 뜻이라
+ * 회색(`dotIdle`)이 맞는 답이고, 빨강이면 없는 사고를 쫓게 된다.
+ *
+ * ── 눈금(주기·문턱)은 서버가 준다 ──
+ * 여기서 `screeningCanaryRunner` 의 상수를 import 하면 그 모듈이 통째로 브라우저
+ * 번들에 딸려 들어간다(prisma·node:fs 를 끌고 온다). **tsc 는 통과하고 번들러만
+ * 터진다** — 실제로 한 번 터뜨려 확인했다. 서버 페이지가 숫자만 넘긴다.
  */
-/**
- * **다음 점검 예정 시각** — 지금 스케줄이 '매시 정각'이라(`runScheduler.ts` 의
- * `kstClock.endsWith(':00')`) 다음 정각이다.
- *
- * **여기에 주기가 적혀 있는 것이 위험 지점이다.** 스케줄이 5분 간격으로 바뀌면 이 함수도
- * 같이 바뀌어야 하고, 안 바뀌면 화면이 조용히 거짓말한다 — 이 저장소가 반복해 만난
- * 모양이다. 회신 15호에서 스케줄러가 `canary.nextAt` 을 직접 써 주도록 요청해 두었고,
- * 그것이 오면 이 함수는 지운다.
- */
-function nextCanaryAt(now: number): number {
-  const top = new Date(now);
-  top.setMinutes(0, 0, 0);
-  return top.getTime() + 3_600_000;
-}
-
-/**
- * **화면이 잰 값의 유효기간** (2026-08-23 창업자 지적).
- *
- * 점은 화면을 **연 순간** 카나리아를 돌려 나온 값이라, 켜 두면 그때 그대로 멈춘다 —
- * 14:00 에 열고 14:02 에 규칙이 죽으면 14:30 에도 초록이다. 30분째 거짓말이다.
- *
- * 그래서 늙으면 **초록을 내린다.** 빨강으로 바꾸지 않는 것이 중요하다 — 깨졌다는
- * 근거가 없고 **모른다**는 뜻이라, 회색(`dotIdle`)이 맞는 답이다. 여기서 빨강을
- * 쓰면 "규칙이 깨졌다"로 읽혀 없는 사고를 쫓게 된다.
- *
- * 5분인 이유: 스케줄러 카나리아 주기와 맞춘다(회신 15호 ①). 그보다 오래된 값은
- * 어차피 자동 점검이 더 새 답을 갖고 있다.
- */
-const MEASURE_FRESH_MS = 5 * 60_000;
 
 function RuleRow({
   failures,
   heartbeatStale,
   nowMs,
   measuredAt,
+  nextAt,
+  freshMs,
+  staleMs,
 }: {
   failures: { layer: string }[];
   heartbeatStale: boolean;
   nowMs: number;
+  /** 카나리아 주기 — 화면이 잰 값의 유효기간과 같다 */
+  freshMs: number;
+  /** 자동 점검이 이만큼 성공하지 않으면 ✗ (스케줄러의 CANARY_STALE_MS) */
+  staleMs: number;
   /** 이 화면이 카나리아를 돌린 시각 — 서버 렌더 시점 */
   measuredAt: number;
+  /**
+   * 다음 점검 예정 시각 — **스케줄러가 직접 써 준다**(`screening.canary.nextAt`).
+   *
+   * 예전에는 이 화면이 '매시 정각'을 스스로 계산했는데, 주기가 5분으로 바뀌자 곧바로
+   * "다음 59분 뒤"라고 거짓말했다. 주기를 아는 곳이 둘이면 갈라지고, 갈라져도 아무
+   * 시험이 잡지 못한다(회신 15호 ③-1). 이제 주기를 아는 곳은 스케줄러 하나다.
+   */
+  nextAt: Date | null;
 }) {
   const broken = failures.length > 0;
   const ageMin = Math.floor((nowMs - measuredAt) / 60_000);
   /* 이미 틀린 것을 봤으면 늙었다고 흐리지 않는다 — 실패는 확인된 사실이고,
      시간이 지난다고 사라지지 않는다. 흐려도 되는 것은 '통과' 쪽뿐이다 */
-  const measurementStale = !broken && nowMs - measuredAt > MEASURE_FRESH_MS;
-  /* **멈춰 있을 때는 남은 시간을 적지 않는다** (2026-08-23).
-     ✗ 는 "타이머가 안 돈다"는 뜻이라, 그 옆에 "12분 뒤"를 붙이면 오지 않을 약속을
-     적는 것이 된다. 기다리면 해결된다고 읽혀 고치러 가지 않게 만든다 — 표시가
-     행동을 막는 쪽으로 틀리는 경우라 비워 두는 편이 정확하다. */
-  const leftMin = heartbeatStale
-    ? null
-    : Math.max(0, Math.ceil((nextCanaryAt(nowMs) - nowMs) / 60_000));
+  const measurementStale = !broken && nowMs - measuredAt > freshMs;
+  /* 멈춰 있으면(`✗`) 남은 시간을 적지 않는다 — 오지 않을 약속이고, 기다리면 해결된다고
+     읽혀 고치러 가지 않게 만든다. 예정 시각을 못 받았을 때도 마찬가지로 비운다:
+     주기를 여기서 짐작해 채우면 예전의 "다음 59분 뒤" 거짓말이 되돌아온다 */
+  const leftMin =
+    heartbeatStale || !nextAt
+      ? null
+      : Math.max(0, Math.ceil((nextAt.getTime() - nowMs) / 60_000));
   return (
     <div className={s.ruleRow}>
       {broken ? (
@@ -190,7 +188,14 @@ function RuleRow({
           다만 여기서 참인 것은 이름이 아니라 **누가 지켜보고 있나**다.
           점을 물들이지 않는 이유(창업자 확정): 규칙이 멀쩡한 날에도 빨간불이 켜지면
           신호가 죽는다. 그래서 작고 흐리게, 다만 멈췄을 때는 주의색으로 보이게 */}
-      <span className={s.name} title={heartbeatStale ? "자동 점검이 하루 넘게 성공하지 않았습니다 — 스케줄러를 확인하세요" : "자동 점검이 최근에 통과했습니다"}>
+      <span
+        className={s.name}
+        title={
+          heartbeatStale
+            ? `자동 점검이 ${Math.round(staleMs / 60_000)}분 넘게 성공하지 않았습니다 — 스케줄러를 확인하세요`
+            : "자동 점검이 최근에 통과했습니다"
+        }
+      >
         자동 점검{" "}
         {heartbeatStale ? (
           <span className={s.stale}>✗</span>
@@ -217,12 +222,21 @@ export function StudentValvePanel({
   canaryFailures = [],
   heartbeatStale = false,
   measuredAt,
+  canaryNextAt = null,
+  canaryIntervalMs,
+  canaryStaleMs,
 }: {
   canaryFailures?: { layer: string }[];
-  /** 자동 점검이 하루 넘게 성공하지 않았는가 — 점은 물들이지 않고 ✓/✗ 로만 말한다 */
+  /** 카나리아 주기 (스케줄러 `CANARY_INTERVAL_MS`) — 화면이 잰 값의 유효기간을 겸한다 */
+  canaryIntervalMs: number;
+  /** 자동 점검 ✗ 문턱 (스케줄러 `CANARY_STALE_MS`) — 안내 문구에만 쓴다 */
+  canaryStaleMs: number;
+  /** 자동 점검이 문턱(CANARY_STALE_MS) 넘게 성공하지 않았는가 — 점은 물들이지 않고 ✓/✗ 로만 */
   heartbeatStale?: boolean;
   /** `canaryFailures` 를 잰 시각(서버 렌더 시점) — 없으면 늙지 않는 값으로 본다 */
   measuredAt?: number;
+  /** 스케줄러가 적어 둔 다음 점검 예정 시각 — 없으면 남은 시간을 적지 않는다 */
+  canaryNextAt?: Date | null;
 }) {
   const router = useRouter();
   const [board, setBoard] = useState<Board | null>(null);
@@ -389,6 +403,9 @@ export function StudentValvePanel({
           heartbeatStale={heartbeatStale}
           nowMs={now}
           measuredAt={measuredAt ?? now}
+          nextAt={canaryNextAt}
+          freshMs={canaryIntervalMs}
+          staleMs={canaryStaleMs}
         />
 
         {/* **지문은 어긋날 때만 펼친다.** 일치하면 제목 옆 ✓ 가 이미 결론이라

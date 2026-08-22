@@ -32,11 +32,14 @@ import type { AccuracySummary } from "@/domain/screeningAccuracy";
 import { getLearnedPhraseStats } from "@/server/learnedPhraseService";
 import { getManualJudgmentQueue } from "@/server/manualJudgmentService";
 import { getPauseState } from "@/server/judgmentPause";
-import { getCanaryScreen } from "@/server/screeningCanaryRunner";
+import {
+  CANARY_INTERVAL_MS,
+  CANARY_STALE_MS,
+  getCanaryScreen,
+} from "@/server/screeningCanaryRunner";
 import { FindingRow } from "../FindingRow";
 import { StudentValvePanel } from "./StudentValvePanel";
 import { AskTeacher } from "./AskTeacher";
-import { CanaryPanel } from "./CanaryPanel";
 import { ManualQueueList } from "./ManualQueueList";
 import { TeacherAnswerBox } from "./TeacherAnswerBox";
 import {
@@ -1019,8 +1022,14 @@ export default async function AdminCompliancePage({
           지금 게시가 멈춰 있다. 그 사실이 아래 어느 숫자보다 급하다 */}
       <StudentValvePanel canaryFailures={canary.failures.map((f) => ({ layer: f.layer }))}
         heartbeatStale={canary.heartbeatStale}
-        measuredAt={now.getTime()} />
-      <CanaryPanel screen={canary} now={now} />
+        measuredAt={now.getTime()}
+        canaryNextAt={canary.nextAt}
+        canaryIntervalMs={CANARY_INTERVAL_MS}
+        canaryStaleMs={CANARY_STALE_MS} />
+      {/* 검수 규칙 띠지(CanaryPanel)는 2026-08-23에 걷었다 — 같은 사실을 위 IRIS 상자의
+          `검수 규칙` 줄이 말한다. 층별 통과 여부를 여섯 칸으로 늘어놓던 자리인데, 전부
+          통과일 때는 초록 여섯 개가 아무 말도 하지 않고 화면만 먹었다. 실패했을 때
+          어느 층인지는 그 줄이 배지로 이어 붙인다 */}
       <TeacherRelayPanel
         pending={teacherPending}
         coverage={teacherCoverage}
