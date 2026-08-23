@@ -126,20 +126,35 @@ export interface BreakdownStat<K extends string> {
   key: K;
   /** 이 키로 지적한 라벨 건수 */
   flagged: number;
-  /** 운영자가 실제 위반으로 인정 */
+  /** 운영자가 실제 위반으로 인정하고 **반려**까지 간 소견 (정탐) */
   confirmed: number;
+  /**
+   * 인정은 했는데 **승인**한 소견 (경미) — "지적은 타당하나 심각도가 과했다".
+   *
+   * 예전에는 이 소견들이 `confirmed` 에 섞여 있었다. 그러면 화면이 `정탐 1건` 옆에
+   * 유형을 `2건` 으로 적게 되고(경미 건의 소견이 함께 세어져), 무엇보다 **경미가
+   * 어느 유형에서 나는지를 영영 못 본다.** 심각도만 낮추면 되는 자리와 규칙을 고쳐야
+   * 하는 자리는 처방이 달라서, 섞여 있으면 둘 다 못 고친다.
+   */
+  minor: number;
   /** 잘못 지적 */
   falsePositive: number;
   /** 운영자가 지목했는데 검수가 못 잡은 유형 (유형별 집계에서만 발생) */
   missed: number;
 }
 
-type Bucket = { flagged: number; confirmed: number; falsePositive: number; missed: number };
+type Bucket = {
+  flagged: number;
+  confirmed: number;
+  minor: number;
+  falsePositive: number;
+  missed: number;
+};
 
 function bucket(map: Map<string, Bucket>, key: string): Bucket {
   let b = map.get(key);
   if (!b) {
-    b = { flagged: 0, confirmed: 0, falsePositive: 0, missed: 0 };
+    b = { flagged: 0, confirmed: 0, minor: 0, falsePositive: 0, missed: 0 };
     map.set(key, b);
   }
   return b;
@@ -220,8 +235,12 @@ export function summarizeAccuracy(rows: LabeledReview[]): AccuracySummary {
       const ok = confirmed === null || confirmed.has(f.category);
       for (const b of [bucket(byCategory, f.category), bucket(bySource, f.source ?? 'unknown')]) {
         b.flagged += 1;
-        if (ok) b.confirmed += 1;
-        else b.falsePositive += 1;
+        // 인정된 소견도 **반려까지 갔는지**로 갈라 담는다 — 처방이 다르기 때문이다:
+        // 정탐은 규칙이 맞았다는 뜻이고, 경미는 심각도만 낮추면 된다는 뜻이다
+        if (ok) {
+          if (outcome === 'MINOR') b.minor += 1;
+          else b.confirmed += 1;
+        } else b.falsePositive += 1;
       }
     }
 

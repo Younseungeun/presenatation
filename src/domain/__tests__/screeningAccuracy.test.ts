@@ -103,6 +103,37 @@ describe('summarizeAccuracy', () => {
     expect(claim).toMatchObject({ confirmed: 0, falsePositive: 1 });
   });
 
+  it('**경미는 정탐과 갈라 담는다** — 처방이 다르므로 유형도 따로 보여야 한다', () => {
+    const s = summarizeAccuracy([
+      // 반려까지 간 인정 = 정탐
+      review({ findings: [finding({ category: 'RUMOR' })], verdict: 'REJECTED' }),
+      // 인정했지만 승인 = 경미 (심각도만 과했다)
+      review({
+        findings: [finding({ category: 'RUMOR' })],
+        verdict: 'APPROVED',
+        findingsValid: true,
+      }),
+    ]);
+    const rumor = s.byCategory.find((c) => c.key === 'RUMOR');
+    // 예전에는 둘 다 confirmed 2 로 뭉쳐 있었다 — 그러면 화면이 `정탐 1건 (RUMOR 2건)`을
+    // 그리게 되고, 경미가 어느 유형에서 나는지는 영영 안 보인다
+    expect(rumor).toMatchObject({ confirmed: 1, minor: 1, falsePositive: 0 });
+    expect(s.truePositive).toBe(1);
+    expect(s.minor).toBe(1);
+  });
+
+  it('경미로 담긴 소견은 오탐으로 세지 않는다 — 지적 자체는 맞았다', () => {
+    const s = summarizeAccuracy([
+      review({
+        findings: [finding({ category: 'PROFIT_GUARANTEE' })],
+        verdict: 'APPROVED',
+        findingsValid: true,
+      }),
+    ]);
+    const g = s.byCategory.find((c) => c.key === 'PROFIT_GUARANTEE');
+    expect(g).toMatchObject({ minor: 1, falsePositive: 0, confirmed: 0 });
+  });
+
   it('운영자가 지목했는데 소견에 없던 유형은 미탐 유형으로 센다', () => {
     const s = summarizeAccuracy([
       review({
