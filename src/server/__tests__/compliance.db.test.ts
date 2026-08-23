@@ -15,6 +15,11 @@ import {
 } from '../complianceService';
 import { normalizePhrase } from '@/domain/learnedPhrases';
 import { FixtureEmbeddingProvider } from '@/infra/embedding/provider';
+import {
+  REVIEW_APPROVED_BODY,
+  REVIEW_APPROVED_TITLE,
+  REVIEW_REJECTED_TITLE,
+} from '@/domain/notice';
 import { escalateOverdueHolds, expireStaleHolds } from '../complianceOpsService';
 import {
   backfillPhraseVectors,
@@ -466,9 +471,12 @@ describe('보류 건에 대한 운영자 결정 — 승인/반려', () => {
     expect((await getPendingComplianceReviews(prisma)).some((r) => r.report.id === reportId)).toBe(
       false,
     );
-    await prisma.notification.findFirstOrThrow({
-      where: { userId: takedownResearcherUserId, title: { contains: '게시 승인' } },
+    // 제목·본문은 **고정 양식**이다 (2026-08-20 사용자 확정) — 리포트 이름을 달지
+    // 않는다. 제목이 그대로 푸시 문구가 되므로 열기 전에 결말이 읽혀야 한다
+    const approved = await prisma.notification.findFirstOrThrow({
+      where: { userId: takedownResearcherUserId, title: REVIEW_APPROVED_TITLE },
     });
+    expect(approved.body).toBe(REVIEW_APPROVED_BODY);
     // 승인 후에는 판매 가능
     await purchaseReport(prisma, reportId, buyerId, DECIDE_NOW);
   });
@@ -485,9 +493,34 @@ describe('보류 건에 대한 운영자 결정 — 승인/반려', () => {
     );
 
     const noti = await prisma.notification.findFirstOrThrow({
-      where: { userId: takedownResearcherUserId, title: { contains: '게시 반려' } },
+      where: { userId: takedownResearcherUserId, title: REVIEW_REJECTED_TITLE },
     });
     expect(noti.body).toContain('공개 자료로 교체 필요');
+  });
+
+  it('반려 통지는 처리되는 순간 반드시 나간다 — 운영자가 따로 쓰지 않아도', async () => {
+    // 끌 수 있게 만들었다가 되돌린 자리다 (2026-08-20 사용자 확정). 반려는 리포트가
+    // 조용히 초안으로 돌아갈 뿐이라, 이 통지가 없으면 **판매를 기다리던 사람이
+    // 아무것도 모른 채 기다린다.** 그 위험을 운영자의 기억에 맡기지 않는다
+    const reportId = await held('통지 필수 반려');
+    const before = await prisma.notification.count({
+      where: { userId: takedownResearcherUserId, title: REVIEW_REJECTED_TITLE },
+    });
+
+    await rejectPendingReport(prisma, reportId, OPERATOR, '인용 출처 불명', DECIDE_NOW);
+
+    expect(
+      await prisma.notification.count({
+        where: { userId: takedownResearcherUserId, title: REVIEW_REJECTED_TITLE },
+      }),
+    ).toBe(before + 1);
+    // 사유는 통지와 **별도로** 검수 기록에도 남는다 — 미탐·정탐 집계의 근거다
+    const review = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(review.operatorVerdict).toBe('REJECTED');
+    expect(review.operatorReason).toBe('인용 출처 불명');
   });
 
   it('큐는 보류가 오래된 순으로 온다 (대기가 긴 건이 먼저)', async () => {
@@ -629,9 +662,15 @@ describe('forceWithdrawReport — 운영자 강제 철회', () => {
       draftInput('본문', '초안 상태', takedownResearcherId),
       DRAFT_NOW,
     );
+    // **사유 코드까지 본다** (2026-08-21). 문구가 아니라 이 코드가 미탐 라벨을
+    // 붙일지를 정하므로, 초안이 `ALREADY_CLOSED`로 새면 **게시된 적도 없는 글로
+    // 검수 성적이 깎인다**
     await expect(
       forceWithdrawReport(prisma, { reportId: draft.id, operatorUserId: OPERATOR, reason: '위반' }),
-    ).rejects.toThrow(/초안/);
+    ).rejects.toMatchObject({
+      name: 'ComplianceTakedownError',
+      reason: 'NOT_APPLICABLE',
+    });
   });
 });
 
@@ -665,14 +704,23 @@ describe('운영자 판정 기록 — 검수 정확도 측정의 원천', () => 
     return draft.id;
   }
 
-  it('승인은 기본적으로 오탐으로 기록된다', async () => {
+  it('표시 없는 승인은 무응답으로 남는다 — 정확도에는 오탐, 격하에는 표본 아님', async () => {
     const reportId = await held('라벨 승인');
     await approvePendingReport(prisma, registry, reportId, OPERATOR, NOW);
 
     const review = await reviewOf(reportId);
     expect(review.operatorVerdict).toBe('APPROVED');
-    expect(review.aiFindingsValid).toBe(false); // 오탐 라벨
     expect(review.operatorReviewedBy).toBe(OPERATOR);
+    // 11차 K-1: `false`(명시적 오탐 신고)와 갈라야 하므로 무응답은 null 로 남는다.
+    // 정확도 지표에서의 **뜻은 그대로 오탐**이고(classifyReview), 자동 격하에서만
+    // 표본에서 빠진다 — 큐가 밀린 날 빠르게 누른 승인이 모델을 끌어내리면 안 된다.
+    expect(review.aiFindingsValid).toBeNull();
+  });
+
+  it('오탐이라고 명시적으로 신고하면 그 값이 남는다', async () => {
+    const reportId = await held('라벨 오탐 신고');
+    await approvePendingReport(prisma, registry, reportId, OPERATOR, NOW, false);
+    expect((await reviewOf(reportId)).aiFindingsValid).toBe(false);
   });
 
   it('"지적은 타당했음"을 표시하면 오탐이 아니라 경미로 남는다', async () => {
@@ -1126,8 +1174,10 @@ describe('의미 검색 — 다르게 쓴 같은 뜻', () => {
     );
   });
 
-  it('공급자가 있으면 runScreening이 의미 소견을 포함한다', async () => {
-    const entries = await loadSemanticIndex(prisma, provider);
+  it('의미 검색은 검수 배선에서 끊겼다 — runScreening 은 그것 없이 판정한다 (20차)', async () => {
+    // 모듈(loadSemanticIndex 등)은 창업자 지시로 보존하되, ScreeningContext 에는
+    // 더 이상 자리가 없다. 이 시험은 "배선이 없다"는 사실 자체를 붙잡는다 —
+    // 누가 semantic 을 다시 꽂으면 타입부터 깨진다
     const result = await runScreening(
       {
         title: '',
@@ -1138,9 +1188,8 @@ describe('의미 검색 — 다르게 쓴 같은 뜻', () => {
         direction: 'UP',
       },
       null,
-      { semantic: { entries, provider } },
+      {},
     );
-    expect(result.action).toBe('HOLD');
-    expect(result.findings.some((f) => f.source === 'semantic')).toBe(true);
+    expect(result.findings.some((f) => f.source === 'semantic')).toBe(false);
   });
 });

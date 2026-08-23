@@ -1,0 +1,18 @@
+학습 511건 / 검증 56건 / 라벨 8차원
+pos_weight (= 음성/양성 ÷ λ, λ=4.0): {'PROFIT_GUARANTEE': 1.92, 'PRIVATE_INFO': 3.51, 'RUMOR': 3.87, 'SOLICIT_CONTACT': 2.21, 'UNSUPPORTED_CLAIM': 2.87, 'RISK_INDUCEMENT': 2.87, 'SCREENING_EVASION': 2.47, 'CARD_MISMATCH': 6.47}
+epoch 1/12  loss 20.279  val 순이익 +0@t0.3  (macro-AP 0.154 · F1@0.5 0.000)
+epoch 2/12  loss 18.172  val 순이익 +0@t0.4  (macro-AP 0.240 · F1@0.5 0.000)
+epoch 3/12  loss 17.504  val 순이익 +0@t0.5  (macro-AP 0.271 · F1@0.5 0.000)
+epoch 4/12  loss 16.806  val 순이익 +0@t0.6  (macro-AP 0.417 · F1@0.5 0.000)
+epoch 5/12  loss 15.827  val 순이익 +0@t0.7  (macro-AP 0.442 · F1@0.5 0.119)
+epoch 6/12  loss 14.662  val 순이익 +0@t0.7  (macro-AP 0.515 · F1@0.5 0.139)
+epoch 7/12  loss 13.538  val 순이익 +0@t0.8  (macro-AP 0.565 · F1@0.5 0.244)
+epoch 8/12  loss 12.359  val 순이익 +1@t0.8  (macro-AP 0.598 · F1@0.5 0.412)
+epoch 9/12  loss 11.363  val 순이익 -3@t0.7  (macro-AP 0.595 · F1@0.5 0.440)
+epoch 10/12  loss 10.482  val 순이익 +1@t0.8  (macro-AP 0.609 · F1@0.5 0.499)
+epoch 11/12  loss 9.697  val 순이익 +2@t0.8  (macro-AP 0.614 · F1@0.5 0.454)
+epoch 12/12  loss 9.062  val 순이익 -1@t0.6  (macro-AP 0.631 · F1@0.5 0.508)
+
+최고 val macro-AP 0.63 (동점 판정 순이익 -1) → out/student/
+주의: 이 F1은 개발용 지표일 뿐입니다. 채택 판정은 반드시 저장소의 평가 하네스로
+(npm run eval:screening 의 잣대 — 패러프레이즈 탐지율·오탐률·risk_heavy) 하세요.

@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto';
 import type { PrismaClient } from '@prisma/client';
 import { RESEARCHER_REQUIRED_DOCS, SIGNUP_REQUIRED_DOCS } from '@/domain/legalDocs';
+import { checkPenName, normalizePenName } from '@/domain/penName';
 import { encryptField } from './fieldCrypto';
 import { recordConsents } from './consentService';
 import type { IdentityProvider, IdentityVerificationInput } from './identityProvider';
@@ -32,13 +33,36 @@ export function hashCi(ci: string): string {
 }
 
 export interface VerifyAndSignInInput extends IdentityVerificationInput {
-  /** 신규 가입 시 사용할 필명 (기존 계정이면 무시) */
+  /**
+   * **앱에서 이 사람을 부르는 이름 — 가입 필수** (2026-08-20 사용자 확정).
+   *
+   * 선택으로 두었더니 구매만 하는 이용자에게는 이름이 없었고, 그 사람이 나타나야 하는
+   * 화면마다 대체 표기를 지어내야 했다(domain/penName.ts 주석 참조).
+   *
+   * 이미 이름이 있는 계정의 재로그인에서는 **덮어쓰지 않는다** — 이름 바꾸기는 설정에서
+   * 하는 일이고, 로그인 화면에 적은 값이 조용히 프로필을 갈아치우면 안 된다.
+   * 다만 **이름이 없는 옛 계정**은 이 자리에서 채운다: 필수로 바꾸기 전에 만들어진
+   * 계정들이 이름 없는 채로 남는 유일한 통로가 여기다.
+   */
   penName?: string;
+}
+
+export class AuthError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'AuthError';
+  }
 }
 
 export interface SignInResult {
   userId: string;
   isNewUser: boolean;
+  /**
+   * 이름 없는 옛 계정이 이름 없이 들어왔다 — 화면이 설정으로 보내야 한다.
+   * 로그인 자체를 막지 않는 이유: 이미 있는 사람을 문 앞에서 되돌리면 그 사람은
+   * 자기 돈(에스크로·정산)에 닿지 못한다. 새 계정만 문에서 막는다
+   */
+  needsPenName: boolean;
 }
 
 /**
@@ -70,32 +94,45 @@ export async function verifyAndSignIn(
   // 들고 있으면 정당한 본인이 예금주 불일치로 막힌다.
   const realNameEnc = encryptField(result.name);
 
+  const penName = input.penName === undefined ? undefined : normalizePenName(input.penName);
+  if (penName !== undefined) {
+    const check = checkPenName(penName);
+    if (!check.ok) throw new AuthError(check.reason ?? '필명을 확인해 주세요');
+  }
+
   const existing = await prisma.user.findUnique({ where: { identityHash } });
   if (existing) {
     await prisma.user.update({
       where: { id: existing.id },
       data: {
         realNameEnc,
+        // 이름 있는 계정은 건드리지 않는다 — 이름 바꾸기는 설정에서 하는 일이다.
+        // 이름 **없는** 옛 계정만 여기서 채운다(필수 이전에 만들어진 계정의 유일한 통로)
+        ...(!existing.penName && penName ? { penName } : {}),
         ...(isFounder && existing.role !== 'OPERATOR'
           ? { role: 'OPERATOR', operatorCold: false }
           : {}),
       },
     });
-    return { userId: existing.id, isNewUser: false };
+    return { userId: existing.id, isNewUser: false, needsPenName: !existing.penName && !penName };
   }
+
+  // **새 계정에는 이름이 반드시 있다.** 여기서 막지 않으면 이름 없는 계정이 계속
+  // 태어나고, 그 사람이 나타나는 화면마다 대체 표기를 지어내게 된다
+  if (!penName) throw new AuthError('필명을 적어 주세요 — 앱에서 표시될 이름입니다');
 
   // 이메일은 아직 수집하지 않으므로 계정마다 고유한 플레이스홀더를 둔다 (unique 제약 충족)
   const created = await prisma.user.create({
     data: {
       email: `${identityHash.slice(0, 24)}@identity.local`,
-      penName: input.penName?.trim() || null,
+      penName,
       identityVerified: true,
       identityHash,
       realNameEnc,
       ...(isFounder ? { role: 'OPERATOR' } : {}),
     },
   });
-  return { userId: created.id, isNewUser: true };
+  return { userId: created.id, isNewUser: true, needsPenName: false };
 }
 
 /**

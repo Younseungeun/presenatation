@@ -14,6 +14,37 @@ import type { CalibrationExample } from '@/domain/screeningAccuracy';
 export interface ScreeningUsage {
   inputTokens: number;
   outputTokens: number;
+  /**
+   * 프롬프트 캐시 토큰 (지원하는 구현만 채운다).
+   *
+   * **이 두 값이 캐싱이 이득인지 손해인지를 판정하는 유일한 근거다.** 캐시는 공짜가
+   * 아니라 베팅이다 — 쓰기는 정가의 1.25배, 읽기는 0.1배라 히트율이 21.7%
+   * (= 0.25 / (0.25 + 0.9)) 를 넘어야 이긴다. 검수는 리서처가 게시할 때만 도는
+   * 산발적 호출이라 그 히트율이 나올지 알 수 없고, **재보지 않으면 영원히 모른다.**
+   */
+  cacheWriteTokens?: number;
+  cacheReadTokens?: number;
+}
+
+/**
+ * 검수 1회 비용(USD). 단가는 Opus 5 공표가 — 입력 $5 / 출력 $25 per 1M.
+ * 캐시 쓰기는 입력의 1.25배, 읽기는 0.1배.
+ *
+ * 비용을 여기 한 곳에서만 계산하는 이유: 평가 스크립트마다 따로 적으면 단가가 바뀔 때
+ * 어떤 수치가 낡았는지 알 수 없다.
+ */
+/** @근거 계약 — Anthropic 공표 단가 (Claude Opus 5, 입력 $5 / 출력 $25 per 1M). 모델을 바꾸면 함께 바꾼다 */
+export const TOKEN_PRICE_USD_PER_M = { input: 5, output: 25 } as const;
+
+export function screeningCostUsd(usage: ScreeningUsage): number {
+  const { input, output } = TOKEN_PRICE_USD_PER_M;
+  return (
+    (usage.inputTokens * input +
+      (usage.cacheWriteTokens ?? 0) * input * 1.25 +
+      (usage.cacheReadTokens ?? 0) * input * 0.1 +
+      usage.outputTokens * output) /
+    1_000_000
+  );
 }
 
 export interface ScreeningOutput {

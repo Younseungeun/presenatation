@@ -103,7 +103,8 @@
     "probe:window-cap": "tsx scripts/probeWindowCap.ts",
     "probe:score-median": "tsx scripts/probeScoreMedian.ts",
     "reset:demo": "tsx scripts/resetDemoData.ts",
-    "seed:showcase": "tsx scripts/seedShowcase.ts"
+    "seed:showcase": "tsx scripts/seedShowcase.ts",
+    "probe:quant-corr": "tsx scripts/probeQuantCorrelation.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

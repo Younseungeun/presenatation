@@ -1,0 +1,160 @@
+{"content":"업계에 도는 소문에 의하면 조만간 초대형 수주 공시가 뜰 예정입니다.","direction":"UP","magnitudePct":15,"horizonDays":45,"confidence":7,"labels":["RUMOR"]}
+{"content":"업계에 도는 소문이 있으나, 아직 공식적으로 확인된 바 없어 배제합니다.","direction":"UP","magnitudePct":12,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"기관 쪽에서 은밀하게 흘러나오는 이야기라 신빙성은 무조건 높아요.","direction":"UP","magnitudePct":8,"horizonDays":14,"confidence":8,"labels":["RUMOR"]}
+{"content":"기관 쪽에서 흘러나오는 이야기가 있으나, 객관적인 데이터만 근거로 삼습니다.","direction":"UP","magnitudePct":6,"horizonDays":21,"confidence":7,"labels":[]}
+{"content":"여의도 바닥에 도는 찌라시 썰인데, 이번 실적 발표 때 엄청난 빅파이가 터진답니다.","direction":"UP","magnitudePct":20,"horizonDays":60,"confidence":6,"labels":["RUMOR"]}
+{"content":"여의도 바닥에 도는 찌라시 썰은 신뢰할 수 없으므로 투자 판단에서 제외했습니다.","direction":"UP","magnitudePct":18,"horizonDays":90,"confidence":6,"labels":[]}
+{"content":"내부자 전언에 따르면 다음 주에 유상증자 계획을 전격 발표한다고 함.","direction":"DOWN","magnitudePct":12,"horizonDays":10,"confidence":7,"labels":["RUMOR"]}
+{"content":"내부자 전언이라는 미확인 정보보다는 공개된 공시 내용만을 분석의 토대로 함.","direction":"DOWN","magnitudePct":10,"horizonDays":14,"confidence":8,"labels":[]}
+{"content":"방금 증권가 지라시로 은밀하게 돌고 있는 M&A 인수합병 건입니다.","direction":"UP","magnitudePct":25,"horizonDays":120,"confidence":6,"labels":["RUMOR"]}
+{"content":"방금 증권가 지라시로 돌고 있는 M&A 건은 사실무근이라 투자 주의가 필요합니다.","direction":"UP","magnitudePct":20,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"해당 기업에 대한 안 좋은 이야기가 돌고 있는데, 곧 거래정지 될 수 있습니다.","direction":"DOWN","magnitudePct":30,"horizonDays":30,"confidence":5,"labels":["RUMOR"]}
+{"content":"해당 기업에 대한 안 좋은 이야기는 근거 없는 루머일 뿐 펀더멘털은 견고합니다.","direction":"UP","magnitudePct":15,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"비공개로 진행되는 프로젝트라는 소문이 돌고 있어 지금 진입하셔야 합니다.","direction":"UP","magnitudePct":18,"horizonDays":45,"confidence":7,"labels":["RUMOR"]}
+{"content":"비공개로 진행되는 프로젝트라는 소문은 공시 전까지는 절대 판단 기준이 될 수 없음.","direction":"UP","magnitudePct":14,"horizonDays":30,"confidence":7,"labels":[]}
+{"content":"작전 세력이 개입했다는 썰이 파다하게 퍼지고 있으니 무조건 탑승하세요.","direction":"UP","magnitudePct":22,"horizonDays":20,"confidence":6,"labels":["RUMOR"]}
+{"content":"작전 세력이 개입했다는 썰이 파다하나, 이는 검증 불가능한 정보이므로 주의 요망.","direction":"UP","magnitudePct":15,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"해외 지사 발 전언인데 현지에서 엄청난 수주를 이미 따냈다고 합니다.","direction":"UP","magnitudePct":10,"horizonDays":14,"confidence":8,"labels":["RUMOR"]}
+{"content":"해외 지사 발 전언은 공식 보도자료를 통해 사실로 확인되기 전까지 제외합니다.","direction":"UP","magnitudePct":8,"horizonDays":21,"confidence":7,"labels":[]}
+{"content":"오전부터 돌고 있는 지라시를 보니 임원진 횡령 건으로 곧 하한가 간답니다.","direction":"DOWN","magnitudePct":25,"horizonDays":14,"confidence":5,"labels":["RUMOR"]}
+{"content":"오전부터 돌고 있는 지라시의 임원진 횡령 건은 사실이 아니라고 사측이 밝혔습니다.","direction":"UP","magnitudePct":12,"horizonDays":45,"confidence":8,"labels":[]}
+{"content":"출처는 밝힐 수 없지만 조만간 무상증자 소문이 확실하니 믿어보세요.","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":6,"labels":["RUMOR"]}
+{"content":"출처를 밝힐 수 없는 무상증자 소문은 본 리포트의 밸류에이션에 반영하지 않았어요.","direction":"UP","magnitudePct":14,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"주변 관계자들 사이에서만 은밀히 공유되는 이야기라 무조건 오를 겁니다.","direction":"UP","magnitudePct":28,"horizonDays":120,"confidence":7,"labels":["RUMOR"]}
+{"content":"주변 관계자들 사이에서 공유되는 이야기가 있지만, 공식 실적 데이터만 참고합니다.","direction":"UP","magnitudePct":20,"horizonDays":100,"confidence":8,"labels":[]}
+{"content":"곧 대기업과 협업한다는 썰이 돌고 있어서 미리 매집해 두는 게 좋습니다.","direction":"UP","magnitudePct":24,"horizonDays":90,"confidence":7,"labels":["RUMOR"]}
+{"content":"대기업과 협업한다는 썰이 있으나, 양사 공시가 나오기 전까지는 판단을 유보함.","direction":"UP","magnitudePct":19,"horizonDays":120,"confidence":7,"labels":[]}
+{"content":"주포가 활동을 시작했다는 전언이 있으니 지금이 바로 매수 적기입니다.","direction":"UP","magnitudePct":11,"horizonDays":30,"confidence":6,"labels":["RUMOR"]}
+{"content":"주포가 활동을 시작했다는 전언 같은 비합리적 정보는 투자 근거로 쓰지 않습니다.","direction":"UP","magnitudePct":9,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"시장에 돌고 있는 지라시 내용이 진짜니까 믿고 따라오시면 됩니다.","direction":"UP","magnitudePct":17,"horizonDays":60,"confidence":5,"labels":["RUMOR"]}
+{"content":"시장에 돌고 있는 지라시 내용은 가짜 뉴스로 판명되었으니 현혹되지 마십시오.","direction":"UP","magnitudePct":12,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"경쟁사에서 고의로 악성 소문을 퍼뜨렸는데, 이대로면 하락장 시작입니다.","direction":"DOWN","magnitudePct":15,"horizonDays":20,"confidence":6,"labels":["RUMOR"]}
+{"content":"경쟁사에서 고의로 악성 소문을 퍼뜨렸으나 실제 영업 이익 타격은 전혀 없습니다.","direction":"UP","magnitudePct":10,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"임원급에서 흘러나온 이야기니까 곧바로 주가 떡상으로 이어질 겁니다.","direction":"UP","magnitudePct":21,"horizonDays":45,"confidence":7,"labels":["RUMOR"]}
+{"content":"임원급에서 흘러나온 이야기라 할지라도 기업의 공식 발표가 아니면 배제합니다.","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"정부 정책 수혜주라는 썰이 기정사실화 되어가고 있으니 서두르세요.","direction":"UP","magnitudePct":14,"horizonDays":30,"confidence":7,"labels":["RUMOR"]}
+{"content":"정부 정책 수혜주라는 썰이 돌지만, 아직 해당 부처의 확정 발표는 없었습니다.","direction":"UP","magnitudePct":11,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"큰손들이 바닥에서 긁어모으고 있다는 전언을 입수했으니 풀매수 타이밍임.","direction":"UP","magnitudePct":26,"horizonDays":100,"confidence":6,"labels":["RUMOR"]}
+{"content":"큰손들이 매집 중이라는 전언보다는 재무제표의 잉여현금흐름을 중시해야 함.","direction":"UP","magnitudePct":18,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"방금 확인된 따끈따끈한 지라시를 입수했으니 목표가까지 끌고 갑니다.","direction":"UP","magnitudePct":20,"horizonDays":60,"confidence":5,"labels":["RUMOR"]}
+{"content":"방금 돌고 있는 지라시를 입수했으나 근거 없는 내용이므로 투자에 참고하지 마세요.","direction":"UP","magnitudePct":15,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"정확한 매수 타점과 비중 조절은 제 개인 채널로 넘어오시면 알려드립니다.","direction":"UP","magnitudePct":12,"horizonDays":45,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"정확한 매수 타점은 본 리포트에 기재했으며 개인 채널로 따로 유도하지 않습니다.","direction":"UP","magnitudePct":10,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"더 많은 미공개 정보를 원하시면 프로필에 있는 연락처로 지금 바로 문자 주세요.","direction":"UP","magnitudePct":18,"horizonDays":90,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"제 프로필을 사칭하여 연락처로 문자를 유도하는 사기 피해에 각별히 주의하세요.","direction":"UP","magnitudePct":15,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"실시간 대응이 필요하신 분들은 제가 운영하는 정보 방으로 입장해 주시기 바랍니다.","direction":"UP","magnitudePct":14,"horizonDays":30,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"실시간 대응을 빙자해 정보 방으로 입장을 유도하는 외부 채널은 운영하지 않습니다.","direction":"UP","magnitudePct":11,"horizonDays":45,"confidence":8,"labels":[]}
+{"content":"개별 종목 상담이나 일대일 문의는 하단 링크를 통해 별도로 접수하고 있습니다.","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"리포트에 대한 개별 종목 상담이나 일대일 문의는 답변해 드리지 않으니 양해 바랍니다.","direction":"UP","magnitudePct":12,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"계좌 손실 복구 상담을 원하시는 분은 저에게 따로 메시지를 보내주십시오.","direction":"UP","magnitudePct":22,"horizonDays":100,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"계좌 손실 복구 상담을 명목으로 따로 메시지를 요구하는 일은 절대 없으니 조심하세요.","direction":"UP","magnitudePct":18,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"이 종목의 하락 대응 전략은 외부 채널에서 특별히 공유해 드릴 예정입니다.","direction":"DOWN","magnitudePct":15,"horizonDays":20,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목의 하락 대응 전략은 플랫폼 내 댓글 기능을 통해서만 피드백을 진행합니다.","direction":"DOWN","magnitudePct":10,"horizonDays":30,"confidence":8,"labels":[]}
+{"content":"지금 당장 매도해야 할지 궁금하다면 제 번호로 바로 연락을 남겨주세요.","direction":"UP","magnitudePct":9,"horizonDays":14,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"본 분석 글과 관련하여 제 번호나 외부 매체로 연락을 요구하는 행위는 일절 없습니다.","direction":"UP","magnitudePct":7,"horizonDays":21,"confidence":8,"labels":[]}
+{"content":"목표가 도달 시 무료 리딩 방에서 실시간으로 매도 사인을 드리겠습니다.","direction":"UP","magnitudePct":24,"horizonDays":90,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"목표가 도달 여부는 플랫폼 내 알림 기능을 이용하시고 무료 리딩 방 사칭을 주의하세요.","direction":"UP","magnitudePct":19,"horizonDays":120,"confidence":7,"labels":[]}
+{"content":"후속주가 궁금하신 분들은 제 메신저로 개별 문의 주시면 상세히 안내해 드립니다.","direction":"UP","magnitudePct":13,"horizonDays":45,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"후속주 추천을 미끼로 개인 메신저 개별 문의를 유도하는 불법 행위와 무관합니다.","direction":"UP","magnitudePct":10,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"주식 포트폴리오 진단 상담이 필요하시면 프로필 링크를 클릭해 신청하세요.","direction":"UP","magnitudePct":17,"horizonDays":60,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"저는 어떠한 경우에도 주식 포트폴리오 진단 상담을 위한 프로필 링크를 제공하지 않음.","direction":"UP","magnitudePct":15,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"자세한 브리핑은 제한된 인원만 모시는 VIP 전용 채널에서만 이어가겠습니다.","direction":"UP","magnitudePct":25,"horizonDays":120,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"자세한 브리핑은 본 게시글에 모두 포함되어 있으며 VIP 전용 채널 같은 건 없습니다.","direction":"UP","magnitudePct":20,"horizonDays":150,"confidence":8,"labels":[]}
+{"content":"글 하단에 남겨둔 제 직통 연락처로 연락하시면 고급 정보를 무료로 드려요.","direction":"UP","magnitudePct":19,"horizonDays":75,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"제 이름이나 직통 연락처를 사칭하여 고급 정보를 준다는 피싱에 절대 속지 마십시오.","direction":"UP","magnitudePct":16,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"이번 주 급등 예상 종목 리스트는 소통 방에 오신 분들께만 단독으로 공개합니다.","direction":"UP","magnitudePct":28,"horizonDays":60,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"이번 주 급등 예상 종목 리스트를 미끼로 소통 방 가입을 유도하는 짓은 하지 않아요.","direction":"UP","magnitudePct":21,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"손절 타이밍을 놓치신 분들은 프로필 메시지로 문의하시면 1:1로 코칭해 드립니다.","direction":"DOWN","magnitudePct":20,"horizonDays":30,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"손절 타이밍 관련 코칭을 명목으로 프로필 메시지 문의를 유도하는 것은 규정 위반임.","direction":"DOWN","magnitudePct":15,"horizonDays":45,"confidence":8,"labels":[]}
+{"content":"수익 극대화를 위한 개인 맞춤형 상담은 제 오픈 톡을 통해서만 진행하고 있음.","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"수익 극대화를 빙자한 개인 맞춤형 상담이나 오픈 톡 운영은 일절 하지 않고 있음.","direction":"UP","magnitudePct":14,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"실시간 호가창 분석은 제 개인 소통 채널로 들어오셔야만 받아보실 수 있습니다.","direction":"UP","magnitudePct":11,"horizonDays":20,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"실시간 호가창 분석은 플랫폼 정책상 제공하지 않으며 개인 소통 채널도 일절 없음.","direction":"UP","magnitudePct":8,"horizonDays":30,"confidence":8,"labels":[]}
+{"content":"오늘 장 마감 전까지 제게 따로 연락을 주신 분들께만 특별 자료를 쏩니다.","direction":"UP","magnitudePct":22,"horizonDays":45,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"저에게 따로 연락을 주신다고 해서 비공개 특별 자료를 배포해 드리는 일은 없습니다.","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"함께 투자 방향을 논의하실 분들은 본문에 적힌 비밀 방으로 어서 합류하세요.","direction":"UP","magnitudePct":15,"horizonDays":90,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"투자에 참고하실 모든 내용은 리포트에 담겨 있으며 별도의 비밀 방은 운영 안 합니다.","direction":"UP","magnitudePct":12,"horizonDays":120,"confidence":7,"labels":[]}
+{"content":"신규 진입 자리가 헷갈리신다면 주저 말고 링크로 개별 문의를 남겨주시기 바랍니다.","direction":"UP","magnitudePct":14,"horizonDays":30,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"신규 진입 관련하여 링크를 통한 외부 개별 문의는 사칭의 위험이 있으니 주의 바랍니다.","direction":"UP","magnitudePct":10,"horizonDays":45,"confidence":8,"labels":[]}
+{"content":"다음 주 주도주 선취매 전략 상담은 제 프로필 번호로 문자 남기시면 도와드립니다.","direction":"UP","magnitudePct":26,"horizonDays":60,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"선취매 전략 상담을 핑계로 프로필 번호로 문자 남길 것을 요구하는 곳은 모두 사기임.","direction":"UP","magnitudePct":20,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"업계에 도는 소문으로는 대형 수주가 임박했다는데 출처는 밝히기 어렵습니다","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":6,"labels":["RUMOR"]}
+{"content":"대형 수주 건은 회사가 공시한 계약 체결 내역을 근거로 반영했습니다","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"증권가 지라시에서 이 종목 인수설이 돌고 있어 목표가를 올립니다","direction":"UP","magnitudePct":22,"horizonDays":90,"confidence":7,"labels":["RUMOR"]}
+{"content":"인수 관련 지라시는 확인되지 않아 목표가 산정에서 제외했어요","direction":"UP","magnitudePct":11,"horizonDays":90,"confidence":5,"labels":[]}
+{"content":"친한 지인 전언으로 해당 기업 신규 라인 증설이 확정됐다고 합니다","direction":"UP","magnitudePct":14,"horizonDays":120,"confidence":6,"labels":["RUMOR"]}
+{"content":"신규 라인 증설은 사업보고서의 설비투자 계획으로 확인했습니다","direction":"UP","magnitudePct":13,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"여기저기서 들리는 썰로는 다음 분기에 어닝 서프라이즈가 나온답니다","direction":"UP","magnitudePct":20,"horizonDays":45,"confidence":6,"labels":["RUMOR"]}
+{"content":"다음 분기 실적은 회사 가이던스와 컨센서스를 비교해 추정했습니다","direction":"UP","magnitudePct":9,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"관계자 말이라며 돌아다니는 이야기 기준으로 이 종목 비중을 늘렸습니다","direction":"UP","magnitudePct":17,"horizonDays":75,"confidence":5,"labels":["RUMOR"]}
+{"content":"출처가 불분명한 이야기는 근거로 삼지 않고 공개 공시만 참고함","direction":"UP","magnitudePct":10,"horizonDays":75,"confidence":6,"labels":[]}
+{"content":"소식통에 따르면 해당 기업이 대기업과 협의 중이라는 말이 있습니다","direction":"UP","magnitudePct":19,"horizonDays":100,"confidence":6,"labels":["RUMOR"]}
+{"content":"협업 관련 내용은 양사 보도자료에 공개된 범위 내에서만 다뤘어요","direction":"UP","magnitudePct":12,"horizonDays":100,"confidence":7,"labels":[]}
+{"content":"카더라지만 이 종목 대규모 유상증자설이 돌아 단기 하락을 봅니다","direction":"DOWN","magnitudePct":15,"horizonDays":30,"confidence":6,"labels":["RUMOR"]}
+{"content":"유상증자 관련 카더라는 확인이 안 돼 빼고 공시 일정만 반영했습니다","direction":"DOWN","magnitudePct":8,"horizonDays":30,"confidence":7,"labels":[]}
+{"content":"풍문으로 들었는데 해당 기업 신약 임상 결과가 좋다고 하네요","direction":"UP","magnitudePct":25,"horizonDays":150,"confidence":5,"labels":["RUMOR"]}
+{"content":"임상 결과는 공개된 학회 초록과 공시 자료로만 판단했습니다","direction":"UP","magnitudePct":21,"horizonDays":150,"confidence":6,"labels":[]}
+{"content":"확인은 안 되지만 오너 지분 매입 이야기가 돌아서 매수 의견 냅니다","direction":"UP","magnitudePct":13,"horizonDays":60,"confidence":6,"labels":["RUMOR"]}
+{"content":"오너 지분 변동은 임원·주요주주 보고서에서 직접 확인한 수치입니다","direction":"UP","magnitudePct":11,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"사석에서 들은 말이라 출처는 못 밝히지만 수출 물량이 늘었답니다","direction":"UP","magnitudePct":16,"horizonDays":90,"confidence":5,"labels":["RUMOR"]}
+{"content":"수출 물량 증가는 관세청 공개 통계로 교차 확인했어요","direction":"UP","magnitudePct":14,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"커뮤니티에 떠도는 얘기로 해당 기업 대형 고객사 확보가 확실시된답니다","direction":"UP","magnitudePct":23,"horizonDays":120,"confidence":6,"labels":["RUMOR"]}
+{"content":"고객사 확보 관련 떠도는 얘기는 근거가 없어 분석에서 뺐습니다","direction":"UP","magnitudePct":12,"horizonDays":120,"confidence":6,"labels":[]}
+{"content":"믿을 만한 데서 나온 전언이라 하니 이 종목 실적 개선은 기정사실입니다","direction":"UP","magnitudePct":18,"horizonDays":80,"confidence":7,"labels":["RUMOR"]}
+{"content":"실적 개선 여부는 분기보고서 매출총이익 추이로만 설명하겠습니다","direction":"UP","magnitudePct":10,"horizonDays":80,"confidence":7,"labels":[]}
+{"content":"이름은 못 말하는 내부자 이야기 기준, 해당 기업 수주잔고가 급증 중","direction":"UP","magnitudePct":20,"horizonDays":110,"confidence":6,"labels":["RUMOR"]}
+{"content":"수주잔고 급증은 분기보고서 수주 현황 표에서 확인된 숫자임","direction":"UP","magnitudePct":17,"horizonDays":110,"confidence":8,"labels":[]}
+{"content":"돌고 있는 소문 하나만 믿고 가도 이 종목은 충분히 오를 것 같아요","direction":"UP","magnitudePct":26,"horizonDays":40,"confidence":5,"labels":["RUMOR"]}
+{"content":"소문 대신 최근 3년 배당성향과 현금흐름만 보고 판단했어요","direction":"UP","magnitudePct":7,"horizonDays":180,"confidence":7,"labels":[]}
+{"content":"익명 게시판 썰에 따르면 해당 기업 자회사 상장이 준비 중이라 합니다","direction":"UP","magnitudePct":24,"horizonDays":160,"confidence":5,"labels":["RUMOR"]}
+{"content":"자회사 상장 준비는 거래소 예비심사 청구 공시로 확인 가능합니다","direction":"UP","magnitudePct":19,"horizonDays":160,"confidence":7,"labels":[]}
+{"content":"출처 밝히긴 곤란하나 해당 기업 대규모 계약 해지설이 들립니다","direction":"DOWN","magnitudePct":21,"horizonDays":50,"confidence":6,"labels":["RUMOR"]}
+{"content":"계약 해지 여부는 단일판매·공급계약 정정공시로 확인했습니다","direction":"DOWN","magnitudePct":15,"horizonDays":50,"confidence":8,"labels":[]}
+{"content":"여의도에 도는 풍문 기준으로 목표주가를 상향 조정했습니다","direction":"UP","magnitudePct":14,"horizonDays":70,"confidence":6,"labels":["RUMOR"]}
+{"content":"목표주가 상향은 동종업계 평균 PER 재산정에 따른 것입니다","direction":"UP","magnitudePct":13,"horizonDays":70,"confidence":7,"labels":[]}
+{"content":"출처는 비밀인데 해당 기업 대주주가 곧 움직인다는 얘기가 있어요","direction":"UP","magnitudePct":22,"horizonDays":95,"confidence":5,"labels":["RUMOR"]}
+{"content":"대주주 관련 미확인 얘기는 배제하고 지분공시 이력만 정리했어요","direction":"UP","magnitudePct":11,"horizonDays":95,"confidence":6,"labels":[]}
+{"content":"떠도는 말로는 이 종목 공장 가동률이 이미 풀가동이라고 합니다","direction":"UP","magnitudePct":15,"horizonDays":55,"confidence":6,"labels":["RUMOR"]}
+{"content":"공장 가동률은 사업보고서 생산능력 대비 실적으로 계산했습니다","direction":"UP","magnitudePct":12,"horizonDays":55,"confidence":8,"labels":[]}
+{"content":"확인되지 않은 인수합병 이야기지만 무게를 두고 비중을 실었습니다","direction":"UP","magnitudePct":28,"horizonDays":140,"confidence":5,"labels":["RUMOR"]}
+{"content":"인수합병 관련 미확인 정보는 확인 전까지 반영하지 않겠습니다","direction":"UP","magnitudePct":9,"horizonDays":140,"confidence":6,"labels":[]}
+{"content":"구체적인 매수 타점은 제 채널로 오시면 따로 알려드립니다","direction":"UP","magnitudePct":12,"horizonDays":30,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"구체적 매수 타점은 리포트 본문 안에서만 공유하고 있습니다","direction":"UP","magnitudePct":11,"horizonDays":30,"confidence":7,"labels":[]}
+{"content":"프로필에 적힌 연락처로 문자 주시면 종목 상담 도와드릴게요","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"개별 종목 상담은 진행하지 않으니 문의는 댓글로만 남겨 주세요","direction":"UP","magnitudePct":14,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"더 자세한 내용은 개인 메신저로 문의 주시면 하나씩 답해드려요","direction":"UP","magnitudePct":18,"horizonDays":45,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"개인 메신저로 먼저 연락드리는 일은 없으니 사칭에 주의하세요","direction":"UP","magnitudePct":13,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"소수 인원만 받는 방이 있으니 관심 있으면 쪽지 남겨 주세요","direction":"UP","magnitudePct":20,"horizonDays":90,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"따로 운영하는 비공개 방은 없으며 모든 자료는 여기에만 올립니다","direction":"UP","magnitudePct":10,"horizonDays":90,"confidence":6,"labels":[]}
+{"content":"실시간 대응은 밖에서 하니 아이디 검색해서 찾아오시면 됩니다","direction":"UP","magnitudePct":15,"horizonDays":21,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"실시간 대응은 하지 않고 정해진 시각에 공개 업데이트만 올려요","direction":"UP","magnitudePct":12,"horizonDays":21,"confidence":7,"labels":[]}
+{"content":"무료 상담 원하시는 분은 아래 남긴 주소로 연락 부탁드립니다","direction":"UP","magnitudePct":13,"horizonDays":75,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"무료든 유료든 외부 상담은 일절 받지 않고 있습니다","direction":"UP","magnitudePct":12,"horizonDays":75,"confidence":7,"labels":[]}
+{"content":"질문 있으신 분은 플랫폼 밖에서 1:1로 받겠습니다","direction":"UP","magnitudePct":17,"horizonDays":100,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"질문은 플랫폼 질의응답 기능으로 남겨 주시면 일괄 답변드립니다","direction":"UP","magnitudePct":15,"horizonDays":100,"confidence":7,"labels":[]}
+{"content":"장 중 매매 신호는 따로 운영하는 곳에서만 공유하고 있어요","direction":"UP","magnitudePct":9,"horizonDays":14,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"장 중 매매 신호는 어디서도 제공하지 않으니 참고 바랍니다","direction":"UP","magnitudePct":8,"horizonDays":14,"confidence":7,"labels":[]}
+{"content":"연락 수단은 프로필 하단에 있으니 편하게 문의 주세요","direction":"UP","magnitudePct":14,"horizonDays":50,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"프로필에는 어떤 연락 수단도 적어 두지 않았음을 알려드립니다","direction":"UP","magnitudePct":13,"horizonDays":50,"confidence":6,"labels":[]}
+{"content":"관심 있는 분께는 개인적으로 자료를 보내드리니 연락 주세요","direction":"UP","magnitudePct":19,"horizonDays":80,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"자료는 개인적으로 보내지 않고 게시글 첨부로만 배포합니다","direction":"UP","magnitudePct":16,"horizonDays":80,"confidence":7,"labels":[]}
+{"content":"여기선 다 못 쓰니 개인 연락으로 이어서 설명드리겠습니다","direction":"UP","magnitudePct":21,"horizonDays":65,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"여기에 못 쓴 내용은 다음 리포트에서 이어서 공개하겠습니다","direction":"UP","magnitudePct":18,"horizonDays":65,"confidence":6,"labels":[]}
+{"content":"구독 문의는 외부 채널로 받고 있으니 그쪽으로 와 주세요","direction":"UP","magnitudePct":11,"horizonDays":120,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"구독은 플랫폼 결제 기능으로만 가능하며 외부 결제는 없습니다","direction":"UP","magnitudePct":10,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"선착순 소규모 모임 참여 원하시면 따로 연락 남겨 주시길","direction":"UP","magnitudePct":24,"horizonDays":110,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"소규모 모임이나 오프라인 만남은 일절 운영하지 않습니다","direction":"UP","magnitudePct":12,"horizonDays":110,"confidence":7,"labels":[]}
+{"content":"정확한 손절가는 밖에서 알려드릴 테니 연락처 남겨 주세요","direction":"DOWN","magnitudePct":13,"horizonDays":25,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"손절가 기준은 본문 하단 표에 그대로 적어 두었습니다","direction":"DOWN","magnitudePct":11,"horizonDays":25,"confidence":8,"labels":[]}
+{"content":"제 개인 계정으로 팔로우해 두시면 빠른 소식 챙겨드립니다","direction":"UP","magnitudePct":15,"horizonDays":35,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"빠른 소식은 이 계정 알림 설정으로 충분히 받아보실 수 있어요","direction":"UP","magnitudePct":14,"horizonDays":35,"confidence":7,"labels":[]}
+{"content":"상세 포트폴리오는 문의 주신 분께만 개별로 공유드립니다","direction":"UP","magnitudePct":22,"horizonDays":130,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"상세 포트폴리오는 모든 구독자에게 동일하게 공개됩니다","direction":"UP","magnitudePct":20,"horizonDays":130,"confidence":7,"labels":[]}
+{"content":"궁금하신 점은 밖에서 편하게 물어보세요, 답장은 빠릅니다","direction":"UP","magnitudePct":12,"horizonDays":40,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"밖에서 오는 연락에는 답변하지 않으니 양해 부탁드립니다","direction":"UP","magnitudePct":11,"horizonDays":40,"confidence":6,"labels":[]}
+{"content":"회원 전용 안내를 받으시려면 남긴 주소로 신청해 주시면 됩니다","direction":"UP","magnitudePct":17,"horizonDays":95,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"별도 회원 모집은 없고 안내는 공지 게시판에만 올라갑니다","direction":"UP","magnitudePct":13,"horizonDays":95,"confidence":7,"labels":[]}
+{"content":"추가 종목 리스트는 따로 연락 주신 분들께만 돌리고 있어요","direction":"UP","magnitudePct":26,"horizonDays":70,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"추가 종목 리스트도 같은 게시판에 순차 공개할 예정이에요","direction":"UP","magnitudePct":23,"horizonDays":70,"confidence":6,"labels":[]}
+{"content":"빠른 상담 원하면 프로필 링크 타고 들어와 문의 남기기","direction":"DOWN","magnitudePct":9,"horizonDays":18,"confidence":4,"labels":["SOLICIT_CONTACT"]}
+{"content":"프로필 링크로 상담을 유도하는 계정은 저와 무관하니 주의","direction":"DOWN","magnitudePct":8,"horizonDays":18,"confidence":6,"labels":[]}

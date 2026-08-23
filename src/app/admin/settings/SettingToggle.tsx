@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import styles from "./adminSettings.module.css";
+import a from "../admin.module.css";
 
 // 운영 설정 스위치 한 개. 저장은 즉시 — 확인 버튼을 따로 두면 껐다고 생각하고 나가는 사고가 난다.
 export function SettingToggle({
@@ -47,22 +47,22 @@ export function SettingToggle({
   }
 
   return (
-    <div className={`${styles.row} ${disabled ? styles.rowDim : ""}`}>
-      <div className={styles.rowMain}>
-        <div className={styles.rowTitle}>{title}</div>
-        <p className={styles.rowDesc}>{description}</p>
-        {error && <p className={styles.rowError}>{error}</p>}
+    <div className={`${a.card} ${a.swRow} ${disabled ? a.cardDim : ""}`}>
+      <div className={a.swMain}>
+        <div className={a.ttl}>{title}</div>
+        <p className={a.hint}>{description}</p>
+        {error && <p className={a.error}>{error}</p>}
       </div>
       <button
         type="button"
         role="switch"
         aria-checked={on}
         aria-label={title}
-        className={`${styles.switch} ${on ? styles.switchOn : ""}`}
+        className={`${a.sw} ${on ? a.swOn : ""}`}
         onClick={toggle}
         disabled={busy || disabled}
       >
-        <span className={styles.knob} />
+        <span className={a.knob} />
       </button>
     </div>
   );

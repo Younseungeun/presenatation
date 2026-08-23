@@ -82,6 +82,8 @@ model User {
   cartItems         CartItem[]
   paymentIntents    PaymentIntent[]
   follows           Follow[] // 내가 팔로우한 리서처들
+  pushSubscriptions PushSubscription[]
+  supportTickets    SupportTicket[]
 }
 
 /// 간편 비밀번호가 사는 기기 (2026-08-16 사용자 확정 구조).
@@ -248,6 +250,15 @@ model PredictionCard {
    * 원인이 **우리 판정 로직**이었다면 세우지 않는다 — 고친 코드로 다시 매기는 것이 맞다.
    */
   manualJudgmentOnly Boolean @default(false)
+  /**
+   * **왜** 사람에게 왔는가 (2026-08-19 — 운영 콘솔이 두 갈래로 나누려면 필요하다).
+   * 플래그만으로는 "사람이 봐야 한다"까지만 알고 **무엇을 볼지**는 모른다:
+   *   CROSS_CHECK        두 소스가 서로 다른 값 → 볼 것은 **거래소 시세**
+   *   IMPLAUSIBLE_QUOTE  있을 수 없는 일봉      → 볼 것은 **그 일봉 자체**
+   *   REVERTED           되돌리며 사람만 판정으로 표시 → 볼 것은 **되돌린 사유**
+   * null이면 시세를 못 구해 상한까지 이월된 것이다(플래그 없이 시한 경과로 큐에 온 건).
+   */
+  manualReason String?
 
   judgment Judgment?
   corporateActions CorporateActionLog[]
@@ -842,6 +853,13 @@ model ComplianceReview {
   // 대기가 길어져 운영자에게 다시 알린 시각 — 하루에 한 번만 재알림하기 위한 중복 방지
   escalatedAt         DateTime?
   operatorReviewedBy  String? // 확인한 운영자 userId
+  /// 수동 2차 질문지를 **뽑은** 시각 (18차 V-7).
+  ///
+  /// 재는 이유는 하나다: 큐가 밀리면 운영자가 **안 물어보고 그냥 승인**한다. 라벨은
+  /// 남는데 근거가 없고, 그 라벨이 학습셋에 섞인다. **이 고장은 조용히 일어나서**
+  /// 결과만 보면 정상 운영과 구별되지 않는다. 뽑은 시각이 없는 판정의 비율이
+  /// 그 침묵을 소리로 바꾼다 (complianceOpsService: 교사 질의 누락률).
+  teacherAskedAt      DateTime?
   // ── 운영자 판정(정답 라벨) ─────────────────────────────────────────
   // 검수가 맞았는지는 사람의 최종 결정으로만 알 수 있다. 이 네 칸이 없으면
   // 오탐률·미탐률을 측정할 수 없고, 규칙·프롬프트·모델을 근거 있게 바꿀 수 없다.
@@ -856,10 +874,98 @@ model ComplianceReview {
   inputTokens         Int?
   outputTokens        Int?
   deliberationRatio   Float? // outputTokens / inputTokens — 리포트 길이 정규화한 고민 지표
+  /// 학생 결석의 꼬리표 (21차 Y-1(b) · 관리자 앱 2회차 B-2).
+  ///
+  /// null = 학생이 정상 참여했거나 애초에 꺼져 있었다(의도된 끔).
+  /// 'OUTAGE_HOLD'  = 라이브 장애로 보류된 건 (Q0 정책)
+  /// 'VALVE_BYPASS' = 운영자가 밸브를 내려 학생 없이 흘러간 건
+  ///
+  /// 왜 꼬리표인가 — "학생 소견 0건(정상)"과 "학생 결석(장애·우회)"은 결과값이
+  /// 같다. 이 칸이 없으면 훗날 미탐률을 잴 때 장애로 뚫린 건을 학생이 못 잡은
+  /// 건으로 오인해 지표가 오염된다 (21차 gap 17형 함정 지적)
+  studentAbsence      String?
+  /// 운영자가 이 건을 **열람하고 판정하기까지** 걸린 시간 (관리자 화면이 재서 보냄).
+  ///
+  /// 26차 CC-1 반증 조건 — 라이브 유지의 대가는 오탐 흡수인데, 오탐이 잦은 유형
+  /// (SCREENING_EVASION·CARD_MISMATCH)의 판단 시간이 다른 유형의 절반 밑으로
+  /// 떨어지면 운영자가 "아 또 이거네"로 안 읽고 승인하는 피로도 함정이다.
+  /// 오탐과 정상 승인이 같은 클릭으로 끝나는 화면에서, 이 시간이 유일한 감별 신호다.
+  decisionElapsedMs   Int?
   createdAt           DateTime  @default(now())
+  /// 그림자 모드 판정 (처리에 관여하지 않는다 — ShadowComplianceReview 주석 참고)
+  shadowReviews       ShadowComplianceReview[]
+  /// 수동 2차의 교사 답 (처리 권한 없음 — TeacherAnswer 주석 참고)
+  teacherAnswer       TeacherAnswer?
 
   @@index([reportId])
   @@index([needsOperatorReview, operatorReviewedAt])
+}
+
+/// 수동 2차 검수의 **교사 답** — 권한 없는 판정의 보관처.
+///
+/// ── 왜 ComplianceReview 에 칸을 더하지 않는가 ─────────────────────────
+/// ShadowComplianceReview 와 **같은 이유**다. 같은 행에 두면 언젠가 집계 쿼리의
+/// WHERE 하나가 빠져 **교사 답이 운영자 판정과 합쳐진다.** 그 순간 정확도 지표가
+/// 자기 자신을 재게 되고, 교사 품질 지표(불일치율)가 통째로 죽는다.
+/// 실수를 조심하는 대신 구조적으로 불가능하게 만든다 — 기존 집계는 이 표를 모른다.
+///
+/// ── 순서가 이 표의 값어치를 만든다 (18차 V-3) ────────────────────────
+/// **운영자 판정이 먼저 기록된 뒤에만 이 행이 생긴다.** 순서가 뒤집히면 운영자가
+/// 교사 답을 보고 고른 것이 되어 두 값이 독립이 아니고, 그러면 불일치율은
+/// "교사가 정확하다"와 "운영자가 안 봤다"를 못 가른다.
+/// 코드가 그 순서를 강제한다 (teacherAnswerService.recordTeacherAnswer).
+model TeacherAnswer {
+  id                 String           @id @default(cuid())
+  /// 한 검수 건에 한 답 — 두 번 물어봤으면 마지막 답으로 덮어쓴다
+  complianceReviewId String           @unique
+  /// 어느 교사인가. 대화창 모델은 버전이 오르는데, 표식이 없으면 나중에
+  /// "이 라벨은 어느 교사가 만들었나"를 영원히 못 가른다 (18차 V-4)
+  teacherTag         String
+  /// 교사가 지목한 유형 — StudentLabel[] 직렬화. 빈 배열이면 "위반 없음"
+  labelsJson         String
+  /// 위반 없음일 때만: 1차 지적 **자체**가 타당했는가.
+  /// 타당 = 경미(심각도 문제) · 과함 = 오탐(규칙 문제) — 접으면 학생이 영구히 꺼진다(11차 K-1)
+  findingsValid      Boolean?
+  /// 운영자가 붙여 넣은 답 원문. 파싱이 틀렸을 때 되짚을 **유일한** 증거다
+  rawAnswer          String
+  /// 운영자가 **먼저** 고른 판정과 갈렸는가.
+  /// 교정 사례는 이 값이 true 인 건에서만 뽑는다 — 교사가 맞힌 것을 다시 먹이는 것은
+  /// 의미가 없고, **틀린 것을 사람이 고친 기록**만 교사를 개선한다 (18차 V-5)
+  disagreed          Boolean
+  /// 답을 옮겨 적은 운영자
+  recordedBy         String
+  createdAt          DateTime         @default(now())
+  complianceReview   ComplianceReview @relation(fields: [complianceReviewId], references: [id], onDelete: Cascade)
+
+  @@index([disagreed, createdAt])
+  @@index([teacherTag, createdAt])
+}
+
+/// 그림자 모드 판정 — **처리 권한이 없는 판정**의 유일한 보관처.
+///
+/// ComplianceReview에 칸을 더하지 않고 표를 나눈 이유 (5차 검토 F-2):
+/// 같은 행에 두면 언젠가 집계 쿼리의 WHERE 하나가 빠져 **그림자 소견이 실집행 소견에
+/// 합쳐진다.** 정확도 지표가 오염되면 이 스레드의 모든 채택 판단이 함께 틀리므로,
+/// 실수를 조심하는 대신 구조적으로 불가능하게 만든다 — 기존 집계는 이 표를 모른다.
+/// ("자동 만료는 operatorVerdict를 남기지 않는다"와 같은 계열의 방어다.)
+///
+/// **행동한 판정과 도메인 자체가 다르다**: 이쪽은 아무것도 처리하지 않았고,
+/// 리서처에게 안내되지도 않는다. 오직 실집행 판정과 대조해 일치율을 재기 위해서만 있다.
+model ShadowComplianceReview {
+  id                 String           @id @default(cuid())
+  complianceReviewId String
+  /// 판정 주체 — 예: student:koelectra-v1@t0.42 (모델·임계값까지 박는다.
+  /// 임계값이 다르면 다른 판정기이고, 나중에 어느 설정의 기록인지 못 가리면 비교가 무의미해진다)
+  reviewer           String
+  /// 학생 소견 Finding[] 직렬화. 여기 있는 것은 어떤 경로로도 리서처에게 나가지 않는다
+  findingsJson       String
+  /// 추론 지연(ms) — 졸업 조건 ③(p99·이상점)의 원천
+  latencyMs          Int?
+  createdAt          DateTime         @default(now())
+  complianceReview   ComplianceReview @relation(fields: [complianceReviewId], references: [id], onDelete: Cascade)
+
+  @@index([complianceReviewId])
+  @@index([reviewer, createdAt])
 }
 
 // 학습 표현 사전: 운영자가 반려하면서 "다음부터는 작성 단계에서 걸러라"고 등록한 표현.
@@ -881,12 +987,101 @@ model LearnedPhrase {
   createdAt      DateTime  @default(now())
   // 의미 검색용 임베딩 벡터 (semanticIndex.ts). 등록 시 한 번 계산해 저장한다 —
   // 검수마다 사전 전체를 다시 임베딩하면 비용이 사전 크기에 비례해 늘어난다.
+  // ⚠ 의미 검색은 20차에 검수 배선에서 끊겼다 — 컬럼은 창업자 지시로 보존
   vectorJson     String?
   // 이 벡터를 만든 모델 식별자. 모델이 바뀌면 좌표계가 달라 비교가 무의미해지므로,
   // 현재 모델과 다른 벡터는 인덱스에서 제외하고 재계산 대상으로 본다
   vectorModel    String?
+  /// 음성 변형 층(5층) 참여 자격 (20차 X-1) — 등록 시 충돌 검사의 결과.
+  /// 근사 매칭은 표현의 자모 거리-1 이웃까지 삼키므로, 그 이웃이 정상 낱말이면
+  /// (`수익보장`→`수익보전`) 이 값이 false 로 남고 그 항목은 1~3층만 탄다.
+  /// 기본 false — 검사를 안 거친 항목(기존 데이터)에 근사 권한을 주지 않는다
+  phoneticEligible Boolean @default(false)
+  /// 5층 상한 밀어내기 면제 (22차 Y-2) — matchCount 0 은 "무효한 패턴"과 "1년에 한 번
+  /// 필요한 계절성 패턴"(연말정산·테마주 유행)에서 같은 값이라(gap 17형), 무실적
+  /// 최고령 밀어내기가 희소하지만 치명적인 방어선을 조용히 지울 수 있다. 운영자가
+  /// 체크하면 밀어내기에서 빠진다. 상한 200의 10%(20개)까지만 — 전부 면제면 상한이 없다
+  capExempt        Boolean @default(false)
+  /// 졸업 시각 (21차 Y-3) — 졸업 직후 7일 관찰 창의 기준점.
+  /// active=false 만으로는 "졸업"과 "수동 비활성화(오탐 항목)"를 못 가른다
+  graduatedAt      DateTime?
 
   @@index([active])
+}
+
+/// 사전 항목 매칭 이벤트 (관리자 앱 인계서 2026-08-22 §1 → 회신 8호 (나)).
+///
+/// LearnedPhrase.matchCount 는 숫자만 올려 **누가** 걸렸는지 남기지 않았다. 코드 규칙
+/// 후보 조건의 넷째("서로 다른 리서처 ≥ 5명")는 그 사실 없이는 셀 수 없고, 셀 수 없는
+/// 조건을 적어 두는 것은 조건이 없는 것보다 나쁘다(있는 것처럼 보인다). 한 사람이 같은
+/// 문구를 30번 써서 만든 30회가 후보로 뜨는 것을 이 표가 막는다.
+/// 덤으로 "언제 누구에게 걸렸나"에 답한다 — 표현의 정확도가 한 리서처의 습관인지
+/// 플랫폼 전체의 패턴인지 갈라 보는 유일한 자료.
+model LearnedPhraseHit {
+  id           String   @id @default(cuid())
+  phraseId     String
+  reportId     String
+  researcherId String
+  createdAt    DateTime @default(now())
+
+  @@index([phraseId, researcherId])
+  @@index([reportId])
+}
+
+/// 졸업 회귀 시험셋 (20차 X-5) — 사전 항목을 끌 때 운영자가 남기는 대비쌍.
+///
+/// **졸업은 자동 증명이 아니라 사람의 판단이다.** 변형을 자동 생성해 학생에 넣어 보는
+/// 방식은 동어반복이다(생성기가 규칙 6층과 같은 논리면 규칙이 이미 잡는 것만 시험한다).
+/// 대신 운영자가 그 표현이 든 **위반 3문장 + 정상 3문장**을 직접 써서 여기 남긴다.
+///
+/// 이 표는 **영구**다 — 이후 모든 재학습에서 학생이 이 문장들을 통과해야 채택된다.
+/// 오답이 나면 릴리스를 막는다(치명적 망각 방어). 학습셋과의 격리는 절대적이다:
+/// 여기 문장은 어떤 경로로도 학습 자료로 나가면 안 된다 (17차 채점지 원칙).
+model RegressionCase {
+  id        String   @id @default(cuid())
+  /// 어느 사전 항목의 졸업에서 나왔나
+  phraseId  String
+  text      String
+  /// 이 문장은 위반이어야 하는가 — false 면 학생이 잡으면 안 되는 정상 대비쌍
+  expectViolation Boolean
+  /// 위반 쪽만: 기대 유형
+  category  String?
+  createdBy String
+  createdAt DateTime @default(now())
+  /// 격리 (21차 Y-3) — 삭제가 아니라 격리다. 수정은 영구 금지지만, 잘못 쓴 문항을
+  /// 영원히 띄울 수는 없다. 격리는 **운영자 2인 승인**을 소모해야 가능하다 —
+  /// 릴리스 압박 속 "학생이 틀리는 문항 지우기" 유혹을 혼자서는 못 누르게 한다
+  quarantinedAt    DateTime?
+  quarantinedBy    String?
+  quarantineReason String?
+  /// 게이트 실패 이력 (관리자 앱 4회차 §3) — 격리 판단의 유일한 근거 자료.
+  /// "여러 모델에서 반복 실패(문항이 잘못 씀 — 격리 후보)"와 "이번 모델만 실패
+  /// (모델이 못 배움 — 격리 금지, 재학습할 것)"를 가른다.
+  /// gateFailCount 는 **서로 다른 모델 지문에서의 실패 횟수**다 — lastGateFailSha 와
+  /// 다른 지문으로 떨어질 때만 오른다 (같은 모델 두 번은 증거가 두 배가 아니다)
+  lastGateFailAt   DateTime?
+  lastGateFailSha  String?
+  gateFailCount    Int       @default(0)
+
+  @@index([phraseId])
+}
+
+/// 졸업 관찰 큐 (21차 Y-3) — 졸업 직후 7일간 그 표현의 규칙 판정을 미러링한다.
+///
+/// 졸업 직후가 가장 위험한 순간이다 — 사전 보호가 꺼지고 학생만 남는데, 뚫린 것을
+/// 알아채는 경로가 미탐 신고뿐이면 운영자가 자기 오류를 자기가 발견해야 한다.
+/// 그래서 졸업한 표현은 7일간 규칙으로 계속 돌되(소견은 내지 않는다 — 감시 전용),
+/// 걸리면 여기 기록되어 관찰 화면에 뜬다. 학생이 같은 유형을 잡았는지가 함께 남는다.
+model GraduationWatchHit {
+  id                 String   @id @default(cuid())
+  phraseId           String
+  complianceReviewId String
+  category           String
+  /// 같은 건에서 학생도 같은 유형을 냈는가 — false 가 쌓이면 졸업이 성급했다는 증거다
+  studentFlagged     Boolean
+  createdAt          DateTime @default(now())
+
+  @@index([phraseId, createdAt])
 }
 
 // 약관 동의 이력: 누가·언제·어느 문서 버전에·어떤 맥락에서 동의했는지 기록.
@@ -913,9 +1108,39 @@ model Notification {
   link      String? // 클릭 시 이동 경로 (예: /report/xxx)
   readAt    DateTime?
   createdAt DateTime  @default(now())
+  // 푸시로 내보낸 시각. **알림 생성은 판정 트랜잭션 안에서 일어나고 I/O는 금지**라
+  // (noIoInTransaction) 그 자리에서 푸시를 보낼 수 없다. 대신 이 칸을 비워 두면
+  // 스윕이 주워 간다 — 새 알림 종류가 생겨도 자동으로 따라오므로 **잊을 수가 없다**.
+  // 호출처 19곳에 발송을 하나씩 심는 방식이었다면 다음에 알림을 추가하는 사람이 빠뜨린다
+  pushedAt  DateTime?
 
   @@index([userId, readAt])
   @@index([userId, createdAt])
+  // 스윕이 "아직 안 보낸 것"만 훑는다 — 알림 표는 계속 자라므로 인덱스 없이는 전체 스캔
+  @@index([pushedAt, createdAt])
+}
+
+// 푸시 구독: 한 사람이 여러 기기를 쓴다 (폰 + 예비 기기 + 웹).
+//
+// **토큰이 주키가 아니라 유일값인 이유**: 같은 기기가 앱을 지웠다 깔면 새 토큰을 받고,
+// 토큰은 공급자가 언제든 갱신한다. 사람↔기기가 아니라 사람↔토큰으로 두고,
+// 죽은 토큰은 발송이 알려 줄 때 지운다 (아래 failCount).
+model PushSubscription {
+  id         String   @id @default(cuid())
+  userId     String
+  platform   String // 'ios' | 'android' | 'web'
+  token      String   @unique // FCM 등록 토큰 (웹 푸시도 FCM을 거치면 같은 모양)
+  // 기기 이름을 사람이 알아볼 수 있게 — 설정 화면에서 "이 기기 알림 끄기"를 고르려면 필요
+  label      String?
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  // 연속 실패 횟수. 공급자가 "이 토큰은 죽었다"고 말하면 즉시 지우지만, 일시 장애와
+  // 진짜 죽음이 구별되지 않는 응답도 있어 몇 번 참았다가 지운다
+  failCount  Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // 등급 이력: 분기 시즌제 재산정·강등 기록
@@ -985,22 +1210,36 @@ model PaymentIntent {
 
 // 클린 리서치 신고 — 1:1 상담·투자 권유 등 유사투자자문업 범위 초과 행위 신고.
 // 보상(리포트 구매 쿠폰)은 운영자 검토로 확인된 신고에만, 선착순 쿼터 안에서 지급.
+//
+// **reportId가 이 표의 축이 됐다 (2026-08-19).** 그전까지 신고는 `targetName` 자유 텍스트로만
+// 들어왔고 `reportId`는 "링크를 아는 경우"의 선택 항목이라 아무도 채우지 않았다. 그래서
+// 같은 리포트를 셋이 신고해도 `밸류헌터` / `밸류헌터님` / `2차전지 리포트`로 각각 들어와
+// **시스템도 운영자도 그것이 한 건인 줄 몰랐다** — 같은 위반을 세 번 따로 읽었다.
+// 리포트 화면의 신고 버튼이 id를 실어 보내면서 두 가지가 가능해진다:
+// 중복 고지("이미 신고된 리포트입니다")와 **서로 다른 신고자 누적에 의한 가역적 판매 중단**.
 model AbuseReport {
   id         String    @id @default(cuid())
   reporterId String // 신고자 (User.id)
-  reportId   String? // 신고 대상 리포트 (선택 — 링크를 아는 경우)
+  reportId   String? // 신고 대상 리포트 — 리포트 화면에서 신고하면 채워진다
   targetName String // 대상 리서처 필명 또는 리포트 제목
   category   String // ONE_ON_ONE / SOLICIT / OUTSIDE_CHANNEL / OTHER
   detail     String // 신고 내용 (정황·근거)
   status     String    @default("PENDING") // PENDING / CONFIRMED / REJECTED
   rewarded   Boolean   @default(false) // 확인 + 선착순 쿼터 내 → 쿠폰 지급 대상
+  /// 보상을 **개별로 안내한 시각**. 쿠폰 시스템이 없어 지급은 손으로 하는데,
+  /// 이 칸이 없으면 "안내 대기" 목록에서 나갈 방법이 없어 **큐가 영영 안 줄어든다**
+  /// (실제로 그랬다). 안내 여부는 지급 여부가 아니다 — 쿠폰이 생기면 이 목록으로
+  /// 소급 발행하므로 `rewarded`는 그대로 둔다.
+  rewardNoticedAt DateTime?
   reviewedAt DateTime?
   reviewerId String? // 검토 운영자 (User.id)
   reviewNote String? // 확인·기각 사유 (반복 무고 제재 근거로도 사용)
   createdAt  DateTime  @default(now())
 
+  @@unique([reporterId, reportId])
   @@index([status, createdAt])
   @@index([reporterId, createdAt])
+  @@index([reportId, status])
 }
 
 /// **돈의 근거가 언제 어떻게 바뀌었는지의 단일 기록** (2026-08-15).
@@ -1054,4 +1293,55 @@ model RecoveryUse {
   targetUserId String
   /// 서명한 사람이 표에 적어 둔 사유 (왜 금고를 열었나)
   note         String?
+}
+
+// 이용자 문의 — **주제를 먼저 고르게 하는 창구** (2026-08-18 사용자 확정).
+//
+// 자유 입력 채팅을 만들지 않은 이유는 domain/supportTopics.ts 머리 주석에 있다:
+// 열어 두면 투자 질문이 들어오고, 답하면 1:1 투자자문이라 라이선스 영역이다.
+//
+// `desk`를 행에 박아 두는 이유: 주제→화면 대응이 나중에 바뀌어도 **이미 접수된 건은
+// 접수 당시의 자리에 그대로 남아야** 한다. 계산으로 매번 구하면 규칙을 고치는 순간
+// 처리 중이던 문의가 다른 화면으로 옮겨 가 담당이 사라진다.
+model SupportTicket {
+  id        String   @id @default(cuid())
+  userId    String
+  topic     String // domain/supportTopics.ts의 SupportTopic
+  desk      String // 'security' | 'money' | 'report' — 접수 시점의 대응을 고정
+  detail    String
+  status    String   @default("OPEN") // OPEN | ANSWERED | CLOSED
+  /** 운영자가 남긴 답변 — 이용자 알림으로도 나간다 */
+  answer    String?
+  answeredAt DateTime?
+  answeredBy String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@index([desk, status])
+}
+
+// 운영자 공지 — **관리자가 이용자에게 먼저 말하는 유일한 통로** (2026-08-19).
+//
+// 지금까지 알림은 전부 사건이 만들었다(판정·정산·답변). 운영자가 스스로 꺼낼 말은
+// 어디에도 없어서, 점검·규칙 변경·판정 정지를 알릴 방법이 없었다.
+//
+// **보낸 기록을 따로 남기는 이유**: 알림 행만 만들면 "무엇을 언제 누구에게 보냈나"에
+// 답하려고 수천 행을 뒤져 제목으로 묶어야 한다. 발송은 되돌릴 수 없는 행위라
+// 그 사실 자체가 한 줄로 남아야 한다.
+model Notice {
+  id       String   @id @default(cuid())
+  title    String
+  body     String
+  /// 받는 범위 — domain/notice.ts의 NoticeAudience (ALL | RESEARCHER)
+  audience String
+  /// 실제로 만들어진 알림 수. **보낸 순간의 사실**이라 나중에 다시 세면 달라진다
+  /// (그 사이 가입·탈퇴가 일어난다) — 그래서 세지 않고 적어 둔다
+  recipients Int
+  sentBy   String
+  sentAt   DateTime @default(now())
+
+  @@index([sentAt])
 }

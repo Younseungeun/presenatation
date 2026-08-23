@@ -1,12 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import Link from "next/link";
-import { prisma } from "@/server/db";
-import { getSessionUserId } from "@/server/session";
-import { FloatingHost } from "./FloatingHost";
-import { AppLaunch } from "./AppLaunch";
-import { BottomNav } from "./BottomNav";
-import { NavTracker } from "./NavTracker";
-import { ScrollMemory } from "./ScrollMemory";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -22,46 +14,25 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-// 상단 헤더는 없다 — 하단 탭바(홈·리더보드·랭킹·MY)가 유일한 최상위 내비게이션이다.
-// 로그인·로그아웃·알림·리서처 전환은 전부 MY 화면에 모여 있다(app/my/page.tsx).
-async function unreadNotificationCount(): Promise<number> {
-  const userId = await getSessionUserId();
-  if (!userId) return 0;
-  return prisma.notification.count({ where: { userId, readAt: null } });
-}
-
-export default async function RootLayout({
+// 앱 전체의 **뿌리** — html·body와 색·글꼴 토큰까지만 담는다.
+//
+// 여기에 화면 장치를 하나라도 두면 그것은 **모든 화면에 붙는다.** 이용자 화면과
+// 관리 화면은 같은 코드베이스에 살 뿐 서로 다른 화면이고, 쓰는 사람도 다르다 —
+// 판정 팝업·하단 탭바·약관 푸터는 이용자가 보라고 만든 것이지 운영자가 볼 것이
+// 아니다. 그래서 껍데기를 둘로 나눠 뒀다:
+//
+//   (app)/layout.tsx    이용자 화면 — 실행 애니메이션·하단 탭바·판정 팝업·약관 푸터
+//   admin/layout.tsx    관리 화면   — 패스키 관문·5탭 껍데기
+//
+// 둘은 형제다. 관리 화면이 이용자 껍데기 **위에 덧입혀지는 것이 아니다.**
+export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const unreadCount = await unreadNotificationCount();
-
   return (
     <html lang="ko">
-      <body>
-        <AppLaunch />
-        <NavTracker />
-        {children}
-        <footer className="siteFooter">
-          <div className="siteFooterInner">
-            <nav className="siteFooterLinks">
-              <Link href="/terms/TERMS_OF_SERVICE">이용약관</Link>
-              <Link href="/terms/PRIVACY_POLICY">개인정보처리방침</Link>
-              <Link href="/terms/RESEARCHER_AGREEMENT">리서처 이용계약</Link>
-            </nav>
-            <p className="siteFooterNote">
-              본 서비스의 리포트는 공개 자료 기반 분석이며 투자권유가 아닙니다. 투자 판단과
-              결과의 책임은 이용자 본인에게 있습니다.
-            </p>
-          </div>
-        </footer>
-        {/* 탭 화면 스크롤 위치 기억 — 다른 탭에 갔다 오면 보던 자리로 */}
-        <ScrollMemory />
-        {/* 진행 중인 판정 팝업 — 홈·리더보드·랭킹 어디서나 유지된다 (MY에서는 숨김) */}
-        <FloatingHost />
-        <BottomNav unreadCount={unreadCount} />
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

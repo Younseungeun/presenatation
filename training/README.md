@@ -1,0 +1,288 @@
+# 검수 학생 모델 학습 — 아무것도 없는 상태에서 시작하는 절차
+
+목표: 지금 2차 검수를 맡고 있는 Claude(교사)의 판단을 소형 한국어 모델(학생)에
+증류해, **우리 서버에서** API 없이 돌게 만든다 (3차 확정 — 브라우저 탑재는 폐기).
+설계 결정과 근거는 `docs/model-plan.md`, 배경 분석은 `docs/review-request-model-1.md`.
+
+## 데이터 형식 — 전부 이 한 가지다
+
+JSONL 한 줄 = 학습 예시 한 건 (`src/domain/studentText.ts`의 `TrainingExample`):
+
+```json
+{"id":"sent:3","source":"hand_corpus","kind":"paraphrase",
+ "text":"[카드] 방향 상승\n[제목] \n[요약] \n[본문] 떨어지면 차액은 제 사비로…",
+ "labels":["PROFIT_GUARANTEE"],"labeler":"human"}
+```
+
+- `text`: **모델이 보는 입력 전체.** `buildStudentText()`가 만든다 — 카드+제목+요약+본문.
+  직렬화 규칙은 그 함수 한 곳에만 있다. 학습과 추론이 다른 직렬화를 쓰면 안 되기 때문.
+- `labels`: 8차원 다중 라벨(7유형 + `CARD_MISMATCH`). 빈 배열 = 정상.
+  순서는 `data/labels.json`이 정의하고 train.py가 그걸 읽는다.
+- `labeler`: 사람/교사 구분 — 라벨 오염 추적용.
+
+## 절차
+
+### 0. 데이터 만들기 (저장소 루트에서)
+
+```bash
+npm run train:synth-corpus            # 합성 학습셋 491건 → data/synth.v2.jsonl (키 불필요)
+npm run train:export                  # 손코퍼스 124건 → data/train.v1.jsonl (**평가 전용**, 아래 참고)
+```
+
+> ⚠ **`train.v1.jsonl`을 학습에 넣지 마십시오** (8차에서 잡힌 결함).
+> 이 파일은 `SCREENING_CORPUS` + `COHERENCE_CORPUS`를 그대로 내보낸 것이고,
+> **그 두 코퍼스가 곧 `eval:student`의 채점지**입니다. 학습에 넣으면 하네스가 내는
+> 탐지율·오탐률이 "본 문제를 다시 푼 점수"가 되어, 좋아졌는지 외웠는지를 구분할 수
+> 없게 됩니다. 7차까지의 수치는 이 상태에서 나온 것이라 홀드아웃 성적이 아닙니다.
+> 손코퍼스는 계속 내보내되 **채점지로만** 씁니다.
+
+키가 필요한 옛 경로(참고용, 지금은 쓰지 않음):
+
+```bash
+npm run train:synth -- --generate 20  # 유형별 후보 생성 (ANTHROPIC_API_KEY 필요)
+npm run train:synth -- --label        # 교사가 후보를 라벨링
+```
+
+②③은 `ANTHROPIC_API_KEY` 필요 — **과금 없이 하려면 대화 교사 경로**를 쓴다
+(`npm run label:pack` → 대화에 붙여넣기 → `npm run label:ingest`, 절차와 오염 주의는
+`training/labeling/README.md`). 두 경로 모두 같은 규정문·같은 하네스를 쓰므로 수치가
+직접 비교되고 라벨도 호환된다. **단 대화 라벨은 학습 전용이다** — 평가(교사 기준선·채택선)는
+동결된 Ground Truth(손코퍼스 사람 라벨 + 운영자 판정) 위에서 API 교사로만 잰다 (2차 검토 H-2).
+
+③이 끝나면 **의도↔교사 불일치 목록**이 출력된다 —
+학습 전에 사람이 훑어볼 것. 라벨은 항상 교사 판정을 따르며, 교사가 틀린 문장을
+발견하면 그건 평가 코퍼스에 넣을 가치가 있는 사례다.
+
+규모 감각: 1차 목표는 유형별 위반 ≥ 50건 + 짝이 되는 하드 네거티브. `--generate`를
+늘려 반복 실행하면 된다. 출시 후에는 운영자 판정(`ComplianceReview.operatorVerdict`)이
+세 번째 원천이 되어 합성 데이터를 점차 대체한다.
+
+### 1. 학습 (이 디렉터리에서, Python 3.10+)
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+pip install -r requirements.txt
+python train.py --data data/synth.v2.jsonl --epochs 12
+# 오탐이 너무 많으면 pos_weight 상한을 낮춘다 (8차 — 절벽의 원인):
+# python train.py --data data/synth.v2.jsonl --pos-weight-cap 2
+# 대화 교사 라벨이 의심되면 그 출처만 빼고 재학습 (롤백 레버):
+# python train.py --data … --exclude-labeler conversation:
+```
+
+- 기본 모델 `monologg/koelectra-small-v3-discriminator` (14M 파라미터).
+  **huggingface.co 접근이 되는 네트워크에서 실행해야 한다** — 개발 환경에 따라 차단돼
+  있을 수 있다(docs/review-request-model-1.md C-2). **재배포 라이선스는 확인 대상이 아니다** —
+  서버 전용이라 가중치를 외부에 서빙하지 않는다 (3차 확정).
+- `CARD_MISMATCH`는 v2부터 합성 문서 23건이 담당한다(손코퍼스를 뺐으므로). 문장
+  데이터에 묻히면 `--doc-weight 3` 등으로 증폭.
+- `--pos-weight-cap`: 미탐을 오탐보다 몇 배 나쁘게 볼지의 손잡이. 라벨별 실제 비율을
+  그대로 쓰면 11~15가 나오는데, 그것은 이 프로젝트가 정한 비용 모델(**오탐 > 미탐**)의
+  정반대다. 값은 문서가 아니라 `eval:student --sweep`으로 정한다.
+
+### 2. ONNX 변환·양자화
+
+```bash
+python export_onnx.py            # out/student/model.int8.onnx + 크기 출력 (예산 100MB)
+```
+
+### 3. 채택 판정 — val F1이 아니라 저장소 하네스로
+
+train.py가 찍는 F1은 개발용이다. 채택은 평가 하네스의 잣대로만 한다:
+
+| 명령 | 무엇을 재나 |
+|---|---|
+| `npm run eval:screening` | 규칙 기준선 (절대 상한의 근거) |
+| `npm run eval:teacher` | 교사 문장 성적 = 학생의 천장 (API만 채택선 인정 — `--from` 대화 라벨은 참고용) |
+| `npm run eval:coherence` | 교사 문서 성적 + risk_heavy 채택선 |
+
+채택선(확정, docs/model-plan.md): 학생의 오탐률이 ①교사 이하이고 ②규칙 기준선의
+보류율 이하인 설정 중, 패러프레이즈 탐지율이 가장 높은 것. 문서 단위는 risk_heavy
+오탐률이 같은 이중 조건을 넘어야 한다.
+
+학생을 하네스에 물리려면 ONNX 추론 어댑터가 필요하다(`onnxruntime-node`로
+`Detector` 구현 + 임계값 스윕). **이 어댑터가 다음 구현 과제다** — 만들 때
+`buildStudentText`와 `data/labels.json`의 순서를 그대로 쓸 것.
+
+### 4. 배포 — 실제로 켜기 (8차 E-6)
+
+학생 소견이 **게시 보류를 유발하기 시작하는** 단계다. 거절 권한은 없다(항상 WARN).
+
+```bash
+STUDENT_SIDECAR_URL=http://127.0.0.1:8765
+STUDENT_THRESHOLD=0.5
+STUDENT_MODE=live
+```
+
+| 변수 | 기본값 | 뜻 |
+|---|---|---|
+| `STUDENT_SIDECAR_URL` | 없음 | **없으면 학생 검수가 한 줄도 돌지 않는다.** 켜는 스위치는 이것 하나다 |
+| `STUDENT_MODE` | `live` | `off` 완전 정지 / `shadow` 기록만 / `live` 1차 소견에 합류 |
+| `STUDENT_THRESHOLD` | `0.5` | 단일 임계값. `npm run eval:student -- --sweep`이 정한다 |
+| `STUDENT_ENABLED_LABELS` | 7유형 | 소견으로 내보낼 라벨. **`CARD_MISMATCH`를 넣지 마십시오** (구조적 제외 — studentClient.ts 주석) |
+| `STUDENT_MODEL_TAG` | `unknown` | 판정 주체 문자열에 박힌다 — 모델을 바꾸면 기록에서 구간이 갈린다 |
+
+**"그림자부터"는 8차에 폐기했다.** 원래 근거는 "Claude 판정과의 일치율이 쌓인 뒤에
+실권을 준다"였는데, 운영에 Claude를 쓰지 않기로 확정(7차)하면서 견줄 상대가 사라졌다.
+그리고 출시 시점에 그림자로 두면 **가장 위험한 시기에 가장 약한 검수**가 된다 —
+규칙 단독은 패러프레이즈 탐지율이 0%다.
+
+#### 켜기 전에 반드시 통과해야 하는 것
+
+```bash
+cd training && python export_onnx.py     # ① 죽은 그래프·계산 불일치 검사 + **카나리아 굽기**
+python check_parity.py                   # ② 독립 대조 — PyTorch vs ONNX 최대 오차 < 1e-4
+cd .. && npm run eval:student -- --sweep # ③ 순이익 채택선 + 임계값 결정
+```
+
+#### 채택 = 승격 (2026-08-22 실사고 후 분리)
+
+사이드카는 **out/deployed** 만 읽는다. export_onnx.py 가 쓰는 out/student 는 후보이고
+라이브와 무관하다 — 기각본이 재기동 한 번으로 라이브가 된 사고의 수리다.
+
+```bash
+npm run student:promote -- <sha>                 # archive/<sha> → out/deployed (지문 대조)
+schtasks /end /tn intovill-student-sidecar ; schtasks /run /tn intovill-student-sidecar
+curl -s http://127.0.0.1:8765/health             # model_sha 가 그 sha 인지 눈으로 본다
+```
+
+**사이드카를 다시 띄울 때는 옛 프로세스가 죽었는지 반드시 확인한다** (9차에 두 번 당했다):
+
+```bash
+netstat -ano | grep "127.0.0.1:8765" | grep LISTENING   # 남아 있으면 taskkill //PID <PID> //F
+curl -s http://127.0.0.1:8765/health                    # model_sha 가 바뀌었는지 눈으로 본다
+```
+
+`/health`의 `model_sha`·`model_stale`·`ready`가 그 확인을 대신한다 — 하네스도 낡은
+가중치면 수치를 아예 보고하지 않는다.
+
+①은 `export_onnx.py` 안에 내장돼 있어 건너뛸 수 없다. 8차에 이 검사가 없어서
+**입력을 읽지 않는 그래프가 두 회차 동안 배포돼 있었다.**
+
+#### 켜져 있어도 소견을 쓰지 않는 경우
+
+웹은 `usable()`로 한 번 확인하고 결과를 캐시한다. 아래 중 하나면 **자동으로 빠진다** —
+배포를 되돌릴 필요가 없다:
+
+- 사이드카가 죽어 있다 (60초 뒤 다시 확인한다)
+- 스텁 모드다 (가중치 없이 토크나이저만 올라간 상태)
+- **토크나이저 지문이 학습 때와 다르다** — 예외가 아니라 조용히 틀린 답이 나오는
+  상태이므로, 그 답으로 남의 게시를 막지 않는다
+
+#### 되돌리기
+
+`STUDENT_MODE=shadow`(기록만) 또는 `STUDENT_SIDECAR_URL` 제거(완전 정지).
+**배포가 아니라 환경 변수다** — 사이드카가 밤에 이상해지면 배포를 기다릴 수 없다.
+
+#### 서버 전용은 그대로다
+
+작성 중 사전 검사(POST /api/compliance/check)와 제출 시 집행이 같은 서버 프로세스의
+같은 모델을 쓴다. 가중치는 앱 밖으로 나가지 않는다: 브라우저에 실으면 그것이 곧 금지
+목록 공개이고(규칙을 서버에 둔 이유와 같다), 가중치는 정규식보다 역공학이 쉽다
+(문턱 아래 문장을 그래디언트로 찾을 수 있다).
+
+## 사이드카를 손으로 띄우지 않는다 (10차 I-1·I-5)
+
+지금까지 사이드카는 **사람이 셸에서 띄우는 프로세스**였다 — 재부팅하면 사라지고,
+사라져도 아무 증상이 없다(게시는 계속되고 패러프레이즈 탐지율만 조용히 0%가 된다).
+
+```powershell
+# 등록 — 부팅·로그온에 자동 기동, 죽으면 1분 뒤 재시작 (시스템 설정을 바꾼다)
+powershell -ExecutionPolicy Bypass -File sidecar/install-task.ps1
+
+schtasks /run   /tn intovill-student-sidecar          # 지금 바로 띄우기
+schtasks /query /tn intovill-student-sidecar /v /fo list   # 상태 보기
+powershell -ExecutionPolicy Bypass -File sidecar/install-task.ps1 -Remove   # 해제
+```
+
+등록되는 것은 사이드카가 아니라 **감시자**(`watchdog.ps1`)다. 사이드카를 직접 등록하면
+죽었을 때 아무도 모른다 — 감시자가 부모로 앉아야 종료를 관측하고 밖으로 알린다.
+경보는 `.env`의 `TELEGRAM_BOT_TOKEN`·`TELEGRAM_CHAT_ID`(또는 `OPS_WEBHOOK_URL`)로 나가고,
+**둘 다 없으면 그 사실을 로그에 남긴다** — 조용히 넘어가면 "경보가 안 온다"와 "사고가
+없다"가 구별되지 않는다.
+
+실측: 자식을 강제 종료한 순간부터 경보 도착까지 **92ms**. 감시자는 종료 코드 1로 끝나
+스케줄러가 재시작을 태운다.
+
+> ⚠ `.ps1` 파일은 **UTF-8 BOM으로 저장한다.** 윈도우 PowerShell 5.1은 BOM이 없으면
+> ANSI로 읽어, 한글 주석이 깨지면서 따옴표까지 어긋나 파싱 오류가 난다(실측).
+
+## 방어 장치를 시험한다 (10차 I-4)
+
+```bash
+py training/mutation_test.py --trials 10
+```
+
+파일 **이름은 model.onnx로 그대로 둔 채** 가중치의 한 비트를 뒤집고, 카나리아가 기동을
+거부하는지 잰다. 신원 검사(sha)와 값 검사(로짓)를 **따로** 재므로 어느 층이 실제로
+일하고 있는지 보인다 — 실측에서 값 검사만으로는 90%가 살아남았다.
+
+## 커버리지 라쳇 (10차 I-2)
+
+```bash
+npm run eval:student -- --write-snapshot
+```
+
+유형별 `규칙 단독 / 학생 단독 / 합산`을 `training/coverage-snapshot.json`에 적는다.
+**합산이 후퇴하면 기록을 거부한다**(라쳇은 위로만 돈다). 스냅숏 없이 재기만 하려면
+플래그를 빼고 돌린다.
+
+`src/domain/__tests__/coverageMargin.test.ts`가 사이드카 없이 **규칙 단독**을 다시 재서
+후퇴를 막는다. 규칙 정규식을 좁히면 이 시험이 먼저 깨지고, 정당하게 통과시키려면
+스냅숏을 다시 떠서 학생이 그 자리를 받았음을 합산으로 증명해야 한다.
+
+## 학생이 스스로 꺼졌다면 (10차 I-6)
+
+운영자 판정 기준 순이익이 적자로 돌아서면 시스템이 **스스로 shadow로 내려간다**
+(`student.auto_shadow` 걸쇠). 이때 `STUDENT_MODE=live`를 다시 설정해도 소용없다 —
+**걸쇠가 환경 변수보다 세다.**
+
+여는 절차는 하나뿐이다:
+
+1. 왜 나빠졌는지 본다 (`/admin/compliance`의 오탐 사례)
+2. 데이터를 고쳐 재학습 → `export_onnx.py` → `check_parity.py`
+3. `npm run eval:student -- --sweep` 로 **채택선을 다시 통과**시킨다
+4. `/admin/compliance`의 "자동 격하 해제" 버튼
+
+자동 복구가 없는 이유는 원칙이 아니라 관측의 성질이다 — 끈 동안에는 학생이 소견을 내지
+않으므로 성적을 만들 재료가 없고, 그 상태의 순이익은 "좋아졌다"가 아니라 **"모른다"**이다.
+매번 다시 재서 켜고 끄면 껐다 켰다가 영원히 반복된다.
+
+
+## 출시 후 — 회차제 검토는 끝났다 (29차 FF-5 · 2026-08-22)
+
+출시 모델은 r5(`a0eaa12a29da0762`)이고 합성 훈련은 종료됐다(r6·r7 자료 결함, r8 용량 포화).
+**14M 은 다시 학습하지 않는다.** `train:operator` 산출물은 `holdout/operator.jsonl` 로 가며
+110M 부검의 실전 검증셋이다 — `train.py --data` 에 넣지 말 것.
+
+- 체급 교체 규칙·지연 예산·필수 프로브: `docs/model-swap-rule.md`
+- 첫 주 금지 목록: `docs/first-week-rules.md`
+- 알려진 약점(운영자·개발자 전용): `docs/screening-known-limits.md`
+- r5 의 약점 0점: `npm run probe:zeroshot-r8` → `baselines/zeroshot-r8-<sha>.json` (110M 교체 시 같은 명령으로 재측정)
+
+검토를 다시 여는 사건: 게이트 실패 · 운영 사고(부팅 스키마 검사·카나리아·promotionMatches=false) ·
+110M 부검 결과 · 분기 1회.
+**사건이 아닌 것 (30차 GG-5)**: 실측(코드 실행 결과·로그·벤치마크)이 첨부되지 않은 설계 제안 — 즉시 닫는다.
+제안서가 회차를 여는 것이 아니라 새 실측 계획이 연다.
+## 110M 부검 런 — 사전 등록 (31차 HH-1~5 전건 확정 · 2026-08-22)
+
+가중치가 오면 **이 절차대로만** 돌린다. 결과를 보고 절차를 바꾸지 않는다(Y-4형).
+
+- 베이스 `local_models/student-base-110m/` (koelectra-base-v3-discriminator, 같은 계열 — 용량 외 변수 0).
+  8차원 분류 머리 동일. NLI(CARD_MISMATCH) 머리는 **별도 사건**(Negative Transfer)
+- 이름: `--name IRIS.v6-P1-A` 처럼 **필수**(공백·@·/ 금지 — 도장 `student:{name}@t…/L…` 의 구분자). `--run` 에는 대장 문장
+- 런 A: r5 설정 그대로 `--epochs 8 --lr 3e-5 --batch 16 --cost-ratio 4 --pos-weight-cap 50`
+- 런 B: base 관례 `--epochs 5 --lr 2e-5 --batch 16` + warmup 10% + weight decay 0.01 (train.py 인자 추가 필요)
+- 데이터 (누적 아님): P0 = r5 자료(synth.v2 6dc12bb5d9e0 · generated a503b6f8650d · founder 1a190af8c76a)
+  / P1 = P0 + rejected/r8 180 / P2 = P0 + rejected/r6 264 (음성 대조)
+- 재는 것: 게이트 6종 · `seesaw:compare`(기준 a0eaa12a) · `probe:adverb` · `probe:dilution` ·
+  `probe:zeroshot-r8`(P0 만) · `probe:score-median`(PRIVATE 0.472 → ?) · 지연(운영 길이 ≈700tk, fp32·int8)
+- 판정: **용량 확정** = P1 에서 A·B 모두 비겨냥 ≤2 + 게이트 + 부사·희석 / **자료 문제** = P1 도 >2 /
+  **설정 민감** = A·B 갈림 → 런 C(관례 밖 lr) 로 원인 규명, 다수결 아님
+- P2 통과 시 반증: 핵심 명사 치환(원금→연필)에도 위반으로 잡으면 구조 암기
+- int8 은 **다른 모델** — 별도 지문, 게이트 전부 재통과, `probe:quant-corr` r ≥ 0.95. 양자화는
+  `quantize_candidate.py` (value_info 제거 필수 — r5 실측, 공식 quant_pre_process 로도 같은 오류).
+  int8 은 DART 오탐이 늘 수 있다(r5: 7→10, 승격 불가)
+- 운영 50건이 먼저 와도 절차 불변 — 사후 Audit 전용. 110M 이 놓친 것을 r5 가 잡으면 합성 과적합,
+  둘 다 못 잡으면 분포 진화
+- 교체 착수 = 용량 확정 ∧ 지연 ≤1,500ms ∧ r5 라이브 2주 뒤. 지연 초과면 model-swap-rule.md 가지 (b)

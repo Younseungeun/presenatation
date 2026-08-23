@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
+import { isAbuseSuspended } from './abuseReportService';
 import { notifyOperators } from './opsAlert';
 import {
   assertPurchasable,
@@ -81,7 +82,13 @@ export async function createPaymentIntent(
     where: { id: input.reportId },
     include: { researcher: true, predictionCard: true },
   });
-  assertPurchasable(report, input.buyerId, now, await disciplineCapFor(prisma, report, now));
+  assertPurchasable(
+    report,
+    input.buyerId,
+    now,
+    await disciplineCapFor(prisma, report, now),
+    await isAbuseSuspended(prisma, report.id),
+  );
 
   const buyer = await prisma.user.findUniqueOrThrow({ where: { id: input.buyerId } });
   if (!buyer.identityVerified) {

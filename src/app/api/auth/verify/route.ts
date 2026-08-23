@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { cookies } from 'next/headers';
 import { z } from 'zod';
-import { signUpAndSignIn } from '@/server/authService';
+import { PEN_NAME_MAX } from '@/domain/penName';
+import { AuthError, signUpAndSignIn } from '@/server/authService';
 import { prisma } from '@/server/db';
 import { createDefaultIdentityProvider } from '@/server/identityProvider';
 import { notifyElevatedRiskLogin } from '@/server/authGates';
@@ -14,7 +15,14 @@ const provider = createDefaultIdentityProvider();
 const bodySchema = z.object({
   name: z.string().min(1).max(50),
   phone: z.string().min(10).max(20),
-  penName: z.string().max(30).optional(),
+  /**
+   * 앱에서 표시될 이름 — **새 계정에는 필수**다 (authService가 막는다).
+   *
+   * 여기서 required로 두지 않는 이유: 이 라우트는 가입과 재로그인을 함께 받는데,
+   * 이미 이름이 있는 사람에게 로그인할 때마다 이름을 다시 적으라고 할 수 없다.
+   * "새 계정이면 필수"는 기존 계정을 아는 쪽(authService)만 판단할 수 있다.
+   */
+  penName: z.string().max(PEN_NAME_MAX).optional(),
   /** 필수 약관 동의 (이용약관·개인정보처리방침) */
   agreedTerms: z.boolean(),
   /**
@@ -67,6 +75,9 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ ...result, pinSetupRequired, operator: me?.role === 'OPERATOR' });
   } catch (e) {
+    if (e instanceof AuthError) {
+      return NextResponse.json({ error: e.message }, { status: 400 });
+    }
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '입력 형식 오류', issues: e.issues }, { status: 400 });
     }

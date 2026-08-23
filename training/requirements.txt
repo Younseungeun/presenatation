@@ -1,0 +1,4 @@
+torch>=2.2
+transformers>=4.44
+onnx>=1.16
+onnxruntime>=1.18

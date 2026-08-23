@@ -1,0 +1,200 @@
+{"content":"원금은 반드시 제가 책임지고 지켜드립니다.","direction":"UP","magnitudePct":15,"horizonDays":60,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"원금은 제가 반드시 책임지고 지켜드릴 수 없습니다.","direction":"UP","magnitudePct":15,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"결코 원금이 훼손되지 않는다고 보장합니다.","direction":"UP","magnitudePct":12,"horizonDays":30,"confidence":6,"labels":["PROFIT_GUARANTEE"]}
+{"content":"결코 원금이 훼손되지 않는다고 보장할 순 없습니다.","direction":"UP","magnitudePct":12,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"무조건 확정 수익을 약속드릴 수 있습니다.","direction":"UP","magnitudePct":25,"horizonDays":90,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"무조건 확정 수익을 약속드릴 수는 없습니다.","direction":"UP","magnitudePct":25,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"절대 손해 볼 일이 없는 완벽한 자리입니다.","direction":"UP","magnitudePct":18,"horizonDays":45,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"절대 손해 볼 일이 없는 완벽한 자리는 아닙니다.","direction":"UP","magnitudePct":18,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"이 종목은 100% 수익이 난다고 확언합니다.","direction":"UP","magnitudePct":30,"horizonDays":120,"confidence":9,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 종목은 100% 수익이 난다고 확언 못합니다.","direction":"UP","magnitudePct":30,"horizonDays":120,"confidence":9,"labels":[]}
+{"content":"기필코 모든 손실을 전액 보전해 드립니다.","direction":"UP","magnitudePct":10,"horizonDays":14,"confidence":6,"labels":["PROFIT_GUARANTEE"]}
+{"content":"기필코 모든 손실을 전액 보전해 드리진 못합니다.","direction":"UP","magnitudePct":10,"horizonDays":14,"confidence":6,"labels":[]}
+{"content":"하락장에서도 수익은 반드시 보장돼요.","direction":"UP","magnitudePct":14,"horizonDays":21,"confidence":5,"labels":["PROFIT_GUARANTEE"]}
+{"content":"하락장에서도 수익이 반드시 보장되진 않아요.","direction":"UP","magnitudePct":14,"horizonDays":21,"confidence":5,"labels":[]}
+{"content":"어떠한 경우에도 원금은 절대 보장됩니다.","direction":"UP","magnitudePct":22,"horizonDays":60,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"어떠한 경우라도 원금이 절대 보장되진 않음.","direction":"UP","magnitudePct":22,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"확실하게 수익을 약속드릴 수 있는 상황입니다.","direction":"UP","magnitudePct":16,"horizonDays":30,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"확실하게 수익을 약속드릴 수 없는 상황입니다.","direction":"UP","magnitudePct":16,"horizonDays":30,"confidence":7,"labels":[]}
+{"content":"무조건 마이너스 날 일이 없다고 장담합니다.","direction":"UP","magnitudePct":28,"horizonDays":90,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"무조건 마이너스 날 일이 없다고 장담 못합니다.","direction":"UP","magnitudePct":28,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"결코 계좌가 파란불이 될 일이 없습니다.","direction":"UP","magnitudePct":11,"horizonDays":45,"confidence":6,"labels":["PROFIT_GUARANTEE"]}
+{"content":"결코 계좌가 파란불이 될 일이 없진 않음.","direction":"UP","magnitudePct":11,"horizonDays":45,"confidence":6,"labels":[]}
+{"content":"반드시 손실금 전액을 복구해 드립니다.","direction":"UP","magnitudePct":19,"horizonDays":60,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"반드시 손실금 전액을 복구해 드릴 순 없음.","direction":"UP","magnitudePct":19,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"100% 원금 방어가 가능하다고 단정합니다.","direction":"UP","magnitudePct":15,"horizonDays":30,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"100% 원금 방어가 가능하다고 단정 못해요.","direction":"UP","magnitudePct":15,"horizonDays":30,"confidence":8,"labels":[]}
+{"content":"절대 하락하지 않고 무조건 상승합니다.","direction":"UP","magnitudePct":26,"horizonDays":120,"confidence":9,"labels":["PROFIT_GUARANTEE"]}
+{"content":"절대 하락하지 않고 무조건 상승하진 않음.","direction":"UP","magnitudePct":26,"horizonDays":120,"confidence":9,"labels":[]}
+{"content":"어떤 악재에도 수익은 기필코 보장됩니다.","direction":"UP","magnitudePct":13,"horizonDays":45,"confidence":6,"labels":["PROFIT_GUARANTEE"]}
+{"content":"어떤 악재에도 수익이 기필코 보장되진 않습니다.","direction":"UP","magnitudePct":13,"horizonDays":45,"confidence":6,"labels":[]}
+{"content":"이 구간에서는 반드시 수익 창출이 됩니다.","direction":"UP","magnitudePct":21,"horizonDays":60,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 구간이라고 반드시 수익 창출이 되진 않음.","direction":"UP","magnitudePct":21,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"결코 손해를 보지 않는다고 확신합니다.","direction":"UP","magnitudePct":17,"horizonDays":90,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"결코 손해를 보지 않는다고 확신할 수 없음.","direction":"UP","magnitudePct":17,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"무조건 플러스 수익으로 마감할 것을 장담합니다.","direction":"UP","magnitudePct":24,"horizonDays":150,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"무조건 플러스 수익으로 마감할 것을 장담하지 않음.","direction":"UP","magnitudePct":24,"horizonDays":150,"confidence":8,"labels":[]}
+{"content":"하락 방향으로 절대 손실이 발생하지 않습니다.","direction":"DOWN","magnitudePct":10,"horizonDays":14,"confidence":6,"labels":["PROFIT_GUARANTEE"]}
+{"content":"하락 방향으로 절대 손실이 발생하지 않진 않음.","direction":"DOWN","magnitudePct":10,"horizonDays":14,"confidence":6,"labels":[]}
+{"content":"절대로 손실이 발생할 수 없는 공매도입니다.","direction":"DOWN","magnitudePct":20,"horizonDays":45,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"절대로 손실이 발생할 수 없는 공매도는 아님.","direction":"DOWN","magnitudePct":20,"horizonDays":45,"confidence":8,"labels":[]}
+{"content":"내부 관계자에게 직접 확인한 미공개 정보입니다.","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"내부 관계자에게 직접 확인한 미공개 정보는 없습니다.","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"대표이사와의 사적인 자리에서 들은 호재예요.","direction":"UP","magnitudePct":25,"horizonDays":90,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"대표이사와의 사적인 자리에서 들은 호재는 뺍니다.","direction":"UP","magnitudePct":25,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"지인이 IR팀에 있어서 미리 귀띔받은 실적입니다.","direction":"UP","magnitudePct":14,"horizonDays":30,"confidence":6,"labels":["PRIVATE_INFO"]}
+{"content":"지인이 IR팀에 있다 해도 미리 귀띔받은 실적은 배제함.","direction":"UP","magnitudePct":14,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"증권사 친구가 몰래 알려준 미공개 리포트 내용임.","direction":"UP","magnitudePct":22,"horizonDays":120,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"증권사 친구가 몰래 알려준 미공개 리포트 같은 건 없음.","direction":"UP","magnitudePct":22,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"임원진 회식 자리에서 흘러나온 인수합병 썰입니다.","direction":"UP","magnitudePct":30,"horizonDays":150,"confidence":9,"labels":["PRIVATE_INFO"]}
+{"content":"임원진 회식 자리에서 흘러나온 인수합병 썰은 무시하세요.","direction":"UP","magnitudePct":30,"horizonDays":150,"confidence":9,"labels":[]}
+{"content":"담당자와 통화해서 몰래 얻어낸 특급 정보입니다.","direction":"UP","magnitudePct":16,"horizonDays":45,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"담당자와 통화해서 몰래 얻어낸 특급 정보 같은 건 배제함.","direction":"UP","magnitudePct":16,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"대주주 친척을 통해 직접 확인한 비공개 팩트예요.","direction":"UP","magnitudePct":20,"horizonDays":60,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"대주주 친척을 통해 직접 확인한 비공개 팩트 같은 건 안 씁니다.","direction":"UP","magnitudePct":20,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"실무진과 개인적인 친분으로 입수한 계약 건입니다.","direction":"UP","magnitudePct":24,"horizonDays":90,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"실무진과 개인적인 친분으로 입수한 계약 건은 다루지 않음.","direction":"UP","magnitudePct":24,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"임원 비서실에 근무하는 지인이 전해준 소식임.","direction":"UP","magnitudePct":12,"horizonDays":21,"confidence":6,"labels":["PRIVATE_INFO"]}
+{"content":"임원 비서실에 근무하는 지인이 전해준 소식은 루머로 취급함.","direction":"UP","magnitudePct":12,"horizonDays":21,"confidence":6,"labels":[]}
+{"content":"사모펀드 매니저 형님이 찔러준 은밀한 정보입니다.","direction":"UP","magnitudePct":28,"horizonDays":100,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"사모펀드 매니저 형님이 찔러준 은밀한 정보는 거릅니다.","direction":"UP","magnitudePct":28,"horizonDays":100,"confidence":8,"labels":[]}
+{"content":"재무팀에 있는 동기가 미리 알려준 악재라 빠져야 함.","direction":"DOWN","magnitudePct":15,"horizonDays":30,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"재무팀에 있는 동기가 미리 알려준 악재 같은 미확인은 배제함.","direction":"DOWN","magnitudePct":15,"horizonDays":30,"confidence":7,"labels":[]}
+{"content":"회장님 최측근에게 전해 들은 엠바고 걸린 소식임.","direction":"UP","magnitudePct":26,"horizonDays":120,"confidence":9,"labels":["PRIVATE_INFO"]}
+{"content":"회장님 최측근에게 전해 들은 엠바고 걸린 소식은 안 씁니다.","direction":"UP","magnitudePct":26,"horizonDays":120,"confidence":9,"labels":[]}
+{"content":"연구원 친구가 사석에서 알려준 임상 실패 정보임.","direction":"DOWN","magnitudePct":21,"horizonDays":60,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"연구원 친구가 사석에서 알려준 임상 실패 정보는 무시하세요.","direction":"DOWN","magnitudePct":21,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"거래처 사장님과 술자리에서 들은 수주 대박 건입니다.","direction":"UP","magnitudePct":19,"horizonDays":45,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"거래처 사장님과 술자리에서 들은 수주 대박 건은 제외했습니다.","direction":"UP","magnitudePct":19,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"기획팀 지인을 통해 아직 발표 안 된 계획을 들음.","direction":"UP","magnitudePct":17,"horizonDays":30,"confidence":6,"labels":["PRIVATE_INFO"]}
+{"content":"기획팀 지인을 통해 아직 발표 안 된 계획을 듣는 일은 없음.","direction":"UP","magnitudePct":17,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"네이버에서 제 필명을 검색해서 이웃 신청해 주세요.","direction":"UP","magnitudePct":15,"horizonDays":45,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"네이버에서 제 필명을 검색해서 이웃 신청해 달라는 건 사칭입니다.","direction":"UP","magnitudePct":15,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"실시간 대응은 프로필의 링크를 따라오시면 됩니다.","direction":"UP","magnitudePct":12,"horizonDays":30,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"실시간 대응 명목으로 프로필의 링크를 따라오라고 유도하지 않아요.","direction":"UP","magnitudePct":12,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"블로그 검색창에 제 닉네임을 치고 들어오시면 돼요.","direction":"UP","magnitudePct":20,"horizonDays":60,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"블로그 검색창에 제 닉네임을 치고 들어오라고 하는 곳은 가짜입니다.","direction":"UP","magnitudePct":20,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"자세한 매매 타점은 제 개인 채널에서 따로 공유합니다.","direction":"UP","magnitudePct":25,"horizonDays":90,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"자세한 매매 타점은 제 개인 채널에서 따로 공유하지 않습니다.","direction":"UP","magnitudePct":25,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"정보 공유 방 입장을 원하시면 제게 따로 쪽지 주세요.","direction":"UP","magnitudePct":18,"horizonDays":45,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"정보 공유 방 입장을 원하시면 제게 따로 쪽지 달라는 건 사기임.","direction":"UP","magnitudePct":18,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"급등주 명단이 궁금하시면 하단 주소로 연락 바랍니다.","direction":"UP","magnitudePct":28,"horizonDays":120,"confidence":9,"labels":["SOLICIT_CONTACT"]}
+{"content":"급등주 명단이 궁금하시면 하단 주소로 연락하라는 글을 주의하세요.","direction":"UP","magnitudePct":28,"horizonDays":120,"confidence":9,"labels":[]}
+{"content":"개별 종목 코칭을 원하시면 제 프로필 연락처로 오세요.","direction":"UP","magnitudePct":14,"horizonDays":30,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"개별 종목 코칭을 원하시면 제 프로필 연락처로 오라는 유도를 조심해요.","direction":"UP","magnitudePct":14,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"더 많은 힌트는 포털에 제 이름을 검색하면 나옵니다.","direction":"UP","magnitudePct":22,"horizonDays":90,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"더 많은 힌트를 명목으로 포털에 제 이름을 검색하도록 유도하지 않음.","direction":"UP","magnitudePct":22,"horizonDays":90,"confidence":8,"labels":[]}
+{"content":"포트폴리오 상담은 제 개인 블로그 안부게시판에 남겨요.","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"포트폴리오 상담을 위해 제 개인 블로그 안부게시판에 남기라고 안 합니다.","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"하락 대응은 비밀 채널에서 하니 링크로 넘어오십시오.","direction":"DOWN","magnitudePct":12,"horizonDays":21,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"하락 대응을 비밀 채널에서 한다며 링크로 넘어오라고 유도하진 않습니다.","direction":"DOWN","magnitudePct":12,"horizonDays":21,"confidence":6,"labels":[]}
+{"content":"매도 시점은 비공개 커뮤니티에서 따로 짚어드립니다.","direction":"DOWN","magnitudePct":20,"horizonDays":60,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"매도 시점은 비공개 커뮤니티에서 따로 짚어드리지 않습니다.","direction":"DOWN","magnitudePct":20,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"소통 방에서만 알려드리는 정보니 제게 메시지 주세요.","direction":"UP","magnitudePct":24,"horizonDays":90,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"소통 방에서만 알려드리는 정보라며 제게 메시지를 요구하지 않음.","direction":"UP","magnitudePct":24,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"검색창에 제 아이디를 치면 나오는 카페로 가입하세요.","direction":"UP","magnitudePct":19,"horizonDays":45,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"검색창에 제 아이디를 치면 나오는 카페로 가입하라는 유도에 속지 마세요.","direction":"UP","magnitudePct":19,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"실시간 소통을 원하시면 프로필 하단 주소로 접속 요망.","direction":"UP","magnitudePct":26,"horizonDays":100,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"실시간 소통을 원한다며 프로필 하단 주소로 접속을 요구하는 일은 없음.","direction":"UP","magnitudePct":26,"horizonDays":100,"confidence":8,"labels":[]}
+{"content":"질문은 제 개인 페이지로 넘어와서 남겨주시면 답해드림.","direction":"UP","magnitudePct":13,"horizonDays":30,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"질문을 제 개인 페이지로 넘어와서 남기라고 유도하는 곳은 사칭임.","direction":"UP","magnitudePct":13,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"이 종목에서 난 손실은 제가 전액 책임집니다","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 종목에서 난 손실은 제가 전액 책임질 수 없습니다","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":6,"labels":[]}
+{"content":"원금은 반드시 지켜드리니 마음 놓으셔도 됩니다","direction":"UP","magnitudePct":12,"horizonDays":90,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"원금은 반드시 지켜드린다고 말할 수 없으니 유의하세요","direction":"UP","magnitudePct":11,"horizonDays":90,"confidence":6,"labels":[]}
+{"content":"이 가격대에서는 절대 물리지 않습니다","direction":"UP","magnitudePct":14,"horizonDays":45,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 가격대에서도 절대 물리지 않는다고는 못 합니다","direction":"UP","magnitudePct":13,"horizonDays":45,"confidence":5,"labels":[]}
+{"content":"3개월 안에 20% 수익은 확정입니다","direction":"UP","magnitudePct":20,"horizonDays":90,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"3개월 안에 20% 수익은 확정이 아니라 가정일 뿐입니다","direction":"UP","magnitudePct":20,"horizonDays":90,"confidence":5,"labels":[]}
+{"content":"떨어지면 그 차액은 제가 메워드릴게요","direction":"UP","magnitudePct":15,"horizonDays":30,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"떨어져도 그 차액을 메워드릴 수 있는 사람은 없어요","direction":"UP","magnitudePct":15,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"이번 건은 결코 실패하지 않는 자리입니다","direction":"UP","magnitudePct":22,"horizonDays":75,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이번 건도 실패할 수 있는 자리임을 결코 잊지 마세요","direction":"UP","magnitudePct":19,"horizonDays":75,"confidence":6,"labels":[]}
+{"content":"수익 못 내시면 구독료를 제가 배로 돌려드립니다","direction":"UP","magnitudePct":17,"horizonDays":120,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"수익을 못 내셔도 구독료를 배로 돌려드릴 수는 없습니다","direction":"UP","magnitudePct":17,"horizonDays":120,"confidence":6,"labels":[]}
+{"content":"이 종목 하방은 제가 막아드립니다","direction":"UP","magnitudePct":13,"horizonDays":50,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 종목 하방은 누구도 막아드릴 수 없습니다","direction":"UP","magnitudePct":12,"horizonDays":50,"confidence":6,"labels":[]}
+{"content":"손실 위험은 없다고 보시면 됩니다","direction":"DOWN","magnitudePct":9,"horizonDays":21,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"손실 위험은 없다고 보시면 안 됩니다","direction":"DOWN","magnitudePct":9,"horizonDays":21,"confidence":6,"labels":[]}
+{"content":"제 말대로만 하시면 무조건 벌어 나가십니다","direction":"UP","magnitudePct":25,"horizonDays":60,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"제 말대로 하셔도 무조건 벌어 나가지는 못합니다","direction":"UP","magnitudePct":21,"horizonDays":60,"confidence":5,"labels":[]}
+{"content":"최소 15%는 보장해 드리겠습니다","direction":"UP","magnitudePct":15,"horizonDays":100,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"최소 15%도 보장해 드릴 수 없습니다","direction":"UP","magnitudePct":15,"horizonDays":100,"confidence":6,"labels":[]}
+{"content":"이 자리는 잃을 수 없는 구간이에요","direction":"UP","magnitudePct":16,"horizonDays":40,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 자리도 잃을 수 있는 구간이에요","direction":"UP","magnitudePct":16,"horizonDays":40,"confidence":5,"labels":[]}
+{"content":"지금 파시면 절대 손해 안 보게 해드립니다","direction":"DOWN","magnitudePct":11,"horizonDays":14,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"지금 파셔도 손해를 안 보게 해드릴 방법은 절대 없습니다","direction":"DOWN","magnitudePct":11,"horizonDays":14,"confidence":6,"labels":[]}
+{"content":"원금 손실 걱정은 제가 지워드립니다","direction":"UP","magnitudePct":14,"horizonDays":80,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"원금 손실 걱정은 제가 지워드릴 수 없습니다","direction":"UP","magnitudePct":14,"horizonDays":80,"confidence":6,"labels":[]}
+{"content":"확실한 수익률만 골라 드리는 리포트임","direction":"UP","magnitudePct":19,"horizonDays":110,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"확실한 수익률은 고를 수 없음을 밝혀 두는 리포트임","direction":"UP","magnitudePct":18,"horizonDays":110,"confidence":5,"labels":[]}
+{"content":"이 종목은 반드시 전고점을 회복합니다","direction":"UP","magnitudePct":28,"horizonDays":150,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 종목이 반드시 전고점을 회복한다고 볼 근거는 없습니다","direction":"UP","magnitudePct":24,"horizonDays":150,"confidence":5,"labels":[]}
+{"content":"빠져도 반등은 보장이니 그냥 버티시면 됩니다","direction":"DOWN","magnitudePct":13,"horizonDays":35,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"빠지면 반등은 보장이 아니니 버티기 전에 따져 보세요","direction":"DOWN","magnitudePct":13,"horizonDays":35,"confidence":6,"labels":[]}
+{"content":"실패 확률이 0에 가까운 자리라고 자신합니다","direction":"UP","magnitudePct":23,"horizonDays":95,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"실패 확률이 0인 자리는 없다고 말씀드립니다","direction":"UP","magnitudePct":20,"horizonDays":95,"confidence":6,"labels":[]}
+{"content":"제가 책임지고 목표가까지 끌고 가겠습니다","direction":"UP","magnitudePct":21,"horizonDays":130,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"목표가까지 끌고 갈 책임을 제가 질 수는 없습니다","direction":"UP","magnitudePct":19,"horizonDays":130,"confidence":6,"labels":[]}
+{"content":"이 종목만큼은 절대 손절할 일 없습니다","direction":"UP","magnitudePct":17,"horizonDays":70,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 종목도 손절할 일이 절대 없다고는 못 합니다","direction":"UP","magnitudePct":16,"horizonDays":70,"confidence":5,"labels":[]}
+{"content":"내부 관계자에게 직접 확인한 미공개 실적 수치를 반영했습니다","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"관계자 발언 보도는 참고만 하고 공시된 실적 수치만 반영했습니다","direction":"UP","magnitudePct":15,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"대표와 사석에서 나눈 이야기로는 이번 수주가 이미 확정입니다","direction":"UP","magnitudePct":22,"horizonDays":90,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"대표 발언은 공식 IR 자료에 실린 부분만 인용했습니다","direction":"UP","magnitudePct":16,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"재무팀에 있는 지인이 귀띔해 준 내용이라 신뢰도가 높습니다","direction":"UP","magnitudePct":17,"horizonDays":75,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"지인 귀띔 같은 건 배제하고 감사보고서 숫자만 봤습니다","direction":"UP","magnitudePct":12,"horizonDays":75,"confidence":7,"labels":[]}
+{"content":"협력사 임원에게 들은 발주 물량은 아직 어디에도 안 나온 숫자예요","direction":"UP","magnitudePct":20,"horizonDays":110,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"발주 물량은 협력사가 공시한 공급계약 금액으로 역산했어요","direction":"UP","magnitudePct":18,"horizonDays":110,"confidence":7,"labels":[]}
+{"content":"설명회 뒤풀이에서 들은 말인데 신사업 승인이 곧 떨어진답니다","direction":"UP","magnitudePct":24,"horizonDays":140,"confidence":6,"labels":["PRIVATE_INFO"]}
+{"content":"신사업 승인 건은 공개된 설명회 자료의 일정만 인용했습니다","direction":"UP","magnitudePct":19,"horizonDays":140,"confidence":7,"labels":[]}
+{"content":"IR 담당자가 개인적으로 알려준 가이던스를 먼저 공유드립니다","direction":"UP","magnitudePct":16,"horizonDays":80,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"가이던스는 공개된 IR 자료에 나온 범위 그대로 옮겼습니다","direction":"UP","magnitudePct":14,"horizonDays":80,"confidence":7,"labels":[]}
+{"content":"은행 쪽 아는 사람 통해 확인한 차입 조건이라 확실합니다","direction":"DOWN","magnitudePct":13,"horizonDays":50,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"차입 조건은 감사보고서 주석에 기재된 내용으로 확인했습니다","direction":"DOWN","magnitudePct":11,"horizonDays":50,"confidence":7,"labels":[]}
+{"content":"전 직원에게 들은 감원 계획이 공시 전이라 미리 알려드립니다","direction":"DOWN","magnitudePct":19,"horizonDays":45,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"감원 관련 전언은 공시 전이라 이번 분석에서는 다루지 않았습니다","direction":"DOWN","magnitudePct":10,"horizonDays":45,"confidence":6,"labels":[]}
+{"content":"업체 관계자 전언으로 해당 기업 단가 인상이 이미 통보됐다고 함","direction":"UP","magnitudePct":15,"horizonDays":65,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"단가 인상은 보도된 내용 중 회사가 확인한 부분만 반영함","direction":"UP","magnitudePct":13,"horizonDays":65,"confidence":7,"labels":[]}
+{"content":"친분 있는 애널리스트가 보고서 나오기 전에 알려준 수치입니다","direction":"UP","magnitudePct":21,"horizonDays":100,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"동료 보고서는 공개 배포된 이후 자료만 인용하고 있습니다","direction":"UP","magnitudePct":14,"horizonDays":100,"confidence":6,"labels":[]}
+{"content":"회식 자리에서 나온 얘기라 공개 자료엔 절대 없는 정보예요","direction":"UP","magnitudePct":23,"horizonDays":120,"confidence":6,"labels":["PRIVATE_INFO"]}
+{"content":"공개 자료에 없는 이야기는 확인이 안 돼 담지 않았어요","direction":"UP","magnitudePct":12,"horizonDays":120,"confidence":6,"labels":[]}
+{"content":"임원 가족을 통해 들은 지분 정리 계획을 근거로 씁니다","direction":"DOWN","magnitudePct":18,"horizonDays":85,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"지분 정리 계획은 주요주주 보고서에 나온 범위만 근거로 씁니다","direction":"DOWN","magnitudePct":15,"horizonDays":85,"confidence":7,"labels":[]}
+{"content":"현장 소장에게 직접 물어 확인한 공정률이라 공시보다 빠릅니다","direction":"UP","magnitudePct":17,"horizonDays":130,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"공정률은 공시된 진행률 기준이라 현장 전언보다 늦을 수 있습니다","direction":"UP","magnitudePct":14,"horizonDays":130,"confidence":6,"labels":[]}
+{"content":"계약 상대 회사 쪽에서 조용히 알려준 체결 시점을 말씀드립니다","direction":"UP","magnitudePct":25,"horizonDays":95,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"체결 시점은 상대 회사 공시가 나온 뒤에 다루겠습니다","direction":"UP","magnitudePct":16,"horizonDays":95,"confidence":6,"labels":[]}
+{"content":"심사 담당자와 아는 사이라 허가 결과를 미리 들었습니다","direction":"UP","magnitudePct":27,"horizonDays":160,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"허가 결과는 관계기관 공고가 뜬 뒤 확인해 정리했습니다","direction":"UP","magnitudePct":22,"horizonDays":160,"confidence":7,"labels":[]}
+{"content":"검색창에 제 필명을 치시면 더 자세한 글이 나옵니다","direction":"UP","magnitudePct":14,"horizonDays":40,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"제 글은 이 플랫폼 안에만 올리니 밖에서 검색하실 필요 없습니다","direction":"UP","magnitudePct":13,"horizonDays":40,"confidence":7,"labels":[]}
+{"content":"포털에서 제 블로그를 찾아 이웃 신청해 두세요","direction":"UP","magnitudePct":16,"horizonDays":60,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"블로그나 이웃 신청 같은 건 운영하지 않으니 사칭에 주의하세요","direction":"UP","magnitudePct":15,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"프로필의 링크를 따라오시면 이어지는 내용이 있습니다","direction":"UP","magnitudePct":19,"horizonDays":75,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"프로필에 링크를 걸어 둔 적이 없으니 따라가지 마세요","direction":"UP","magnitudePct":17,"horizonDays":75,"confidence":7,"labels":[]}
+{"content":"댓글에 남긴 주소로 들어와 신청서를 작성해 주세요","direction":"UP","magnitudePct":12,"horizonDays":90,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"신청서를 요구하는 댓글이 보이면 제 것이 아니니 무시해 주세요","direction":"UP","magnitudePct":11,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"제 이름 석 자로 검색하면 나오는 방으로 오시면 됩니다","direction":"UP","magnitudePct":20,"horizonDays":50,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"제 이름으로 나오는 외부 모임은 전부 저와 무관합니다","direction":"UP","magnitudePct":18,"horizonDays":50,"confidence":6,"labels":[]}
+{"content":"여기 말고 다른 데서 실시간으로 안내드리니 찾아오세요","direction":"UP","magnitudePct":9,"horizonDays":14,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"안내는 여기 공지에만 올리고 다른 데서는 하지 않습니다","direction":"UP","magnitudePct":9,"horizonDays":14,"confidence":7,"labels":[]}
+{"content":"구독하시려면 바깥 페이지로 넘어가 결제해 주시면 돼요","direction":"UP","magnitudePct":13,"horizonDays":120,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"결제는 플랫폼 안에서만 진행되고 바깥 페이지는 없어요","direction":"UP","magnitudePct":12,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"쪽지 주시면 밖에서 이어서 상담해 드릴게요","direction":"UP","magnitudePct":15,"horizonDays":30,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"쪽지를 주셔도 밖에서 상담해 드리지는 않습니다","direction":"UP","magnitudePct":14,"horizonDays":30,"confidence":7,"labels":[]}
+{"content":"제 필명으로 개설해 둔 다른 계정으로 찾아오시면 됩니다","direction":"UP","magnitudePct":22,"horizonDays":100,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"제 필명으로 개설된 다른 계정은 없으니 속지 마세요","direction":"UP","magnitudePct":19,"horizonDays":100,"confidence":7,"labels":[]}
+{"content":"관심 있으신 분은 밖에서 저를 먼저 찾아 주세요","direction":"UP","magnitudePct":17,"horizonDays":80,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"밖에서 저를 찾아오셔도 응대해 드리지 않습니다","direction":"UP","magnitudePct":16,"horizonDays":80,"confidence":6,"labels":[]}
+{"content":"급한 매도 신호는 여기 말고 밖에서만 띄웁니다","direction":"DOWN","magnitudePct":11,"horizonDays":21,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"매도 신호도 여기 말고 다른 곳에 띄우는 일은 없습니다","direction":"DOWN","magnitudePct":10,"horizonDays":21,"confidence":7,"labels":[]}
+{"content":"리스트 받아 보실 분은 아래 폼에 연락 정보를 남겨 주세요","direction":"UP","magnitudePct":24,"horizonDays":110,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"연락 정보를 요구하는 폼은 저와 무관하니 남기지 마세요","direction":"UP","magnitudePct":21,"horizonDays":110,"confidence":7,"labels":[]}
+{"content":"밖에 개설해 둔 공간에서 질문을 받고 있습니다","direction":"UP","magnitudePct":10,"horizonDays":45,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"질문은 이 글의 질의응답 기능으로만 받고 있습니다","direction":"UP","magnitudePct":10,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"제 다른 활동은 검색으로 찾아보시고 그쪽에서 신청하세요","direction":"UP","magnitudePct":18,"horizonDays":140,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"다른 활동을 검색해 신청을 받는 일은 없습니다","direction":"UP","magnitudePct":16,"horizonDays":140,"confidence":6,"labels":[]}
+{"content":"본문에 다 못 담은 건 밖에서 팔로우해 두시면 보실 수 있어요","direction":"UP","magnitudePct":26,"horizonDays":70,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"본문에 못 담은 건 다음 글에 올리니 여기서 보시면 돼요","direction":"UP","magnitudePct":23,"horizonDays":70,"confidence":6,"labels":[]}

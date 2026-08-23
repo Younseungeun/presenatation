@@ -166,7 +166,7 @@ export async function flushHardCapSurgeAlert(
       (paused > 0 ? ` (그중 ${paused}건은 자동 판정 정지 중 발생).` : '.') +
       `\n판정을 못 한 원인이 아직 살아 있다는 뜻이고, 구매자에게는 이미 돈이 돌아가는 중입니다.` +
       `\n정지를 푸는 것이 아니라 **공지·개별 연락**을 결정할 자리입니다.`,
-    link: '/admin/judgments',
+    link: '/admin/compliance?tab=inst',
     type: 'OPS_ALERT',
     // **하루 한 번** — 매 틱 같은 사실을 반복하면 그 자체가 소음이 된다
     dedupeKey: `hardcap-surge:${from.toISOString().slice(0, 10)}`,
@@ -218,7 +218,7 @@ export async function flushImplausibleQuoteSurgeAlert(
       `· **시세 소스 사고**: 하나도 통과시키면 안 됩니다\n` +
       `먼저 오늘이 어떤 날인지 확인하세요. 건건이 판정하는 것은 그다음입니다.\n` +
       `(돈은 아직 안 나갔습니다 — 판정이 멈춰 있을 뿐이고, 상한은 살아 있습니다)`,
-    link: '/admin/judgments',
+    link: '/admin/compliance?tab=inst',
     type: 'OPS_ALERT',
     dedupeKey: `implausible-surge:${day.toISOString().slice(0, 10)}`,
   });

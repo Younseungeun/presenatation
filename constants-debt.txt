@@ -24,8 +24,8 @@
 #   **지금 사실상 돌지 않는다** — 운영자가 손으로 채운 종목에서만 걸린다.
 #   시총 원천(KRX 통계·CoinGecko 등)을 붙이는 것이 선행 조건이다.
 #
-src/app/directionTrace.ts:TRACE_VARIANTS
-src/app/directionTrace.ts:TRACE_VIEWBOX
+src/app/(app)/directionTrace.ts:TRACE_VARIANTS
+src/app/(app)/directionTrace.ts:TRACE_VIEWBOX
 src/domain/cardProgress.ts:TIME_GAUGE_STEPS
 src/domain/constants.ts:PREPAYMENT_RATIOS
 src/domain/instrumentRisk.ts:MIN_MARKET_CAP

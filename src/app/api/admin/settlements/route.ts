@@ -22,6 +22,20 @@ const bodySchema = z.discriminatedUnion('kind', [
     // 계좌이체는 멱등키가 없어 이 번호가 유일한 중복 방지 수단이다 (서비스가 필수를 강제)
     bankReference: z.string().min(1).max(100).optional(),
   }),
+  /**
+   * 같은 리포트의 환불을 **한 번 눌러 차례로** 실행한다 (시안 scr-money).
+   *
+   * 트랜잭션으로 묶지 않는다 — 안에서 PG를 부르기 때문이다(트랜잭션 안 I/O 금지).
+   * 그래서 이건 원자적 실행이 아니라 **한 번의 손짓**이고, 건별 결과를 그대로 돌려준다:
+   * 한도에 걸리거나 이의가 붙은 건은 그 건만 멈추고 나머지는 나간다. 실패를 삼키면
+   * "3건 실행했다"는 화면과 "2건만 나갔다"는 장부가 갈린다.
+   */
+  z.object({
+    kind: z.literal('REFUND_GROUP'),
+    settlementIds: z.array(z.string().min(1)).min(2).max(50),
+    method: z.enum(REFUND_METHODS),
+    bankReference: z.string().min(1).max(100).optional(),
+  }),
   // 끝나지 않은 시도를 **같은 멱등키로** 이어받는다 — 새 실행과 반드시 구분해야 한다
   z.object({ kind: z.literal('REFUND_RETRY'), attemptId: z.string().min(1) }),
   // 계좌이체는 재시도가 아니라 **사람이 상태를 확정**한다 (멱등키가 없어 재시도 = 이중 송금)
@@ -65,6 +79,34 @@ export async function POST(req: NextRequest) {
         operatorUserId,
         method: body.method,
         bankReference: body.bankReference,
+      });
+    } else if (body.kind === 'REFUND_GROUP') {
+      // **차례로** 실행한다 — 동시에 보내면 일일 한도를 각자 통과해 합계가 한도를 넘는다
+      const results: { settlementId: string; ok: boolean; error?: string }[] = [];
+      for (const settlementId of body.settlementIds) {
+        try {
+          await executeRefund(prisma, {
+            settlementId,
+            operatorUserId,
+            method: body.method,
+            bankReference: body.bankReference,
+          });
+          results.push({ settlementId, ok: true });
+        } catch (e) {
+          // 한 건이 막혀도 멈추지 않는다 — 막힌 이유(이의·쿨다운·한도)는 건마다 다르고,
+          // 여기서 중단하면 뒤 건들은 이유 없이 안 나간 채 남는다
+          results.push({
+            settlementId,
+            ok: false,
+            error: e instanceof Error ? e.message : '실행 실패',
+          });
+        }
+      }
+      return NextResponse.json({
+        ok: results.every((r) => r.ok),
+        done: results.filter((r) => r.ok).length,
+        total: results.length,
+        results,
       });
     } else if (body.kind === 'REFUND_RETRY') {
       await retryRefundAttempt(prisma, { attemptId: body.attemptId, operatorUserId });

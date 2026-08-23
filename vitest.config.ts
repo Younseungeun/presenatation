@@ -23,6 +23,7 @@ export default defineConfig({
           include: ['src/**/*.test.ts'],
           exclude: ['**/*.db.test.ts', '**/node_modules/**'],
           environment: 'node',
+          setupFiles: ['src/__tests__/setup/studentOff.ts'],
           // DB를 안 쓰므로 병렬로 돈다 — 이 갈래의 존재 이유가 이것이다
         },
       },
@@ -32,6 +33,7 @@ export default defineConfig({
           name: 'db',
           include: ['src/**/*.db.test.ts'],
           environment: 'node',
+          setupFiles: ['src/__tests__/setup/studentOff.ts'],
           // 각자 임시 DB에 `prisma migrate deploy`를 실행하는데, 병렬로 돌리면
           // prisma CLI 경합으로 간헐 실패한다 → 파일 순차 실행으로 제거
           fileParallelism: false,

@@ -788,7 +788,7 @@ export async function judgeAndSettleDueCards(
       if (e instanceof JudgmentDisagreementError) {
         await prisma.predictionCard.update({
           where: { id: card.id },
-          data: { manualJudgmentOnly: true },
+          data: { manualJudgmentOnly: true, manualReason: 'CROSS_CHECK' },
         });
         summary.disagreed.push(`${card.ticker} (${card.id}): ${message}`);
         // 정지 판단은 **자산군마다 따로** 한다 — 한 통에 담으면 깨진 자산군이
@@ -817,7 +817,7 @@ export async function judgeAndSettleDueCards(
       if (e instanceof JudgmentDeferredError && e.reason === 'IMPLAUSIBLE_QUOTE') {
         await prisma.predictionCard.update({
           where: { id: card.id },
-          data: { manualJudgmentOnly: true },
+          data: { manualJudgmentOnly: true, manualReason: 'IMPLAUSIBLE_QUOTE' },
         });
         summary.implausible.push(`${card.ticker} (${card.id}): ${message}`);
         console.error(`이상 시세로 수동 큐 이동 ${card.ticker} (${card.id}):`, message);

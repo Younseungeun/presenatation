@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { startRegistration } from "@simplewebauthn/browser";
-import { usePlatformBiometric } from "../biometricSupport";
-import styles from "../researcher/researcher.module.css";
+import { usePlatformBiometric } from "@/lib/biometricSupport";
+import a from "./admin.module.css";
 
 // 관리자 부트스트랩 관문 (2026-08-17 검토 6차 Q1) — **패스키 등록 전에는 아무것도 못 한다.**
 //
@@ -57,33 +57,38 @@ export function OperatorPasskeyGate() {
   }
 
   return (
-    <main className={styles.page}>
-      <div className={styles.card} style={{ marginTop: 24 }}>
-        <div className={styles.cardTop}>
-          <div className={styles.cardTitle}>관리자 권한 활성화</div>
+    <main className={a.page}>
+      <div className={a.card} style={{ marginTop: 24 }}>
+        <div className={a.row}>
+          <div className={a.ttl}>관리자 권한 활성화</div>
         </div>
-        <p className={styles.sub}>
+        <p className={a.hint}>
           관리자 기능을 쓰려면 <strong>이 기기의 지문·얼굴(패스키)을 먼저 등록</strong>해야
           합니다. 등록 전에는 어떤 관리 기능도 열리지 않습니다 — 계정을 훔친 사람이
           첫 열쇠를 심는 것을 막는 관문이라서, 건너뛸 수 없습니다.
         </p>
-        <p className={styles.sub}>
+        <p className={a.hint}>
           등록은 <strong>본인 인증으로 로그인한 직후 10분 안</strong>에만 됩니다.
           시간이 지났다면 로그아웃 후 본인 인증으로 다시 들어와 주세요.
         </p>
         {noBiometric && (
-          <p className={styles.sub}>
+          <p className={a.hint}>
             <strong>이 기기에는 지문·얼굴 장치가 없습니다.</strong> 휴대폰에서 본인 인증으로
             로그인해 등록해주세요 — 한 기기에서 등록하면 관리 기능이 열립니다.
             (USB 보안키를 꽂으셨다면 아래 버튼으로 그대로 진행하셔도 됩니다.)
           </p>
         )}
-        <div className={styles.formActions}>
-          <button className={styles.primaryBtn} onClick={register} disabled={busy}>
+        <div className={a.btnrow}>
+          <button
+            type="button"
+            className={`${a.btn} ${busy ? a.btnLine : a.btnInk}`}
+            onClick={register}
+            disabled={busy}
+          >
             {busy ? "등록 중…" : "이 기기에 지문·얼굴 등록"}
           </button>
         </div>
-        {error && <p className={styles.error}>{error}</p>}
+        {error && <p className={a.error}>{error}</p>}
       </div>
     </main>
   );

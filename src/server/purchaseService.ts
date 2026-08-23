@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { ABUSE_SUSPENDED_MESSAGE } from '@/domain/abuseSuspension';
 import type { AssetClass, Direction } from '@/domain/constants';
 import {
   adverseMoveFraction,
@@ -9,6 +10,7 @@ import {
 } from '@/domain/salesWindow';
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isMarketOpen } from '@/domain/marketHours';
+import { isAbuseSuspended } from './abuseReportService';
 import { isFreeReport } from './freeReportService';
 import { notifyOperators } from './opsAlert';
 import { fetchCachedQuote } from './priceCache';
@@ -102,6 +104,7 @@ export function assertPurchasable(
   buyerId: string,
   now: Date,
   disciplineCap?: number,
+  abuseSuspended?: boolean,
 ): void {
   if (report.status !== 'PUBLISHED') {
     throw new Error(`판매 중인 리포트가 아닙니다 (현재: ${report.status})`);
@@ -149,6 +152,12 @@ export function assertPurchasable(
     throw new Error(
       '리서처의 확신 상한이 내려가 이 카드의 판매가 일시 중단되었습니다 — 신고한 확신이 적중으로 뒷받침되지 않는 동안 그 확신으로는 팔지 않습니다. 적중이 쌓이면 다시 구매할 수 있습니다.',
     );
+  }
+  // **신고 누적에 의한 가역적 중단** — 위 규율 상한과 같은 성격이라 같은 자리에 둔다.
+  // 서로 다른 신고자가 문턱만큼 모인 동안에는 팔지 않는다. 확인이 끝나면 저절로 풀린다
+  // (세는 대상이 PENDING 신고라, 사람이 보는 순간 카운트가 내려간다 — domain/abuseSuspension.ts)
+  if (abuseSuspended) {
+    throw new Error(ABUSE_SUSPENDED_MESSAGE);
   }
 }
 
@@ -381,7 +390,13 @@ export async function assertPurchasableNow(
     where: { id: reportId },
     include: { researcher: true, predictionCard: true },
   });
-  assertPurchasable(report, buyerId, now, await disciplineCapFor(prisma, report, now));
+  assertPurchasable(
+    report,
+    buyerId,
+    now,
+    await disciplineCapFor(prisma, report, now),
+    await isAbuseSuspended(prisma, report.id),
+  );
   // 가격 보호 — 결제 순간 실시간 시세로 남은 몫(q)을 재고 광고의 절반 밑이면 막는다.
   // 피해자는 구매하는 순간에 생기므로 검사도 그 순간에 한다
   const priceGate = await assertNotSuspendedIntraday(prisma, report.predictionCard, now);

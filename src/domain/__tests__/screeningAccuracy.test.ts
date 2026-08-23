@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Finding } from '../compliance';
+import type { Finding, RiskCategory } from '../compliance';
 import {
   calibrationExamples,
   classifyReview,
@@ -161,5 +161,52 @@ describe('calibrationExamples', () => {
       review({ findings: [finding({ quote: `사례 ${i}` })], verdict: 'APPROVED' }),
     );
     expect(calibrationExamples(rows, 5)).toHaveLength(5);
+  });
+
+  // ── 놓친 사례도 되먹인다 (2026-08-21) ────────────────────────────
+  // 오탐만 돌아가면 AI는 "너무 깐깐했다"만 배운다. 되먹임이 한쪽으로만 열려 있으면
+  // 쓸수록 덜 잡는 쪽으로 기운다 — 그건 의도한 균형이어야지 파이프의 결과면 안 된다.
+
+  const missed = (phrase: string | null, category: RiskCategory = 'SOLICIT_CONTACT') =>
+    review({
+      findings: [], // 미탐은 검수가 아무것도 안 짚었다
+      verdict: 'MISSED',
+      actualCategories: [category],
+      missedPhrase: phrase,
+      operatorReason: '오픈채팅 유도로 확인',
+    });
+
+  it('미탐은 운영자가 등록한 표현을 인용문 자리에 쓴다', () => {
+    const out = calibrationExamples([missed('오픈채팅방에서 안내')]);
+    expect(out).toEqual([
+      {
+        kind: 'miss',
+        category: 'SOLICIT_CONTACT',
+        quote: '오픈채팅방에서 안내',
+        note: '오픈채팅 유도로 확인',
+      },
+    ]);
+  });
+
+  it('등록한 표현이 없는 미탐은 건너뛴다 — 가르칠 구체물이 없다', () => {
+    // 유형만 알려주는 예시는 아무것도 못 가르치면서 자리만 차지한다
+    expect(calibrationExamples([missed(null)])).toHaveLength(0);
+  });
+
+  it('강제 철회(TAKEDOWN)도 같은 미탐으로 센다 — 내렸든 못 내렸든 놓친 것은 같다', () => {
+    const takedown = { ...missed('리딩방에서 종목 안내'), verdict: 'TAKEDOWN' as const };
+    expect(calibrationExamples([takedown])[0]).toMatchObject({ kind: 'miss' });
+  });
+
+  it('오탐이 아무리 많아도 미탐 자리는 남는다', () => {
+    // 한 배열에 섞어 담고 앞에서 자르면, 최근 건이 한 종류로 몰린 날
+    // 반대쪽이 통째로 사라진다
+    const fps = Array.from({ length: 20 }, (_, i) =>
+      review({ findings: [finding({ quote: `오탐 ${i}` })], verdict: 'APPROVED' }),
+    );
+    const out = calibrationExamples([...fps, missed('오픈채팅방에서 안내')], 8);
+    expect(out).toHaveLength(8);
+    expect(out.filter((e) => e.kind === 'miss')).toHaveLength(1);
+    expect(out.filter((e) => e.kind === 'falsePositive')).toHaveLength(7);
   });
 });

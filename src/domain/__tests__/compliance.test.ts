@@ -5,6 +5,7 @@ import {
   decide,
   findingMessages,
   formatElapsed,
+  hadSecondTier,
   holdUrgency,
   mergeFindings,
   resolveAction,
@@ -414,5 +415,31 @@ describe('applyRules — 판정 불가 반복', () => {
     expect(cats({})).not.toContain('UNJUDGEABLE_PATTERN');
     expect(cats({ unjudgeableCardCount: null })).not.toContain('UNJUDGEABLE_PATTERN');
     expect(cats({ unjudgeableCardCount: 0 })).not.toContain('UNJUDGEABLE_PATTERN');
+  });
+});
+
+// ── 2차가 돌았는가 (2026-08-21) ───────────────────────────────────
+// ANTHROPIC_API_KEY가 없으면 2차가 통째로 건너뛰어지는데, 1차 소견이 있으면 똑같이
+// 보류된다. 화면에서 두 보류가 같은 얼굴이면 운영자는 "AI가 보고도 애매하다고 한 건"과
+// "아무도 안 본 건"을 구별할 수 없다 — 할 일이 정반대인데도.
+describe('hadSecondTier', () => {
+  it('규칙만 돌았으면 2차가 없다', () => {
+    expect(hadSecondTier('rule')).toBe(false);
+  });
+
+  it('학생 모델은 1차다 — 붙어 있어도 2차가 아니다', () => {
+    // 자체 증류 모델은 collectFirstTierFindings 안에 있다. 여기서 true가 나오면
+    // 화면이 "AI가 봤다"고 거짓말하게 되고, 운영자는 직접 확인하지 않는다
+    expect(hadSecondTier('rule+student:v3@t0.5/L8')).toBe(false);
+  });
+
+  it('외부 검수기가 붙었으면 2차가 있다', () => {
+    expect(hadSecondTier('rule+claude:claude-opus-5')).toBe(true);
+    expect(hadSecondTier('rule+student:v3@t0.5/L8+claude:claude-opus-5')).toBe(true);
+  });
+
+  it('공급자가 바뀌어도 판정이 유지된다 — 1차 이름만 알면 된다', () => {
+    // 'claude:' 문자열을 찾는 방식이면 검수기를 갈아 끼우는 날 조용히 false가 된다
+    expect(hadSecondTier('rule+gpt:some-model')).toBe(true);
   });
 });

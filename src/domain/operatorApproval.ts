@@ -34,6 +34,9 @@ export const APPROVAL_ACTIONS = [
   'LARGE_PAYOUT',
   'DISPUTE_UPHOLD',
   'FIRST_MANUAL_JUDGMENT',
+  // 회귀 시험 문항 격리 (21차 Y-3) — 돈은 아니지만 **릴리스 게이트를 깎는 결정**이다.
+  // 릴리스 압박 속 "학생이 틀리는 문항 지우기" 유혹을 혼자서는 못 누르게 한다
+  'REGRESSION_CASE_QUARANTINE',
 ] as const;
 export type ApprovalAction = (typeof APPROVAL_ACTIONS)[number];
 
@@ -89,6 +92,7 @@ export const APPROVAL_ACTION_LABEL: Record<ApprovalAction, string> = {
   LARGE_PAYOUT: '고액 지급 실행',
   DISPUTE_UPHOLD: '판정 이의 인정 (판정 뒤집기)',
   FIRST_MANUAL_JUDGMENT: '기계 판정 없는 수동 판정',
+  REGRESSION_CASE_QUARANTINE: '회귀 시험 문항 격리',
 };
 
 /**

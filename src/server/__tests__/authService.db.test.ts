@@ -58,6 +58,7 @@ describe('verifyAndSignIn — 1인 1계정 강제', () => {
     const other = await verifyAndSignIn(prisma, provider, {
       name: '김철수',
       phone: '010-9999-8888',
+      penName: '철수리서처',
     });
     expect(other.isNewUser).toBe(true);
     expect(await prisma.user.count()).toBe(2);
@@ -65,7 +66,7 @@ describe('verifyAndSignIn — 1인 1계정 강제', () => {
 
   it('유효하지 않은 번호는 인증 실패', async () => {
     await expect(
-      verifyAndSignIn(prisma, provider, { name: '홍길동', phone: '123' }),
+      verifyAndSignIn(prisma, provider, { name: '홍길동', phone: '123', penName: '길동' }),
     ).rejects.toThrow(/휴대폰/);
   });
 });
@@ -75,6 +76,7 @@ describe('ensureResearcherProfile', () => {
     const signIn = await verifyAndSignIn(prisma, provider, {
       name: '이영희',
       phone: '010-5555-4444',
+      penName: '영희리서처',
     });
     const p1 = await ensureResearcherProfile(prisma, signIn.userId);
     const p2 = await ensureResearcherProfile(prisma, signIn.userId);
@@ -88,6 +90,7 @@ describe('signUpAndSignIn — 가입 갈래 (단순 이용자 / 리서처)', () 
     const r = await signUpAndSignIn(prisma, provider, {
       name: '이용자',
       phone: '010-1000-0001',
+      penName: '그냥이용자',
       accountType: 'USER',
     });
     expect(r.researcherId).toBeNull();
@@ -105,6 +108,7 @@ describe('signUpAndSignIn — 가입 갈래 (단순 이용자 / 리서처)', () 
     const r = await signUpAndSignIn(prisma, provider, {
       name: '리서처',
       phone: '010-1000-0002',
+      penName: '리서처하나',
       accountType: 'RESEARCHER',
     });
     expect(r.researcherId).not.toBeNull();
@@ -126,6 +130,7 @@ describe('signUpAndSignIn — 가입 갈래 (단순 이용자 / 리서처)', () 
     const again = await signUpAndSignIn(prisma, provider, {
       name: '리서처',
       phone: '01010000002',
+      penName: '리서처하나',
       accountType: 'RESEARCHER',
     });
     expect(again.isNewUser).toBe(false);
@@ -136,6 +141,7 @@ describe('signUpAndSignIn — 가입 갈래 (단순 이용자 / 리서처)', () 
     const first = await signUpAndSignIn(prisma, provider, {
       name: '전환자',
       phone: '010-1000-0003',
+      penName: '전환하는사람',
       accountType: 'USER',
     });
     expect(first.researcherId).toBeNull();
@@ -149,7 +155,7 @@ describe('signUpAndSignIn — 가입 갈래 (단순 이용자 / 리서처)', () 
 // 창업자의 CI 해시를 환경 변수(FOUNDER_CI_HASH)에 고정하면, 그 사람의 본인 인증이
 // 곧 관리자 승격이다. DB를 초기화하거나 앱을 다시 깔아도 풀 로그인 한 번이면 돌아온다.
 describe('창업자 신원 자동 승격', () => {
-  const FOUNDER = { name: '창업자', phone: '010-7777-0001' };
+  const FOUNDER = { name: '창업자', phone: '010-7777-0001', penName: '창업자' };
 
   afterAll(() => {
     delete process.env.FOUNDER_CI_HASH;
@@ -173,7 +179,11 @@ describe('창업자 신원 자동 승격', () => {
   });
 
   it('다른 사람의 인증은 승격되지 않는다 — 해시가 다르면 그냥 이용자다', async () => {
-    const r = await verifyAndSignIn(prisma, provider, { name: '남남', phone: '010-7777-0002' });
+    const r = await verifyAndSignIn(prisma, provider, {
+      name: '남남',
+      phone: '010-7777-0002',
+      penName: '남남',
+    });
     const u = await prisma.user.findUniqueOrThrow({ where: { id: r.userId } });
     expect(u.role).toBe('USER');
   });
@@ -181,7 +191,7 @@ describe('창업자 신원 자동 승격', () => {
   it('DB가 사라져도 신원만 있으면 첫 가입부터 관리자다', async () => {
     // 새 계정 생성 경로 — 창업자와 같은 해시를 가진 새 번호는 없으므로,
     // 환경 변수를 새 사람의 해시로 바꿔 "초기화 후 첫 가입" 상황을 흉내 낸다
-    const fresh = { name: '재설치창업자', phone: '010-7777-0003' };
+    const fresh = { name: '재설치창업자', phone: '010-7777-0003', penName: '재설치창업자' };
     process.env.FOUNDER_CI_HASH = hashCi((await provider.verify(fresh)).ci);
     const r = await verifyAndSignIn(prisma, provider, fresh);
     expect(r.isNewUser).toBe(true);

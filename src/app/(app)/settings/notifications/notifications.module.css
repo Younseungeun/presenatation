@@ -1,0 +1,15 @@
+/* 알림 설정 — 설명이 많은 화면이라 문단 스타일 하나면 충분하다.
+   푸시를 켜기 전에 "잠금화면에 무엇이 뜨는가"를 읽게 하는 것이 이 화면의 절반이다. */
+.notice {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--text-weak, #4e5968);
+  background: var(--surface-weak, #f7f8fa);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin: 10px 0 12px;
+}
+.notice strong {
+  color: var(--text, #191f28);
+  font-weight: 700;
+}

@@ -16,6 +16,7 @@ const OK: StudentHealth = {
   modelSha: 'mmmm',
   modelStale: false,
   ready: true,
+  labels: [],
 };
 
 describe('describeUnavailability', () => {

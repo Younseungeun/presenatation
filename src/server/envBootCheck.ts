@@ -1,4 +1,5 @@
 import { identityPepper } from './authService';
+import { assertNoDevGatesInProduction } from './devGates';
 import { assertPayoutEncKeyLoadable } from './fieldCrypto';
 import { relyingParty } from './passkeyService';
 import { authSecret } from './sessionToken';
@@ -46,4 +47,7 @@ export function assertProductionSecrets(env = process.env): void {
         failures.map((m) => `  - ${m}`).join('\n'),
     );
   }
+  // 값이 **없어야** 통과하는 검사 — 개발용 우회 스위치가 운영에 남아 있으면 부팅 거부.
+  // 위 목록과 방향이 반대라 게터 패턴에 안 실리고 여기서 직접 부른다
+  assertNoDevGatesInProduction(env);
 }

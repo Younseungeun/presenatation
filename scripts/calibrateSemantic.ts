@@ -1,5 +1,5 @@
 import { SCREENING_CORPUS } from '../src/domain/__fixtures__/screeningCorpus';
-import { applyRules, type Finding } from '../src/domain/compliance';
+import { applyRules, type Finding, type ScreeningInput } from '../src/domain/compliance';
 import {
   findSimilarViolations,
   splitSentences,
@@ -27,15 +27,9 @@ function detectorAt(
   vectorsBySentence: Map<string, Float32Array>,
   threshold: number,
 ): Detector {
-  return (text: string): Finding[] => {
-    const input = {
-      title: '',
-      summary: '',
-      content: text,
-      assetClass: 'KR_EQUITY' as const,
-      assetName: '',
-      direction: 'UP' as const,
-    };
+  return (input: ScreeningInput): Finding[] => {
+    // 의미 검색은 본문 문장만 본다 — 카드는 벡터로 비교할 대상이 아니다
+    const text = input.content;
     const sentences = splitSentences(text);
     const vectors = sentences.map((s) => vectorsBySentence.get(s)).filter((v): v is Float32Array => !!v);
     const semantic =

@@ -164,7 +164,7 @@ export async function revertJudgment(
   }
   followUps.push(
     input.cause === 'DATA_SOURCE'
-      ? '시세 소스가 원인이라 **자동 재판정을 막았습니다** — /admin/judgments 큐에서 ' +
+      ? '시세 소스가 원인이라 **자동 재판정을 막았습니다** — /admin/compliance?tab=inst 큐에서 ' +
         '검증 시세를 직접 넣어 판정하세요. 그냥 두면 이 카드는 영원히 판정되지 않습니다.'
       : '판정 로직이 원인이라 자동 배치가 다시 매깁니다 — **코드를 먼저 고친 뒤** ' +
         '되돌렸는지 확인하세요. 안 고쳤으면 같은 답이 나옵니다.',
@@ -208,6 +208,9 @@ export async function revertJudgment(
         deferCount: 0,
         nextAttemptAt: null,
         manualJudgmentOnly: input.cause === 'DATA_SOURCE',
+        // 큐에 남는 것은 **시세 소스가 원인일 때뿐**이므로 사유도 그것 하나다.
+        // 로직 버그(LOGIC)면 플래그를 안 세우니 큐에 오지도 않는다
+        manualReason: input.cause === 'DATA_SOURCE' ? 'REVERTED_SOURCE' : null,
       },
     }),
     // ⑥ **되돌렸다는 사실을 감사 로그에도 남긴다.** JudgmentRevert 묘비와 중복이지만

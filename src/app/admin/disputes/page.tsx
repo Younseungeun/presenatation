@@ -1,5 +1,3 @@
-// ⚠ 디자인 보류 — 기능 검증용 최소 형태다. 화면을 다시 만들 때 지킬 불변은 docs/design-backlog.md에 있다
-
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { JudgmentAudit } from "@/domain/judgmentPipeline";
@@ -12,13 +10,11 @@ import {
   type OpenDispute,
 } from "@/server/judgmentDisputeService";
 import { getSessionUserId } from "@/server/session";
-import { AppHeader } from "../../AppHeader";
-import { EmptyState } from "../../EmptyState";
-import { fmtDayMonth as fmtDate } from "../../format";
-import { StatusChip } from "../../StatusChip";
-import styles from "../../researcher/researcher.module.css";
+import { AdminHead } from "../AdminHead";
+import { fmtDayMonth as fmtDate } from "@/lib/format";
 import { ResolveForm } from "./ResolveForm";
 import q from "./disputes.module.css";
+import a from "../admin.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -98,11 +94,11 @@ export default async function AdminDisputesPage() {
 
   return (
     <>
-      <AppHeader title="판정 이의" backHref="/my" />
-      <main className={styles.page}>
-        <div className={styles.header}>
+      <AdminHead title="판정 이의" backHref="/admin/settlements" />
+      <main className={a.page}>
+        <div className={a.sech}>
           <div>
-            <p className={styles.sub}>
+            <p className={a.sechDesc}>
               구매자가 낸 판정 이의입니다. <strong>접수된 건은 정산이 멈춰 있습니다</strong> —
               확정해야 지급이 다시 열립니다.{" "}
               <Link href="/admin/settlements">정산 지시서 →</Link>
@@ -110,44 +106,55 @@ export default async function AdminDisputesPage() {
           </div>
         </div>
 
-        <div className={styles.statGrid}>
-          <div className={styles.stat}>
-            <span className={styles.statLabel}>대기 중 (정산 잠김)</span>
-            <span className={styles.statValue}>{open.length}건</span>
+        <div className={a.statGrid}>
+          <div className={a.stat}>
+            <span className={a.statLabel}>대기 중 (정산 잠김)</span>
+            <span className={a.statValue}>{open.length}건</span>
           </div>
-          <div className={styles.stat}>
-            <span className={styles.statLabel}>인정 후 미조치</span>
-            <span className={styles.statValue}>{pendingRevert.length}건</span>
+          <div className={a.stat}>
+            <span className={a.statLabel}>인정 후 미조치</span>
+            <span className={a.statValue}>{pendingRevert.length}건</span>
           </div>
         </div>
 
-        <h3>대기 중인 이의</h3>
+        <div className={a.sec}>대기 중인 이의</div>
         {open.length === 0 ? (
-          <EmptyState compact glyph="inbox" title="접수된 이의가 없어요" />
+          <div className={a.empty}>
+            <span className={a.dot} />
+            접수된 이의가 없어요
+          </div>
         ) : (
           open.map((d) => {
             const card = d.judgment?.predictionCard;
             const snap = nearbyQuotes(d.judgment?.marketSnapshotJson ?? null);
             return (
-              <div key={d.id} className={styles.card}>
-                <div className={styles.cardTop}>
-                  <div className={styles.cardTitle}>
+              <div key={d.id} className={a.card}>
+                <div className={a.row}>
+                  <div className={a.ttl}>
                     {card ? `${card.assetName} (${card.ticker})` : "판정이 되돌려진 건"}
                   </div>
+                  {/* 이용자 화면의 StatusChip을 쓰지 않는다 — 저기는 "내 카드가 어떻게
+                      됐나"를 알리는 색이고, 여기는 큐를 훑는 색이다. 관리 화면의 칩은
+                      admin.module.css 한 곳에서만 나온다 */}
                   {d.judgment && (
-                    <StatusChip
-                      status={d.judgment.outcome === "HIT" ? "HIT" : d.judgment.outcome === "MISS" ? "MISS" : "UNDECIDABLE"}
-                      label={
+                    <span
+                      className={`${a.chip} ${
                         d.judgment.outcome === "HIT"
-                          ? "적중 판정"
+                          ? a.chipMint
                           : d.judgment.outcome === "MISS"
-                            ? "실패 판정"
-                            : "판정 불가"
-                      }
-                    />
+                            ? a.chipNeg
+                            : a.chipWarn
+                      }`}
+                    >
+                      {d.judgment.outcome === "HIT"
+                        ? "적중 판정"
+                        : d.judgment.outcome === "MISS"
+                          ? "실패 판정"
+                          : "판정 불가"}
+                    </span>
                   )}
                 </div>
-<div className={styles.meta}>
+<div className={a.meta}>
                   <span>접수 {fmtDate(d.createdAt)}</span>
                   {/* 리서처 이의는 구매에 붙지 않는다 — 판정 자체에 붙는다 */}
                   {d.purchase ? (
@@ -232,25 +239,25 @@ export default async function AdminDisputesPage() {
         {/* 인정만 하고 끝내면 구매자에게는 "오류가 확인되었습니다"만 남는다 */}
         {pendingRevert.length > 0 && (
           <>
-            <h3>인정했지만 아직 되돌리지 않은 판정</h3>
-            <p className={styles.sub}>
+            <div className={a.sec}>인정했지만 아직 되돌리지 않은 판정</div>
+            <p className={a.hint}>
               인정은 판단이고 되돌리기는 돈을 움직이는 별도 절차입니다(그래서 버튼 하나로
               묶지 않았습니다). 아래 명령을 그대로 붙여넣어 실행하면 이 목록에서 자동으로
               사라집니다. <strong>갈래(--source / --logic)는 이의 사유가 낸 제안</strong>이니
               조사 결과가 다르면 바꿔서 실행하세요.
             </p>
             {pendingRevert.map((d) => (
-              <div key={d.id} className={styles.card}>
-                <div className={styles.cardTop}>
-                  <div className={styles.cardTitle}>
+              <div key={d.id} className={a.card}>
+                <div className={a.row}>
+                  <div className={a.ttl}>
                     {d.judgment?.predictionCard.assetName} ({d.judgment?.predictionCard.ticker})
                   </div>
-                  <span className={styles.badge}>인정 {d.resolvedAt ? fmtDate(d.resolvedAt) : ""}</span>
+                  <span className={a.chip}>인정 {d.resolvedAt ? fmtDate(d.resolvedAt) : ""}</span>
                 </div>
-                <div className={styles.meta}>
+                <div className={a.meta}>
                   <span>{d.resolution}</span>
                 </div>
-                <pre className={q.cmd}>
+                <pre className={a.cmd}>
                   {revertCommand(d.judgment!.id, user.email, d.category, d.resolution)}
                 </pre>
               </div>

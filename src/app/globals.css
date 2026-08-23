@@ -258,7 +258,9 @@ h3 {
   box-shadow: 0 0 0 2px var(--bg);
 }
 
-/* 고정된 탭바에 콘텐츠가 가리지 않도록 여백 확보 (모바일·데스크톱 공통) */
-body {
+/* 고정된 탭바에 콘텐츠가 가리지 않도록 여백 확보 (모바일·데스크톱 공통).
+   **탭바가 있는 화면에만** 준다 — 관리 화면은 자기 탭바(admin.module.css의 .shell)가
+   따로 여백을 잡으므로, 여기서 body에 무조건 주면 관리 화면 바닥에 빈칸이 두 겹 생긴다 */
+body:has(.tabbar) {
   padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
 }

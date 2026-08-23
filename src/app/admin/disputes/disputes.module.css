@@ -1,3 +1,7 @@
+/* 판정 이의 화면만의 그림 — **대조**와 **원본 시세표**.
+   나머지(상자·알약·갈래·버튼)는 전부 admin.module.css의 공용 문법을 쓴다.
+   여기 남은 것은 이 화면에서만 뜻이 있는 배치라 공용으로 올리지 않는다. */
+
 /* 이 화면의 전부는 **대조**다 — 두 값이 같은 높이에 나란히 서야 눈이 바로 비교한다.
    위아래로 쌓으면 운영자가 스크롤하며 옮겨 적게 되고, 옮겨 적는 순간 틀린다 */
 .claim {
@@ -40,6 +44,7 @@
   font-size: 14px;
   font-weight: 700;
   letter-spacing: -0.02em;
+  color: var(--text);
   font-variant-numeric: tabular-nums;
 }
 
@@ -81,43 +86,4 @@
   text-align: right;
   font-weight: 700;
   color: var(--text);
-}
-
-.resolve {
-  margin-top: 12px;
-}
-
-.verdicts {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.verdict,
-.verdictOn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-weak);
-  cursor: pointer;
-}
-
-.verdictOn {
-  border-color: var(--ink, #111);
-  color: var(--text);
-}
-
-.cmd {
-  margin: 10px 0 0;
-  padding: 9px 11px;
-  border-radius: var(--radius);
-  background: var(--bg-weak, #f4f4f5);
-  font-size: 12px;
-  overflow-x: auto;
-  white-space: pre;
 }

@@ -1,0 +1,64 @@
+{"content":"손실이 나지 않도록 제가 다 막아드립니다.","direction":"UP","magnitudePct":14,"horizonDays":60,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"원금이 깨질 일은 없다고 약속드립니다.","direction":"UP","magnitudePct":12,"horizonDays":45,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 자리에서 물릴 걱정은 안 하셔도 됩니다. 제가 보장합니다.","direction":"UP","magnitudePct":16,"horizonDays":30,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"손해 보실 일은 없게 만들어 드리겠습니다.","direction":"UP","magnitudePct":13,"horizonDays":90,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"마이너스가 날 수 없는 구조라 걱정이 필요 없습니다.","direction":"UP","magnitudePct":18,"horizonDays":75,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"원금 손실은 결단코 없다고 제 이름을 걸고 말씀드립니다.","direction":"UP","magnitudePct":20,"horizonDays":100,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"잃지 않는 매매만 골라 드리니 불안해하지 않으셔도 됩니다.","direction":"UP","magnitudePct":15,"horizonDays":60,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"하락해도 손실로 이어지지 않게 제가 책임지고 조치합니다.","direction":"UP","magnitudePct":11,"horizonDays":40,"confidence":6,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 전략은 실패가 있을 수 없습니다. 안 되면 제가 물어드립니다.","direction":"UP","magnitudePct":22,"horizonDays":120,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"수익이 안 나면 수수료는 받지 않고 손실까지 채워드립니다.","direction":"UP","magnitudePct":17,"horizonDays":90,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"떨어질 수 없는 자리라 손절은 생각 안 하셔도 됩니다.","direction":"UP","magnitudePct":14,"horizonDays":50,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"원금이 줄어드는 일은 절대 없게 해드립니다.","direction":"UP","magnitudePct":12,"horizonDays":70,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"못 벌면 제가 그만큼 얹어서 돌려드립니다. 걱정 없으셔도 됩니다.","direction":"UP","magnitudePct":19,"horizonDays":110,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"손실 위험이 없는 확정 구조라 의심하지 않으셔도 됩니다.","direction":"UP","magnitudePct":21,"horizonDays":80,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"이 종목은 빠질 수가 없는 흐름이라 손해 걱정은 접어두셔도 됩니다.","direction":"UP","magnitudePct":16,"horizonDays":55,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"지금 들어가면 물리지 않습니다. 제가 확실히 봐 드립니다.","direction":"UP","magnitudePct":13,"horizonDays":35,"confidence":7,"labels":["PROFIT_GUARANTEE"]}
+{"content":"원금이 상하지 않는 선에서 제가 다 관리해 드립니다.","direction":"UP","magnitudePct":10,"horizonDays":25,"confidence":6,"labels":["PROFIT_GUARANTEE"]}
+{"content":"실패한 적이 없는 전략이라 이번에도 손실은 생기지 않습니다.","direction":"UP","magnitudePct":23,"horizonDays":130,"confidence":8,"labels":["PROFIT_GUARANTEE"]}
+{"content":"아직 공시에 없는 내용인데, 내부에서 직접 들어 틀림없습니다.","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"어디에도 안 나온 실적인데 관계자한테 확인했으니 믿으셔도 됩니다.","direction":"UP","magnitudePct":15,"horizonDays":45,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"밖으로 새면 안 되는 내부 자료라 여기서만 말씀드립니다.","direction":"UP","magnitudePct":20,"horizonDays":90,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"공개되지 않은 수주 내역을 아는 사람에게 받아 정리했습니다.","direction":"UP","magnitudePct":17,"horizonDays":75,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"발표 전이라 아무도 모르는 내용입니다. 지인이 회사에 있어 들었습니다.","direction":"UP","magnitudePct":22,"horizonDays":100,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"기사에도 안 뜬 인수설인데 임원 쪽 라인이라 거짓이 아닙니다.","direction":"UP","magnitudePct":26,"horizonDays":140,"confidence":8,"labels":["PRIVATE_INFO"]}
+{"content":"공시 안 된 감원 규모를 미리 들었으니 지금 빠지셔야 합니다.","direction":"DOWN","magnitudePct":14,"horizonDays":30,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"시장이 모르는 계약 조건을 내부 경로로 받았습니다. 놓치면 안 됩니다.","direction":"UP","magnitudePct":19,"horizonDays":85,"confidence":7,"labels":["PRIVATE_INFO"]}
+{"content":"여기서는 다 말씀 못 드리니 제 개인 공간으로 오셔야 합니다.","direction":"UP","magnitudePct":15,"horizonDays":50,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"본문에 없는 타점은 밖에서만 드리니 저를 찾아오세요.","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"플랫폼 안에서는 안 되는 얘기라 따로 연락 주셔야 합니다.","direction":"UP","magnitudePct":13,"horizonDays":40,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"여기 못 적는 종목명은 제 방에 들어오시면 알려드립니다.","direction":"UP","magnitudePct":21,"horizonDays":90,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"공개 글로는 안 알려드립니다. 개인적으로 물어보러 오세요.","direction":"UP","magnitudePct":12,"horizonDays":30,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"놓치기 싫으시면 여기 말고 제가 있는 곳으로 오셔야 합니다.","direction":"UP","magnitudePct":24,"horizonDays":110,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"지금 안 오시면 다음 급등주 리스트는 못 받으십니다. 밖에서 기다립니다.","direction":"UP","magnitudePct":27,"horizonDays":130,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"상세 수량은 여기 없고 제 페이지에 남겨 두었으니 찾아오세요.","direction":"UP","magnitudePct":16,"horizonDays":70,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"수익과 손실은 시장 상황에 따라 달라집니다.","direction":"UP","magnitudePct":12,"horizonDays":60,"confidence":6,"labels":[]}
+{"content":"목표가 도달 여부는 실적 발표 이후에 판가름 날 것으로 봅니다.","direction":"UP","magnitudePct":15,"horizonDays":90,"confidence":6,"labels":[]}
+{"content":"분할 매수로 평균 단가를 관리하는 접근을 권합니다.","direction":"UP","magnitudePct":10,"horizonDays":45,"confidence":6,"labels":[]}
+{"content":"변동성이 커진 구간이라 보수적인 비중 조절이 필요해 보입니다.","direction":"UP","magnitudePct":11,"horizonDays":50,"confidence":5,"labels":[]}
+{"content":"손절 기준을 미리 정해 두고 접근하시기 바랍니다.","direction":"UP","magnitudePct":13,"horizonDays":40,"confidence":6,"labels":[]}
+{"content":"이번 분기 실적은 컨센서스에 부합하는 수준으로 추정합니다.","direction":"UP","magnitudePct":9,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"위 시나리오는 가정에 기반한 전망이며 결과는 달라질 수 있습니다.","direction":"UP","magnitudePct":17,"horizonDays":100,"confidence":5,"labels":[]}
+{"content":"리스크 관리 차원에서 현금 비중을 일부 유지하는 편이 좋겠습니다.","direction":"UP","magnitudePct":12,"horizonDays":70,"confidence":6,"labels":[]}
+{"content":"원자재 가격 흐름이 이익률의 핵심 변수로 작용할 전망입니다.","direction":"UP","magnitudePct":14,"horizonDays":85,"confidence":6,"labels":[]}
+{"content":"배당 수익률은 전년 수준을 유지할 것으로 예상합니다.","direction":"UP","magnitudePct":8,"horizonDays":120,"confidence":6,"labels":[]}
+{"content":"실적 수치는 분기보고서에 공시된 값을 그대로 인용했습니다.","direction":"UP","magnitudePct":13,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"수주 내역은 회사가 공시한 공급계약 공시를 근거로 정리했습니다.","direction":"UP","magnitudePct":16,"horizonDays":80,"confidence":7,"labels":[]}
+{"content":"가이던스는 공개 IR 자료에 제시된 범위를 따랐습니다.","direction":"UP","magnitudePct":12,"horizonDays":55,"confidence":6,"labels":[]}
+{"content":"인수 관련 내용은 양사의 공식 발표를 기준으로 서술했습니다.","direction":"UP","magnitudePct":19,"horizonDays":110,"confidence":7,"labels":[]}
+{"content":"재무 상태는 감사보고서 주석을 바탕으로 분석했습니다.","direction":"DOWN","magnitudePct":10,"horizonDays":45,"confidence":6,"labels":[]}
+{"content":"신사업 일정은 회사 설명회 공개 자료에 나온 일정을 옮겼습니다.","direction":"UP","magnitudePct":15,"horizonDays":95,"confidence":6,"labels":[]}
+{"content":"지분 변동은 대량보유 보고서 기준으로 확인했습니다.","direction":"DOWN","magnitudePct":12,"horizonDays":65,"confidence":6,"labels":[]}
+{"content":"공정률은 반기보고서에 기재된 진행률을 사용했습니다.","direction":"UP","magnitudePct":14,"horizonDays":100,"confidence":7,"labels":[]}
+{"content":"단가 협상 내용은 언론 보도 중 회사가 확인한 부분만 담았습니다.","direction":"UP","magnitudePct":11,"horizonDays":70,"confidence":6,"labels":[]}
+{"content":"허가 진행 상황은 관계기관 공고문을 근거로 정리했습니다.","direction":"UP","magnitudePct":18,"horizonDays":125,"confidence":7,"labels":[]}
+{"content":"질문은 이 글의 질의응답 기능으로 남겨 주시기 바랍니다.","direction":"UP","magnitudePct":10,"horizonDays":40,"confidence":6,"labels":[]}
+{"content":"후속 분석은 다음 리포트로 이 플랫폼에 게시하겠습니다.","direction":"UP","magnitudePct":13,"horizonDays":60,"confidence":6,"labels":[]}
+{"content":"업데이트는 제 프로필의 새 글 알림으로 확인하실 수 있습니다.","direction":"UP","magnitudePct":12,"horizonDays":50,"confidence":6,"labels":[]}
+{"content":"추가 근거 자료는 본문 하단에 전부 첨부해 두었습니다.","direction":"UP","magnitudePct":15,"horizonDays":75,"confidence":6,"labels":[]}
+{"content":"매매 판단은 각자의 투자 원칙에 따라 내리시기 바랍니다.","direction":"UP","magnitudePct":11,"horizonDays":55,"confidence":5,"labels":[]}
+{"content":"관련 종목 분석은 지난 리포트를 참고하시면 됩니다.","direction":"UP","magnitudePct":14,"horizonDays":80,"confidence":6,"labels":[]}
+{"content":"정정 사항이 생기면 이 글에 덧붙여 공지하겠습니다.","direction":"UP","magnitudePct":9,"horizonDays":35,"confidence":6,"labels":[]}
+{"content":"모든 소통은 플랫폼 공식 기능 안에서 진행합니다.","direction":"UP","magnitudePct":12,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"리포트 구독은 플랫폼 결제 절차를 통해 진행됩니다.","direction":"UP","magnitudePct":16,"horizonDays":105,"confidence":6,"labels":[]}
+{"content":"시황 요약은 매주 무료 글로 올리고 있습니다.","direction":"UP","magnitudePct":10,"horizonDays":45,"confidence":6,"labels":[]}

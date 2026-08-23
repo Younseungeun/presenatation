@@ -213,9 +213,25 @@ export async function createLearnedPhrase(prisma: PrismaClient, input: CreatePhr
     console.error('5층 상한 경보 실패:', e),
   );
 
+  // **등록 직후 카나리아 1회** (회신 15호 §3) — 사전은 applyRules 의 인자라 방금 바뀐 입력이
+  // 규칙을 깨뜨리는지는 지금 재야 "이 등록이 깨뜨렸다"가 확정된다. 등록을 기다리게 하지 않는다
+  probeCanaryAfterChange(prisma, `사전 등록 "${phrase}"`);
+
   // 충돌 목록은 저장하지 않고 돌려준다 — 화면이 "왜 근사 감시에서 빠졌는지"를
   // 등록 직후 한 번 보여주면 되는 정보라, 표에 쌓으면 낡은 채 남는다
   return Object.assign(created, { collisions: eligibility.collisions });
+}
+
+/**
+ * 사전 변경 직후 카나리아 탐침 — **박동은 찍지 않는다**, 실패만 알린다.
+ * 웹 프로세스에서 돌므로 박동을 찍으면 스케줄러가 죽어 있어도 자동 점검 ✓ 가 된다(회신 15호 §4).
+ * 동적 import: screeningCanaryRunner 가 이 파일(getActiveLearnedPhrases)을 가져오므로 정적으로
+ * 맞물리면 순환이 된다. 기다리지 않는다 — 탐침이 등록·비활성화를 늦추거나 세우면 안 된다.
+ */
+function probeCanaryAfterChange(prisma: PrismaClient, reason: string): void {
+  void import('./screeningCanaryRunner')
+    .then(({ runCanaryProbe }) => runCanaryProbe(prisma, reason))
+    .catch((e) => console.error('사전 변경 직후 카나리아 탐침 실패:', e));
 }
 
 /** 상한을 넘어 5층 자격을 잃은 항목을 찾아 운영자에게 알린다 (21차 Y-2) */
@@ -245,6 +261,8 @@ export async function setLearnedPhraseActive(
   active: boolean,
 ) {
   await prisma.learnedPhrase.update({ where: { id }, data: { active } });
+  // 비활성화도 사전이 바뀐 것이다 — 되찾기/끄기 직후 1회 (회신 15호 §3)
+  probeCanaryAfterChange(prisma, `사전 ${active ? '활성화' : '비활성화'} ${id}`);
 }
 
 /** 운영자 관리 화면용 — 정확도가 낮은 표현이 위로 오게 정렬한다 */
@@ -252,6 +270,11 @@ export async function getLearnedPhraseStats(prisma: PrismaClient) {
   const rows = await prisma.learnedPhrase.findMany({
     orderBy: { createdAt: 'desc' },
   });
+  // **서로 다른 리서처 수** (인계서 2026-08-22 §1) — 코드 규칙 후보 조건의 넷째.
+  // 매칭 이벤트 표(LearnedPhraseHit)에서 센다. 새 표라 raw 로 읽는다
+  const distinctRows = await prisma.$queryRaw<{ phraseId: string; n: number | bigint }[]>`
+    SELECT "phraseId", COUNT(DISTINCT "researcherId") AS n FROM "LearnedPhraseHit" GROUP BY "phraseId"`;
+  const distinctByPhrase = new Map(distinctRows.map((d) => [d.phraseId, Number(d.n)]));
   const stats = rows.map((r) => {
     const stat: PhraseStat = {
       id: r.id,
@@ -277,6 +300,8 @@ export async function getLearnedPhraseStats(prisma: PrismaClient) {
       // "졸업한 항목" 자리에 사는 게 맞고(회귀 문항은 영구라 수명이 맞아야 한다),
       // 그 자리를 그리려면 화면이 졸업 여부·시각을 알아야 한다
       graduatedAt: r.graduatedAt,
+      // 코드 규칙 후보 조건 넷째의 분자 — 0 이면 아직 아무도 안 걸렸거나 기록 도입 전
+      distinctResearcherCount: distinctByPhrase.get(r.id) ?? 0,
     };
   });
   // 재검토 대상 → 활성 → 최신 순

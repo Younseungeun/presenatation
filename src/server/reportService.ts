@@ -17,6 +17,11 @@ import {
   requiresReviewAfterRejections,
   type RiskCategory,
 } from '@/domain/compliance';
+import {
+  REVIEW_APPROVED_BODY,
+  REVIEW_APPROVED_TITLE,
+  REVIEW_REJECTED_TITLE,
+} from '@/domain/notice';
 import type { ComplianceScreener } from '@/infra/compliance/screener';
 import { toCardDraft } from './cardMapper';
 import { countUnjudgeableCards } from './compensationService';
@@ -426,11 +431,22 @@ export async function approvePendingReport(
   operatorUserId: string,
   now = new Date(),
   /**
-   * 지적 자체는 타당했는가. 기본값 false가 곧 "오탐" 라벨이 된다 —
-   * 승인의 대다수는 과잉 지적이므로 예외(경미해서 승인)만 표시하게 두는 편이
-   * 운영자의 손이 덜 가고, 라벨이 비는 일도 없다 (screeningAccuracy.ts).
+   * 지적 자체는 타당했는가 — **세 갈래다** (11차 K-1).
+   *
+   *   `true`   지적은 타당했다 (경미해서 통과) → 정확도 지표에서 MINOR
+   *   `false`  **운영자가 오탐이라고 명시적으로 신고했다**
+   *   `null`   아무 표시 없이 승인 (기본)
+   *
+   * 정확도 지표에서는 `null`도 오탐으로 센다 — 승인의 대다수가 과잉 지적이므로
+   * 예외만 표시하게 두는 편이 운영자의 손이 덜 가고 라벨이 비지 않는다.
+   * **그런데 자동 격하는 그렇게 세면 안 된다**: 10차 실측에서 무심코 누른 승인
+   * 25건 중 6건이면 학생 모델이 영구히 꺼졌다. 그쪽은 `false`(명시적 신고)만
+   * 표본으로 센다 (domain/studentRollback.classifyForRollback).
+   *
+   * **기본값을 `null`로 둔다** — 지표의 뜻은 그대로이고(둘 다 오탐으로 센다),
+   * 격하 쪽에서만 "말하지 않았다"와 "틀렸다고 말했다"가 갈린다.
    */
-  findingsValid = false,
+  findingsValid: boolean | null = null,
 ) {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
@@ -450,8 +466,12 @@ export async function approvePendingReport(
       data: {
         userId: report.researcher.userId,
         type: 'COMPLIANCE_PENDING',
-        title: `게시 승인: ${report.title}`,
-        body: '운영자 검토가 완료되어 판매가 시작되었습니다.',
+        // **제목·본문 고정** (2026-08-20 사용자 확정 — domain/notice). 승인은 결과가
+        // 하나뿐이라 매번 새로 지을 사연이 없고, 제목이 그대로 푸시 문구가 되므로
+        // 알림함에서 **열기 전에** "팔 수 있게 됐다"가 읽혀야 한다.
+        // 리포트 이름을 달지 않는 이유: 본인이 지은 이름이라 알려 줄 새 사실이 아니다
+        title: REVIEW_APPROVED_TITLE,
+        body: REVIEW_APPROVED_BODY,
         link: `/report/${reportId}`,
         createdAt: now,
       },
@@ -496,11 +516,19 @@ export async function rejectPendingReport(
       reason: trimmed,
       categories,
     })),
+    // **반려는 처리되는 순간 바로 알린다** (2026-08-20 사용자 확정).
+    //
+    // 잠깐 이 통지를 끄고 운영자가 쓴 쪽지만 내보내려 했는데, 되돌렸다. 강제 철회와
+    // 성격이 다르기 때문이다: 거기서는 리포트가 닫히고 환불이 나가 **어차피 다른
+    // 경로로도 사실이 전달**되지만, 반려는 리포트가 조용히 초안으로 돌아갈 뿐이라
+    // 이 한 줄이 없으면 **판매를 기다리던 사람이 아무것도 모른 채 기다린다.**
+    // 운영자가 쪽지를 깜빡하는 순간이 곧 그 사고이고, 그 위험을 사람의 기억에 맡길
+    // 이유가 없다. 검수 카드의 쪽지 상자는 이 통지 **위에 덧붙이는 말**로 남는다.
     prisma.notification.create({
       data: {
         userId: report.researcher.userId,
         type: 'COMPLIANCE_PENDING',
-        title: `게시 반려: ${report.title}`,
+        title: REVIEW_REJECTED_TITLE,
         body: `운영자 검토 결과 게시가 반려되었습니다. 사유: ${trimmed} · 초안으로 되돌렸으니 문구를 수정해 다시 게시할 수 있습니다.`,
         link: `/researcher/${report.researcherId}`,
         createdAt: now,

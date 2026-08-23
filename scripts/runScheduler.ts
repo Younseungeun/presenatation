@@ -16,12 +16,27 @@ import { runSalesCloseBatch } from '../src/server/salesCloseService';
 import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
+import {
+  CANARY_INTERVAL_MS,
+  alertIfCanaryStale,
+  runCanaryProbe,
+  runScreeningCanary,
+} from '../src/server/screeningCanaryRunner';
+import { createStudentClientFromEnv } from '../src/infra/compliance/studentClient';
+import {
+  STUDENT_ATTENDANCE_INTERVAL_MS,
+  STUDENT_ATTENDANCE_OFFSET_MS,
+  alertIfAttendanceStale,
+  runStudentAttendance,
+} from '../src/server/studentAttendance';
+import { checkWhitelistCollisions } from '../src/server/whitelistCollision';
 import { notifyOperators, purgeOldNotifications } from '../src/server/opsAlert';
 import {
   flushHardCapSurgeAlert,
   flushImplausibleQuoteSurgeAlert,
   flushOpsAlerts,
 } from '../src/server/opsAlertFeed';
+import { flushPendingPush } from '../src/server/pushService';
 import {
   anotherSchedulerMayBeRunning,
   BEAT_INTERVAL_MS,
@@ -556,6 +571,23 @@ function tick(): void {
     if (alerted) console.warn(`상한 환불 급증 알림 발송 — 오늘 ${count}건`);
   });
 
+  // **인앱 알림을 이용자 폰으로 내보낸다** (server/pushService).
+  // 알림 행은 판정·정산 트랜잭션 안에서 태어나고 그 안에서는 I/O가 금지라
+  // (noIoInTransaction) 그 자리에서 못 보낸다. 대신 아직 안 보낸 행을 여기서 훑는다 —
+  // **새 알림 종류가 생겨도 자동으로 따라오므로 다음 사람이 빠뜨릴 수가 없다.**
+  // 매 틱 도는 이유는 계좌 변경·낯선 기기 로그인처럼 **분이 아까운 알림**이 섞여 있어서다.
+  // 공급자(FCM)가 설정 안 됐으면 아무 일도 안 하고 즉시 돌아온다
+  enqueue('푸시 발송', async () => {
+    const r = await flushPendingPush(prisma, new Date());
+    if (r.attempted > 0 || r.pruned > 0) {
+      console.log(
+        `푸시 ${r.delivered}/${r.attempted}건 발송` +
+          (r.pruned > 0 ? ` · 죽은 구독 ${r.pruned}건 정리` : '') +
+          (r.tooOld > 0 ? ` · 오래돼 건너뜀 ${r.tooOld}건` : ''),
+      );
+    }
+  });
+
   // ── 정지 자동 해제 탐침 (틱마다 자격만 본다) ─────────────
   // **판정 일정과 분리돼 있다.** 판정은 하루 한 번인데 자동 회복이 흡수해야 하는
   // 장애는 10~30분짜리라, 판정 경로에 붙여 두면 순간 단절 하나에 하루를 선다.
@@ -623,6 +655,22 @@ function tick(): void {
       for (const r of results) {
         console.log(`  ${r.assetClass}: ${r.upserted}종 (비활성 ${r.deactivated})`);
       }
+      // **방금 들어온 이름이 규칙을 끄지 않는지 본다** (14차 R-4).
+      // 종목 마스터는 표기 회피 탐지의 화이트리스트라, 금지어와 충돌하는 이름이
+      // 상장되면 그 규칙이 그 종목에서 조용히 꺼진다. 빼지 않고 알리기만 한다 —
+      // 빼면 그 종목을 분석하는 성실한 리서처가 전부 막힌다(λ=4)
+      const collisions = await checkWhitelistCollisions(prisma);
+      if (collisions.length > 0) {
+        console.log(`  ⚠ 금지 규칙과 충돌하는 종목명 ${collisions.length}건`);
+      }
+      // **동기화 직후 카나리아 1회** (회신 15호 §3) — knownNames 가 갈리는 순간이다.
+      // 원인 직후 5초와 우연히 5분 뒤는 사고 조사에서 다른 값이다
+      const probe = await runCanaryProbe(prisma, '종목 마스터 동기화 직후');
+      console.log(
+        probe.failures.length === 0
+          ? '  카나리아(동기화 직후) 정상'
+          : `  ⚠ 카나리아(동기화 직후) ${probe.failures.length}건 실패`,
+      );
     });
     // 미국 상태는 나스닥 공개 파일에서 온다 (KIS가 주지 않는다) — 같은 시간대에 이어서.
     // 인증·요율 제한이 없어 전 종목을 한 번에 훑는다
@@ -689,8 +737,13 @@ function tick(): void {
     enqueueDaily('compliance', kstNow, '보류 큐 운영', async () => {
       const s = await runComplianceOps(prisma);
       console.log(`  시한 경과 초안 복귀 ${s.expired.length}건`);
+      // (카나리아 박동 감시는 심박 타이머로 옮겼다 — 회신 15호. 문턱 15분에 하루 한 번은 28배 성기다)
     });
   }
+
+  // ── 규칙 검수 카나리아는 여기 없다 (회신 15호 §1) ──────────
+  // 큐 밖 자기 타이머(canaryTimer, 5분)가 돌린다. 정규식 6회·외부 호출 0 이라 큐에 설 이유가
+  // 없고, 큐에 서면 판정(수 분) 뒤에 밀리며 ":00" 분 매칭을 놓치면 한 시간이 통째로 빈다.
 
   // ── 방치된 환불 시도 (30분마다) ─────────────────────────
   // PENDING은 "취소가 나갔는지 우리가 모른다"는 뜻인데, 그 행을 아무도 다시 보지 않으면
@@ -819,6 +872,56 @@ function tick(): void {
  */
 function beat(): void {
   void writeHeartbeat(prisma, current);
+  // **카나리아 박동은 다른 타이머가 본다** (회신 15호 §2). 심박은 큐와 별개라 큐가 막혀도
+  // 돌고, 카나리아 타이머가 죽어도 돈다 — 그래서 여기가 "카나리아가 멎었다"를 말할 자리다.
+  // 둘 다 죽으면 스케줄러가 죽은 것이고 그건 기존 워치독 몫. 알림은 dedupeKey 로 한 번만
+  void alertIfCanaryStale(prisma).then((stale) => {
+    if (stale && !stopping) console.log('  ⚠ 규칙 카나리아 박동이 15분 넘게 멎어 있습니다');
+  });
+  // IRIS 출근 점검의 박동도 같은 자리에서 본다 (회신 16호) — 점검이 "결근"이라고 말하는 것과
+  // 점검이 아예 안 도는 것은 다른 고장이고, 후자는 점검 자신이 말할 수 없다
+  void alertIfAttendanceStale(prisma, studentClient).then((stale) => {
+    if (stale && !stopping) console.log('  ⚠ IRIS 출근 점검 박동이 15분 넘게 멎어 있습니다');
+  });
+}
+
+/**
+ * IRIS 출근 점검 — 규칙 카나리아와 대칭인 **큐 밖 자기 타이머** (회신 16호). 학생이 꺼져
+ * 있으면(STUDENT_SIDECAR_URL 없음) 클라이언트가 null 이라 아무 일도 안 한다.
+ * 클라이언트는 프로세스에 하나다 — consumeAvailabilityChange() 의 전이 기억이 인스턴스에
+ * 살아서, 매번 새로 만들면 "붙었다→끊겼다"를 한 번도 보지 못한다.
+ */
+const studentClient = createStudentClientFromEnv();
+function attendanceTick(): void {
+  if (stopping) return;
+  void runStudentAttendance(prisma, studentClient)
+    .then((r) => {
+      if (!r) return;
+      console.log(
+        `  IRIS 출근 점검: ${r.ok ? '근무 중' : '결근'}` +
+          (r.notified === 'sent' ? ' (전이 — 알림 나감)' : ''),
+      );
+    })
+    .catch((e) => console.error('IRIS 출근 점검 실패:', e));
+}
+
+/**
+ * 규칙 검수 카나리아 — **큐 밖 자기 타이머** (회신 15호 §1). 정답이 정해진 6문장을 운영과
+ * 같은 함수에 통과시켜 검수가 실제로 도는지 잰다(14차 R-1). enqueue 를 거치지 않으므로
+ * 앞 작업에 밀리지 않고, 벽시계 분 매칭도 없다. 같은 프로세스다 — 프로세스를 나누면 심박도
+ * 감시도 하나씩 더 생기고, 밀리초짜리 작업에 그럴 값이 없다.
+ */
+function canaryTick(): void {
+  if (stopping) return;
+  void runScreeningCanary(prisma)
+    .then((r) => {
+      console.log(
+        r.failures.length === 0
+          ? `  카나리아 ${r.ran}건 정상`
+          : `  ⚠ 카나리아 ${r.failures.length}/${r.ran}건 실패: ${r.failures.map((f) => f.layer).join(', ')}`,
+      );
+    })
+    .catch((e) => console.error('카나리아 타이머 실패:', e));
 }
 
 /**
@@ -837,6 +940,9 @@ function catchUpOnBoot(): void {
   for (const assetClass of ['KR_EQUITY', 'US_EQUITY', 'CRYPTO'] as AssetClass[]) {
     enqueue(`기동 따라잡기 ${assetClass}`, () => judgeMarket(assetClass));
   }
+  // **배포 직후가 가장 위험하다** — 배선을 빠뜨린 코드가 막 올라간 시점이다.
+  // 큐에 세우지 않는다: 기동 따라잡기(판정, 수 분) 뒤에 서면 그동안 검수가 꺼진 채로 돈다
+  canaryTick();
 }
 
 async function main(): Promise<void> {
@@ -874,11 +980,23 @@ const timer = setInterval(tick, TICK_MS);
 // 심박은 큐와 별개의 타이머다 — 큐가 막혀도 "프로세스는 살아 있다"를 계속 말한다
 const beatTimer = setInterval(beat, BEAT_INTERVAL_MS);
 beat();
+// 카나리아도 큐와 별개의 타이머다 (회신 15호 §1). 기동 1회는 catchUpOnBoot 가 친다
+const canaryTimer = setInterval(canaryTick, CANARY_INTERVAL_MS);
+// IRIS 출근 점검은 카나리아와 **주기의 절반만큼 어긋나게** 시작한다 (회신 16호 §1-1) —
+// 기동 때 그만큼 늦게 첫 회를 치고 이후 같은 주기. 벽시계 나머지가 아니라 재기동해도 간격이 남는다
+let attendanceTimer: NodeJS.Timeout | null = null;
+const attendanceStart = setTimeout(() => {
+  attendanceTick();
+  attendanceTimer = setInterval(attendanceTick, STUDENT_ATTENDANCE_INTERVAL_MS);
+}, STUDENT_ATTENDANCE_OFFSET_MS);
 
 function shutdown(how: string): void {
   if (stopping) return;
   clearInterval(timer);
   clearInterval(beatTimer); // 지운 심박을 다음 주기가 되살리면 안 된다
+  clearInterval(canaryTimer);
+  clearTimeout(attendanceStart);
+  if (attendanceTimer) clearInterval(attendanceTimer);
   // 남은 큐를 버린다 — 진행 중인 것 하나만 끝내고 나간다 (stopping 주석 참고).
   // 이래야 pm2의 kill_timeout 안에 끝나고, 그래야 아래 clearHeartbeat이 실제로 돈다
   stopping = true;

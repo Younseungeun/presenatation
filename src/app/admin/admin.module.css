@@ -1,0 +1,1882 @@
+/* ═══ 관리자 콘솔 디자인 시스템 ═══════════════════════════════════════
+   시안(운영 콘솔 v3)에서 확정한 것을 실제 앱으로 옮긴 것이다 (2026-08-19).
+   색 토큰은 새로 만들지 않는다 — globals.css의 앱 토큰을 그대로 쓴다.
+   관리자 화면이 앱과 다른 색을 갖는 순간 "같은 서비스의 뒷면"이 아니게 된다.
+
+   ── 색은 한 축, 세 단계 ─────────────────────────────────────────
+   묻는 것은 하나다: **지금 안 하면 무슨 일이 생기나.**
+     빨강(--neg)  = 심대하다 (구매자가 돈만 잃음 · 판정이 통째로 멈춤 · 위반이 지금도 팔림)
+     노랑(--warn) = 해야 하지만 여유가 있다 (검수 대기 · 상한까지 며칠)
+     초록(--pos)  = 정상·완료
+   전에는 빨강이 "돈이 나감", 호박이 "기한이 문다"였다. 그건 **두 개의 다른 축**이라
+   한 화면에 섞이면 어느 자를 대고 보는지 매번 판단해야 했다.
+   **돈이 나간다는 사실은 색이 아니라 지문 자물쇠(🔒)가 말한다.** */
+
+/* ── 부제 회색 (2026-08-19 시안 대조에서 발견) ─────────────────────
+   시안이 부제·설명·메타에 쓰는 회색은 **#6B7684**인데 앱 토큰에는 이 값이 없다 —
+   `--text-weak`(#4E5968)는 한 단 진하고 `--text-faint`(#8B95A1)는 한 단 옅다.
+   토큰으로 대충 맞췄더니 화면의 보조 텍스트가 전부 한 단 무거워져, 카드마다
+   제목과 부제의 대비가 좁아지고 "시안과 다르다"의 대부분이 여기서 나왔다.
+   앱 토큰을 늘리지 않고 **관리 화면 안에서만** 이름을 준다 — 이 회색이 필요한 것은
+   여기뿐이고, globals.css를 건드리면 이용자 화면 전체가 함께 움직인다. */
+.page,
+.shell {
+  --ink-mid: #6b7684;
+}
+
+.page {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 4px 16px calc(96px + env(safe-area-inset-bottom));
+  color: var(--text);
+}
+
+/* 탭바가 고정(fixed)이라 마지막 카드가 그 아래로 숨는다.
+   **화면 8개를 각각 고치지 않는다** — 화면마다 다른 스타일시트를 쓰고 있어서
+   여덟 곳을 고치면 여덟 곳이 따로 낡는다. 껍데기가 한 번에 밀어 준다 */
+.shell {
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
+}
+
+/* ── 화면 머리 ─────────────────────────────────────────────── */
+.apphead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 4px 14px;
+}
+.apphead h1 {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+.apphead .sub {
+  font-size: 12px;
+  color: var(--ink-mid, #6b7684);
+  font-weight: 600;
+  margin-top: 2px;
+}
+.headLeft {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.back {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: none;
+  background: #e9ecef;
+  color: var(--text-weak);
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+
+/* ── 묶음 머리 ─────────────────────────────────────────────────
+   `.sec`(작고 진한 회색)과 `.sech`(크고 검정 + 숫자 알약)이 한 화면에 섞여 있으면
+   어느 쪽이 더 큰 묶음인지 매번 판단해야 한다 — 실제로는 둘 다 같은 층이었다.
+   글자는 그대로 두고 **모양만 하나로 접었다** */
+.sec {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.01em;
+  margin: 20px 4px 8px;
+}
+.sec small {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-mid, #6b7684);
+  margin-left: 8px;
+  letter-spacing: 0;
+}
+.sech {
+  margin: 20px 4px 9px;
+}
+.sechTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.n {
+  font-size: 11px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--text);
+  border-radius: 99px;
+  padding: 2px 7px;
+  font-variant-numeric: tabular-nums;
+}
+.nCalm {
+  background: #b0b8c1;
+}
+.sechDesc {
+  font-size: 12px;
+  color: var(--ink-mid, #6b7684);
+  margin-top: 8px;
+  font-weight: 600;
+  line-height: 1.65;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 11px 13px;
+}
+
+/* ── 설명은 접어 둔다 (시안) ───────────────────────────────────
+   매일 보는 화면에서 **왜 그런지**는 처음 몇 번만 필요하다. 늘 펼쳐 두면
+   매일 같은 문단을 지나쳐야 하고, 지나치는 습관이 붙으면 정작 **지금 사실**을
+   말하는 줄(한도 초과·되돌릴 수 없음)까지 함께 지나친다.
+   그래서 가른 기준은 길이가 아니라 성격이다:
+     · **왜 그런가** → 물음표 뒤로 접는다
+     · **지금 무엇이 사실인가** → 그대로 남긴다 (경고·상태는 접으면 안 된다)
+   지우지 않고 접는 이유: 이 문단들이 곧 이 화면의 설계 근거고,
+   한 달 뒤에 "왜 이렇게 했지"를 묻는 사람이 나 자신이다. */
+.why {
+  font: inherit;
+  font-size: 10px;
+  font-weight: 800;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-radius: 99px;
+  border: 1.3px solid #c9d0d8;
+  background: transparent;
+  color: #6b7684;
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  line-height: 1;
+  margin-left: 2px;
+  vertical-align: middle;
+}
+.why:hover {
+  border-color: var(--pos);
+  color: var(--pos);
+}
+.whyOn {
+  background: #191f28;
+  border-color: #191f28;
+  color: #fff;
+}
+.why:focus-visible {
+  outline: 2px solid var(--pos);
+  outline-offset: 2px;
+}
+
+/* ── 상자 ─────────────────────────────────────────────────── */
+.card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 8px;
+}
+.stripeNeg {
+  border-left: 4px solid var(--neg);
+}
+.stripeWarn {
+  border-left: 4px solid var(--warn);
+}
+.stripeMint {
+  border-left: 4px solid var(--pos);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+/* 제목 오른쪽에 붙는 표식 묶음 — 신고자 수 필과 유형 칩처럼 **같은 쪽 사실**끼리.
+   ── 둘은 서로 떨어지지 않는다 (flex: 0 0 auto). 좁아지면 **제목이 먼저 접힌다** ──
+   두 번 헛짚고 남긴다: ① 묶음을 줄어들게 두면 자리가 8px 모자란 것만으로 칩이 필
+   아래로 내려가 한 몸으로 읽히던 두 표식이 두 줄이 됐다 ② 그래서 `.row`에
+   `flex-wrap: wrap`을 줬더니 이번엔 **묶음째로** 다음 줄에 내려갔다 —
+   플렉스는 **줄을 먼저 나누고 그다음에 줄인다.** 줄이는 것으로 해결하려면
+   줄바꿈이 없어야 한다. 제목은 접혀도 제목이지만 표식은 갈라지면 뜻이 바뀐다 */
+.rowTags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+.row:has(.rowTags) .ttl {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.ttl {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.amt {
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--ink-mid, #6b7684);
+}
+/* 경고·상태 문장은 **상자에 넣지 않는다.** 카드가 이미 상자라 안에 회색 상자를
+   또 그리면 층이 하나 늘고, 그 층이 늘 있으면 정작 붉은 줄이 안 튄다.
+   색만으로 말한다 — 그것이 시안의 규칙이다 */
+.note {
+  font-size: 12px;
+  color: var(--ink-mid, #6b7684);
+  margin-top: 8px;
+  line-height: 1.6;
+}
+.noteNeg {
+  color: #c4303b;
+}
+.noteWarn {
+  color: #b45309;
+}
+.quote {
+  font-size: 12px;
+  color: var(--text-weak);
+  background: #f7f8fa;
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-top: 8px;
+  line-height: 1.55;
+}
+.quote b {
+  color: #c4303b;
+}
+
+/* ── 알약 ─────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 700;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 99px;
+  background: var(--surface-2);
+  color: var(--text-weak);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.chipNeg {
+  background: #fdecee;
+  color: #c4303b;
+}
+.chipWarn {
+  background: #fef3e2;
+  color: #b45309;
+}
+.chipMint {
+  background: #e6f7f2;
+  color: #0b7a66;
+}
+.chipInk {
+  background: var(--text);
+  color: #fff;
+}
+
+/* ── 목록 줄 ──────────────────────────────────────────────────
+   카드보다 얇은 줄. 훑는 속도가 다른 것이 목적이다 — 카드는 읽고 줄은 스친다 */
+.lite {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  color: inherit;
+  text-decoration: none;
+}
+/* 줄에도 띠를 단다 — 동결 줄은 "누가 얼마나"면 되지만 리포트 줄은
+   **무엇이 걸렸나**가 있어야 무엇부터 열지 고를 수 있다 */
+.liteMain {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+.liteName {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  line-height: 1.4;
+}
+.liteSub {
+  font-size: 12px;
+  color: var(--ink-mid, #6b7684);
+  font-weight: 600;
+  line-height: 1.45;
+}
+.liteTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+}
+.liteTags .chip {
+  font-size: 10px;
+  padding: 3px 8px;
+}
+.liteRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  padding-top: 2px;
+}
+.go {
+  color: #b0b8c1;
+  font-size: 15px;
+  flex: 0 0 auto;
+}
+/* 사람이 제기한 건 — 다른 건은 건수를 세지만 이것들은 **경과 시간**을 센다.
+   알약으로 그리는 이유: 기계가 만든 항목 사이에서 사람의 말이 눈에 걸려야 한다 */
+.voice {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #c4303b;
+  background: #fdecee;
+  border-radius: 99px;
+  padding: 4px 9px;
+  white-space: nowrap;
+}
+
+/* ── 넘어가는 줄 ─────────────────────────────────────────────
+   처리하는 문은 한 곳, 숫자는 여러 곳에 보여도 된다 */
+.xref {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius);
+  padding: 13px 16px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-weak);
+  cursor: pointer;
+  text-decoration: none;
+}
+.xref small {
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--text-faint);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+/* 자동 관찰문 — 기계가 붙이는 한 줄. 항목이 아니라 설명이라 세지 않는다 */
+.auto {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-mid, #6b7684);
+}
+.auto b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+/* ── 탭 ───────────────────────────────────────────────────── */
+.subtabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 2px 0 14px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.subtabs::-webkit-scrollbar {
+  display: none;
+}
+.subtab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 9px;
+  border: none;
+  background: none;
+  color: var(--text-weak);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+.subtabOn {
+  background: var(--bg);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+.tdot {
+  width: 5px;
+  height: 5px;
+  border-radius: 99px;
+  background: var(--neg);
+  flex: 0 0 auto;
+}
+.subtabOn .tdot {
+  background: #ff8a93;
+}
+
+/* ── 홈 타일 ──────────────────────────────────────────────────
+   색은 그 화면 **안에서 가장 급한 것**을 따른다. 세어서 붙인 것이지
+   화면마다 정해 둔 색이 아니다 — 오늘 급한 게 없으면 초록이 된다.
+
+   채도가 아니라 명도로 눌렀다: 채도를 낮추면 탁해지고(진흙), 명도를 낮추면서
+   채도를 올리면 깊어진다. 흰 글자가 얹히므로 대비가 4.5:1을 넘어야 한다 */
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.tile {
+  border-radius: var(--radius);
+  padding: 15px 14px 14px;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  border: 1px solid transparent;
+  color: #fff;
+  text-decoration: none;
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(0, 0, 0, 0.05));
+  backdrop-filter: blur(6px) saturate(1.08);
+  transition: transform 0.12s ease, box-shadow 0.16s ease;
+}
+.tile:active {
+  transform: translateY(1px);
+}
+/* **글자는 전부 순백이다.** 흰색에 투명도를 주면 어떤 값을 써도 명암비가 4:1
+   언저리로 내려가 부제가 안 읽힌다 — 위계는 크기와 굵기가 만든다 (시안 규칙) */
+.tileK {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #fff;
+}
+.tileV {
+  font-size: 28px;
+  font-weight: 800;
+  margin-top: 8px;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  line-height: 1.05;
+}
+.tileD {
+  font-size: 11px;
+  margin-top: 8px;
+  font-weight: 600;
+  color: #fff;
+  line-height: 1.45;
+}
+.tileNeg {
+  background-color: rgba(168, 28, 51, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 16px -10px rgba(120, 20, 37, 0.9);
+}
+.tileWarn {
+  background-color: rgba(143, 78, 8, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 16px -10px rgba(103, 56, 6, 0.9);
+}
+.tileCalm {
+  background-color: rgba(10, 107, 89, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 6px 16px -10px rgba(8, 77, 64, 0.9);
+}
+/* 급함이 정해지지 않은 타일 — 색이 없는 것이 아니라 **잉크**다.
+   흰 상자로 두면 넷 중 하나만 재질이 달라 비어 보인다 */
+.tilePlain {
+  background-color: rgba(45, 55, 68, 0.92);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 6px 16px -10px rgba(25, 33, 43, 0.9);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .tileNeg {
+    background-color: #af2e43;
+  }
+  .tileWarn {
+    background-color: #985c1c;
+  }
+  .tileCalm {
+    background-color: #1e7766;
+  }
+}
+
+/* ── 경보 목록 ─────────────────────────────────────────────── */
+.feed {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 16px;
+  margin-bottom: 8px;
+}
+.feedRow {
+  display: flex;
+  gap: 10px;
+  padding: 12px 4px;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid var(--border);
+  align-items: flex-start;
+}
+.feedRow:last-child {
+  border-bottom: none;
+}
+/* 점 하나가 그 줄의 급함이다 — 색이 없으면 정상이라는 뜻이라 초록이 기본이다 */
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: var(--pos);
+  flex: 0 0 auto;
+  margin-top: 4px;
+}
+.dotNeg {
+  background: var(--neg);
+}
+.dotWarn {
+  background: var(--warn);
+}
+.feedBody {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.feedTitle {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.45;
+}
+.feedMeta {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-mid, #6b7684);
+  margin-top: 2px;
+}
+.feedGo {
+  margin-left: auto;
+  color: #b0b8c1;
+  font-size: 14px;
+  align-self: center;
+}
+
+/* ── 하단 탭바 ────────────────────────────────────────────────
+   분류 축은 **"이 일을 끝내려면 무엇을 봐야 하는가"** — 규정집이면 리포트,
+   은행 앱이면 돈, 그 사람의 이력이면 보안, 서버면 상태 */
+.tabbar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  display: flex;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--bg);
+  border-top: 1px solid #e5e8eb;
+  padding: 6px 4px calc(10px + env(safe-area-inset-bottom));
+}
+.tabItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 0;
+  color: #b0b8c1;
+  position: relative;
+  text-decoration: none;
+}
+.tabItemOn {
+  color: var(--text);
+}
+/* 브랜드 아이콘 세트의 하한이 20px이라 22px로 쓴다 (그 아래에서는 내부 여백이 닫힌다) */
+.tabIcon {
+  display: block;
+  line-height: 0;
+}
+.tabIcon svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.tabLabel {
+  font-size: 10px;
+  font-weight: 700;
+}
+.badge {
+  position: absolute;
+  top: 0;
+  left: calc(50% + 7px);
+  min-width: 16px;
+  height: 16px;
+  border-radius: 99px;
+  background: var(--neg);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.badgeWarn {
+  background: var(--warn);
+}
+.badgeCalm {
+  background: #b0b8c1;
+}
+
+/* ── 확성기 (소통) ────────────────────────────────────────────
+   아래 탭 다섯은 **재료**로 갈린 큐다. 문의와 공지는 재료가 아니라 **방향**이라
+   (사람이 나에게 온 말 / 내가 사람에게 갈 말) 여섯 번째 탭으로 세우지 않고
+   모든 화면의 같은 자리에 둔다 — 어느 큐를 보다가도 말은 걸 수 있어야 한다 */
+.ahbtn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-weak);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  text-decoration: none;
+}
+.ahbtn svg {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+.ahbtn:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+/* 배지는 **기다리는 사람 수**만 센다 — 안 보낸 공지는 밀린 일이 아니라 안 한 일이다.
+   색은 노랑: 답이 늦으면 문제지만 지금 이 순간 무너지는 것은 없다 */
+.ahbtnCount {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  border-radius: 99px;
+  background: var(--warn);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  padding: 0 4px;
+  border: 2px solid var(--bg);
+  box-sizing: content-box;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 한 묶음에 세 칸 ──────────────────────────────────────────
+   급한 것이 위로(빨강→노랑→보통→완료), 세 칸까지만 펴 두고 나머지는 '더 보기'.
+   **빨강은 접지 않는다** — "지금 안 하면 심대하다"고 칠해 놓고 접어 버리면
+   그 색이 거짓말이 된다. 펴는 칸 수는 max(3, 빨강 수)다 */
+.foldmore {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 11px 16px;
+  margin-bottom: 8px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-weak);
+  cursor: pointer;
+  text-align: center;
+}
+.foldmore:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.foldmore small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+/* ── 버튼 ─────────────────────────────────────────────────────
+   **잉크 = 지금 누를 수 있는 쪽.** 갈래가 둘인 카드에서 고른 쪽이 채워지고
+   반대쪽은 회색이 된다 — 흰 버튼 둘이 나란히 있으면 켜졌는지가 안 읽힌다.
+   **동작의 무게는 색이 아니라 🔒 지문 자물쇠가 진다** */
+.btnrow {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.btn {
+  flex: 1;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  letter-spacing: -0.01em;
+  text-align: center;
+  text-decoration: none;
+}
+.btnInk {
+  background: var(--text);
+  color: #fff;
+}
+/* `.btnMint`는 2026-08-19에 없앴다 — 되살리지 말 것.
+   "지금 누를 수 있다"의 답은 콘솔 전체에서 **잉크 하나**여야 하는데, 민트가 섞이면
+   승인 쪽만 얼굴이 달라져 화면마다 살아 있는 버튼을 다시 찾아야 했다.
+   민트는 원래 소비자 화면의 **플랫폼 검증 전용** 색이라(브랜드 §4-3) 운영자가
+   누르는 실행 버튼에 쓰면 뜻이 두 개가 된다. */
+.btnLine {
+  background: var(--bg);
+  border: 1.5px solid #e5e8eb;
+  color: var(--text-weak);
+}
+.btnGhost {
+  background: var(--surface-2);
+  color: var(--text-weak);
+}
+/* 버튼이 안 눌리는 이유는 두 가지고, 둘은 다른 얼굴이어야 한다:
+   blocked = 다른 갈래를 골라서 닫혔다(죽은 회색) / disabled = 아직 덜 채웠다(살아있는 회색).
+   **색 규칙보다 아래에 둔다** — 특정도가 같으면 나중에 쓴 쪽이 이기므로,
+   위에 두면 닫힌 잉크 버튼이 회색이 되지 못하고 새까맣게 남는다 */
+.btn:disabled {
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.btn:disabled:not(.blocked) {
+  background: #e9ecef;
+  color: #5f6b77;
+  border-color: #e9ecef;
+}
+.blocked {
+  background: #f4f6f8;
+  color: #c4cad1;
+  border-color: #f4f6f8;
+  border-style: solid;
+}
+.fp {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 12px;
+}
+.btn:disabled .fp {
+  opacity: 0.4;
+}
+.gate {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-mid, #6b7684);
+  margin-top: 8px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* 접기 — 펼친 카드를 줄로 되돌린다 (2026-08-20 사용자 지시).
+   **카드 아래 가운데.** 판단 버튼은 좌우로 갈리지만 접기는 판단이 아니라서 어느 쪽
+   편도 아니고, 다 읽은 뒤에 누르는 것이라 시선이 이미 바닥에 있다.
+   테두리를 그리지 않는다 — 상자를 하나 더 만들면 카드 안의 층이 늘어난다.
+   손이 닿을 만큼은 키운다(패딩 10px): 글자만 작게 두면 누를 곳이 글자 폭뿐이다 */
+.fold {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  padding: 10px 0 2px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.fold:hover {
+  color: var(--text-weak);
+}
+
+/* ── 갈래 (두 결말 중 하나를 고른다) ──────────────────────────
+   결과가 정반대인 두 길을 한 카드에 놓는다. **고른 쪽만 살고 반대쪽은 회색이 된다** —
+   흰 입력칸 둘이 나란히 있으면 어느 쪽으로 가기로 했는지가 화면에 없다.
+   회색은 "닫혔다"이지 "고장났다"가 아니므로 글자는 남기고 손만 못 대게 한다 */
+.branch {
+  margin-top: 14px;
+  transition: opacity 0.14s ease;
+}
+.branchOff {
+  opacity: 0.35;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .branch {
+    transition: none;
+  }
+}
+.lbl {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-weak);
+  margin-top: 12px;
+}
+.lbl small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  margin-left: 4px;
+}
+
+/* 유형 고르기 — 체크박스가 아니라 칩이다. 체크박스는 "여러 개 켜는 목록"으로 읽히지만
+   여기서 고르는 것은 **이 건의 실제 위반 유형**이라 대개 하나다 */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.pick {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 11px;
+  border-radius: 99px;
+  border: 1.5px solid #e5e8eb;
+  background: var(--bg);
+  color: var(--text-weak);
+  cursor: pointer;
+}
+/* 고른 칩은 **잉크**다 — 회색으로 칠하면 고른 것과 안 고른 것의 차이가
+   테두리 굵기밖에 안 남아 곁눈질로 안 잡힌다 */
+.pickOn {
+  background: var(--text);
+  border-color: var(--text);
+  color: #fff;
+}
+/* 직접 입력 — 점선이 "여기서 새로 쓴다"를 말한다 */
+.pickMore {
+  border-style: dashed;
+}
+.pickMore.pickOn {
+  background: var(--text-weak);
+  border-color: var(--text-weak);
+  border-style: solid;
+}
+
+.field {
+  margin-top: 0;
+}
+.input,
+.textarea,
+.select {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1.5px solid #e5e8eb;
+  background: var(--bg);
+  color: var(--text);
+  margin-top: 8px;
+}
+.textarea {
+  resize: vertical;
+  line-height: 1.6;
+  min-height: 96px;
+}
+.input:focus,
+.textarea:focus,
+.select:focus {
+  outline: none;
+  border-color: #12b896;
+}
+/* 폼 묶음 — 입력들이 한 결정에 속한다는 것을 여백이 말한다 */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+.hint {
+  font-size: 11px;
+  color: var(--ink-mid, #6b7684);
+  font-weight: 600;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+/* 안내문 안에서 값 하나를 고치러 들어가는 문 — 버튼 상자를 그리면 안내문이 조작
+   패널처럼 보인다. 글자 그대로 두고 밑줄로만 누를 수 있음을 말한다 */
+.linkBtn {
+  font: inherit;
+  color: var(--brand-ink, #0f9b80);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-weak);
+  margin-top: 8px;
+  line-height: 1.5;
+  cursor: pointer;
+}
+.check input {
+  width: auto;
+  margin: 0;
+  accent-color: #12b896;
+}
+.error {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--neg);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* 전달될 사유 미리보기 — **나가기 전에 무엇이 나가는지 보여준다.**
+   이 글은 리서처 알림으로 그대로 가므로, 쓰는 순간 그것이 최종본이다 */
+.sent {
+  background: #f7f8fa;
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  margin-top: 8px;
+}
+.sTag {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #5f6b77;
+}
+.sV {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.sVNone {
+  color: #b0b8c1;
+  font-weight: 600;
+}
+.sP {
+  font-size: 11px;
+  font-weight: 600;
+  color: #5f6b77;
+  margin-top: 8px;
+}
+
+/* ── 닿는 길 (2026-08-19 시안 '어디로') ────────────────────────────
+   길마다 **지금 있는지**를 함께 적는다. 체크박스만 나열하면 없는 길에도 체크가 되고,
+   보냈다고 믿은 채로 아무도 못 받는 것이 이 화면에서 가장 나쁜 실패다 */
+.chan {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 0;
+  border-bottom: 1px solid #edf0f3;
+  cursor: pointer;
+}
+.chan:last-child {
+  border-bottom: none;
+}
+.chan input {
+  width: auto;
+  margin: 2px 0 0;
+  accent-color: #12b896;
+  flex: 0 0 auto;
+}
+.chanBody {
+  min-width: 0;
+  flex: 1;
+}
+.chanName {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.chanDesc {
+  font-size: 11px;
+  color: #5f6b77;
+  font-weight: 600;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.chanDim .chanName {
+  color: var(--text-faint);
+}
+
+/* 이용자에게 이렇게 보입니다 — 알림함의 한 줄을 그대로 그린다 */
+.prev {
+  background: #f7f8fa;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-top: 8px;
+}
+.prevH {
+  font-size: 10px;
+  font-weight: 800;
+  color: #5f6b77;
+  letter-spacing: 0.03em;
+}
+.prevT {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+  margin-top: 4px;
+  line-height: 1.4;
+}
+.prevB {
+  font-size: 12px;
+  color: var(--text-weak);
+  margin-top: 4px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+.prevNone {
+  font-size: 12px;
+  color: #b0b8c1;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+/* ── 숫자 묶음 (계기판) ───────────────────────────────────────
+   시안의 '계기판'. 값은 크게, 이름은 작게 — 훑을 때 잡히는 것이 값이어야 한다.
+   숫자는 tabular-nums로 자리를 고정한다: 자리가 흔들리면 세로로 비교가 안 된다 */
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.stat {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 13px 14px;
+}
+.statLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+.statValue {
+  display: block;
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  margin-top: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 목록 컨테이너 — 줄과 줄 사이를 선이 아니라 여백이 가른다.
+   선을 쓰면 한 화면에 줄이 많을 때 격자무늬가 되어 정작 내용이 안 읽힌다 */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* ── 계기 (지표 한 줄) ────────────────────────────────────────
+   .stat이 "숫자 하나"라면 이쪽은 **읽는 법이 딸린 숫자**다. 상태 화면의 지표는
+   보는 사람이 뜻을 기억해야 하는 순간부터 안 보게 되므로, 값 밑에 분모와
+   "나빠지면 무엇이 무너지는가"를 붙여 셋을 한 덩어리로 둔다.
+   눈에 띌 것만 띠를 단다 — 전부 색이 있으면 아무것도 안 띈다(.stripeWarn 재사용) */
+.metric {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.metricLabel {
+  font-size: 14.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+/* 값이 이 화면의 주인공이다 — 라벨보다 크고 진하게 */
+.metricValue {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 분모는 값 바로 밑에 — 비율만 읽고 넘어가는 것을 물리적으로 막는다.
+   1건 중 1건이 100%로 뜨면 그건 지표가 아니라 오도다 */
+.metricSample {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-faint);
+  margin: 4px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.metricMeaning {
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--text-weak);
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── 스위치 ───────────────────────────────────────────────────
+   켜고 끄는 것은 갈래가 아니다 — 결과가 정반대인 두 길 중 하나를 고르는 것이
+   아니라 **한 값의 두 상태**라, .pick(칩)이 아니라 손잡이 하나로 그린다 */
+.sw {
+  flex-shrink: 0;
+  width: 48px;
+  height: 28px;
+  padding: 3px;
+  border: none;
+  border-radius: 999px;
+  background: var(--surface-2);
+  cursor: pointer;
+  transition: background 0.16s ease;
+}
+.sw:disabled {
+  cursor: default;
+}
+.swOn {
+  background: var(--brand-strong);
+}
+.knob {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(25, 31, 40, 0.28);
+  transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.swOn .knob {
+  transform: translateX(20px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .knob {
+    transition: none;
+  }
+}
+
+/* 상위 스위치가 꺼져 있으면 하위 항목은 효력이 없다 — 그 사실이 보여야 한다 */
+.cardDim {
+  opacity: 0.55;
+}
+/* 스위치가 오른쪽에 서는 줄 — .row는 위 정렬이라 손잡이가 제목에 붙어 뜬다 */
+.swRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.swMain {
+  flex: 1;
+  min-width: 0;
+}
+
+/* 미리보기는 실제 물건을 그대로 넣는다 — 설명보다 눈이 정확하다.
+   점선은 "이건 진짜가 아니라 견본"이라는 뜻이다 */
+.preview {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  padding: 14px 20px;
+  overflow: hidden;
+}
+
+/* 붙여넣어 도는 명령 — 틀만 적으면 결국 다시 찾아야 한다 */
+.cmd {
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+/* ── 개발 모드 띠 ─────────────────────────────────────────── */
+.devBanner {
+  background: #7c2d12;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 14px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ── 상태 띠지 (시안 v3 `.band`) ───────────────────────────────
+   이용자 앱의 시장 규모 띠지를 그대로 옮겼다. 목록을 두 벌 이어 붙이고
+   한 벌 폭(-50%)만 움직이면 이음매가 안 보인다.
+   양 끝을 흐리게 해서 글자가 테두리에서 잘리지 않고 사라지는 것처럼 보이게 한다 */
+.band {
+  margin: 0 -16px 14px;
+  background: var(--bg);
+  border-top: 1px solid #e5e8eb;
+  border-bottom: 1px solid #e5e8eb;
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 24px, #000 calc(100% - 24px), transparent);
+  -webkit-mask-image: linear-gradient(
+    90deg,
+    transparent,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent
+  );
+}
+.track {
+  display: flex;
+  width: max-content;
+  animation: slide 28s linear infinite;
+}
+@keyframes slide {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.run {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+.tk {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 6px 0;
+  margin-right: 16px;
+  white-space: nowrap;
+  line-height: 1.25;
+}
+/* 항목 경계는 점이 아니라 세로선 — 한 항목이 라벨·값 두 조각이라 점으로는 경계가 안 읽힌다 */
+.tk::after {
+  content: '';
+  width: 1px;
+  height: 10px;
+  margin-left: 16px;
+  background: #e5e8eb;
+  align-self: center;
+}
+.tkLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text-faint);
+}
+.tkValue {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.03em;
+}
+/* 흰 바탕 12.5px 글자에서 #0E8A71은 대비 4.29로 기준(4.5) 미달이라 한 단 어둡게 쓴다 */
+.tkOn {
+  color: #0b7a66;
+}
+.tkOff {
+  color: #c4303b;
+}
+@media (prefers-reduced-motion: reduce) {
+  .band {
+    mask-image: none;
+    -webkit-mask-image: none;
+    padding: 0 16px;
+  }
+  .track {
+    animation: none;
+    width: auto;
+    flex-wrap: wrap;
+  }
+  .run {
+    flex-wrap: wrap;
+  }
+  .run:last-child {
+    display: none;
+  }
+}
+
+/* ── 한도·예산 막대 (시안 v3 `.gauge`) ─────────────────────────
+   금액에는 **천장이 있다.** 오늘 나갈 수 있는 돈에도, 이달 물어 줄 수 있는 돈에도.
+   숫자만 적으면 "8,200,000원"이 큰지 작은지 알 수 없고, 막대는 남은 폭을 눈으로 준다.
+
+   `.metric`(상태 화면의 지표)과 이름을 나눈 이유: 저쪽은 **뜻을 읽는 값**이고
+   이쪽은 **차오르는 값**이다. 한 이름을 겸하면 다음에 고치는 사람이 어느 쪽을
+   건드리는지 모른다 */
+.gauge {
+  margin-top: 8px;
+}
+.gauge:first-child {
+  margin-top: 0;
+}
+.gHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-weak);
+}
+.gTrack {
+  height: 8px;
+  border-radius: 99px;
+  background: #edf0f3;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.gFill {
+  height: 100%;
+  border-radius: 99px;
+  background: var(--pos);
+}
+.gFillWarn {
+  background: var(--warn);
+}
+/* 탭으로 갈라 놓으면 각 탭의 금액이 접힌다 — "오늘 나갈 돈이 다 해서 얼마인가"는
+   탭과 무관하게 한 자리에 남아 있어야 한다 */
+.gSum {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid #edf0f3;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-weak);
+}
+.gSumV {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.gWarn {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c4303b;
+  margin-top: 8px;
+  line-height: 1.55;
+}
+
+/* 문의 안에 우리 기록이 이미 답을 갖고 있을 때 — 대부분의 돈 문의가 그렇다.
+   답을 찾는 일이 아니라 **확인해 주는 일**이라는 것이 형태에 드러나야 한다 */
+.echo {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0e8a71;
+  background: #e6f7f2;
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  margin-top: 8px;
+  line-height: 1.5;
+}
+
+/* ── 이름·값 줄 (시안 v3 `.kv`) ────────────────────────────────
+   행마다 긋던 밑줄을 걷었다 — 여러 줄에 하이라인을 그으면 표가 아니라 창살이 된다.
+   이름과 값이 양 끝으로 갈려 있어 선이 없어도 행은 읽힌다 */
+.kv {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+}
+.kvK {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-weak);
+}
+.kvK small {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-mid, #6b7684);
+  margin-left: 4px;
+}
+
+/* 묶음에 붙은 한 줄 요약 (시안 v3 `data-pin` 카드 안의 얇은 행) —
+   카드지만 읽는 줄이라 제목보다 작고, 값이 오른쪽 끝에 선다 */
+.pinRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text-weak);
+}
+
+/* ── 이용자가 보는 화면 (시안 .uframe) ───────────────────────────
+   **관리 화면 안의 창문이다 — 이용자 껍데기가 새어 들어온 것이 아니다.**
+   구매자가 돈 내고 본 것은 본문이 아니라 이 화면 전체(종목·목표가·별점)이고,
+   신고가 맞는지는 그것까지 봐야 답이 난다. 그래서 테두리와 머리띠로 **다른 화면**임을
+   분명히 표시하고, 여기 쓰이는 색·글꼴은 전부 관리 화면의 것이다 — 이용자 화면의
+   스타일시트를 가져다 쓰면 그쪽이 바뀔 때 이 창문이 같이 흔들린다 */
+.uframe {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--bg);
+  margin-top: 10px;
+  margin-bottom: 8px;
+}
+.uframeBar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-faint);
+  letter-spacing: 0.02em;
+}
+.uapp {
+  padding: 16px;
+}
+.uback {
+  font-size: 12px;
+  font-weight: 700;
+  color: #b0b8c1;
+  margin-bottom: 12px;
+}
+.uh1 {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.32;
+  color: var(--text);
+}
+.usub {
+  font-size: 13px;
+  color: var(--ink-mid, #6b7684);
+  font-weight: 600;
+  margin-top: 6px;
+  line-height: 1.55;
+}
+
+/* 구매로 열린 예측 카드 — **종목이 주인공**이고 배경 궤적은 쓰지 않는다
+   (종목명이 보이면 실제 시세 차트로 오인된다 — 앱의 규칙) */
+.urev {
+  margin: 18px 0;
+  padding: 18px 20px 16px;
+  border-radius: 18px;
+  background: #f7f8fa;
+  border: 1px solid #eef1f4;
+}
+.urevHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.urevLogo {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: #e9ecef;
+  display: grid;
+  place-items: center;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-weak);
+  flex: 0 0 auto;
+}
+.urevName {
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  color: var(--text);
+}
+.urevTicker {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.urevClaim {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 14px;
+}
+.urevDir {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.urevPct {
+  font-size: 27px;
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.urevPrices {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid #e5e8eb;
+}
+.urevCell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.urevK {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+.urevV {
+  font-size: 16.5px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text);
+}
+.urevArrow {
+  font-size: 17px;
+  font-weight: 800;
+  padding-bottom: 1px;
+}
+.urevFoot {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 13px;
+}
+.urevDday {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.urevDeadline {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+.usec {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 20px 0 8px;
+  letter-spacing: -0.01em;
+}
+.ubody {
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: var(--text-weak);
+  white-space: pre-line;
+}
+.ubody mark {
+  background: #ffe3e6;
+  color: #c4303b;
+  font-weight: 700;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+.unote {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-mid, #6b7684);
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  margin-top: 14px;
+  line-height: 1.55;
+}
+
+/* 인용을 누르면 원문으로 (시안 `.quote[data-full]`) — 발췌는 **어디를 보라는 안내**이지
+   판단의 재료가 아니다. 재료는 이용자가 돈 내고 본 화면 전체이고, 그건 따로 열린다.
+   판단 화면 안에 통째로 깔아 두면 카드 하나가 화면 몇 개 길이가 되어
+   "오늘 몇 건인가"가 다시 스크롤 길이가 된다 */
+.quoteOpen {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  position: relative;
+  padding-right: 74px;
+  border: 1px solid transparent;
+  text-decoration: none;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.quoteOpen:hover {
+  background: #f2f4f6;
+  border-color: var(--border);
+}
+.quoteOpen:focus-visible {
+  outline: 2px solid var(--pos);
+  outline-offset: 2px;
+}
+.quoteOpen::after {
+  content: "원문 보기 ›";
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--text-faint);
+  letter-spacing: -0.01em;
+}
+
+/* 신고 내용을 누르면 그 사람에게 쪽지 (DirectMessage) — `.quoteOpen`과 같은 문법이지만
+   가는 곳이 다르다: 저쪽은 **글을 읽으러**, 이쪽은 **사람에게 말하러** 간다 */
+.quoteMsg {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  position: relative;
+  padding-right: 26px;
+  border: 1px solid transparent;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+.quoteMsg:hover {
+  background: #f2f4f6;
+  border-color: var(--border);
+}
+.quoteMsg:focus-visible {
+  outline: 2px solid var(--pos);
+  outline-offset: 2px;
+}
+/* **꼬리표를 달지 않는다** (2026-08-20 사용자 지시).
+   `쪽지 보내기 ›`가 신고자마다 한 번씩, 세 사람이면 세 번 붙었다 — 같은 말이
+   세 줄에 반복되면 그건 안내가 아니라 무늬다. 누를 수 있다는 사실은 hover의
+   테두리와 손 모양 커서가 말하고, 화면 낭독기에는 `aria-label`이 말한다
+   (버튼의 글자는 신고 유형이라 그것만으로는 무엇이 일어날지 알 수 없다). */
+.quoteMsg::after {
+  content: "›";
+  position: absolute;
+  right: 10px;
+  top: 7px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #c9d0d8;
+  letter-spacing: -0.01em;
+}
+
+/* 신고자에게 답하기 (DirectMessage) — **이용자 앱의 검색바와 같은 꼴** (2026-08-20
+   사용자 지시). 상자 안에 상자를 또 그리지 않는다: 쓰는 자리는 알약 하나이고,
+   보내기는 그 옆의 동그란 단추다(검색바 옆 카드지갑과 같은 배치).
+   무엇에 답하는지는 알약 위에 **테두리 없는 한 줄**로 남긴다 — 그것까지 상자로
+   만들면 화면에 상자가 셋이 된다 */
+.replyTo {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  margin-top: 8px;
+  line-height: 1.5;
+}
+.replyTo b {
+  color: var(--ink-mid, #6b7684);
+  font-weight: 700;
+}
+.replyRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+.replyForm {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: var(--surface);
+}
+.replyForm:focus-within {
+  border-color: var(--pos);
+}
+.replyInput {
+  flex: 1;
+  min-width: 0;
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  outline: none;
+  resize: none;
+  padding: 0;
+}
+.replyInput::placeholder {
+  color: #b0b8c1;
+}
+.replySend {
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--text);
+  border-radius: 999px;
+  background: var(--text);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.replySend:disabled {
+  background: #e9ecef;
+  border-color: #e9ecef;
+  color: #b0b8c1;
+  cursor: not-allowed;
+}
+
+/* ── 실행 직전 확인 창 ─────────────────────────────────────────
+   되돌릴 수 없는 실행(강제 철회) 앞과, 사람 셋을 오신고자로 만드는 실행(기각)
+   앞에만 선다. `window.confirm`을 대신하는 이유는 한 줄로는 못 싣는 것을 실어야
+   해서다 — **누구의 말 위에 선 판단인가**(들어온 신고 목록).
+
+   아래에서 올라오는 시트인 이유: 이 콘솔은 손에 쥔 화면 폭으로 쓴다. 가운데 뜬
+   상자는 넓은 화면의 문법이고, 좁은 화면에서는 화면을 통째로 덮으면서도 어디서
+   왔는지를 말하지 않는다 */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  border: 0;
+  padding: 0;
+  background: rgba(15, 23, 32, 0.42);
+  cursor: default;
+}
+.sheet {
+  position: fixed;
+  z-index: 61;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(560px, 100%);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -10px 44px rgba(15, 23, 32, 0.24);
+  padding: 18px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+}
+.sheetTtl {
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.sheetHead,
+.sheetFoot {
+  flex: 0 0 auto;
+}
+/* **가운데만 스크롤한다** — 머리(무엇이 일어나는가)와 발(실행·취소)은 늘 붙어
+   있어야 한다. 신고자가 열 명이어도 실행 버튼을 찾아 내려가는 일이 없어야 하고,
+   무엇을 실행하는 중인지가 화면에서 사라져서도 안 된다 */
+.sheetBody {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--border);
+  margin-top: 12px;
+  padding-top: 2px;
+}

@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest';
+import { COHERENCE_CORPUS } from '../__fixtures__/coherenceCorpus';
 import { SCREENING_CORPUS } from '../__fixtures__/screeningCorpus';
 import { applyRules, type Finding, type ScreeningInput } from '../compliance';
-import { evaluate } from '../screeningEval';
+import { corpusInput, evaluate } from '../screeningEval';
 
 // 검수 성능의 회귀 방지선.
 //
 // 여기 수치는 손으로 만든 부트스트랩 코퍼스 기준이라 절대값에 의미를 두지 않는다.
 // 다만 **떨어지면 안 되는 성질**은 테스트로 못 박는다 — 특히 즉시 거절 오탐 0건.
 
+/** 문장 하나를 검수 입력으로 감싼다 (카드 없음 — 문장 단위 항목의 기본값과 같다) */
 function detect(text: string): Finding[] {
   const input: ScreeningInput = {
     title: '',
@@ -20,7 +22,17 @@ function detect(text: string): Finding[] {
   return applyRules(input);
 }
 
-const report = evaluate(detect, SCREENING_CORPUS);
+const report = evaluate((input) => applyRules(input), SCREENING_CORPUS);
+const coherence = evaluate((input) => applyRules(input), COHERENCE_CORPUS);
+
+// corpusInput이 문장 항목에 채우는 기본 카드는 **어떤 규칙도 건드리지 않아야** 한다.
+// 여기서 소견이 나오면 카드 규칙이 문장 기준선에 섞여 들어와 기존 수치가 흔들린다.
+describe('평가 하네스', () => {
+  it('문장 항목의 기본 카드는 어떤 소견도 만들지 않는다', () => {
+    const input = corpusInput({ text: '평범한 분석 문장입니다.', violation: null, kind: 'normal' });
+    expect(applyRules(input)).toHaveLength(0);
+  });
+});
 
 describe('검수 기준선 (결정적 규칙)', () => {
   it('정상 문장을 즉시 거절하지 않는다', () => {
@@ -82,5 +94,118 @@ describe('부정 문맥 처리', () => {
 
   it('부정이 없는 직설 위반은 그대로 즉시 거절이다', () => {
     expect(severities('제 리포트대로만 하시면 수익을 보장합니다.')).toContain('BLOCK');
+  });
+});
+
+// ── 문서 단위 기준선 (본문 ↔ 카드 정합성) ─────────────────────────────
+//
+// 이 묶음이 지키는 것은 탐지율이 아니다. **규칙이 이 판단에 손대지 않는다**는 것이다.
+// 본문과 카드의 논조 모순을 정규식으로 잡으려 들면(어휘 세기) 반대 시나리오를 충실히
+// 쓴 정상 리포트가 무더기로 걸린다. 그 시도를 여기서 막는다.
+describe('문서 단위 기준선 (본문 ↔ 카드 정합성)', () => {
+  it('리스크를 길게 다뤄도 결론이 카드와 같으면 건드리지 않는다', () => {
+    // 최우선 하드 네거티브. 여기가 걸리기 시작하면 성실하게 쓴 리서처일수록 더 막힌다.
+    const riskHeavy = coherence.byKind.find((k) => k.kind === 'risk_heavy');
+    const coherent = coherence.byKind.find((k) => k.kind === 'coherent');
+    expect(riskHeavy?.hit).toBe(0);
+    expect(coherent?.hit).toBe(0);
+  });
+
+  it('문서 단위에서도 즉시 거절 오탐은 0이다', () => {
+    expect(coherence.blockingFalsePositives).toBe(0);
+  });
+
+  it('규칙이 잡는 것은 **결론부의 방향 충돌**뿐이다 (9차 G-6)', () => {
+    // 이전에는 이 값이 0이었고 "규칙은 본문-카드 모순을 못 잡는다"를 못 박고 있었다.
+    // 9차에 그 진술을 좁혔다: **본문 전체**로는 여전히 못 잡지만(정상 리포트는 원래
+    // 반대 시나리오를 길게 쓴다), **제목·요약**은 리서처의 최종 결론만 적는 자리라
+    // 거기서 카드와 반대인 것은 시나리오가 아니라 모순이다.
+    //
+    // 숫자 하나를 박지 않고 **모양**을 박는다 — 값은 코퍼스가 늘면 움직이지만
+    // 아래 세 성질은 구조에서 나오므로 움직이면 그것이 곧 결함이다.
+    const byKind = (k: string) => coherence.byKind.find((x) => x.kind === k)!;
+
+    // ① 방향 충돌은 잡기 시작했다
+    expect(byKind('direction_flip').hit).toBeGreaterThan(0);
+
+    // ② **크기·기간 어긋남은 여전히 0이다.** 어휘로는 "18%인데 5% 라고 썼다"를 알 수 없다.
+    //    이 자리는 NLI 교차 인코더의 몫으로 남는다 — 0이 아니게 되는 날은
+    //    무엇이 그것을 채웠는지 먼저 밝힐 것.
+    expect(byKind('magnitude_gap').hit).toBe(0);
+    expect(byKind('horizon_gap').hit).toBe(0);
+
+    // ③ 전체는 여전히 낮다. 이 규칙은 문서 판정을 **대체하지 않는다**
+    expect(coherence.recall).toBeLessThan(0.5);
+  });
+
+  it('세 가지 어긋남을 모두 표본에 갖고 있다', () => {
+    // 합쳐서 세면 "방향은 잡는데 기간은 전혀 못 본다"가 숨는다.
+    for (const kind of ['direction_flip', 'magnitude_gap', 'horizon_gap'] as const) {
+      expect(coherence.byKind.find((k) => k.kind === kind)!.total).toBeGreaterThan(0);
+    }
+  });
+
+  it('정상 표본의 과반이 하드 네거티브다', () => {
+    // 쉬운 정상 문항만 채우면 오탐률이 낮게 나와 모델을 잘못 채택하게 된다.
+    const riskHeavy = coherence.byKind.find((k) => k.kind === 'risk_heavy')!.total;
+    expect(riskHeavy * 2).toBeGreaterThan(coherence.negatives);
+  });
+});
+
+// ── 위험 성격별 계측 ──────────────────────────────────────────────────
+//
+// 2026-08-19 외부 검토 지적을 수용해 추가. 총합 탐지율 하나는 "규제 위반만 골라 새고
+// 있는" 상태를 가린다 — 근거 없는 단정을 놓치는 것과 손실보전 약속을 놓치는 것이
+// 같은 1건으로 세지기 때문이다. 처방은 거절을 늘리는 것이 아니라 **따로 재는 것**이다.
+describe('위험 성격별 계측', () => {
+  it('규제 유형의 탐지율을 따로 낸다', () => {
+    const regulatory = report.byTier.find((t) => t.tier === 'REGULATORY');
+    expect(regulatory).toBeDefined();
+    expect(regulatory!.total).toBeGreaterThan(0);
+  });
+
+  it('보류율은 즉시 거절을 세지 않는다 — 큐에 오지 않기 때문', () => {
+    // 지금은 거절 오탐이 0이라 오탐률과 같은 값이다. 두 값이 갈라지는 날이
+    // 정상 리포트가 사람 확인 없이 죽기 시작하는 날이므로, 갈라지는 것을 봐야 한다.
+    expect(report.holdRate).toBeLessThanOrEqual(report.falsePositiveRate);
+    expect(report.holdRate).toBe(report.falsePositiveRate - report.blockingFalsePositives / report.negatives);
+  });
+});
+
+// ── 관측 전용 항목 ────────────────────────────────────────────────────
+//
+// 정답이 정해지지 않은 경계 사례. 채점에서 빼는 이유는 라벨을 붙이는 순간
+// 그 임의의 판단이 곧 채택선이 되기 때문이다. 탐지기의 답만 기록한다.
+describe('관측 전용(probe) 항목', () => {
+  it('채점 분모에 들어가지 않는다', () => {
+    const scored = COHERENCE_CORPUS.filter((i) => !i.probe).length;
+    expect(coherence.total).toBe(scored);
+    expect(coherence.violations + coherence.negatives).toBe(scored);
+  });
+
+  it('그래도 결과는 보고된다 — 관측이 목적이므로', () => {
+    const probeCount = COHERENCE_CORPUS.filter((i) => i.probe).length;
+    expect(coherence.probes).toHaveLength(probeCount);
+    expect(probeCount).toBeGreaterThan(0);
+  });
+});
+
+// ── 하드 네거티브를 흉내낸 위반 ───────────────────────────────────────
+//
+// 2026-08-19 3차 검토가 가리킨 빈 칸. risk_heavy를 봐주도록 배운 탐지기는
+// "리스크 문단을 길게 깔면 카드를 뒤집어도 통과"시킨다. 그 구멍이 지표에 잡히게 한다.
+describe('리스크로 위장한 모순', () => {
+  it('표본에 존재한다 — 없으면 그 구멍이 영원히 안 보인다', () => {
+    const flip = coherence.byKind.find((k) => k.kind === 'flip_under_risk');
+    expect(flip?.total).toBeGreaterThan(0);
+  });
+
+  it('정상 risk_heavy와 따로 센다', () => {
+    // 합쳐 세면 "평범한 모순은 잡는데 위장한 모순은 놓친다"가 숨는다
+    const flip = coherence.byKind.find((k) => k.kind === 'flip_under_risk');
+    const heavy = coherence.byKind.find((k) => k.kind === 'risk_heavy');
+    expect(flip).toBeDefined();
+    expect(heavy).toBeDefined();
+    expect(flip!.kind).not.toBe(heavy!.kind);
   });
 });

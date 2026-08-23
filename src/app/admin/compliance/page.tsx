@@ -749,7 +749,7 @@ function pct(v: number | null) {
   return v === null ? "-" : `${Math.round(v * 100)}%`;
 }
 
-function AccuracyPanel({ summary }: { summary: AccuracySummary }) {
+function AccuracyPanel({ summary, bare }: { summary: AccuracySummary; bare?: boolean }) {
   if (summary.labeled === 0) {
     return (
       <p className={a.hint} style={{ marginBottom: 14 }}>
@@ -763,7 +763,7 @@ function AccuracyPanel({ summary }: { summary: AccuracySummary }) {
 
   return (
     <WhyGroup>
-    <div className={a.card} style={{ marginBottom: 14, padding: "12px 16px" }}>
+    <div className={bare ? undefined : a.card} style={bare ? undefined : { marginBottom: 14, padding: "12px 16px" }}>
       {/* 시안의 이 카드는 **한 줄**이다 — 매일 곁눈질로 잡는 숫자 셋뿐.
           표본·유형별 분해는 "왜 이 숫자인가"라 물음표 뒤로 접는다 */}
       <div className={a.row}>

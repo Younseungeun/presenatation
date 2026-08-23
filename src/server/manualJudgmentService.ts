@@ -50,6 +50,8 @@ export interface QueueEntry {
   /** 에스크로 보관 중 구매 건수 — 판정 시 정산 대상 */
   heldPurchases: number;
   withdrawn: boolean;
+  /** 왜 사람에게 왔는가 — 운영 콘솔이 "무엇을 볼지"로 갈래를 나눈다 (schema 주석) */
+  manualReason: string | null;
 }
 
 /**
@@ -102,6 +104,7 @@ export async function getManualJudgmentQueue(
     staleDays: Math.floor((now.getTime() - c.deadline.getTime()) / 86_400_000),
     heldPurchases: c.report.purchases.length,
     withdrawn: c.withdrawnAt !== null,
+    manualReason: c.manualReason,
   }));
 }
 

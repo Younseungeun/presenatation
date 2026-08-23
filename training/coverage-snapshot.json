@@ -1,0 +1,42 @@
+{
+  "measuredAt": "2026-08-21",
+  "modelSha": "a0eaa12a29da0762",
+  "threshold": 0.7,
+  "byKind": {
+    "literal": {
+      "rules": 1,
+      "student": 0.5833333333333334,
+      "combined": 1
+    },
+    "paraphrase": {
+      "rules": 0.041666666666666664,
+      "student": 0.5,
+      "combined": 0.5
+    },
+    "evasion": {
+      "rules": 1,
+      "student": 0.25,
+      "combined": 1
+    },
+    "direction_flip": {
+      "rules": 0.375,
+      "student": 0,
+      "combined": 0.375
+    },
+    "magnitude_gap": {
+      "rules": 0,
+      "student": 0,
+      "combined": 0
+    },
+    "horizon_gap": {
+      "rules": 0,
+      "student": 0,
+      "combined": 0
+    },
+    "flip_under_risk": {
+      "rules": 0.25,
+      "student": 0,
+      "combined": 0.25
+    }
+  }
+}

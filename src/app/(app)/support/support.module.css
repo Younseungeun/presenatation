@@ -1,0 +1,137 @@
+/* 문의 창구 — 목록 → 안내 → 폼의 3단.
+   한 화면에 다 펼치지 않는 이유: 주제를 고르기 전의 사람에게 폼은 소음이고,
+   폼이 보이면 안내를 읽지 않는다. **안내를 읽게 하는 것이 이 화면의 목적**이다. */
+
+.topics {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.topic {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  background: var(--surface, #fff);
+  border: 1.5px solid var(--line, #e5e8eb);
+  border-radius: 16px;
+  padding: 15px 16px;
+  cursor: pointer;
+  color: inherit;
+}
+.topic:hover { border-color: var(--brand, #12b896); }
+.topic:focus-visible { outline: 2px solid var(--brand, #12b896); outline-offset: 2px; }
+
+.tBody { flex: 1; min-width: 0; }
+.tLabel { font-size: 15px; font-weight: 700; letter-spacing: -0.01em; }
+.tHint { font-size: 12.5px; color: var(--text-weak, #8b95a1); margin-top: 3px; line-height: 1.45; }
+.tGo { color: var(--text-faint, #b0b8c1); font-size: 16px; flex: 0 0 auto; }
+
+/* 먼저 보여주는 답 — 폼보다 위, 그리고 폼보다 눈에 띄어야 한다.
+   대부분의 문의는 여기서 끝나야 하고, 그게 1인 운영의 유일한 방어다 */
+.answer {
+  background: var(--surface-weak, #f7f8fa);
+  border-radius: 14px;
+  padding: 15px 16px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text, #191f28);
+  white-space: pre-wrap;
+  margin-top: 14px;
+}
+
+/* 기타 전용 경고 — 읽고 체크해야 입력창이 열린다.
+   막는 장치가 아니라 **읽게 만드는** 장치라, 회색이 아니라 눈에 띄는 색을 쓴다 */
+.gate {
+  border: 1.5px solid var(--warn-line, #f6d9a8);
+  background: var(--warn-bg, #fffbf3);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-top: 12px;
+}
+.gateText {
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--warn-ink, #8a5a12);
+}
+.gateCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text, #191f28);
+  cursor: pointer;
+}
+.gateCheck input {
+  width: auto;
+  margin: 2px 0 0;
+  accent-color: var(--brand, #12b896);
+  flex: 0 0 auto;
+}
+
+.locked { opacity: 0.4; pointer-events: none; }
+
+.back {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  background: none;
+  border: none;
+  color: var(--text-weak, #8b95a1);
+  cursor: pointer;
+  padding: 8px 0;
+}
+
+.mine { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.mineRow {
+  background: var(--surface, #fff);
+  border: 1.5px solid var(--line, #e5e8eb);
+  border-radius: 14px;
+  padding: 13px 15px;
+}
+.mineTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.mineWhen { font-size: 11.5px; color: var(--text-weak, #8b95a1); font-weight: 600; }
+.mineDetail {
+  font-size: 12.5px;
+  color: var(--text-weak, #6b7684);
+  margin-top: 6px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.mineAnswer {
+  font-size: 13px;
+  line-height: 1.65;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line, #edf0f3);
+  white-space: pre-wrap;
+}
+.pillOpen {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--warn-ink, #b45309);
+  background: var(--warn-bg, #fef3e2);
+  border-radius: 99px;
+  padding: 3px 9px;
+}
+.pillDone {
+  font-size: 11px;
+  font-weight: 800;
+  color: #0e8a71;
+  background: #e6f7f2;
+  border-radius: 99px;
+  padding: 3px 9px;
+}

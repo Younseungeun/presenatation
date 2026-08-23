@@ -29,13 +29,70 @@ import type { RiskCategory } from '../compliance';
  * - negation: 금지 표현을 **부정**한 문장 — 임베딩이 가장 잘 틀리는 지점이라 따로 센다
  * - disclosure: 리스크 고지·면책 문구 — 위험 어휘가 많아 오탐을 유발하기 쉽다
  */
-export type CorpusKind = 'literal' | 'paraphrase' | 'evasion' | 'normal' | 'negation' | 'disclosure';
+export type CorpusKind =
+  // ── 문장 단위 ──
+  | 'literal'
+  | 'paraphrase'
+  | 'evasion'
+  | 'normal'
+  | 'negation'
+  | 'disclosure'
+  // ── 문서 단위 (coherenceCorpus.ts) ──
+  // 본문과 예측 카드를 맞대봐야 알 수 있는 것들. 어긋나는 **방식**으로 쪼갠 이유는
+  // 문장 종류를 쪼갠 이유와 같다 — 합쳐서 세면 "방향은 잡는데 기간은 전혀 못 본다"가 숨는다.
+  | 'direction_flip' // 본문 결론과 카드 방향이 반대
+  | 'magnitude_gap' // 본문이 말한 목표 수준과 카드 숫자가 뚜렷이 다름
+  | 'horizon_gap' // 본문 시간축과 카드 검증 시한이 어긋남
+  | 'flip_under_risk' // 리스크를 길게 쓰고도 결론이 카드와 반대 — 하드 네거티브를 흉내낸 위반
+  | 'coherent' // 본문과 카드가 일치하는 평범한 리포트
+  | 'risk_heavy'; // 리스크를 길게 다루지만 결론은 카드와 같은 방향 — 최우선 하드 네거티브
+
+/** 예측 카드 — 문서 단위 항목에서 본문과 맞대볼 대상 */
+export interface CorpusCard {
+  direction: 'UP' | 'DOWN';
+  targetType?: 'TARGET_PRICE' | 'RETURN_PCT';
+  targetLabel?: string | null;
+  magnitudePct?: number | null;
+  horizonDays?: number | null;
+  confidence?: number | null;
+}
 
 export interface CorpusItem {
   text: string;
   /** 실제 위반이면 유형, 정상이면 null */
   violation: RiskCategory | null;
   kind: CorpusKind;
+  /** 문서 단위 항목의 제목·요약 — 결론이 여기 드러나는 경우가 많다 */
+  title?: string;
+  summary?: string;
+  /** 없으면 문장 단위 항목 (하네스가 중립 카드를 채운다) */
+  card?: CorpusCard;
+  /**
+   * **채점하지 않고 관측만 하는 항목.**
+   *
+   * 정답을 아직 모르는 경계 사례를 위한 자리다. 예: 크기 판정을 수익성 구간에 걸었는데
+   * 14.9%와 15.1%는 여전히 다른 구간이다 — 그 차이를 사람이 위반으로 볼지 아닐지는
+   * 지금 답이 없다. 그런데 모르는 채로 라벨을 붙이면 그 임의의 판단이 곧 채택선이 되고,
+   * 1인 라벨 문제(코퍼스 한계)를 키우기만 한다.
+   *
+   * 그래서 탐지율·오탐률 계산에서 제외하고 **탐지기가 뭐라고 하는지만 보고**한다.
+   * 실측이 쌓여 답이 정해지면 `probe`를 떼고 정식 라벨을 붙인다.
+   */
+  probe?: boolean;
+  /**
+   * **초기 회귀 시험셋** (23차 Z-4 검토 확정 — 손코퍼스의 20% 영구 분리).
+   *
+   * 졸업 대비쌍 회귀셋이 아직 0건이라 첫 재학습의 망각 방어가 비어 있었다. 그래서
+   * 현행 모델(koelectra-synth-v2, t=0.7)이 **학생 단독으로 여유 있게 맞히는** 문항
+   * 17건(위반 10 — 점수 ≥0.81 · 정상 7 — 최고점 ≤0.15)을 측정으로 골라 영구 분리했다.
+   * 이후 어떤 재학습도 이 17건을 틀리면 채택되지 않는다 (evalStudent 회귀 게이트).
+   *
+   * 분리된 항목은 **학생 채점(SCORING_CORPUS)에서 빠진다** — 채점지이면서 회귀
+   * 문항이면 "지표가 자기 자신을 재는" 오염이다(21차 Y-4와 같은 계열). 규칙 회귀
+   * 시험(screeningEval.test)은 전체 86을 계속 쓴다 — 규칙은 경사하강으로 학습하지
+   * 않아 망각·과적합 축이 없다.
+   */
+  regressionSeed?: boolean;
 }
 
 // ── 위반 문장 ─────────────────────────────────────────────────────────
@@ -43,6 +100,9 @@ export interface CorpusItem {
 const PROFIT_GUARANTEE: CorpusItem[] = [
   { text: '이 종목은 원금 보장이 되는 구조라 손해 볼 일이 없습니다.', violation: 'PROFIT_GUARANTEE', kind: 'literal' },
   { text: '제 리포트대로만 하시면 수익을 보장합니다.', violation: 'PROFIT_GUARANTEE', kind: 'literal' },
+  // 12차 M-4 — 조사 하나에 규칙이 뚫리던 형태. 창업자가 손으로 써 보다 찾았다
+  { text: '이 전략은 원금을 보장합니다.', violation: 'PROFIT_GUARANTEE', kind: 'literal' },
+  { text: '원금은 제가 보장해 드리겠습니다.', violation: 'PROFIT_GUARANTEE', kind: 'literal' },
   { text: '손실이 나면 제가 전액 보전해 드리겠습니다.', violation: 'PROFIT_GUARANTEE', kind: 'literal' },
   { text: '이번 건은 100% 수익이 확정된 자리입니다.', violation: 'PROFIT_GUARANTEE', kind: 'literal' },
   { text: '무조건 오르는 자리이니 편하게 담으시면 됩니다.', violation: 'PROFIT_GUARANTEE', kind: 'literal' },
@@ -61,29 +121,29 @@ const PRIVATE_INFO: CorpusItem[] = [
   { text: '공시되기 전에 입수한 실적 자료를 근거로 합니다.', violation: 'PRIVATE_INFO', kind: 'literal' },
   { text: '미공개 정보를 바탕으로 판단했습니다.', violation: 'PRIVATE_INFO', kind: 'literal' },
   { text: '지인을 통해 들은 이야기로는 계약이 이미 확정됐다고 합니다.', violation: 'PRIVATE_INFO', kind: 'literal' },
-  { text: '그 회사 재무팀에 있는 후배가 살짝 알려준 숫자입니다.', violation: 'PRIVATE_INFO', kind: 'paraphrase' },
+  { text: '그 회사 재무팀에 있는 후배가 살짝 알려준 숫자입니다.', violation: 'PRIVATE_INFO', kind: 'paraphrase' , regressionSeed: true },
   { text: '아직 세상에 안 나온 자료를 먼저 봤습니다. 다음 주면 다들 알게 됩니다.', violation: 'PRIVATE_INFO', kind: 'paraphrase' },
   { text: '거래처 임원과 저녁 자리에서 들은 내용이니 밖으로는 옮기지 마세요.', violation: 'PRIVATE_INFO', kind: 'paraphrase' },
-  { text: '발표 일정은 제가 미리 알고 있습니다. 공식 채널에는 아직 없습니다.', violation: 'PRIVATE_INFO', kind: 'paraphrase' },
+  { text: '발표 일정은 제가 미리 알고 있습니다. 공식 채널에는 아직 없습니다.', violation: 'PRIVATE_INFO', kind: 'paraphrase' , regressionSeed: true },
 ];
 
 const RUMOR: CorpusItem[] = [
   { text: '인수설이 있다는 카더라가 돌고 있습니다.', violation: 'RUMOR', kind: 'literal' },
   { text: '찌라시에 따르면 대형 계약이 임박했다고 합니다.', violation: 'RUMOR', kind: 'literal' },
   { text: '소문에 의하면 이번 분기 실적이 크게 개선된다고 합니다.', violation: 'RUMOR', kind: 'literal' },
-  { text: '증권가에 도는 이야기로는 큰 건이 하나 있다고 합니다. 출처는 밝히기 어렵습니다.', violation: 'RUMOR', kind: 'paraphrase' },
+  { text: '증권가에 도는 이야기로는 큰 건이 하나 있다고 합니다. 출처는 밝히기 어렵습니다.', violation: 'RUMOR', kind: 'paraphrase' , regressionSeed: true },
   { text: '어디서 들었는지는 말씀드릴 수 없지만 곧 좋은 발표가 있을 겁니다.', violation: 'RUMOR', kind: 'paraphrase' },
-  { text: '확인은 안 됐는데 업계에서는 다 아는 이야기라고 하더군요.', violation: 'RUMOR', kind: 'paraphrase' },
+  { text: '확인은 안 됐는데 업계에서는 다 아는 이야기라고 하더군요.', violation: 'RUMOR', kind: 'paraphrase' , regressionSeed: true },
 ];
 
 const SOLICIT_CONTACT: CorpusItem[] = [
   { text: '더 자세한 내용은 카카오톡으로 개인 문의 주세요.', violation: 'SOLICIT_CONTACT', kind: 'literal' },
-  { text: '텔레그램 채널에서 실시간으로 알려드립니다.', violation: 'SOLICIT_CONTACT', kind: 'literal' },
+  { text: '텔레그램 채널에서 실시간으로 알려드립니다.', violation: 'SOLICIT_CONTACT', kind: 'literal' , regressionSeed: true },
   { text: '1:1 상담을 원하시면 아래 연락처로 주세요.', violation: 'SOLICIT_CONTACT', kind: 'literal' },
-  { text: '단톡방에 초대해 드리니 신청해 주세요.', violation: 'SOLICIT_CONTACT', kind: 'literal' },
-  { text: '개별 포트폴리오 진단을 원하시면 따로 연락 주십시오. 계좌 상황에 맞춰 봐드립니다.', violation: 'SOLICIT_CONTACT', kind: 'paraphrase' },
-  { text: '여기서는 다 못 쓰니 프로필에 있는 주소로 오시면 나머지를 알려드립니다.', violation: 'SOLICIT_CONTACT', kind: 'paraphrase' },
-  { text: '따로 모시는 소수 인원 방이 있습니다. 관심 있으면 말씀 주세요.', violation: 'SOLICIT_CONTACT', kind: 'paraphrase' },
+  { text: '단톡방에 초대해 드리니 신청해 주세요.', violation: 'SOLICIT_CONTACT', kind: 'literal' , regressionSeed: true },
+  { text: '개별 포트폴리오 진단을 원하시면 따로 연락 주십시오. 계좌 상황에 맞춰 봐드립니다.', violation: 'SOLICIT_CONTACT', kind: 'paraphrase' , regressionSeed: true },
+  { text: '여기서는 다 못 쓰니 프로필에 있는 주소로 오시면 나머지를 알려드립니다.', violation: 'SOLICIT_CONTACT', kind: 'paraphrase' , regressionSeed: true },
+  { text: '따로 모시는 소수 인원 방이 있습니다. 관심 있으면 말씀 주세요.', violation: 'SOLICIT_CONTACT', kind: 'paraphrase' , regressionSeed: true },
   { text: '카 톡 으 로 문의 주세요.', violation: 'SOLICIT_CONTACT', kind: 'evasion' },
 ];
 
@@ -100,7 +160,7 @@ const RISK_INDUCEMENT: CorpusItem[] = [
 
 const UNSUPPORTED_CLAIM: CorpusItem[] = [
   // 규칙에 정규식이 없는 유형 — 전부 모델(또는 학습 표현)의 몫이다
-  { text: '이유는 묻지 마시고 그냥 사시면 됩니다. 무조건 갑니다.', violation: 'UNSUPPORTED_CLAIM', kind: 'paraphrase' },
+  { text: '이유는 묻지 마시고 그냥 사시면 됩니다. 무조건 갑니다.', violation: 'UNSUPPORTED_CLAIM', kind: 'paraphrase' , regressionSeed: true },
   { text: '차트가 다 말해줍니다. 설명이 필요 없습니다.', violation: 'UNSUPPORTED_CLAIM', kind: 'paraphrase' },
   { text: '제 감이 한 번도 틀린 적이 없습니다. 이번에도 마찬가지입니다.', violation: 'UNSUPPORTED_CLAIM', kind: 'paraphrase' },
   { text: '근거는 없지만 느낌이 아주 좋습니다.', violation: 'UNSUPPORTED_CLAIM', kind: 'paraphrase' },
@@ -123,7 +183,7 @@ const SCREENING_EVASION: CorpusItem[] = [
 const NORMAL: CorpusItem[] = [
   { text: '3분기 영업이익은 시장 컨센서스를 12% 상회했습니다.', violation: null, kind: 'normal' },
   { text: '반도체 업황 회복 국면에 진입한 것으로 판단해 목표주가를 상향합니다.', violation: null, kind: 'normal' },
-  { text: '공시된 재무제표 기준 부채비율은 전년 대비 8%p 개선됐습니다.', violation: null, kind: 'normal' },
+  { text: '공시된 재무제표 기준 부채비율은 전년 대비 8%p 개선됐습니다.', violation: null, kind: 'normal' , regressionSeed: true },
   { text: '동종업계 평균 PER 대비 30% 할인 거래되고 있어 저평가 구간이라고 판단합니다.', violation: null, kind: 'normal' },
   { text: '강력한 매수 의견을 유지합니다. 목표주가는 12만원입니다.', violation: null, kind: 'normal' },
   { text: '환율이 1,400원을 유지한다는 가정하에 수출 마진은 개선될 것으로 봅니다.', violation: null, kind: 'normal' },
@@ -133,31 +193,43 @@ const NORMAL: CorpusItem[] = [
   { text: '신용잔고 추이를 보면 최근 한 달간 꾸준히 감소했습니다.', violation: null, kind: 'normal' },
   { text: '전 사업부 재산정 결과 안전 재산 배분 비중이 조정됐습니다.', violation: null, kind: 'normal' },
   { text: '업계 1위 사업자의 점유율은 공정위 자료 기준 42%입니다.', violation: null, kind: 'normal' },
-  { text: '내부 통제 시스템 개선 공시가 있었고, 이는 관리 리스크 완화 요인입니다.', violation: null, kind: 'normal' },
-  { text: '해당 지표는 100% 상승 여력을 뜻하지 않으며 단순 밸류에이션 비교입니다.', violation: null, kind: 'normal' },
+  { text: '내부 통제 시스템 개선 공시가 있었고, 이는 관리 리스크 완화 요인입니다.', violation: null, kind: 'normal' , regressionSeed: true },
+  { text: '해당 지표는 100% 상승 여력을 뜻하지 않으며 단순 밸류에이션 비교입니다.', violation: null, kind: 'normal' , regressionSeed: true },
   { text: '복원. 금보장 구역 관련 지자체 예산이 반영됐습니다.', violation: null, kind: 'normal' },
+  // 사이를 벌린 "손실…보전" 규칙의 하드 네거티브 — 보전이 나오지만 **약속이 아니다**.
+  // 이게 걸리기 시작하면 그 규칙이 명사만 보고 판단하도록 넓어졌다는 뜻이다 (pitfalls #9).
+  { text: '손실이 커지면 회사가 자본을 보전해야 하는 구조입니다.', violation: null, kind: 'normal' },
 ];
 
 const NEGATION: CorpusItem[] = [
+  // 12차 M-4 — 원금 규칙을 넓히면서 함께 넣는다. 넓힌 규칙이 이 문장들을 잡으면
+  // 성실하게 리스크를 고지한 리서처가 **사람 확인 없이** 거절된다
+  { text: '이 상품은 원금이 보장되지 않습니다.', violation: null, kind: 'negation' },
+  { text: '원금 손실 가능성이 있으므로 투자 판단에 유의하시기 바랍니다.', violation: null, kind: 'negation' },
   { text: '원금 보장은 어떤 경우에도 약속드릴 수 없습니다.', violation: null, kind: 'negation' },
   { text: '수익을 보장한다는 말은 하지 않겠습니다. 확률이 높다는 뜻일 뿐입니다.', violation: null, kind: 'negation' },
   { text: '손실 보전은 법으로 금지되어 있으며 저는 그런 제안을 하지 않습니다.', violation: null, kind: 'negation' },
   { text: '무조건 오른다고 말하는 사람은 피하십시오.', violation: null, kind: 'negation' },
-  { text: '미공개 정보에 의존한 투자는 위법이며 이 리포트는 공개 자료만 사용했습니다.', violation: null, kind: 'negation' },
-  { text: '카더라성 정보는 배제하고 공시 자료만 검토했습니다.', violation: null, kind: 'negation' },
+  { text: '미공개 정보에 의존한 투자는 위법이며 이 리포트는 공개 자료만 사용했습니다.', violation: null, kind: 'negation' , regressionSeed: true },
+  { text: '카더라성 정보는 배제하고 공시 자료만 검토했습니다.', violation: null, kind: 'negation' , regressionSeed: true },
   { text: '빚투는 절대 권하지 않습니다. 감당 가능한 범위에서만 접근하십시오.', violation: null, kind: 'negation' },
   { text: '1:1 상담은 제공하지 않습니다. 개별 문의에는 답변드릴 수 없습니다.', violation: null, kind: 'negation' },
   { text: '텔레그램 등 외부 채널로 연락드리는 일은 없으니 사칭에 주의하세요.', violation: null, kind: 'negation' },
   { text: '100% 확실한 투자는 존재하지 않습니다.', violation: null, kind: 'negation' },
+  // 아래 두 건은 규칙을 넓히면서 **새로 생긴 오탐**이다. 지우지 말 것 —
+  // 넓힌 대가를 지표에 드러내 두는 것이 이 코퍼스의 역할이다.
+  // 둘 다 부정 문맥(WEAK)으로 WARN 강등되어 보류로만 가고, 즉시 거절은 되지 않는다.
+  { text: '손실이 발생하더라도 보전해 드릴 수 없습니다.', violation: null, kind: 'negation' },
+  { text: '무조건 오르는 자산은 없다는 점을 기억하십시오.', violation: null, kind: 'negation' },
 ];
 
 const DISCLOSURE: CorpusItem[] = [
   { text: '본 리포트는 투자 참고 자료이며 투자 결과에 대한 책임은 투자자 본인에게 있습니다.', violation: null, kind: 'disclosure' },
   { text: '해당 종목은 변동성이 크므로 원금 손실 가능성이 있습니다.', violation: null, kind: 'disclosure' },
-  { text: '거래정지·상장폐지 등으로 손실이 발생할 수 있음을 유의하시기 바랍니다.', violation: null, kind: 'disclosure' },
+  { text: '거래정지·상장폐지 등으로 손실이 발생할 수 있음을 유의하시기 바랍니다.', violation: null, kind: 'disclosure' , regressionSeed: true },
   { text: '레버리지 상품은 손실이 원금을 초과할 수 있어 신중한 접근이 필요합니다.', violation: null, kind: 'disclosure' },
   { text: '과거 수익률이 미래 수익을 보장하지 않습니다.', violation: null, kind: 'disclosure' },
-  { text: '시장 상황에 따라 전망이 빗나갈 수 있으며 이 경우 손실이 발생합니다.', violation: null, kind: 'disclosure' },
+  { text: '시장 상황에 따라 전망이 빗나갈 수 있으며 이 경우 손실이 발생합니다.', violation: null, kind: 'disclosure' , regressionSeed: true },
 ];
 
 export const SCREENING_CORPUS: CorpusItem[] = [
@@ -172,3 +244,14 @@ export const SCREENING_CORPUS: CorpusItem[] = [
   ...NEGATION,
   ...DISCLOSURE,
 ];
+
+/** 학생 채점용 — 회귀 시드 17건을 뺀 69건 (23차 Z-4). 채택 하네스가 쓴다 */
+export const SCORING_CORPUS: CorpusItem[] = SCREENING_CORPUS.filter((i) => !i.regressionSeed);
+
+/**
+ * 초기 회귀 시험셋 17건 — 어떤 재학습도 여기서 틀리면 채택되지 않는다.
+ * **어떤 경로로도 학습 자료로 나가면 안 된다** (졸업 대비쌍 회귀셋과 같은 격리 원칙).
+ */
+export const REGRESSION_SEED_CORPUS: CorpusItem[] = SCREENING_CORPUS.filter(
+  (i) => i.regressionSeed === true,
+);

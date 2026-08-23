@@ -47,6 +47,18 @@ export interface StudentHealth {
   /** 준비되지 않았다면 왜인지. 이유 없는 거부는 진단을 지운다 */
   readyDetail?: string;
   labels: string[];
+  /**
+   * 모델의 이름 — 사이드카가 config.json 에서 읽어 준다 (회신 13호). `.env` 의
+   * STUDENT_MODEL_TAG 는 사람이 타이핑한 **주장**이고 이것이 파일과 한 몸인 **사실**이다.
+   * 2026-08-22 에 .env 가 옛 이름을 들고 있던 채 지문은 맞는 상태가 실제로 있었다.
+   * 옛 사이드카·config 에는 없으므로 선택 필드.
+   */
+  run?: string;
+  /**
+   * 짧고 안정된 **이름** (config.json 의 name, 예: IRIS.v5) — 도장·화면용. `run` 은 회차 기록이라
+   * 이름 칸으로 쓰면 대장 문장이 소견에 박힌다 (회신 14호). 공백·@·/ 없음 (train.py 가 거절).
+   */
+  name?: string;
 }
 
 export interface StudentOutput {
@@ -73,6 +85,24 @@ export interface StudentClient {
    * 수명 동안, 실패는 짧게만 기억한다(사이드카를 다시 띄우면 배포 없이 돌아와야 한다).
    */
   usable(): Promise<boolean>;
+  /**
+   * **캐시를 버리고 다시 잰다** — 주기 점검·화면 열기 전용 (2026-08-23).
+   *
+   * `usable()` 의 캐시는 집행 경로(리포트마다)의 최적화라 그대로 두어야 하고, 감시
+   * 경로만 매번 새로 재야 한다. 없으면 5분 주기 점검이 **첫 회만 진짜**가 된다.
+   * 선택 항목인 이유: 캐시가 없는 구현(시험 목)에는 `usable()` 과 같은 일이다.
+   */
+  recheck?(): Promise<boolean>;
+  /**
+   * **왜 못 쓰는지 — 전부** (2026-08-23). 마지막 `usable()` 이 남긴 목록, 쓸 수 있으면 빈 배열.
+   *
+   * 화면이 사유를 따로 계산하면 핑 결과를 모른 채 상태 플래그만 보게 되어, 원인이
+   * 무엇이든 같은 문장 하나로 뭉개진다. 사유는 잰 쪽이 안다.
+   *
+   * 선택 항목인 이유: 사유를 남기지 않는 구현(시험 목)도 정당하다 — 그때는 호출자가
+   * `describeUnavailability(health)` 로 되돌아간다.
+   */
+  failureReasons?(): UnavailableReason[];
   /**
    * **가용 상태가 바뀌었으면 한 번만 알려 준다** (9차 검토 G-2, 상태 엣지 탐지).
    *
@@ -164,7 +194,7 @@ function toFindings(raw: unknown, enabled: ReadonlySet<string>): Finding[] {
         // **확신 %를 문장에 싣지 않는다** (Q8(b) · 관리자 앱 2회차 A-1 발견).
         // reason 은 리서처에게 그대로 나가는 문장이라, 숫자를 실으면 리서처가 재제출을
         // 반복하며 임계값을 이진 탐색한다. 숫자는 confidence 로만 — 관리자 화면 전용
-        reason: `${RISK_CATEGORY_LABEL[category]} 정황 (학생 모델)`,
+        reason: `${RISK_CATEGORY_LABEL[category]} 정황 (IRIS)`,
         // 'ai'가 아니라 'student' — 오탐을 고치는 방법이 달라서다 (FindingSource 주석)
         source: 'student',
         // 값은 값의 자리에 (Q7) — 화면이 reason 을 정규식으로 파싱하게 하지 않는다
@@ -224,15 +254,71 @@ export function describeUnavailability(
   health: StudentHealth | null,
   pingDetail?: string,
 ): string {
-  if (!health) return '사이드카에 연결할 수 없습니다';
-  if (health.stub) return '스텁 모드 — 가중치 없음';
-  if (health.modelStale) return '적재 뒤 가중치 파일이 바뀌었습니다 (옛 프로세스일 수 있습니다)';
-  if (health.ready === false) return `카나리아 실패: ${health.readyDetail ?? '사유 없음'}`;
-  if (health.trainedTokenizerSha && health.trainedTokenizerSha !== health.tokenizerSha) {
-    // 두 값을 함께 적는다 — "불일치"만으로는 어느 쪽을 고쳐야 하는지 알 수 없다
-    return `토크나이저 지문 불일치 — 학습 ${health.trainedTokenizerSha} ≠ 서빙 ${health.tokenizerSha}`;
+  // **목록의 첫 항목이 이 문장이다** — 두 벌로 적으면 갈린다 (2026-08-23)
+  return listUnavailability(health, pingDetail)[0].sentence;
+}
+
+/**
+ * **못 쓰는 이유를 전부 열거한다** (2026-08-23 창업자 지시 — 검수 규칙의 층 배지처럼).
+ *
+ * `describeUnavailability` 는 **첫 이유 하나**만 돌려준다. 알림 한 줄에는 그것이 맞지만
+ * 계기판에서는 부족하다: 지문도 어긋나고 카나리아도 깨진 상태에서 앞의 하나만 고치면
+ * 여전히 결근인데 화면은 그 사실을 미리 말해 주지 않는다. 고칠 것이 몇 개인지가
+ * **고치러 가기 전에** 보여야 한다.
+ *
+ * 검사끼리 독립이라 그냥 다 담으면 된다. **핑만 예외**로, 다른 넷이 전부 멀쩡할 때만
+ * 담는다 — `usable()` 이 상태 검사에서 걸리면 핑을 아예 돌지 않으므로, 함께 적으면
+ * 재지도 않은 항목을 실패로 세우는 것이 된다.
+ */
+export interface UnavailableReason {
+  code: 'OFFLINE' | 'STUB' | 'STALE' | 'CANARY' | 'SHA' | 'PING';
+  /** 배지에 쓰는 짧은 이름 — 어디를 고칠지가 이 한 마디로 갈려야 한다 */
+  label: string;
+  /** 사람이 읽는 한 문장 — 알림과 상세 화면이 그대로 쓴다 */
+  sentence: string;
+}
+
+export function listUnavailability(
+  health: StudentHealth | null,
+  pingDetail?: string,
+): UnavailableReason[] {
+  if (!health) {
+    return [{ code: 'OFFLINE', label: '연결 불가', sentence: '사이드카에 연결할 수 없습니다' }];
   }
-  return `시맨틱 핑 실패 — ${pingDetail || '상태는 정상인데 고정 문항이 어긋납니다'}`;
+  const out: UnavailableReason[] = [];
+  if (health.stub) {
+    out.push({ code: 'STUB', label: '스텁 모드', sentence: '스텁 모드 — 가중치 없음' });
+  }
+  if (health.modelStale) {
+    out.push({
+      code: 'STALE',
+      label: '가중치 교체됨',
+      sentence: '적재 뒤 가중치 파일이 바뀌었습니다 (옛 프로세스일 수 있습니다)',
+    });
+  }
+  if (health.ready === false) {
+    out.push({
+      code: 'CANARY',
+      label: '기동 카나리아',
+      sentence: `카나리아 실패: ${health.readyDetail ?? '사유 없음'}`,
+    });
+  }
+  if (health.trainedTokenizerSha && health.trainedTokenizerSha !== health.tokenizerSha) {
+    out.push({
+      code: 'SHA',
+      label: '지문 불일치',
+      // 두 값을 함께 적는다 — "불일치"만으로는 어느 쪽을 고쳐야 하는지 알 수 없다
+      sentence: `토크나이저 지문 불일치 — 학습 ${health.trainedTokenizerSha} ≠ 서빙 ${health.tokenizerSha}`,
+    });
+  }
+  if (out.length === 0) {
+    out.push({
+      code: 'PING',
+      label: '시맨틱 핑',
+      sentence: `시맨틱 핑 실패 — ${pingDetail || '상태는 정상인데 고정 문항이 어긋납니다'}`,
+    });
+  }
+  return out;
 }
 
 function pingInput(content: string): ScreeningInput {
@@ -253,8 +339,11 @@ function pingInput(content: string): ScreeningInput {
  * 핑에 쓰면 정상적인 경계 재조정 학습에도 오경보가 난다 — 경계 감시는 핑이 아니라
  * 회귀셋의 몫이다.
  *
- * 실측 (2026-08-22, r5 a0eaa12a): 위반 0.856 / 0.855 / 0.862 / 0.865 ·
- * 정상 최대 라벨 0.242 / 0.231 / 0.249 / 0.171.
+ * 실측 (2026-08-22 저녁 재측정, r5 a0eaa12a, buildStudentText 경로 = usable 과 동일):
+ * 위반 0.839 / 0.834 / 0.862 / 0.865 · 정상 최대 라벨 0.242 / 0.231 / 0.249 / 0.171.
+ * ⚠ PG·PRIVATE 가 선정선 0.85 에 0.011~0.016 미달 — 이전 기록(0.856/0.855)은 재현되지 않았다
+ *   (30차 부록). 문장을 모델에 맞춰 바꾸지 않는다(gap 17); 다음 모델 채택 때 재선정 안건.
+ *   라이브 usable() 은 정상 상한만 집행하므로 영향 없음.
  * ⚠ 이 문장들을 학습셋에 넣지 말 것 (check:ping 이 감시) — 핑만 외운 모델이 통과한다.
  */
 export const SEMANTIC_PINGS: readonly SemanticPing[] = [
@@ -313,21 +402,37 @@ export const SEMANTIC_PINGS: readonly SemanticPing[] = [
 ];
 
 class HttpStudentClient implements StudentClient {
-  readonly reviewerId: string;
+  /**
+   * 사이드카가 알려 준 모델 이름 (config.json 의 run). health() 가 한 번 성공하면 채워진다.
+   * 그 전에는 .env 태그가 자리를 메운다 — 그래서 reviewerId 는 "호출 전에는 주장, 호출 뒤에는
+   * 사실"이다. 실집행 경로는 usable() 이 health() 를 먼저 부르므로 소견에 박히는 값은 사실 쪽이다.
+   */
+  private resolvedName: string | null = null;
 
   constructor(
     private readonly baseUrl: string,
     private readonly threshold: number,
-    modelTag: string,
+    private readonly modelTag: string,
     private readonly enabled: ReadonlySet<string>,
-  ) {
-    // 졸업 라벨 수까지 박는다 — 켜진 라벨이 다르면 다른 판정기이고,
-    // 그림자 기록을 나중에 견줄 때 그 사실이 값에 남아 있어야 한다
-    this.reviewerId = `student:${modelTag}@t${threshold}/L${enabled.size}`;
+  ) {}
+
+  /**
+   * 판정 주체 표기. 졸업 라벨 수까지 박는다 — 켜진 라벨이 다르면 다른 판정기이고, 그림자
+   * 기록을 나중에 견줄 때 그 사실이 값에 남아 있어야 한다.
+   *
+   * 이름 자리는 **파일이 들고 온 run** 이 우선이다 (회신 13호): 2026-08-22 에 .env 태그가
+   * 옛 이름(koelectra-synth-v2)인 채 지문은 a0eaa12a 로 맞아, 화면 세 줄 중 한 줄만 틀린
+   * 상태가 실제로 있었다. 대조를 하나 더 만드는 대신 이름의 출처를 파일로 옮긴다.
+   * 임계값만 설정에 남는다 — 그건 파일의 성질이 아니라 우리가 고른 값이다.
+   */
+  get reviewerId(): string {
+    return `student:${this.resolvedName ?? this.modelTag}@t${this.threshold}/L${this.enabled.size}`;
   }
 
   /** 지문 대조 결과 캐시. 성공은 영구, 실패는 짧게만 — 사이드카 재기동이 배포 없이 살아나야 한다 */
   private gate: { ok: boolean; until: number } | null = null;
+  /** 마지막 usable() 이 남긴 결근 사유 — 걸쇠 캐시와 같은 수명 */
+  private lastFailure: UnavailableReason[] | null = null;
 
   /** @근거 설계 — 실패를 기억하는 시간. 사이드카를 다시 띄운 뒤 1분이면 회복된다 */
   private static readonly GATE_RETRY_MS = 60_000;
@@ -352,6 +457,23 @@ class HttpStudentClient implements StudentClient {
       this.pendingChange = { to: ok, detail };
     }
     this.announced = ok;
+  }
+
+  /**
+   * **걸쇠 기억을 버리고 다시 잰다** — 주기 점검·화면 열기 전용 (2026-08-23 창업자 지시).
+   *
+   * `usable()` 은 성공을 프로세스 수명 내내 캐시한다. 리포트마다 `/health` 를 부르지
+   * 않으려는 설계고 **집행 경로에서는 그게 맞다.** 문제는 그 캐시가 감시까지 덮는다는
+   * 것이다: 스케줄러가 5분마다 `usable()` 을 불러도 **첫 회만 진짜 점검**이고 나머지는
+   * 기억을 되뇐다. 화면을 열 때도 마찬가지라, 어제 확인된 "출근"이 오늘도 그대로 뜬다.
+   *
+   * 그래서 캐시를 **없애는 것이 아니라 우회로를 낸다** — 집행은 빠르게, 감시는 정확하게.
+   * 비용은 `/health` 1 + 시맨틱 핑 8 = 9회(localhost, 1초 미만)라 **부르는 자리를 세는
+   * 것이 중요하다**: 5분 주기와 화면 열기까지다. 폴링마다 부르면 안 된다.
+   */
+  async recheck(): Promise<boolean> {
+    this.gate = null;
+    return this.usable();
   }
 
   async usable(): Promise<boolean> {
@@ -449,9 +571,28 @@ class HttpStudentClient implements StudentClient {
     if (health && health.ready === false) {
       console.error(`학생 모델 카나리아 실패 — 실집행에서 제외합니다: ${health.readyDetail}`);
     }
-    this.noteAvailability(ok, ok ? '사이드카 정상' : describeUnavailability(health, pingDetail));
+    // **왜 못 쓰는지를 붙잡아 둔다** (2026-08-23 창업자 지시).
+    //
+    // `pingDetail` 은 이 함수 안에서만 살아 있었다. 계기판 라우트는 `usable()` 의
+    // 참·거짓만 받고 사유는 `describeUnavailability(health)` 로 **다시 계산**했는데,
+    // 그쪽에는 핑 결과가 없으니 상태 플래그가 전부 정상인 경우 남는 답이 하나뿐이라
+    // 늘 "상태는 정상인데 고정 문항이 어긋납니다"만 떴다. 실제로 그 문장 때문에
+    // 모델이 죽은 것인지·늦은 것인지·지문이 어긋난 것인지 화면으로 구별할 수 없었다
+    // (고칠 곳이 전혀 다른 셋이다). 사유를 **한 번 계산해 여기 둔다.**
+    this.lastFailure = ok ? null : listUnavailability(health, pingDetail);
+    this.noteAvailability(ok, ok ? '사이드카 정상' : this.lastFailure![0].sentence);
     this.gate = { ok, until: Date.now() + HttpStudentClient.GATE_RETRY_MS };
     return ok;
+  }
+
+  /**
+   * 마지막 `usable()` 이 남긴 결근 사유 — 쓸 수 있으면 null.
+   *
+   * 걸쇠 캐시와 같은 수명이다: 캐시된 답을 돌려주는 동안에는 그때의 사유가 그대로
+   * 유효하고, 다시 재는 순간 함께 갱신된다.
+   */
+  failureReasons(): UnavailableReason[] {
+    return this.lastFailure ?? [];
   }
 
   /** 모든 실패를 삼키고 null을 돌려준다 — 호출자가 게시를 막지 않게 하기 위해 */
@@ -467,7 +608,7 @@ class HttpStudentClient implements StudentClient {
       return (await res.json()) as T;
     } catch (e) {
       // 로그만 남긴다. 그림자 모드에서 사이드카 장애는 사건이 아니라 결측이다
-      console.error('학생 사이드카 호출 실패:', (e as Error).message);
+      console.error('IRIS 사이드카 호출 실패:', (e as Error).message);
       return null;
     }
   }
@@ -483,9 +624,16 @@ class HttpStudentClient implements StudentClient {
       ready?: boolean;
       ready_detail?: string;
       labels?: string[];
+      run?: string | null;
+      name?: string | null;
     }>('/health');
     if (!raw) return null;
+    // 파일이 들고 온 이름을 기억한다 — 이후 reviewerId 는 .env 가 아니라 이 값을 쓴다.
+    // run(회차 기록)은 쓰지 않는다: 구분자(@ /)가 들어올 수 있는 자유 문장이라 도장이 모호해진다
+    if (raw.name) this.resolvedName = raw.name;
     return {
+      name: raw.name ?? undefined,
+      run: raw.run ?? undefined,
       ok: raw.ok,
       stub: raw.stub,
       tokenizerSha: raw.tokenizer_sha,
@@ -514,7 +662,7 @@ class HttpStudentClient implements StudentClient {
       // **"출근했다"는 기억을 지운다** (2026-08-23 창업자 지적).
       //
       // 걸쇠는 성공을 **프로세스 수명 내내** 캐시한다(`usable()` 첫 줄) — 리포트마다
-      // /health 를 부르지 않으려는 설계고, 그 자체는 맞다. 문제는 첫 확인 뒤에 학생이
+      // /health 를 부르지 않으려는 설계고, 그 자체는 맞다. 문제는 첫 확인 뒤에 IRIS 가
       // 죽었을 때다: 게시는 `studentFailed` 가 잡아 보류로 돌리지만(complianceService),
       // 걸쇠는 계속 참이라 **계기판이 초록으로 "출근 중"을 띄우고 장애 알림도 안 나간다.**
       // 보류 카드만 쌓이고 원인이 화면에 없는 상태 — 고치러 갈 곳을 표시가 가린다.
@@ -551,7 +699,9 @@ class HttpStudentClient implements StudentClient {
       const best = new Map<string, Finding>();
       for (const f of whole.findings) best.set(f.category, f);
       const windows: string[] = [];
-      for (let i = 0; i < sentences.length - 1 && windows.length < MAX_WINDOWS; i += 1) {
+      // 상한은 측정 스크립트가 env 로 바꿔 볼 수 있다 (30차 먼저 재야 할 것 ②). 운영 기본값은 상수
+      const maxWindows = Number(process.env.STUDENT_MAX_WINDOWS ?? MAX_WINDOWS) || MAX_WINDOWS;
+      for (let i = 0; i < sentences.length - 1 && windows.length < maxWindows; i += 1) {
         windows.push(`${sentences[i]} ${sentences[i + 1]}`);
       }
       let latency = whole.latencyMs;

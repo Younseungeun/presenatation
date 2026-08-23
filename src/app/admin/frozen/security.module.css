@@ -1,0 +1,38 @@
+/* 보안 화면만의 그림 — **대조**. (시안 v3 `.duel`)
+   두 이름이 같은 높이에 나란히 서야 눈이 바로 비교한다. 위아래로 쌓으면
+   운영자가 스크롤하며 옮겨 적게 되고, 옮겨 적는 순간 틀린다.
+   판정 이의 화면의 대조와 같은 문법이지만 그쪽은 숫자고 이쪽은 이름이라
+   글자 크기가 다르다 — 그래서 스타일시트를 나눈다. */
+.duel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@media (max-width: 520px) {
+  .duel {
+    grid-template-columns: 1fr;
+  }
+}
+
+.src {
+  border: 1.5px solid #e5e8eb;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.srcName {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--text-faint);
+}
+
+/* 대조할 이름은 이 카드에서 가장 진해야 한다 */
+.srcValue {
+  font-size: 15px;
+  font-weight: 800;
+  margin-top: 4px;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}

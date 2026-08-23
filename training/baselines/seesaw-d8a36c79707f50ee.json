@@ -1,0 +1,1447 @@
+{
+ "capturedAt": "2026-08-22T01:47:42.196Z",
+ "modelSha": "d8a36c79707f50ee",
+ "purpose": "26차 시소 간섭 베이스라인 — 다음 채택 판정에서 비겨냥 라벨 하락 폭 비교의 0점",
+ "rows": [
+  {
+   "id": "8ce353e14921",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.3651,
+    "PRIVATE_INFO": 0.074,
+    "RUMOR": 0.0901,
+    "SOLICIT_CONTACT": 0.0833,
+    "UNSUPPORTED_CLAIM": 0.1692,
+    "RISK_INDUCEMENT": 0.1347,
+    "SCREENING_EVASION": 0.0936,
+    "CARD_MISMATCH": 0.1209
+   }
+  },
+  {
+   "id": "2a8008331068",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4237,
+    "PRIVATE_INFO": 0.078,
+    "RUMOR": 0.0758,
+    "SOLICIT_CONTACT": 0.1463,
+    "UNSUPPORTED_CLAIM": 0.1408,
+    "RISK_INDUCEMENT": 0.198,
+    "SCREENING_EVASION": 0.1177,
+    "CARD_MISMATCH": 0.0894
+   }
+  },
+  {
+   "id": "ce9f15259440",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4078,
+    "PRIVATE_INFO": 0.088,
+    "RUMOR": 0.0787,
+    "SOLICIT_CONTACT": 0.1195,
+    "UNSUPPORTED_CLAIM": 0.147,
+    "RISK_INDUCEMENT": 0.1847,
+    "SCREENING_EVASION": 0.1277,
+    "CARD_MISMATCH": 0.0952
+   }
+  },
+  {
+   "id": "8ca47791b882",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4925,
+    "PRIVATE_INFO": 0.0959,
+    "RUMOR": 0.1058,
+    "SOLICIT_CONTACT": 0.1584,
+    "UNSUPPORTED_CLAIM": 0.1562,
+    "RISK_INDUCEMENT": 0.1776,
+    "SCREENING_EVASION": 0.1347,
+    "CARD_MISMATCH": 0.1011
+   }
+  },
+  {
+   "id": "3e981c4d8a1e",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.5032,
+    "PRIVATE_INFO": 0.086,
+    "RUMOR": 0.0985,
+    "SOLICIT_CONTACT": 0.1513,
+    "UNSUPPORTED_CLAIM": 0.1541,
+    "RISK_INDUCEMENT": 0.1716,
+    "SCREENING_EVASION": 0.1214,
+    "CARD_MISMATCH": 0.0949
+   }
+  },
+  {
+   "id": "af6684345bfd",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2281,
+    "PRIVATE_INFO": 0.0666,
+    "RUMOR": 0.0866,
+    "SOLICIT_CONTACT": 0.0749,
+    "UNSUPPORTED_CLAIM": 0.1904,
+    "RISK_INDUCEMENT": 0.1302,
+    "SCREENING_EVASION": 0.1091,
+    "CARD_MISMATCH": 0.1159
+   }
+  },
+  {
+   "id": "9c7c78262f7a",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.5882,
+    "PRIVATE_INFO": 0.0599,
+    "RUMOR": 0.1049,
+    "SOLICIT_CONTACT": 0.162,
+    "UNSUPPORTED_CLAIM": 0.4341,
+    "RISK_INDUCEMENT": 0.6545,
+    "SCREENING_EVASION": 0.1502,
+    "CARD_MISMATCH": 0.118
+   }
+  },
+  {
+   "id": "7d360e4f6434",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4768,
+    "PRIVATE_INFO": 0.0658,
+    "RUMOR": 0.0794,
+    "SOLICIT_CONTACT": 0.1156,
+    "UNSUPPORTED_CLAIM": 0.1574,
+    "RISK_INDUCEMENT": 0.2464,
+    "SCREENING_EVASION": 0.0973,
+    "CARD_MISMATCH": 0.111
+   }
+  },
+  {
+   "id": "9ab3ac3369e5",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.3659,
+    "PRIVATE_INFO": 0.0776,
+    "RUMOR": 0.0755,
+    "SOLICIT_CONTACT": 0.1158,
+    "UNSUPPORTED_CLAIM": 0.1299,
+    "RISK_INDUCEMENT": 0.1641,
+    "SCREENING_EVASION": 0.0978,
+    "CARD_MISMATCH": 0.0984
+   }
+  },
+  {
+   "id": "0e3c5bbdf9da",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1586,
+    "PRIVATE_INFO": 0.098,
+    "RUMOR": 0.1424,
+    "SOLICIT_CONTACT": 0.0805,
+    "UNSUPPORTED_CLAIM": 0.1281,
+    "RISK_INDUCEMENT": 0.0758,
+    "SCREENING_EVASION": 0.1072,
+    "CARD_MISMATCH": 0.0973
+   }
+  },
+  {
+   "id": "73b224c3ab70",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4864,
+    "PRIVATE_INFO": 0.0647,
+    "RUMOR": 0.0767,
+    "SOLICIT_CONTACT": 0.0848,
+    "UNSUPPORTED_CLAIM": 0.2371,
+    "RISK_INDUCEMENT": 0.2885,
+    "SCREENING_EVASION": 0.1016,
+    "CARD_MISMATCH": 0.0996
+   }
+  },
+  {
+   "id": "8f158cb55b78",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4215,
+    "PRIVATE_INFO": 0.0691,
+    "RUMOR": 0.0869,
+    "SOLICIT_CONTACT": 0.0908,
+    "UNSUPPORTED_CLAIM": 0.1674,
+    "RISK_INDUCEMENT": 0.1764,
+    "SCREENING_EVASION": 0.085,
+    "CARD_MISMATCH": 0.1018
+   }
+  },
+  {
+   "id": "17f2a69814a1",
+   "set": "scoring",
+   "kind": "evasion",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4135,
+    "PRIVATE_INFO": 0.1396,
+    "RUMOR": 0.2245,
+    "SOLICIT_CONTACT": 0.1582,
+    "UNSUPPORTED_CLAIM": 0.6554,
+    "RISK_INDUCEMENT": 0.7312,
+    "SCREENING_EVASION": 0.263,
+    "CARD_MISMATCH": 0.2163
+   }
+  },
+  {
+   "id": "833edc9b719e",
+   "set": "scoring",
+   "kind": "evasion",
+   "violation": "PROFIT_GUARANTEE",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.3075,
+    "PRIVATE_INFO": 0.1211,
+    "RUMOR": 0.0646,
+    "SOLICIT_CONTACT": 0.2072,
+    "UNSUPPORTED_CLAIM": 0.1266,
+    "RISK_INDUCEMENT": 0.2111,
+    "SCREENING_EVASION": 0.1686,
+    "CARD_MISMATCH": 0.0634
+   }
+  },
+  {
+   "id": "71cb412643fa",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PRIVATE_INFO",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.0946,
+    "PRIVATE_INFO": 0.525,
+    "RUMOR": 0.2496,
+    "SOLICIT_CONTACT": 0.1228,
+    "UNSUPPORTED_CLAIM": 0.0885,
+    "RISK_INDUCEMENT": 0.0607,
+    "SCREENING_EVASION": 0.1172,
+    "CARD_MISMATCH": 0.0927
+   }
+  },
+  {
+   "id": "2ba2c50e19b6",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PRIVATE_INFO",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1061,
+    "PRIVATE_INFO": 0.2184,
+    "RUMOR": 0.1391,
+    "SOLICIT_CONTACT": 0.1035,
+    "UNSUPPORTED_CLAIM": 0.0813,
+    "RISK_INDUCEMENT": 0.069,
+    "SCREENING_EVASION": 0.1027,
+    "CARD_MISMATCH": 0.0711
+   }
+  },
+  {
+   "id": "41719f3b9a6d",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PRIVATE_INFO",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1255,
+    "PRIVATE_INFO": 0.1476,
+    "RUMOR": 0.126,
+    "SOLICIT_CONTACT": 0.0894,
+    "UNSUPPORTED_CLAIM": 0.0936,
+    "RISK_INDUCEMENT": 0.0756,
+    "SCREENING_EVASION": 0.0978,
+    "CARD_MISMATCH": 0.0796
+   }
+  },
+  {
+   "id": "2bcdc329344d",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "PRIVATE_INFO",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1019,
+    "PRIVATE_INFO": 0.6655,
+    "RUMOR": 0.5238,
+    "SOLICIT_CONTACT": 0.1107,
+    "UNSUPPORTED_CLAIM": 0.1243,
+    "RISK_INDUCEMENT": 0.0853,
+    "SCREENING_EVASION": 0.1214,
+    "CARD_MISMATCH": 0.1159
+   }
+  },
+  {
+   "id": "c4317332422d",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "PRIVATE_INFO",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.107,
+    "PRIVATE_INFO": 0.6361,
+    "RUMOR": 0.5641,
+    "SOLICIT_CONTACT": 0.1676,
+    "UNSUPPORTED_CLAIM": 0.1192,
+    "RISK_INDUCEMENT": 0.1032,
+    "SCREENING_EVASION": 0.1144,
+    "CARD_MISMATCH": 0.1317
+   }
+  },
+  {
+   "id": "ad55405f528d",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "PRIVATE_INFO",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.0908,
+    "PRIVATE_INFO": 0.532,
+    "RUMOR": 0.1125,
+    "SOLICIT_CONTACT": 0.4387,
+    "UNSUPPORTED_CLAIM": 0.0874,
+    "RISK_INDUCEMENT": 0.0932,
+    "SCREENING_EVASION": 0.195,
+    "CARD_MISMATCH": 0.0878
+   }
+  },
+  {
+   "id": "b44a0551e89a",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "RUMOR",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1495,
+    "PRIVATE_INFO": 0.3903,
+    "RUMOR": 0.7979,
+    "SOLICIT_CONTACT": 0.076,
+    "UNSUPPORTED_CLAIM": 0.212,
+    "RISK_INDUCEMENT": 0.1473,
+    "SCREENING_EVASION": 0.1321,
+    "CARD_MISMATCH": 0.1755
+   }
+  },
+  {
+   "id": "482d69626ba0",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "RUMOR",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1226,
+    "PRIVATE_INFO": 0.2486,
+    "RUMOR": 0.6506,
+    "SOLICIT_CONTACT": 0.0651,
+    "UNSUPPORTED_CLAIM": 0.1817,
+    "RISK_INDUCEMENT": 0.1086,
+    "SCREENING_EVASION": 0.1239,
+    "CARD_MISMATCH": 0.1227
+   }
+  },
+  {
+   "id": "4f47d04e544c",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "RUMOR",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1451,
+    "PRIVATE_INFO": 0.1756,
+    "RUMOR": 0.6495,
+    "SOLICIT_CONTACT": 0.0656,
+    "UNSUPPORTED_CLAIM": 0.1854,
+    "RISK_INDUCEMENT": 0.1154,
+    "SCREENING_EVASION": 0.0982,
+    "CARD_MISMATCH": 0.1579
+   }
+  },
+  {
+   "id": "d58a585eddfb",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "RUMOR",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1071,
+    "PRIVATE_INFO": 0.3012,
+    "RUMOR": 0.2733,
+    "SOLICIT_CONTACT": 0.0995,
+    "UNSUPPORTED_CLAIM": 0.0859,
+    "RISK_INDUCEMENT": 0.056,
+    "SCREENING_EVASION": 0.0936,
+    "CARD_MISMATCH": 0.0896
+   }
+  },
+  {
+   "id": "59e70e5287e2",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "SOLICIT_CONTACT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.149,
+    "PRIVATE_INFO": 0.1212,
+    "RUMOR": 0.0818,
+    "SOLICIT_CONTACT": 0.5806,
+    "UNSUPPORTED_CLAIM": 0.0918,
+    "RISK_INDUCEMENT": 0.1058,
+    "SCREENING_EVASION": 0.1317,
+    "CARD_MISMATCH": 0.1308
+   }
+  },
+  {
+   "id": "d5f334c26be2",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "SOLICIT_CONTACT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1505,
+    "PRIVATE_INFO": 0.1206,
+    "RUMOR": 0.0743,
+    "SOLICIT_CONTACT": 0.6581,
+    "UNSUPPORTED_CLAIM": 0.1016,
+    "RISK_INDUCEMENT": 0.1102,
+    "SCREENING_EVASION": 0.19,
+    "CARD_MISMATCH": 0.1218
+   }
+  },
+  {
+   "id": "c2708b55f5c7",
+   "set": "scoring",
+   "kind": "evasion",
+   "violation": "SOLICIT_CONTACT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1324,
+    "PRIVATE_INFO": 0.1419,
+    "RUMOR": 0.0778,
+    "SOLICIT_CONTACT": 0.649,
+    "UNSUPPORTED_CLAIM": 0.0932,
+    "RISK_INDUCEMENT": 0.1081,
+    "SCREENING_EVASION": 0.1996,
+    "CARD_MISMATCH": 0.0922
+   }
+  },
+  {
+   "id": "f8eed28f95b4",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "RISK_INDUCEMENT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.495,
+    "PRIVATE_INFO": 0.1039,
+    "RUMOR": 0.1747,
+    "SOLICIT_CONTACT": 0.1427,
+    "UNSUPPORTED_CLAIM": 0.6036,
+    "RISK_INDUCEMENT": 0.7592,
+    "SCREENING_EVASION": 0.1581,
+    "CARD_MISMATCH": 0.1531
+   }
+  },
+  {
+   "id": "cb037df7ce49",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "RISK_INDUCEMENT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4027,
+    "PRIVATE_INFO": 0.0903,
+    "RUMOR": 0.0824,
+    "SOLICIT_CONTACT": 0.245,
+    "UNSUPPORTED_CLAIM": 0.1764,
+    "RISK_INDUCEMENT": 0.4843,
+    "SCREENING_EVASION": 0.144,
+    "CARD_MISMATCH": 0.1207
+   }
+  },
+  {
+   "id": "f5fac6fd4a8f",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "RISK_INDUCEMENT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4742,
+    "PRIVATE_INFO": 0.0757,
+    "RUMOR": 0.0734,
+    "SOLICIT_CONTACT": 0.1324,
+    "UNSUPPORTED_CLAIM": 0.1899,
+    "RISK_INDUCEMENT": 0.3726,
+    "SCREENING_EVASION": 0.125,
+    "CARD_MISMATCH": 0.0914
+   }
+  },
+  {
+   "id": "4f7bf8376ff7",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "RISK_INDUCEMENT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.587,
+    "PRIVATE_INFO": 0.0618,
+    "RUMOR": 0.0955,
+    "SOLICIT_CONTACT": 0.182,
+    "UNSUPPORTED_CLAIM": 0.3448,
+    "RISK_INDUCEMENT": 0.6432,
+    "SCREENING_EVASION": 0.156,
+    "CARD_MISMATCH": 0.1444
+   }
+  },
+  {
+   "id": "a5bc428a6b3c",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "RISK_INDUCEMENT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4781,
+    "PRIVATE_INFO": 0.0577,
+    "RUMOR": 0.1083,
+    "SOLICIT_CONTACT": 0.0833,
+    "UNSUPPORTED_CLAIM": 0.4382,
+    "RISK_INDUCEMENT": 0.5405,
+    "SCREENING_EVASION": 0.0928,
+    "CARD_MISMATCH": 0.1424
+   }
+  },
+  {
+   "id": "3cc05646f8c1",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "RISK_INDUCEMENT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4432,
+    "PRIVATE_INFO": 0.0491,
+    "RUMOR": 0.0811,
+    "SOLICIT_CONTACT": 0.1048,
+    "UNSUPPORTED_CLAIM": 0.2385,
+    "RISK_INDUCEMENT": 0.3723,
+    "SCREENING_EVASION": 0.0816,
+    "CARD_MISMATCH": 0.1487
+   }
+  },
+  {
+   "id": "75da81670521",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "RISK_INDUCEMENT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2881,
+    "PRIVATE_INFO": 0.1239,
+    "RUMOR": 0.3512,
+    "SOLICIT_CONTACT": 0.0867,
+    "UNSUPPORTED_CLAIM": 0.7326,
+    "RISK_INDUCEMENT": 0.5767,
+    "SCREENING_EVASION": 0.1561,
+    "CARD_MISMATCH": 0.21
+   }
+  },
+  {
+   "id": "b19ab502fcf1",
+   "set": "scoring",
+   "kind": "evasion",
+   "violation": "RISK_INDUCEMENT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.4822,
+    "PRIVATE_INFO": 0.0989,
+    "RUMOR": 0.1003,
+    "SOLICIT_CONTACT": 0.2047,
+    "UNSUPPORTED_CLAIM": 0.2761,
+    "RISK_INDUCEMENT": 0.5373,
+    "SCREENING_EVASION": 0.2262,
+    "CARD_MISMATCH": 0.0892
+   }
+  },
+  {
+   "id": "8c0ca5ba0bfa",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "UNSUPPORTED_CLAIM",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1786,
+    "PRIVATE_INFO": 0.0744,
+    "RUMOR": 0.1133,
+    "SOLICIT_CONTACT": 0.0976,
+    "UNSUPPORTED_CLAIM": 0.1447,
+    "RISK_INDUCEMENT": 0.0914,
+    "SCREENING_EVASION": 0.1071,
+    "CARD_MISMATCH": 0.1046
+   }
+  },
+  {
+   "id": "1773f275f56e",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "UNSUPPORTED_CLAIM",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.3771,
+    "PRIVATE_INFO": 0.0725,
+    "RUMOR": 0.1331,
+    "SOLICIT_CONTACT": 0.0647,
+    "UNSUPPORTED_CLAIM": 0.4526,
+    "RISK_INDUCEMENT": 0.3059,
+    "SCREENING_EVASION": 0.0956,
+    "CARD_MISMATCH": 0.095
+   }
+  },
+  {
+   "id": "4f553614e076",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "UNSUPPORTED_CLAIM",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2166,
+    "PRIVATE_INFO": 0.0769,
+    "RUMOR": 0.2003,
+    "SOLICIT_CONTACT": 0.062,
+    "UNSUPPORTED_CLAIM": 0.2764,
+    "RISK_INDUCEMENT": 0.1321,
+    "SCREENING_EVASION": 0.1133,
+    "CARD_MISMATCH": 0.0973
+   }
+  },
+  {
+   "id": "5dae2ce8ed49",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "SCREENING_EVASION",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.111,
+    "PRIVATE_INFO": 0.1317,
+    "RUMOR": 0.0694,
+    "SOLICIT_CONTACT": 0.3219,
+    "UNSUPPORTED_CLAIM": 0.1294,
+    "RISK_INDUCEMENT": 0.0967,
+    "SCREENING_EVASION": 0.3636,
+    "CARD_MISMATCH": 0.1133
+   }
+  },
+  {
+   "id": "50109671a1a7",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "SCREENING_EVASION",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1287,
+    "PRIVATE_INFO": 0.1431,
+    "RUMOR": 0.0713,
+    "SOLICIT_CONTACT": 0.6214,
+    "UNSUPPORTED_CLAIM": 0.0996,
+    "RISK_INDUCEMENT": 0.1058,
+    "SCREENING_EVASION": 0.2289,
+    "CARD_MISMATCH": 0.091
+   }
+  },
+  {
+   "id": "c512ee588c6d",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "SCREENING_EVASION",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1408,
+    "PRIVATE_INFO": 0.3949,
+    "RUMOR": 0.2112,
+    "SOLICIT_CONTACT": 0.455,
+    "UNSUPPORTED_CLAIM": 0.2582,
+    "RISK_INDUCEMENT": 0.1839,
+    "SCREENING_EVASION": 0.7231,
+    "CARD_MISMATCH": 0.1779
+   }
+  },
+  {
+   "id": "4494fcb211fb",
+   "set": "scoring",
+   "kind": "literal",
+   "violation": "SCREENING_EVASION",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1803,
+    "PRIVATE_INFO": 0.2665,
+    "RUMOR": 0.1476,
+    "SOLICIT_CONTACT": 0.4628,
+    "UNSUPPORTED_CLAIM": 0.237,
+    "RISK_INDUCEMENT": 0.1554,
+    "SCREENING_EVASION": 0.7219,
+    "CARD_MISMATCH": 0.1034
+   }
+  },
+  {
+   "id": "37b969211373",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "SCREENING_EVASION",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.0903,
+    "PRIVATE_INFO": 0.1974,
+    "RUMOR": 0.1026,
+    "SOLICIT_CONTACT": 0.285,
+    "UNSUPPORTED_CLAIM": 0.0849,
+    "RISK_INDUCEMENT": 0.0589,
+    "SCREENING_EVASION": 0.2882,
+    "CARD_MISMATCH": 0.0975
+   }
+  },
+  {
+   "id": "373a8a220f9c",
+   "set": "scoring",
+   "kind": "paraphrase",
+   "violation": "SCREENING_EVASION",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1097,
+    "PRIVATE_INFO": 0.3646,
+    "RUMOR": 0.1336,
+    "SOLICIT_CONTACT": 0.4936,
+    "UNSUPPORTED_CLAIM": 0.1705,
+    "RISK_INDUCEMENT": 0.1168,
+    "SCREENING_EVASION": 0.6699,
+    "CARD_MISMATCH": 0.1306
+   }
+  },
+  {
+   "id": "b6d02f87a96c",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1431,
+    "PRIVATE_INFO": 0.1116,
+    "RUMOR": 0.0949,
+    "SOLICIT_CONTACT": 0.1129,
+    "UNSUPPORTED_CLAIM": 0.0933,
+    "RISK_INDUCEMENT": 0.0754,
+    "SCREENING_EVASION": 0.0994,
+    "CARD_MISMATCH": 0.1038
+   }
+  },
+  {
+   "id": "da53daf8b495",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1576,
+    "PRIVATE_INFO": 0.0972,
+    "RUMOR": 0.1029,
+    "SOLICIT_CONTACT": 0.0833,
+    "UNSUPPORTED_CLAIM": 0.1044,
+    "RISK_INDUCEMENT": 0.0879,
+    "SCREENING_EVASION": 0.0833,
+    "CARD_MISMATCH": 0.125
+   }
+  },
+  {
+   "id": "21a093793837",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1485,
+    "PRIVATE_INFO": 0.1107,
+    "RUMOR": 0.1298,
+    "SOLICIT_CONTACT": 0.0674,
+    "UNSUPPORTED_CLAIM": 0.1108,
+    "RISK_INDUCEMENT": 0.1011,
+    "SCREENING_EVASION": 0.0727,
+    "CARD_MISMATCH": 0.0982
+   }
+  },
+  {
+   "id": "111c596a357c",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1965,
+    "PRIVATE_INFO": 0.0898,
+    "RUMOR": 0.076,
+    "SOLICIT_CONTACT": 0.1073,
+    "UNSUPPORTED_CLAIM": 0.1008,
+    "RISK_INDUCEMENT": 0.1252,
+    "SCREENING_EVASION": 0.0988,
+    "CARD_MISMATCH": 0.0817
+   }
+  },
+  {
+   "id": "139c19d6d8ab",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1821,
+    "PRIVATE_INFO": 0.0799,
+    "RUMOR": 0.113,
+    "SOLICIT_CONTACT": 0.0881,
+    "UNSUPPORTED_CLAIM": 0.1122,
+    "RISK_INDUCEMENT": 0.0862,
+    "SCREENING_EVASION": 0.0915,
+    "CARD_MISMATCH": 0.1369
+   }
+  },
+  {
+   "id": "9685d65f9bfe",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1369,
+    "PRIVATE_INFO": 0.1221,
+    "RUMOR": 0.0969,
+    "SOLICIT_CONTACT": 0.1052,
+    "UNSUPPORTED_CLAIM": 0.0907,
+    "RISK_INDUCEMENT": 0.0743,
+    "SCREENING_EVASION": 0.0961,
+    "CARD_MISMATCH": 0.097
+   }
+  },
+  {
+   "id": "8585ef1dab4a",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1862,
+    "PRIVATE_INFO": 0.0835,
+    "RUMOR": 0.1127,
+    "SOLICIT_CONTACT": 0.0671,
+    "UNSUPPORTED_CLAIM": 0.1272,
+    "RISK_INDUCEMENT": 0.1067,
+    "SCREENING_EVASION": 0.0816,
+    "CARD_MISMATCH": 0.1301
+   }
+  },
+  {
+   "id": "185ea3cfb646",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2252,
+    "PRIVATE_INFO": 0.0857,
+    "RUMOR": 0.1055,
+    "SOLICIT_CONTACT": 0.0655,
+    "UNSUPPORTED_CLAIM": 0.14,
+    "RISK_INDUCEMENT": 0.1578,
+    "SCREENING_EVASION": 0.0671,
+    "CARD_MISMATCH": 0.1074
+   }
+  },
+  {
+   "id": "8465b518df29",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1427,
+    "PRIVATE_INFO": 0.0858,
+    "RUMOR": 0.1301,
+    "SOLICIT_CONTACT": 0.0861,
+    "UNSUPPORTED_CLAIM": 0.1146,
+    "RISK_INDUCEMENT": 0.0957,
+    "SCREENING_EVASION": 0.0813,
+    "CARD_MISMATCH": 0.1163
+   }
+  },
+  {
+   "id": "55122f7579e4",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1341,
+    "PRIVATE_INFO": 0.168,
+    "RUMOR": 0.0813,
+    "SOLICIT_CONTACT": 0.1091,
+    "UNSUPPORTED_CLAIM": 0.0868,
+    "RISK_INDUCEMENT": 0.1033,
+    "SCREENING_EVASION": 0.1295,
+    "CARD_MISMATCH": 0.0801
+   }
+  },
+  {
+   "id": "97925efd6ba0",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1138,
+    "PRIVATE_INFO": 0.1352,
+    "RUMOR": 0.1142,
+    "SOLICIT_CONTACT": 0.107,
+    "UNSUPPORTED_CLAIM": 0.0886,
+    "RISK_INDUCEMENT": 0.0733,
+    "SCREENING_EVASION": 0.1011,
+    "CARD_MISMATCH": 0.0908
+   }
+  },
+  {
+   "id": "0a738d0c0058",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.0957,
+    "PRIVATE_INFO": 0.1778,
+    "RUMOR": 0.078,
+    "SOLICIT_CONTACT": 0.1835,
+    "UNSUPPORTED_CLAIM": 0.0886,
+    "RISK_INDUCEMENT": 0.0774,
+    "SCREENING_EVASION": 0.2155,
+    "CARD_MISMATCH": 0.0678
+   }
+  },
+  {
+   "id": "e51b2f3ac14d",
+   "set": "scoring",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2524,
+    "PRIVATE_INFO": 0.0731,
+    "RUMOR": 0.094,
+    "SOLICIT_CONTACT": 0.0733,
+    "UNSUPPORTED_CLAIM": 0.1473,
+    "RISK_INDUCEMENT": 0.1345,
+    "SCREENING_EVASION": 0.0835,
+    "CARD_MISMATCH": 0.1108
+   }
+  },
+  {
+   "id": "82c5ad96d5a6",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2819,
+    "PRIVATE_INFO": 0.0809,
+    "RUMOR": 0.0824,
+    "SOLICIT_CONTACT": 0.0985,
+    "UNSUPPORTED_CLAIM": 0.1312,
+    "RISK_INDUCEMENT": 0.1098,
+    "SCREENING_EVASION": 0.1068,
+    "CARD_MISMATCH": 0.0991
+   }
+  },
+  {
+   "id": "3a04aaf5c382",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2388,
+    "PRIVATE_INFO": 0.0981,
+    "RUMOR": 0.0743,
+    "SOLICIT_CONTACT": 0.1343,
+    "UNSUPPORTED_CLAIM": 0.1016,
+    "RISK_INDUCEMENT": 0.106,
+    "SCREENING_EVASION": 0.1056,
+    "CARD_MISMATCH": 0.1067
+   }
+  },
+  {
+   "id": "fae811a09fbb",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2502,
+    "PRIVATE_INFO": 0.0901,
+    "RUMOR": 0.0747,
+    "SOLICIT_CONTACT": 0.1217,
+    "UNSUPPORTED_CLAIM": 0.1133,
+    "RISK_INDUCEMENT": 0.1035,
+    "SCREENING_EVASION": 0.1065,
+    "CARD_MISMATCH": 0.0891
+   }
+  },
+  {
+   "id": "78dcb31bced7",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2037,
+    "PRIVATE_INFO": 0.0705,
+    "RUMOR": 0.1896,
+    "SOLICIT_CONTACT": 0.0548,
+    "UNSUPPORTED_CLAIM": 0.1867,
+    "RISK_INDUCEMENT": 0.1099,
+    "SCREENING_EVASION": 0.0768,
+    "CARD_MISMATCH": 0.1271
+   }
+  },
+  {
+   "id": "548946a9c0a3",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.175,
+    "PRIVATE_INFO": 0.0808,
+    "RUMOR": 0.0941,
+    "SOLICIT_CONTACT": 0.1092,
+    "UNSUPPORTED_CLAIM": 0.1095,
+    "RISK_INDUCEMENT": 0.0847,
+    "SCREENING_EVASION": 0.1123,
+    "CARD_MISMATCH": 0.1033
+   }
+  },
+  {
+   "id": "057d3d518729",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.302,
+    "PRIVATE_INFO": 0.0609,
+    "RUMOR": 0.1579,
+    "SOLICIT_CONTACT": 0.0593,
+    "UNSUPPORTED_CLAIM": 0.3274,
+    "RISK_INDUCEMENT": 0.2394,
+    "SCREENING_EVASION": 0.0671,
+    "CARD_MISMATCH": 0.1088
+   }
+  },
+  {
+   "id": "29b96df65e6d",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.3154,
+    "PRIVATE_INFO": 0.058,
+    "RUMOR": 0.076,
+    "SOLICIT_CONTACT": 0.0868,
+    "UNSUPPORTED_CLAIM": 0.1658,
+    "RISK_INDUCEMENT": 0.1947,
+    "SCREENING_EVASION": 0.1031,
+    "CARD_MISMATCH": 0.0973
+   }
+  },
+  {
+   "id": "cd3a2d4bd888",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1416,
+    "PRIVATE_INFO": 0.1124,
+    "RUMOR": 0.0694,
+    "SOLICIT_CONTACT": 0.2426,
+    "UNSUPPORTED_CLAIM": 0.0794,
+    "RISK_INDUCEMENT": 0.0731,
+    "SCREENING_EVASION": 0.1329,
+    "CARD_MISMATCH": 0.1055
+   }
+  },
+  {
+   "id": "abaa8c217790",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1395,
+    "PRIVATE_INFO": 0.1062,
+    "RUMOR": 0.0738,
+    "SOLICIT_CONTACT": 0.1702,
+    "UNSUPPORTED_CLAIM": 0.0848,
+    "RISK_INDUCEMENT": 0.0832,
+    "SCREENING_EVASION": 0.1058,
+    "CARD_MISMATCH": 0.0911
+   }
+  },
+  {
+   "id": "ca1632e28c77",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2487,
+    "PRIVATE_INFO": 0.0681,
+    "RUMOR": 0.0949,
+    "SOLICIT_CONTACT": 0.0711,
+    "UNSUPPORTED_CLAIM": 0.1872,
+    "RISK_INDUCEMENT": 0.1343,
+    "SCREENING_EVASION": 0.1004,
+    "CARD_MISMATCH": 0.0952
+   }
+  },
+  {
+   "id": "b7fc1d24e1cc",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2784,
+    "PRIVATE_INFO": 0.1007,
+    "RUMOR": 0.0852,
+    "SOLICIT_CONTACT": 0.112,
+    "UNSUPPORTED_CLAIM": 0.118,
+    "RISK_INDUCEMENT": 0.0974,
+    "SCREENING_EVASION": 0.108,
+    "CARD_MISMATCH": 0.094
+   }
+  },
+  {
+   "id": "b2b2c952e1e1",
+   "set": "scoring",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.337,
+    "PRIVATE_INFO": 0.0643,
+    "RUMOR": 0.085,
+    "SOLICIT_CONTACT": 0.0822,
+    "UNSUPPORTED_CLAIM": 0.1979,
+    "RISK_INDUCEMENT": 0.1554,
+    "SCREENING_EVASION": 0.0932,
+    "CARD_MISMATCH": 0.1073
+   }
+  },
+  {
+   "id": "27187770d1c3",
+   "set": "scoring",
+   "kind": "disclosure",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1604,
+    "PRIVATE_INFO": 0.1181,
+    "RUMOR": 0.0734,
+    "SOLICIT_CONTACT": 0.1077,
+    "UNSUPPORTED_CLAIM": 0.0971,
+    "RISK_INDUCEMENT": 0.1011,
+    "SCREENING_EVASION": 0.1199,
+    "CARD_MISMATCH": 0.0921
+   }
+  },
+  {
+   "id": "38dfce930cc9",
+   "set": "scoring",
+   "kind": "disclosure",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2421,
+    "PRIVATE_INFO": 0.0761,
+    "RUMOR": 0.0844,
+    "SOLICIT_CONTACT": 0.0855,
+    "UNSUPPORTED_CLAIM": 0.1287,
+    "RISK_INDUCEMENT": 0.1101,
+    "SCREENING_EVASION": 0.096,
+    "CARD_MISMATCH": 0.1287
+   }
+  },
+  {
+   "id": "1645c9dd9e2d",
+   "set": "scoring",
+   "kind": "disclosure",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2281,
+    "PRIVATE_INFO": 0.0831,
+    "RUMOR": 0.0726,
+    "SOLICIT_CONTACT": 0.1086,
+    "UNSUPPORTED_CLAIM": 0.115,
+    "RISK_INDUCEMENT": 0.1172,
+    "SCREENING_EVASION": 0.1056,
+    "CARD_MISMATCH": 0.1092
+   }
+  },
+  {
+   "id": "6063863aa368",
+   "set": "scoring",
+   "kind": "disclosure",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2533,
+    "PRIVATE_INFO": 0.0934,
+    "RUMOR": 0.079,
+    "SOLICIT_CONTACT": 0.1049,
+    "UNSUPPORTED_CLAIM": 0.1177,
+    "RISK_INDUCEMENT": 0.1038,
+    "SCREENING_EVASION": 0.1038,
+    "CARD_MISMATCH": 0.0894
+   }
+  },
+  {
+   "id": "2179b1892348",
+   "set": "seed",
+   "kind": "paraphrase",
+   "violation": "PRIVATE_INFO",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.0912,
+    "PRIVATE_INFO": 0.8325,
+    "RUMOR": 0.3246,
+    "SOLICIT_CONTACT": 0.2898,
+    "UNSUPPORTED_CLAIM": 0.1321,
+    "RISK_INDUCEMENT": 0.1157,
+    "SCREENING_EVASION": 0.199,
+    "CARD_MISMATCH": 0.1329
+   }
+  },
+  {
+   "id": "6d6cd1ee6595",
+   "set": "seed",
+   "kind": "paraphrase",
+   "violation": "PRIVATE_INFO",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.0943,
+    "PRIVATE_INFO": 0.2641,
+    "RUMOR": 0.1489,
+    "SOLICIT_CONTACT": 0.2092,
+    "UNSUPPORTED_CLAIM": 0.0659,
+    "RISK_INDUCEMENT": 0.059,
+    "SCREENING_EVASION": 0.0918,
+    "CARD_MISMATCH": 0.0965
+   }
+  },
+  {
+   "id": "1f04c3b30f4d",
+   "set": "seed",
+   "kind": "paraphrase",
+   "violation": "RUMOR",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1662,
+    "PRIVATE_INFO": 0.2261,
+    "RUMOR": 0.7751,
+    "SOLICIT_CONTACT": 0.076,
+    "UNSUPPORTED_CLAIM": 0.2611,
+    "RISK_INDUCEMENT": 0.1539,
+    "SCREENING_EVASION": 0.1286,
+    "CARD_MISMATCH": 0.2008
+   }
+  },
+  {
+   "id": "85711d68cd6d",
+   "set": "seed",
+   "kind": "paraphrase",
+   "violation": "RUMOR",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1463,
+    "PRIVATE_INFO": 0.4621,
+    "RUMOR": 0.7895,
+    "SOLICIT_CONTACT": 0.1013,
+    "UNSUPPORTED_CLAIM": 0.1833,
+    "RISK_INDUCEMENT": 0.1117,
+    "SCREENING_EVASION": 0.1238,
+    "CARD_MISMATCH": 0.175
+   }
+  },
+  {
+   "id": "0bcd387db8b1",
+   "set": "seed",
+   "kind": "literal",
+   "violation": "SOLICIT_CONTACT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1101,
+    "PRIVATE_INFO": 0.2231,
+    "RUMOR": 0.0936,
+    "SOLICIT_CONTACT": 0.7008,
+    "UNSUPPORTED_CLAIM": 0.0879,
+    "RISK_INDUCEMENT": 0.1052,
+    "SCREENING_EVASION": 0.1909,
+    "CARD_MISMATCH": 0.1109
+   }
+  },
+  {
+   "id": "e0cb5e5d6061",
+   "set": "seed",
+   "kind": "literal",
+   "violation": "SOLICIT_CONTACT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1813,
+    "PRIVATE_INFO": 0.1424,
+    "RUMOR": 0.0986,
+    "SOLICIT_CONTACT": 0.7698,
+    "UNSUPPORTED_CLAIM": 0.1191,
+    "RISK_INDUCEMENT": 0.1387,
+    "SCREENING_EVASION": 0.2105,
+    "CARD_MISMATCH": 0.1438
+   }
+  },
+  {
+   "id": "25b1202ab13c",
+   "set": "seed",
+   "kind": "paraphrase",
+   "violation": "SOLICIT_CONTACT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1577,
+    "PRIVATE_INFO": 0.1317,
+    "RUMOR": 0.0733,
+    "SOLICIT_CONTACT": 0.7089,
+    "UNSUPPORTED_CLAIM": 0.0974,
+    "RISK_INDUCEMENT": 0.1117,
+    "SCREENING_EVASION": 0.1897,
+    "CARD_MISMATCH": 0.1306
+   }
+  },
+  {
+   "id": "5b480d79aeee",
+   "set": "seed",
+   "kind": "paraphrase",
+   "violation": "SOLICIT_CONTACT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1574,
+    "PRIVATE_INFO": 0.13,
+    "RUMOR": 0.0955,
+    "SOLICIT_CONTACT": 0.6786,
+    "UNSUPPORTED_CLAIM": 0.0951,
+    "RISK_INDUCEMENT": 0.1175,
+    "SCREENING_EVASION": 0.1518,
+    "CARD_MISMATCH": 0.1394
+   }
+  },
+  {
+   "id": "ff70332b8bc8",
+   "set": "seed",
+   "kind": "paraphrase",
+   "violation": "SOLICIT_CONTACT",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1792,
+    "PRIVATE_INFO": 0.2156,
+    "RUMOR": 0.1122,
+    "SOLICIT_CONTACT": 0.8411,
+    "UNSUPPORTED_CLAIM": 0.1387,
+    "RISK_INDUCEMENT": 0.1358,
+    "SCREENING_EVASION": 0.4308,
+    "CARD_MISMATCH": 0.129
+   }
+  },
+  {
+   "id": "f89f2c4d02ff",
+   "set": "seed",
+   "kind": "paraphrase",
+   "violation": "UNSUPPORTED_CLAIM",
+   "scores": {
+    "PROFIT_GUARANTEE": 0.5927,
+    "PRIVATE_INFO": 0.0719,
+    "RUMOR": 0.1173,
+    "SOLICIT_CONTACT": 0.1421,
+    "UNSUPPORTED_CLAIM": 0.637,
+    "RISK_INDUCEMENT": 0.6742,
+    "SCREENING_EVASION": 0.1711,
+    "CARD_MISMATCH": 0.1621
+   }
+  },
+  {
+   "id": "573556150d0f",
+   "set": "seed",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1526,
+    "PRIVATE_INFO": 0.1086,
+    "RUMOR": 0.083,
+    "SOLICIT_CONTACT": 0.1095,
+    "UNSUPPORTED_CLAIM": 0.0973,
+    "RISK_INDUCEMENT": 0.0794,
+    "SCREENING_EVASION": 0.1039,
+    "CARD_MISMATCH": 0.0974
+   }
+  },
+  {
+   "id": "4a564f1ac22c",
+   "set": "seed",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1128,
+    "PRIVATE_INFO": 0.1402,
+    "RUMOR": 0.1016,
+    "SOLICIT_CONTACT": 0.1037,
+    "UNSUPPORTED_CLAIM": 0.0779,
+    "RISK_INDUCEMENT": 0.0755,
+    "SCREENING_EVASION": 0.1061,
+    "CARD_MISMATCH": 0.1112
+   }
+  },
+  {
+   "id": "af7231687f77",
+   "set": "seed",
+   "kind": "normal",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1448,
+    "PRIVATE_INFO": 0.0898,
+    "RUMOR": 0.0923,
+    "SOLICIT_CONTACT": 0.0901,
+    "UNSUPPORTED_CLAIM": 0.1099,
+    "RISK_INDUCEMENT": 0.093,
+    "SCREENING_EVASION": 0.1122,
+    "CARD_MISMATCH": 0.0996
+   }
+  },
+  {
+   "id": "dd3b95ccff73",
+   "set": "seed",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1494,
+    "PRIVATE_INFO": 0.103,
+    "RUMOR": 0.113,
+    "SOLICIT_CONTACT": 0.0747,
+    "UNSUPPORTED_CLAIM": 0.1156,
+    "RISK_INDUCEMENT": 0.0868,
+    "SCREENING_EVASION": 0.0992,
+    "CARD_MISMATCH": 0.1087
+   }
+  },
+  {
+   "id": "32f77aec1a32",
+   "set": "seed",
+   "kind": "negation",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.1321,
+    "PRIVATE_INFO": 0.1196,
+    "RUMOR": 0.0898,
+    "SOLICIT_CONTACT": 0.1107,
+    "UNSUPPORTED_CLAIM": 0.1019,
+    "RISK_INDUCEMENT": 0.0785,
+    "SCREENING_EVASION": 0.1369,
+    "CARD_MISMATCH": 0.0773
+   }
+  },
+  {
+   "id": "bc3c3fff2e94",
+   "set": "seed",
+   "kind": "disclosure",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2346,
+    "PRIVATE_INFO": 0.099,
+    "RUMOR": 0.0754,
+    "SOLICIT_CONTACT": 0.1213,
+    "UNSUPPORTED_CLAIM": 0.1036,
+    "RISK_INDUCEMENT": 0.1055,
+    "SCREENING_EVASION": 0.0969,
+    "CARD_MISMATCH": 0.0922
+   }
+  },
+  {
+   "id": "01efcc2e6766",
+   "set": "seed",
+   "kind": "disclosure",
+   "violation": null,
+   "scores": {
+    "PROFIT_GUARANTEE": 0.2193,
+    "PRIVATE_INFO": 0.0915,
+    "RUMOR": 0.0859,
+    "SOLICIT_CONTACT": 0.0868,
+    "UNSUPPORTED_CLAIM": 0.1115,
+    "RISK_INDUCEMENT": 0.1048,
+    "SCREENING_EVASION": 0.0857,
+    "CARD_MISMATCH": 0.1109
+   }
+  }
+ ]
+}

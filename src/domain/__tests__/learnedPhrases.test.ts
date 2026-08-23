@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Finding, ScreeningInput } from '../compliance';
+import { applyRules, type Finding, type ScreeningInput } from '../compliance';
 import {
-  matchLearnedPhrases,
   needsReview,
   normalizePhrase,
   phrasePrecision,
@@ -34,6 +33,7 @@ function phrase(text: string, over: Partial<LearnedPhrase> = {}): LearnedPhrase 
     normalized: normalizePhrase(text),
     category: 'UNSUPPORTED_CLAIM',
     note: null,
+    phoneticEligible: false,
     ...over,
   };
 }
@@ -56,12 +56,9 @@ describe('validatePhrase', () => {
   });
 });
 
-describe('matchLearnedPhrases', () => {
+describe('사전 → 규칙 엔진 합류 (20차)', () => {
   it('등록된 표현이 본문에 있으면 소견을 낸다', () => {
-    const findings = matchLearnedPhrases(
-      input({ content: '이 종목은 반드시 오릅니다. 근거는 실적입니다.' }),
-      [phrase('반드시 오릅니다', { note: '단정 표현' })],
-    );
+    const findings = applyRules(input({ content: '이 종목은 반드시 오릅니다. 근거는 실적입니다.' }), { phrases: [phrase('반드시 오릅니다', { note: '단정 표현' })] });
     expect(findings).toHaveLength(1);
     expect(findings[0]).toMatchObject({
       category: 'UNSUPPORTED_CLAIM',
@@ -73,32 +70,29 @@ describe('matchLearnedPhrases', () => {
   });
 
   it('글자를 벌려 써도 걸린다 (규칙과 같은 정규화)', () => {
-    const findings = matchLearnedPhrases(
-      input({ content: '이 종목은 반 드 시 오 릅 니 다.' }),
-      [phrase('반드시 오릅니다')],
-    );
+    const findings = applyRules(input({ content: '이 종목은 반 드 시 오 릅 니 다.' }), { phrases: [phrase('반드시 오릅니다')] });
     expect(findings).toHaveLength(1);
   });
 
   it('심각도는 항상 WARN — 사람이 등록한 문자열에 즉시 거절 권한을 주지 않는다', () => {
-    const findings = matchLearnedPhrases(input({ content: '원금은 반드시 오릅니다' }), [
+    const findings = applyRules(input({ content: '원금은 반드시 오릅니다' }), { phrases: [
       phrase('반드시 오릅니다', { category: 'PROFIT_GUARANTEE' }),
-    ]);
+    ] });
     expect(findings[0].severity).toBe('WARN');
   });
 
   it('표현 id를 남긴다 — 표현별 정확도 집계의 열쇠', () => {
-    const findings = matchLearnedPhrases(input({ content: '반드시 오릅니다' }), [
+    const findings = applyRules(input({ content: '반드시 오릅니다' }), { phrases: [
       phrase('반드시 오릅니다'),
-    ]);
+    ] });
     expect(findings[0].phraseId).toBe('p-반드시 오릅니다');
   });
 
   it('없으면 아무것도 내지 않는다', () => {
     expect(
-      matchLearnedPhrases(input({ content: '실적 추이를 검토했습니다' }), [
+      applyRules(input({ content: '실적 추이를 검토했습니다' }), { phrases: [
         phrase('반드시 오릅니다'),
-      ]),
+      ] }),
     ).toHaveLength(0);
   });
 });

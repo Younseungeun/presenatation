@@ -1,15 +1,21 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { applyRules, type Finding } from '@/domain/compliance';
 import { ASSET_CLASSES } from '@/domain/constants';
 import { RISK_LEVELS } from '@/domain/instrumentRisk';
-import { matchLearnedPhrases } from '@/domain/learnedPhrases';
 import { REPORT_TEXT_LIMITS } from '@/domain/publishReport';
 import { createEmbeddingProviderFromEnv } from '@/infra/embedding/provider';
+import {
+  createStudentClientFromEnv,
+  studentMode,
+} from '@/infra/compliance/studentClient';
 import { prisma } from '@/server/db';
-import { getCategoryOutcomeRates } from '@/server/complianceService';
+import {
+  collectFirstTierFindings,
+  getCategoryOutcomeRates,
+} from '@/server/complianceService';
+import { getKnownInstrumentNames } from '@/server/instrumentNames';
 import { getActiveLearnedPhrases } from '@/server/learnedPhraseService';
-import { findSemanticFindings, loadSemanticIndex } from '@/server/semanticIndexService';
+import { loadSemanticIndex } from '@/server/semanticIndexService';
 import { requireResearcherId, toErrorResponse } from '../../_lib/http';
 
 // 작성 중 사전 검사 — 리서처가 제출하기 전에 1차 검수 결과를 미리 보여준다.
@@ -47,31 +53,35 @@ export async function POST(req: NextRequest) {
     await requireResearcherId(prisma);
     const input = bodySchema.parse(await req.json());
 
-    const [phrases, categoryRates] = await Promise.all([
+    const [phrases, categoryRates, knownNames] = await Promise.all([
       getActiveLearnedPhrases(prisma),
       getCategoryOutcomeRates(prisma),
+      getKnownInstrumentNames(prisma),
     ]);
 
-    const phraseFindings = matchLearnedPhrases(input, phrases);
-    // 의미 검색은 공급자가 있을 때만. 게시 시 검수와 같은 판단을 보여줘야
-    // 화면과 실제 결과가 어긋나지 않는다.
-    const embedder = createEmbeddingProviderFromEnv();
-    const semanticFindings = embedder
-      ? await findSemanticFindings(
-          input,
-          await loadSemanticIndex(prisma, embedder),
-          embedder,
-          phraseFindings.flatMap((f) => (f.phraseId ? [f.phraseId] : [])),
-        ).catch(() => [])
-      : [];
+    // **게시 검수와 같은 함수로 조립한다** (8차 E-6). 예전에는 여기서 따로 이어 붙였는데,
+    // 그러면 한쪽에만 탐지기를 더하는 날 화면과 실제 결과가 갈라진다 — 리서처는
+    // "소견 없음"을 보고 제출했다가 보류를 맞는다. 조립은 collectFirstTierFindings 한 곳에만.
+    //
+    // **학생은 작성 중 검사에서 뺀다** (Q10 · 2026-08-21). 두 이유:
+    //   ① 부하 — 디바운스 600ms 면 리포트 한 건 쓰는 동안 사이드카를 수십 번 부른다.
+    //     게시 시 1회와 자릿수가 다르다. 사전 검사의 설계 근거가 "AI 호출 없이 비용 ≈ 0"
+    //     이었는데 학생 호출이 슬쩍 들어와 그 전제를 깨고 있었다
+    //   ② 화면 문구가 이미 정직하다 — "명백한 금지 표현은 없습니다"까지만 말하고
+    //     통과를 보장하지 않는다. 학생 몫의 판단은 게시 시점에 돈다
+    const { all: findings } = await collectFirstTierFindings(input, {
+      phrases,
+      knownNames,
+    });
 
-    const findings: Finding[] = [
-      ...applyRules(input),
-      ...phraseFindings,
-      ...semanticFindings,
-    ];
+    // **검사기 장애를 화면에 알린다** (Q10-거짓말 문제). 라이브 학생이 죽어 있으면
+    // 게시가 보류될 것이므로, 작성 화면이 그 사실을 말해야 리서처가 통과를 예상하고
+    // 냈다가 보류를 맞지 않는다. usable() 은 결과를 캐시하므로 타자마다 새 호출이
+    // 나가지 않는다.
+    const student = studentMode() === 'live' ? createStudentClientFromEnv() : null;
+    const studentDown = student ? !(await student.usable()) : false;
 
-    return NextResponse.json({ findings, categoryRates });
+    return NextResponse.json({ findings, categoryRates, studentDown });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '요청 형식 오류', issues: e.issues }, { status: 400 });

@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
-import { execSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync } from 'node:fs';
+import { execSync, spawnSync } from 'node:child_process';
+import { copyFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { REQUIRED_SCHEMA } from '../src/server/schemaBootCheck';
 import { FixtureMarketDataProvider } from '../src/infra/marketData/fixtureProvider';
 import type { ProviderRegistry } from '../src/domain/marketData';
 import {
@@ -369,6 +370,60 @@ async function main() {
   console.log('═'.repeat(72));
 
   await prisma.$disconnect();
+  await drillBootCheckArmed();
+}
+
+// ── ⑧ 부팅 검사가 지금도 기동 경로에 연결돼 있나 (2026-08-22, 회신 12호 §3) ──────
+// 다섯 관문(tsc·vitest·build·/health·계기판)은 전부 "맞게 세팅됐나"를 묻는다. 부팅 검사가
+// 동적 import 뒤로 옮겨진 뒤에는 import 경로가 어긋나거나 가드가 틀려도 **검사는 조용히
+// 안 돌고, 기동 로그는 글자 하나 다르지 않다.** 깨끗한 로그와 통과한 빌드는 검사가 도는
+// 경우와 안 도는 경우가 겉으로 같다. 그래서 실제로 깨뜨려 본다:
+//   DB 사본 → 필수 표 하나 삭제 → register() 를 자식 프로세스로 → 종료 코드 1 + 메시지 확인
+// 안쪽 함수가 아니라 **입구 register()** 를 태운다 — 깨질 수 있는 것은 검사가 아니라 거기까지
+// 가는 길이다. 자식 프로세스인 이유: exit(1) 이라 같은 프로세스면 리허설이 함께 죽고, 지켜야
+// 하는 성질이 "던진다"가 아니라 "끝난다"라 종료 코드를 보는 것이 곧 그 성질을 보는 것이다.
+// 소스 스캔 래칫이 목록의 **누락**을 잡는다면, 이쪽은 목록이 **읽히지 않는 상태**를 잡는다.
+async function drillBootCheckArmed() {
+  console.log('\n⑧ 부팅 검사 무장 확인 — register() 를 실제 입구로 태운다');
+  const BOOT_DB = 'prisma/drill-boot.db';
+  const sweep = () => {
+    for (const f of [BOOT_DB, `${BOOT_DB}-journal`, `${BOOT_DB}-wal`, `${BOOT_DB}-shm`]) {
+      if (existsSync(f)) rmSync(f);
+    }
+  };
+  sweep();
+  copyFileSync(DB, BOOT_DB);
+  const url = `file:./${BOOT_DB.replace('prisma/', '')}`;
+  const env: NodeJS.ProcessEnv = { ...process.env, NEXT_RUNTIME: 'nodejs', DATABASE_URL: url };
+  delete env.NEXT_PHASE;
+  const run = () =>
+    // shell 없이 tsx CLI 를 node 로 직접 — shell:true 는 인자 이스케이프 경고(DEP0190)를 낸다
+    spawnSync(process.execPath, ['node_modules/tsx/dist/cli.mjs', 'scripts/bootCheckProbe.ts'], { env, encoding: 'utf8' });
+  const lastLine = (r: ReturnType<typeof run>) =>
+    (r.stdout + r.stderr).trim().split('\n').filter(Boolean).pop() ?? '';
+
+  // (1) 멀쩡한 사본: 검사가 돌고 통과해야 한다 — 여기서 exit≠0 이면 검사가 아니라 환경이 깨진 것
+  const ok = run();
+  note(`멀쩡한 사본 → exit ${ok.status} · ${lastLine(ok)}`);
+  if (ok.status !== 0) note('⚠ 멀쩡한 DB 에서 기동이 실패했다 — 검사가 아니라 기동 경로/환경 문제');
+
+  // (2) 필수 표 하나를 지운 사본: **프로세스가 exit 1 로 끝나야** 한다 (throw 면 exit 2)
+  const target = REQUIRED_SCHEMA[0]!.table;
+  const probe = new PrismaClient({ datasources: { db: { url } } });
+  await probe.$executeRawUnsafe(`DROP TABLE "${target}"`);
+  await probe.$disconnect();
+  const broken = run();
+  const out = broken.stdout + broken.stderr;
+  const armed = broken.status === 1 && out.includes(`"${target}"`);
+  note(`표 "${target}" 삭제 사본 → exit ${broken.status}`);
+  const line = out.split('\n').find((l) => l.includes(target));
+  if (line) note(`  ${line.trim()}`);
+  note(
+    armed
+      ? '무장 확인 — 가드 → 동적 import → registerNode → 검사 → exit 1, 사슬 전부 살아 있다'
+      : '⚠ 부팅 검사가 기동 경로에서 빠져 있다 — 표가 없는데 서버가 뜬다. instrumentation 을 확인할 것',
+  );
+  sweep();
 }
 
 main().catch((e) => {
