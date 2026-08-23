@@ -22,10 +22,13 @@
        "명백한 금지 표현은 없습니다" 까지만 말한다
 
 제출 (publishReport)
-  ├─ 1차 결정적 규칙  → BLOCK 이면 REJECT (AI 미호출)
-  ├─ 학습 표현 · 의미 검색 → WARN
-  ├─ 2차 Claude 검수  → PASS 면 PUBLISH / WARN·BLOCK·장애면 HOLD
-  └─ 반복 반려 3회 이상이면 PASS여도 HOLD
+  └─ 자동 검수 (collectAutoScreenFindings — 아래 둘이 같은 층)
+       ├─ 규칙 엔진 (정규식 + 학습 표현)  → BLOCK 이면 REJECT
+       └─ IRIS (증류 분류기)              → 언제나 WARN
+     결과: 소견 없음 PUBLISH / 소견 있음 HOLD / IRIS 장애 HOLD(UNAVAILABLE)
+     + 반복 반려 3회 이상이면 소견이 없어도 HOLD
+     ⚠ **Claude 는 여기 없다** (2026-08-24 확정) — 운영 경로 외부 AI 호출 0회.
+       Claude 는 교사(오프라인 라벨)로만 쓰고, 자동 호출은 코드가 막는다
 
 HOLD → /admin/compliance 큐
   ├─ 승인 → finalizePublish (기준가·수수료를 이 시점에 확정)
