@@ -1,4 +1,6 @@
+import { notFound } from "next/navigation";
 import { prisma } from "@/server/db";
+import { getSessionUserId } from "@/server/session";
 import { readHeartbeat } from "@/server/schedulerHealth";
 import {
   CANARY_INTERVAL_MS,
@@ -28,6 +30,15 @@ import { RetrainGauge } from "../RetrainGauge";
  *   있고 사라진다) 박동을 읽는 것으로는 "어느 층이 죽었나"에 답할 수 없다.
  */
 export default async function IrisPage() {
+  /* **계기판과 같은 문을 쓴다.** 이 화면은 모델명·적재 지문·정확도·운영자 판정 건수를
+     한자리에 모아 놓은 곳이라, 계기판보다 덜 잠겨 있으면 안 된다 — 접힌 것을 펼친
+     화면이 원본보다 열려 있으면 자물쇠는 접힌 줄에만 걸린 셈이다.
+     `notFound()` 인 것도 같은 이유다: `403` 은 "여기 뭔가 있다"를 알려 준다 */
+  const userId = await getSessionUserId();
+  if (!userId) notFound();
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  if (user?.role !== "OPERATOR") notFound();
+
   const now = new Date();
   const [canary, schedulerBeat, accuracy, retrain] = await Promise.all([
     getCanaryScreen(prisma, now),

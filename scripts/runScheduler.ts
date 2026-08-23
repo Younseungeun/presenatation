@@ -18,6 +18,7 @@ import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
 import {
   CANARY_INTERVAL_MS,
+  CANARY_STALE_MS,
   alertIfCanaryStale,
   runCanaryProbe,
   runScreeningCanary,
@@ -870,18 +871,22 @@ function tick(): void {
  * 이 타이머는 **이벤트 루프가 살아 있나**만 말하고, **일이 되고 있나**는 심박에
  * 함께 싣는 `current`(도는 항목 + 시작 시각)가 말한다
  */
+/** 문턱을 글로 적을 때 쓰는 분 단위 — 상수에서 뽑는다. 손으로 적어 두면 문턱을
+ *  내려도 로그만 옛 숫자를 외치고, 그걸 읽는 사람이 제일 먼저 속는다 */
+const STALE_MIN = Math.round(CANARY_STALE_MS / 60_000);
+
 function beat(): void {
   void writeHeartbeat(prisma, current);
   // **카나리아 박동은 다른 타이머가 본다** (회신 15호 §2). 심박은 큐와 별개라 큐가 막혀도
   // 돌고, 카나리아 타이머가 죽어도 돈다 — 그래서 여기가 "카나리아가 멎었다"를 말할 자리다.
   // 둘 다 죽으면 스케줄러가 죽은 것이고 그건 기존 워치독 몫. 알림은 dedupeKey 로 한 번만
   void alertIfCanaryStale(prisma).then((stale) => {
-    if (stale && !stopping) console.log('  ⚠ 규칙 카나리아 박동이 15분 넘게 멎어 있습니다');
+    if (stale && !stopping) console.log(`  ⚠ 규칙 카나리아 박동이 ${STALE_MIN}분 넘게 멎어 있습니다`);
   });
   // IRIS 출근 점검의 박동도 같은 자리에서 본다 (회신 16호) — 점검이 "결근"이라고 말하는 것과
   // 점검이 아예 안 도는 것은 다른 고장이고, 후자는 점검 자신이 말할 수 없다
   void alertIfAttendanceStale(prisma, studentClient).then((stale) => {
-    if (stale && !stopping) console.log('  ⚠ IRIS 출근 점검 박동이 15분 넘게 멎어 있습니다');
+    if (stale && !stopping) console.log(`  ⚠ IRIS 출근 점검 박동이 ${STALE_MIN}분 넘게 멎어 있습니다`);
   });
 }
 
