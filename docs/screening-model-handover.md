@@ -241,4 +241,4 @@ curl -s http://127.0.0.1:8765/health
 | 게이트·프로브 | `scripts/evalStudent.ts` `compareSeesaw.ts` `checkPingContamination.ts` `probeAdverbShortcut.ts` `probeDilution.ts` `probeZeroShotR8.ts` |
 | 학습 대장 · 베이스라인 | `training/ledger.jsonl` · `training/baselines/` |
 | 결정 문서 | `docs/screening-known-limits.md` · `docs/first-week-rules.md` · `docs/model-swap-rule.md` · `training/labeling/review-29-closeout.md` |
-| 관리자 앱 왕복 | `docs/admin-app-reply-1..9.md` |
+| 관리자 앱 왕복 | `docs/admin-app-reply-N.md`(서버→관리자 앱) · `docs/to-server-N.md`(관리자 앱→서버) — **규칙은 `docs/LETTERS.md`** |

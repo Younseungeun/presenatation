@@ -341,6 +341,7 @@ curl -o /dev/null -s -w "%{http_code}\n" http://localhost:3000/admin/<새화면>
 | 현재 관리자 화면 | `src/app/admin/compliance/page.tsx` |
 | **관리자 화면 인증 관문의 본보기** | `src/app/admin/compliance/page.tsx` 머리 네 줄 (§8-1) |
 | **못 막는 것 목록** | `docs/screening-known-limits.md` |
+| **두 세션이 편지 주고받는 규칙** | `docs/LETTERS.md` — 남의 series 에 쓰면 덮인다 |
 | 전체 기획 (검수 절 포함) | `CLAUDE.md` |
 
 **막지 못하는 것을 운영자가 알아야 합니다.** `docs/screening-known-limits.md`의 항목을 보류 큐 화면에 **인라인으로** 띄우는 것을 권합니다 — 문서를 따로 읽으라고 하면 아무도 안 읽습니다.
