@@ -8,12 +8,17 @@ import {
   getCanaryScreen,
 } from "@/server/screeningCanaryRunner";
 import { getScreeningAccuracy } from "@/server/complianceService";
+import {
+  getApprovedElapsedCoverage,
+  getDecisionSpeedByCategory,
+} from "@/server/decisionSpeedService";
 import { countHardNegatives } from "@/server/retrainSignalService";
 import { AdminHead } from "../../AdminHead";
 import a from "../../admin.module.css";
 import { IrisDetail } from "./IrisDetail";
 import { RuleDetail } from "./RuleDetail";
 import { AccuracyDetail } from "./AccuracyDetail";
+import { DecisionSpeedPanel } from "../DecisionSpeedPanel";
 import { RetrainGauge } from "../RetrainGauge";
 
 /**
@@ -40,12 +45,15 @@ export default async function IrisPage() {
   if (user?.role !== "OPERATOR") notFound();
 
   const now = new Date();
-  const [canary, schedulerBeat, accuracy, retrain] = await Promise.all([
-    getCanaryScreen(prisma, now),
-    readHeartbeat(prisma, now),
-    getScreeningAccuracy(prisma),
-    countHardNegatives(prisma),
-  ]);
+  const [canary, schedulerBeat, accuracy, retrain, decisionSpeed, elapsedCoverage] =
+    await Promise.all([
+      getCanaryScreen(prisma, now),
+      readHeartbeat(prisma, now),
+      getScreeningAccuracy(prisma),
+      countHardNegatives(prisma),
+      getDecisionSpeedByCategory(prisma),
+      getApprovedElapsedCoverage(prisma),
+    ]);
 
   return (
     <>
@@ -55,6 +63,13 @@ export default async function IrisPage() {
             건수로 편다. 되짚으러 온 사람이 먼저 묻는 것은 "몇 건이냐"이고, 비율은
             표본이 작을 때 거짓말한다(4건 중 1건도 25%, 400건 중 100건도 25%) */}
         <AccuracyDetail summary={accuracy} />
+
+        {/* **정확도 바로 아래** (2026-08-24 창업자 지시로 계기판에서 내려옴).
+            저쪽은 **무엇을 틀렸나**, 이쪽은 **읽고 틀렸나**를 말한다 — 떨어져 있으면
+            "오탐이 많다"와 "그래서 안 읽고 넘긴다"가 따로 읽힌다.
+            계기판에 있을 자리가 아니었던 이유: 유형별 중앙값은 곁눈질하는 값이 아니라
+            되짚으러 와서 읽는 값이다 */}
+        <DecisionSpeedPanel rows={decisionSpeed} coverage={elapsedCoverage} />
 
         {/* 제목과 상태 칩은 IrisDetail 이 함께 그린다 — 상태를 아는 쪽이 제목도 쓴다
             (2026-08-23 창업자 지시로 물음표를 걷고 그 자리에 근무/결근 칩을 놓음) */}

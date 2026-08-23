@@ -37,6 +37,7 @@ import {
   type ScreeningOutput,
   type ScreeningUsage,
 } from '@/infra/compliance/screener';
+import { ELAPSED_MEASURE_START } from './decisionSpeedService';
 import { buildJudgmentWrites } from './judgmentWriter';
 import { getActiveLearnedPhrases } from './learnedPhraseService';
 import { getStudentBypass, recordStudentOutage } from './studentValveService';
@@ -768,6 +769,9 @@ type ReviewRow = {
   operatorReason: string | null;
   operatorCategories: string | null;
   aiFindingsValid: boolean | null;
+  /* 판단 시간이 **없는 이유**를 가르는 재료 (2026-08-24). 정확도 계산에는 안 들어간다 */
+  operatorReviewedAt?: Date | null;
+  decisionElapsedMs?: number | null;
 };
 
 /** DB 행 → 도메인 표본. 저장된 JSON은 방어적으로 파싱한다 (구버전 행 존재) */
@@ -788,6 +792,8 @@ function toLabeledReview(row: ReviewRow): LabeledReview {
     findingsValid: row.aiFindingsValid,
     actualCategories: parse<RiskCategory[]>(row.operatorCategories, []),
     operatorReason: row.operatorReason,
+    reviewedAt: row.operatorReviewedAt ? row.operatorReviewedAt.getTime() : null,
+    elapsedMs: row.decisionElapsedMs ?? null,
   };
 }
 
@@ -798,6 +804,8 @@ const LABEL_SELECT = {
   operatorReason: true,
   operatorCategories: true,
   aiFindingsValid: true,
+  operatorReviewedAt: true,
+  decisionElapsedMs: true,
 } as const;
 
 /**
@@ -811,7 +819,10 @@ export async function getScreeningAccuracy(prisma: PrismaClient, take = 500) {
     orderBy: { createdAt: 'desc' },
     take,
   });
-  return summarizeAccuracy(rows.map(toLabeledReview));
+  // 측정 시작일을 **주입한다** — 도메인은 순수 함수라 배포일을 모른다 (§SummarizeOptions)
+  return summarizeAccuracy(rows.map(toLabeledReview), {
+    measureStartMs: ELAPSED_MEASURE_START,
+  });
 }
 
 /**

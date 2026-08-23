@@ -1,4 +1,4 @@
-import type { AccuracySummary, BreakdownStat } from "@/domain/screeningAccuracy";
+import type { AccuracySummary, BreakdownStat, ElapsedGap } from "@/domain/screeningAccuracy";
 import { RISK_CATEGORY_LABEL, type RiskCategory } from "@/domain/compliance";
 import { SecHead } from "../../Why";
 import a from "../../admin.module.css";
@@ -38,16 +38,68 @@ function pct(v: number | null) {
   return v === null ? "—" : `${Math.round(v * 100)}%`;
 }
 
+/**
+ * **판단 시간이 없는 건을 그 줄 옆에 적는다** (2026-08-24 창업자 지시).
+ *
+ * 표 아래에 뭉쳐 적으면 "어느 줄이 얼마나 비어 있나"를 알 수 없다. 판단 시간이 없는
+ * 건은 피로도 표의 분모에서도 빠지고 학습의 3초 필터도 못 보므로, **그 줄이 재고 있는
+ * 것이 전부가 아니라는 사실**은 그 줄 옆에서 말해야 한다.
+ *
+ * 사유마다 칩을 따로 낸다 — 둘은 처방이 정반대다:
+ * · `측정 전` = 잴 장치가 없던 때. 나이지 결함이 아니고 저절로 사라진다 → 무채색
+ * · `큐 밖`   = 측정이 도는데 안 실려 왔다 → 붉은색. **다만 미탐은 예외다**:
+ *   강제 철회는 애초에 큐에서 펼치는 경로가 아니라 시간이 없는 것이 정상이다
+ *   (`/api/admin/compliance` 규약 — 큐 밖 경로는 보내지 않는다). 거기에 붉은 칩을
+ *   달면 고칠 수 없는 것을 매일 빨갛게 그리는 셈이고, 그러면 진짜 신호가 묻힌다.
+ */
+function GapChips({ gap, offIsNormal }: { gap: ElapsedGap; offIsNormal: boolean }) {
+  const chips: { key: string; text: string; bad: boolean; hint: string }[] = [];
+  if (gap.beforeMeasureStart > 0)
+    chips.push({
+      key: "pre",
+      text: `측정 전 ${gap.beforeMeasureStart}`,
+      bad: false,
+      hint: "판단 시간을 재기 전에 내려진 판정입니다. 잴 장치가 없었으므로 고칠 것이 없고, 오래된 건이 밀려나면 사라집니다.",
+    });
+  if (gap.offQueue > 0)
+    chips.push({
+      key: "off",
+      text: `큐 밖 ${gap.offQueue}`,
+      bad: !offIsNormal,
+      hint: offIsNormal
+        ? "강제 철회는 큐에서 펼치는 경로가 아니라 판단 시간이 없는 것이 정상입니다."
+        : "측정이 도는 중인데 시간이 실려 오지 않았습니다 — 큐에서 펼친 카드가 아닌 경로로 판정됐다는 뜻입니다.",
+    });
+  if (chips.length === 0) return null;
+  return (
+    <>
+      {chips.map((c) => (
+        <span
+          key={c.key}
+          className={`${a.chip} ${c.bad ? a.chipNeg : ""}`}
+          title={`판단 시간 없음 — ${c.hint}`}
+        >
+          {c.text}
+        </span>
+      ))}
+    </>
+  );
+}
+
 function Line({
   label,
   count,
   detail,
   tone,
+  gap,
+  offIsNormal = false,
 }: {
   label: string;
   count: number;
   detail: string | null;
   tone?: string;
+  gap: ElapsedGap;
+  offIsNormal?: boolean;
 }) {
   return (
     <div className={a.row} style={{ padding: "7px 0", alignItems: "baseline" }}>
@@ -71,6 +123,9 @@ function Line({
       >
         {detail ? `(${detail})` : ""}
       </span>
+      {/* 칩은 **유형 문구 오른쪽**에 선다 (창업자 지시) — 유형이 "무엇을 잡았나"라면
+          칩은 "그 숫자를 얼마나 믿을 수 있나"라, 읽는 순서가 그 순서다 */}
+      <GapChips gap={gap} offIsNormal={offIsNormal} />
     </div>
   );
 }
@@ -118,12 +173,14 @@ export function AccuracyDetail({ summary }: { summary: AccuracySummary }) {
           count={summary.truePositive}
           detail={types(byCat, (c) => c.confirmed)}
           tone="#0e8a71"
+          gap={summary.noElapsed.truePositive}
         />
         <Line
           label="오탐"
           count={summary.falsePositive}
           detail={types(byCat, (c) => c.falsePositive)}
           tone="#b45309"
+          gap={summary.noElapsed.falsePositive}
         />
         {/* 경미도 소견이 붙어 보류된 건이라 **왜 막았는지가 있다.** 예전에는 집계기가
             인정 쪽에 섞어 담아 유형을 못 봤는데, 그건 셀 수 없어서가 아니라 나눠 놓지
@@ -132,12 +189,16 @@ export function AccuracyDetail({ summary }: { summary: AccuracySummary }) {
           label="경미"
           count={summary.minor}
           detail={types(byCat, (c) => c.minor)}
+          gap={summary.noElapsed.minor}
         />
         <Line
           label="미탐"
           count={summary.falseNegative}
           detail={types(byCat, (c) => c.missed)}
           tone="#c4303b"
+          gap={summary.noElapsed.falseNegative}
+          /* 미탐 = 강제 철회. 큐에서 펼치는 경로가 아니라 시간이 없는 것이 정상이다 */
+          offIsNormal
         />
 
         <div className={a.meta}>

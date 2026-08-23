@@ -69,11 +69,6 @@ import {
   GRADUATION_WATCH_DAYS,
 } from "@/server/phraseGraduationService";
 import { countHardNegatives } from "@/server/retrainSignalService";
-import {
-  getApprovedElapsedCoverage,
-  getDecisionSpeedByCategory,
-} from "@/server/decisionSpeedService";
-import { DecisionSpeedPanel } from "./DecisionSpeedPanel";
 import { GraduateButton } from "./GraduateButton";
 import { GraduationWatch } from "./GraduationWatch";
 import { RegressionCases } from "./RegressionCases";
@@ -809,8 +804,6 @@ export default async function AdminCompliancePage({
     graduationWatch,
     retrain,
     regressionCases,
-    decisionSpeed,
-    elapsedCoverage,
   ] = await Promise.all([
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
@@ -828,8 +821,6 @@ export default async function AdminCompliancePage({
     getGraduationWatch(prisma),
     countHardNegatives(prisma),
     getRegressionCases(prisma),
-    getDecisionSpeedByCategory(prisma),
-    getApprovedElapsedCoverage(prisma),
   ]);
   // 문항은 사전 항목에 붙어 있다 — 졸업이 만든 것이라 그 항목 카드에서 닿는 것이 맞다.
   // (관찰 큐는 7일짜리 임시 자리고 문항은 영구라 수명이 안 맞는다 — 회신 4호 §4-b)
@@ -1007,9 +998,11 @@ export default async function AdminCompliancePage({
       {/* 정확도 카드는 2026-08-23에 IRIS 상자 안(맨 위)으로 올라갔다 — 검수하는 것이
           둘이고 그 둘이 얼마나 맞히는지는 같은 물음의 뒷면이라 한자리에 둔다 */}
 
-      {/* 정확도 옆자리다 — 저쪽은 **무엇을 틀렸나**, 이쪽은 **읽고 틀렸나**를 말한다.
-          둘이 떨어져 있으면 "오탐이 많다"와 "그래서 안 읽고 넘긴다"가 따로 읽힌다 */}
-      <DecisionSpeedPanel rows={decisionSpeed} coverage={elapsedCoverage} />
+      {/* **판단 소요 시간은 검수 상세로 내려갔다** (2026-08-24 창업자 지시).
+          계기판은 매일 곁눈질하는 화면이고 이 표는 유형별 중앙값이라 **되짚으러 왔을 때**
+          읽는 값이다. 정확도 옆에 두려던 원래 뜻("무엇을 틀렸나" 옆에 "읽고 틀렸나")은
+          그대로인데, 정확도 상세가 이미 거기 있으므로 옆자리도 같이 옮겼다.
+          → src/app/admin/compliance/iris/page.tsx */}
 
       {/* **문턱에 닿았을 때만 여기 뜬다** (2026-08-23 창업자 지시).
           평소 이 숫자는 0/50 에서 며칠씩 움직이지 않는다 — 매일 보는 화면에서

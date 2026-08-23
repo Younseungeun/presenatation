@@ -75,7 +75,39 @@ export interface LabeledReview {
    * 아무것도 안 짚어 인용할 것이 없기 때문이다 (LearnedPhrase.sourceReportId).
    */
   missedPhrase?: string | null;
+  /**
+   * 운영자가 판정한 시각(ms). **판단 시간이 없는 이유를 가르는 데만 쓴다** —
+   * 측정 도입 전이면 잴 장치가 없었던 것이고, 뒤면 큐 밖 경로로 들어온 것이다.
+   */
+  reviewedAt?: number | null;
+  /** 열람→판정까지 걸린 시간. null 이면 못 잰 건이다 */
+  elapsedMs?: number | null;
 }
+
+/**
+ * 판정 하나에서 **판단 시간이 비어 있는 이유** (2026-08-24 창업자 지시).
+ *
+ * 정확도 표의 각 줄 옆에 이 값을 칩으로 붙인다. 뭉쳐 두면 "이 줄의 숫자를 얼마나
+ * 믿을 수 있나"에 답할 수 없다 — 판단 시간이 없는 건은 피로도 표의 분모에서도
+ * 빠지고 학습의 3초 필터도 못 보므로, **그 줄이 재고 있는 것이 전부가 아니라는
+ * 사실**을 그 줄 옆에서 말해야 한다.
+ */
+export interface ElapsedGap {
+  /** 측정 도입 전 판정 — 나이지 결함이 아니다. 창이 지나면 사라진다 */
+  beforeMeasureStart: number;
+  /** 측정 도입 뒤인데도 비어 있다 — 큐 밖 경로로 들어왔다는 뜻 */
+  offQueue: number;
+}
+
+/** 정확도 표에 줄로 그려지는 넷 (TRUE_NEGATIVE 는 그리지 않는다 — 분모 밖이다) */
+export type AccuracyLine = 'truePositive' | 'minor' | 'falsePositive' | 'falseNegative';
+
+const LINE_OF: Partial<Record<ScreeningOutcome, AccuracyLine>> = {
+  TRUE_POSITIVE: 'truePositive',
+  MINOR: 'minor',
+  FALSE_POSITIVE: 'falsePositive',
+  FALSE_NEGATIVE: 'falseNegative',
+};
 
 /**
  * 검수 1건의 결과 판정.
@@ -199,9 +231,34 @@ export interface AccuracySummary {
   explicitFalsePositiveRate: number | null;
   byCategory: BreakdownStat<RiskCategory>[];
   bySource: BreakdownStat<FindingSource | 'unknown'>[];
+  /**
+   * 줄마다 **판단 시간이 없는 건수**를 사유로 갈라 담는다 (2026-08-24 창업자 지시).
+   * 화면은 이것을 그 줄 옆 칩으로 그린다 — 표 아래에 뭉쳐 적으면 어느 줄이 얼마나
+   * 비어 있는지 알 수 없고, 그 줄의 숫자를 얼마나 믿을지도 판단할 수 없다.
+   */
+  noElapsed: Record<AccuracyLine, ElapsedGap>;
 }
 
-export function summarizeAccuracy(rows: LabeledReview[]): AccuracySummary {
+export interface SummarizeOptions {
+  /**
+   * 판단 시간을 재기 시작한 순간(ms). 이 앞의 판정에는 잴 장치가 없었다.
+   * **주입받는다** — 배포일은 서버가 아는 사실이고, 도메인이 서버 상수를 끌어오면
+   * 순수 함수가 아니게 된다. 안 주면 전부 `offQueue` 로 센다(가장 시끄러운 쪽 —
+   * 조용히 "괜찮다"고 답하는 기본값을 두지 않는다).
+   */
+  measureStartMs?: number;
+}
+
+export function summarizeAccuracy(
+  rows: LabeledReview[],
+  opts: SummarizeOptions = {},
+): AccuracySummary {
+  const noElapsed: Record<AccuracyLine, ElapsedGap> = {
+    truePositive: { beforeMeasureStart: 0, offQueue: 0 },
+    minor: { beforeMeasureStart: 0, offQueue: 0 },
+    falsePositive: { beforeMeasureStart: 0, offQueue: 0 },
+    falseNegative: { beforeMeasureStart: 0, offQueue: 0 },
+  };
   const counts: Record<Exclude<ScreeningOutcome, 'UNLABELED'>, number> = {
     TRUE_POSITIVE: 0,
     MINOR: 0,
@@ -221,6 +278,17 @@ export function summarizeAccuracy(rows: LabeledReview[]): AccuracySummary {
     if (outcome === 'UNLABELED') continue;
     labeled += 1;
     counts[outcome] += 1;
+
+    /* **못 잰 건을 그 줄에 적립한다.** `elapsedMs` 가 없다는 것은 이 판정이 위 표의
+       분모에서도 빠지고 학습의 3초 필터도 못 본다는 뜻이라, 그 줄의 숫자가 재고 있는
+       것이 전부가 아니라는 사실을 함께 들고 다녀야 한다 */
+    const line = LINE_OF[outcome];
+    if (line && (r.elapsedMs ?? null) === null) {
+      const start = opts.measureStartMs;
+      const before = start !== undefined && r.reviewedAt != null && r.reviewedAt < start;
+      if (before) noElapsed[line].beforeMeasureStart += 1;
+      else noElapsed[line].offQueue += 1;
+    }
     if (outcome === 'MINOR' || outcome === 'FALSE_POSITIVE') {
       approvedFromHold += 1;
       // `false` 만 신고다 — `null`(무표시)과 갈라야 이 지표가 뜻을 갖는다
@@ -271,6 +339,7 @@ export function summarizeAccuracy(rows: LabeledReview[]): AccuracySummary {
       approvedFromHold > 0 ? explicitFalsePositive / approvedFromHold : null,
     byCategory: toList<RiskCategory>(byCategory),
     bySource: toList<FindingSource | 'unknown'>(bySource),
+    noElapsed,
   };
 }
 

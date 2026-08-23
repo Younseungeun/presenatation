@@ -241,3 +241,72 @@ describe('calibrationExamples', () => {
     expect(out.filter((e) => e.kind === 'falsePositive')).toHaveLength(7);
   });
 });
+
+/**
+ * **판단 시간이 없는 건을 줄마다 센다** (2026-08-24 창업자 지시).
+ *
+ * 정확도 표의 각 줄 옆에 칩으로 뜬다. 뭉쳐 적으면 "어느 줄이 얼마나 비어 있나"에
+ * 답할 수 없는데, 그 답이 곧 **그 줄의 숫자를 얼마나 믿을 수 있나**이다 —
+ * 판단 시간이 없는 건은 피로도 표의 분모에서도 빠지고 학습의 3초 필터도 못 본다.
+ */
+describe('판단 시간 공백을 판정 종류별로 가른다', () => {
+  const START = Date.UTC(2026, 7, 22);
+  const before = START - 86_400_000;
+  const after = START + 86_400_000;
+
+  it('측정 전 판정은 `beforeMeasureStart` — 잴 장치가 없던 때다', () => {
+    const s = summarizeAccuracy(
+      [review({ verdict: 'REJECTED', reviewedAt: before, elapsedMs: null })],
+      { measureStartMs: START },
+    );
+    expect(s.noElapsed.truePositive).toEqual({ beforeMeasureStart: 1, offQueue: 0 });
+  });
+
+  it('측정 후인데 비어 있으면 `offQueue` — 큐 밖 경로로 들어왔다', () => {
+    const s = summarizeAccuracy(
+      [review({ verdict: 'APPROVED', reviewedAt: after, elapsedMs: null })],
+      { measureStartMs: START },
+    );
+    expect(s.noElapsed.falsePositive).toEqual({ beforeMeasureStart: 0, offQueue: 1 });
+  });
+
+  it('**줄마다 따로 쌓인다** — 오탐의 공백이 정탐 줄에 섞이면 칩이 거짓말을 한다', () => {
+    const s = summarizeAccuracy(
+      [
+        review({ verdict: 'REJECTED', reviewedAt: before, elapsedMs: null }), // 정탐
+        review({ verdict: 'APPROVED', reviewedAt: after, elapsedMs: null }), // 오탐
+        review({ verdict: 'APPROVED', findingsValid: true, reviewedAt: after, elapsedMs: null }), // 경미
+      ],
+      { measureStartMs: START },
+    );
+    expect(s.noElapsed.truePositive.beforeMeasureStart).toBe(1);
+    expect(s.noElapsed.falsePositive.offQueue).toBe(1);
+    expect(s.noElapsed.minor.offQueue).toBe(1);
+    // 서로 넘어가지 않았다
+    expect(s.noElapsed.truePositive.offQueue).toBe(0);
+    expect(s.noElapsed.falseNegative).toEqual({ beforeMeasureStart: 0, offQueue: 0 });
+  });
+
+  it('시간이 있으면 어느 칸에도 안 센다', () => {
+    const s = summarizeAccuracy(
+      [review({ verdict: 'APPROVED', reviewedAt: after, elapsedMs: 12_000 })],
+      { measureStartMs: START },
+    );
+    expect(s.noElapsed.falsePositive).toEqual({ beforeMeasureStart: 0, offQueue: 0 });
+  });
+
+  it('**측정 시작일을 안 주면 전부 `offQueue`** — 조용히 "괜찮다"고 답하지 않는다', () => {
+    const s = summarizeAccuracy([
+      review({ verdict: 'APPROVED', reviewedAt: before, elapsedMs: null }),
+    ]);
+    expect(s.noElapsed.falsePositive).toEqual({ beforeMeasureStart: 0, offQueue: 1 });
+  });
+
+  it('판정이 없는 건은 세지 않는다 — 표본 자체가 아니다', () => {
+    const s = summarizeAccuracy([review({ verdict: null, reviewedAt: after, elapsedMs: null })], {
+      measureStartMs: START,
+    });
+    expect(s.labeled).toBe(0);
+    expect(s.noElapsed.falsePositive).toEqual({ beforeMeasureStart: 0, offQueue: 0 });
+  });
+});
