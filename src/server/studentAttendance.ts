@@ -84,7 +84,7 @@ export async function runStudentAttendance(
 export interface AttendanceBeat {
   lastOkAt: Date | null;
   nextAt: Date | null;
-  /** 박동이 문턱(주기 3배) 넘게 낡았는가 = 스케줄러의 출근 점검 타이머가 멎었다 */
+  /** 박동이 문턱(주기 2배 = 10분) 넘게 낡았는가 = 스케줄러의 출근 점검 타이머가 멎었다 */
   stale: boolean;
 }
 
@@ -122,7 +122,7 @@ export async function alertIfAttendanceStale(
       (beat.lastOkAt
         ? `마지막 출근 확인: ${beat.lastOkAt.toISOString()}\n`
         : '출근 확인 기록이 아예 없습니다.\n') +
-      '5분 주기 점검의 박동이 15분 넘게 없습니다. IRIS 자체의 장애는 따로 알립니다 — 이것은 ' +
+      '5분 주기 점검의 박동이 10분 넘게 없습니다. IRIS 자체의 장애는 따로 알립니다 — 이것은 ' +
       '스케줄러의 점검 타이머가 멎었다는 뜻입니다. 스케줄러를 재기동하십시오.',
     link: '/admin/compliance',
     type: 'COMPLIANCE_REVIEW',

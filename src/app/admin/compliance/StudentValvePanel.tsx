@@ -172,15 +172,15 @@ function useTicker(active: boolean): number {
   return t;
 }
 
-const TIMER_TONE = [s.timerOk, s.timerWarn, s.timerBad] as const;
+const TIMER_TONE = { ok: s.timerOk, warn: s.timerWarn, bad: s.timerBad } as const;
 
-/** 색만으로는 "왜 노랗지"에 답이 없다 — 무엇을 세고 있는지 글로도 남긴다 */
-const TIMER_HINT = (label: string) =>
-  [
-    `다음 ${label}까지 남은 시간입니다.`,
-    "예정 시각을 한 번 넘겼습니다 — 이 시간이 지나면 빨간색이 됩니다.",
-    `예정 시각을 두 번 넘겼습니다 — 이 시간이 지나면 ${label}이 ✗ 로 바뀝니다.`,
-  ] as const;
+/** 색만으로는 "왜 빨갛지"에 답이 없다 — 무엇을 세고 있는지 글로도 남긴다 */
+const TIMER_HINT = (label: string, tone: "ok" | "warn" | "bad") =>
+  tone === "ok"
+    ? `다음 ${label}까지 남은 시간입니다.`
+    : tone === "bad"
+      ? `예정 시각을 넘겼습니다 — 이 시간이 지나면 ${label}이 ✗ 로 바뀝니다.`
+      : "예정 시각을 넘겼습니다 — 이 시간이 지나면 색이 한 단계 오릅니다.";
 
 /**
  * **감시가 돌고 있나** — IRIS 줄과 검수 규칙 줄이 **같은 부품을 쓴다** (회신 16호).
@@ -223,7 +223,7 @@ function WatchTimer({
   /* 멈춰 있으면(`✗`) 타이머를 그리지 않는다 — 오지 않을 약속이고, 기다리면 해결된다고
      읽혀 고치러 가지 않게 만든다. 예정 시각을 못 받았을 때도 마찬가지로 비운다:
      주기를 여기서 짐작해 채우면 예전의 "다음 59분 뒤" 거짓말이 되돌아온다 */
-  const timer = stale || !nextAt ? null : countdownBand(nextAt, tick, freshMs);
+  const timer = stale || !nextAt ? null : countdownBand(nextAt, tick, freshMs, staleMs);
   return (
     <span
       className={s.name}
@@ -235,7 +235,7 @@ function WatchTimer({
     >
       {label} {stale ? <span className={s.stale}>✗</span> : <span className={s.ok}>✓</span>}
       {timer && (
-        <span className={`${s.timer} ${TIMER_TONE[timer.band]}`} title={TIMER_HINT(label)[timer.band]}>
+        <span className={`${s.timer} ${TIMER_TONE[timer.tone]}`} title={TIMER_HINT(label, timer.tone)}>
           {timer.text}
         </span>
       )}
@@ -278,11 +278,8 @@ function RuleRow({
   /* 이미 틀린 것을 봤으면 늙었다고 흐리지 않는다 — 실패는 확인된 사실이고,
      시간이 지난다고 사라지지 않는다. 흐려도 되는 것은 '통과' 쪽뿐이다 */
   const measurementStale = !broken && nowMs - measuredAt > freshMs;
-  const tick = useTicker(!heartbeatStale && !!nextAt);
-  /* 멈춰 있으면(`✗`) 타이머를 그리지 않는다 — 오지 않을 약속이고, 기다리면 해결된다고
-     읽혀 고치러 가지 않게 만든다. 예정 시각을 못 받았을 때도 마찬가지로 비운다:
-     주기를 여기서 짐작해 채우면 예전의 "다음 59분 뒤" 거짓말이 되돌아온다 */
-  const timer = heartbeatStale || !nextAt ? null : countdownBand(nextAt, tick, freshMs);
+  /* 타이머 계산은 `WatchTimer` 안에 있다 — 여기서 한 벌 더 세면 IRIS 쪽과 규칙 쪽이
+     따로 늙어, 같은 스케줄러가 도는데 두 줄이 다른 시간을 말하게 된다 */
   return (
     <div className={s.ruleRow}>
       {broken ? (
@@ -673,18 +670,33 @@ export function StudentValvePanel({
 
         {failed && <div className={`${a.note} ${a.noteNeg}`}>{failed}</div>}
 
+        {/* **검수하는 것이 둘이니 설명도 둘이다** (2026-08-23 창업자 지시).
+            지금까지 이 도움말은 IRIS 이야기만 했다 — 상자에 줄이 둘인데 한 줄만
+            설명한 셈이다. 두 줄이 **무엇으로 살아 있다고 판단하는지**가 서로 달라서
+            (하나는 문제를 풀려 보고, 하나는 정답이 있는 문장을 통과시켜 본다),
+            그 차이를 모르면 한쪽 표시를 다른 쪽 잣대로 읽게 된다.
+            순서는 화면과 같다: IRIS 먼저, 검수 규칙 다음, 공통이 마지막 */}
         <WhyBody className={a.meta}>
           <span>
-            <b>출근 확인</b>에는 실제 문제 풀이가 포함됩니다 — 자리에 앉아 전화를 받아도
-            쉬운 위반 문장 하나를 못 풀면 결근으로 봅니다.
+            <b>● IRIS</b> — 화면을 열 때 <b>실제로 물어봅니다</b>(상태 + 문제 8개).
+            못 풀거나 정상 문장을 위반이라 하면 결근이고, 그 이유가 배지로 붙습니다.
           </span>
           <span>
-            <b>임시 통로</b>는 2시간 뒤 저절로 닫힙니다. 연장은 다시 여는 것이고, 그 클릭이
-            &ldquo;아직 필요하다&rdquo;는 판단 기록입니다.
+            <b>● 검수 규칙</b> — 정답이 정해진 문장 6개를 운영과 같은 함수에 넣어 봅니다.
+            틀리면 빨간 느낌표 + 층 이름. <b>회색 점은 고장이 아니라</b> 잰 지 오래됐다는
+            뜻입니다(새로고침).
           </span>
           <span>
-            채택 근거 수치(임계값·오탐·순이익)는 화면에 싣지 않습니다 — 재학습마다 바뀌어
-            낡은 숫자가 남습니다. 전문은 <code>training/labeling/review-21.md</code> 부록 3.
+            <b>출근 점검 · 자동 점검</b> — 위 둘이 <b>사장님이 볼 때</b>라면, 이 둘은
+            <b>아무도 안 볼 때</b> 스케줄러가 5분마다 잰다는 표시입니다.
+          </span>
+          <span>
+            <b>타이머</b>는 다음 점검까지 — 제때 돌면 회색으로 되돌아가고, 넘기면
+            노랑(한 번 거름) → 빨강(두 번) → ✗(15분). 스케줄러가 꺼져 있으면 안 그립니다.
+          </span>
+          <span>
+            <b>임시 통로</b>는 2시간 뒤 저절로 닫힙니다 — 연장은 다시 여는 것이고,
+            그 클릭이 판단 기록입니다.
           </span>
         </WhyBody>
       </div>

@@ -5,11 +5,14 @@ import {
   CANARY_STALE_MS,
   getCanaryScreen,
 } from "@/server/screeningCanaryRunner";
+import { getScreeningAccuracy } from "@/server/complianceService";
+import { countHardNegatives } from "@/server/retrainSignalService";
 import { AdminHead } from "../../AdminHead";
-import { SecHead } from "../../Why";
 import a from "../../admin.module.css";
 import { IrisDetail } from "./IrisDetail";
 import { RuleDetail } from "./RuleDetail";
+import { AccuracyDetail } from "./AccuracyDetail";
+import { RetrainGauge } from "../RetrainGauge";
 
 /**
  * **검수 상세** — 계기판의 상자를 누르면 오는 자리.
@@ -26,22 +29,32 @@ import { RuleDetail } from "./RuleDetail";
  */
 export default async function IrisPage() {
   const now = new Date();
-  const [canary, schedulerBeat] = await Promise.all([
+  const [canary, schedulerBeat, accuracy, retrain] = await Promise.all([
     getCanaryScreen(prisma, now),
     readHeartbeat(prisma, now),
+    getScreeningAccuracy(prisma),
+    countHardNegatives(prisma),
   ]);
 
   return (
     <>
-      <AdminHead title="검수 상세" sub="IRIS · 검수 규칙" backHref="/admin/compliance" />
+      <AdminHead title="검수 상세" sub="정확도 · IRIS · 검수 규칙" backHref="/admin/compliance" />
       <main className={a.page}>
-        <SecHead title="IRIS">
-          <span>
-            사이드카에 올라온 <b>학생 모델</b>입니다. 규칙이 못 잡는 <b>패러프레이즈</b>를
-            메우고, 거절 권한은 없어 소견이 나와도 <b>보류까지</b>입니다.
-          </span>
-        </SecHead>
+        {/* **정확도가 맨 위** (2026-08-23 창업자 지시) — 계기판이 비율로 접어 둔 것을
+            건수로 편다. 되짚으러 온 사람이 먼저 묻는 것은 "몇 건이냐"이고, 비율은
+            표본이 작을 때 거짓말한다(4건 중 1건도 25%, 400건 중 100건도 25%) */}
+        <AccuracyDetail summary={accuracy} />
+
+        {/* 제목과 상태 칩은 IrisDetail 이 함께 그린다 — 상태를 아는 쪽이 제목도 쓴다
+            (2026-08-23 창업자 지시로 물음표를 걷고 그 자리에 근무/결근 칩을 놓음) */}
         <IrisDetail />
+
+        {/* **재학습 신호는 여기가 집이다** (2026-08-23 창업자 지시).
+            평소 이 숫자는 며칠씩 안 움직여 계기판에서는 배경음이 된다. 되짚으러 오는
+            이 화면에서는 반대로 **찾아보는 값**이고, 위 정확도(무엇을 틀렸나)와
+            IRIS 신원(누가 틀렸나) 사이에 "다시 가르칠 때가 됐나"가 놓이는 것이 맞다.
+            문턱에 닿으면 계기판에도 함께 뜬다 — 그때는 할 일이 생기기 때문이다 */}
+        <RetrainGauge {...retrain} />
 
         <RuleDetail
           screen={canary}

@@ -94,6 +94,17 @@ export interface StudentClient {
    */
   recheck?(): Promise<boolean>;
   /**
+   * **화면·문자가 읽는 출근 상태** (2026-08-23 창업자 확정 B안) — `usable()` 과 다르다.
+   *
+   * `usable()` 은 집행이라 첫 실패에서 곧장 false 다(못 미더운 모델에게 판정을 맡기느니
+   * 보류가 낫다). 반면 **결근 선언은 두 번 연속 실패해야** 한다 — 호출 한 번의 2초
+   * 초과로 문자가 나갔다 5분 뒤 복귀 문자가 또 나간 일이 실제로 있었고, 그런 문자가
+   * 반복되면 진짜 결근에도 폰을 안 본다. 그 사이는 `pendingFailure` 로 따로 말한다.
+   *
+   * 선택 항목인 이유: 연속 실패를 세지 않는 구현(시험 목)에는 잰 값이 곧 상태다.
+   */
+  attendance?(): { ok: boolean; pendingFailure: boolean };
+  /**
    * **왜 못 쓰는지 — 전부** (2026-08-23). 마지막 `usable()` 이 남긴 목록, 쓸 수 있으면 빈 배열.
    *
    * 화면이 사유를 따로 계산하면 핑 결과를 모른 채 상태 플래그만 보게 되어, 원인이
@@ -437,6 +448,26 @@ class HttpStudentClient implements StudentClient {
   /** @근거 설계 — 실패를 기억하는 시간. 사이드카를 다시 띄운 뒤 1분이면 회복된다 */
   private static readonly GATE_RETRY_MS = 60_000;
 
+  /**
+   * **연속 실패 횟수 — 결근을 선언하기까지 몇 번 헛걸음했나** (2026-08-23 창업자 확정 B안).
+   *
+   * 실제로 겪은 일이다: 04:49 에 `The operation was aborted due to timeout` 하나로
+   * 결근 문자가 나가고 04:54 에 근무 중 문자가 또 나갔다. 사이드카는 멀쩡했고
+   * 원인은 그 순간 CPU 를 다 쓰던 시험이었다. **호출 한 번의 2초 초과가 사람을
+   * 깨우면 안 된다** — 그런 문자가 몇 번 반복되면 진짜 결근에도 폰을 안 본다.
+   *
+   * 그래서 **집행과 선언을 가른다**:
+   * · `usable()` = 집행. 첫 실패에서 곧장 false — 못 미더운 모델에게 판정을 맡기느니
+   *   보류가 낫다. 여기서 기다리면 그 5분 동안 IRIS 가 소견을 낸다.
+   * · `attendanceOk()` = 선언(문자·화면). **두 번 연속** 실패해야 결근이다.
+   *   주기가 5분이라 진짜 결근은 늦어도 10분 안에 잡히고, 그 10분이 곧 문턱이다
+   *   (`CANARY_STALE_MS` 를 주기 2배로 맞춘 것과 같은 잣대).
+   */
+  private consecutiveFailures = 0;
+
+  /** @근거 설계 — 한 번은 헛걸음일 수 있고 두 번은 아니다. 주기 5분 × 2 = 문턱 10분 */
+  private static readonly FAILURES_TO_DECLARE_ABSENT = 2;
+
   /** 마지막으로 **알린** 상태. 아직 한 번도 안 알렸으면 null */
   private announced: boolean | null = null;
   /** 아직 안 꺼내 간 전이 */
@@ -580,9 +611,34 @@ class HttpStudentClient implements StudentClient {
     // 모델이 죽은 것인지·늦은 것인지·지문이 어긋난 것인지 화면으로 구별할 수 없었다
     // (고칠 곳이 전혀 다른 셋이다). 사유를 **한 번 계산해 여기 둔다.**
     this.lastFailure = ok ? null : listUnavailability(health, pingDetail);
-    this.noteAvailability(ok, ok ? '사이드카 정상' : this.lastFailure![0].sentence);
+    this.consecutiveFailures = ok ? 0 : this.consecutiveFailures + 1;
+    // **알리는 것은 확정된 상태뿐이다** — 첫 실패는 아직 사건이 아니다(위 주석 참고).
+    // 회복은 반대로 즉시 알린다: 한 번이라도 응답하면 그건 헛걸음이 아니라 사실이다.
+    if (ok || this.declaredAbsent()) {
+      this.noteAvailability(ok, ok ? '사이드카 정상' : this.lastFailure![0].sentence);
+    }
     this.gate = { ok, until: Date.now() + HttpStudentClient.GATE_RETRY_MS };
     return ok;
+  }
+
+  /** 연속 실패가 문턱에 닿았나 — 결근 선언의 유일한 조건 */
+  private declaredAbsent(): boolean {
+    return this.consecutiveFailures >= HttpStudentClient.FAILURES_TO_DECLARE_ABSENT;
+  }
+
+  /**
+   * **화면·문자가 읽는 출근 상태** — 집행이 읽는 `usable()` 과 다르다.
+   *
+   * 첫 실패에서 이미 `usable()` 은 false 라 게시는 보류로 간다(안전). 다만 화면에
+   * "결근 중"을 띄우고 문자를 보내는 것은 **두 번째 실패부터**다. 그 사이 상태는
+   * `pendingFailure` 로 따로 말한다 — 근무 중이라고 잘라 말하면 화면이 거짓말이 되고,
+   * 결근이라고 하면 헛걸음 하나로 사람을 깨운다. **모르는 것은 모른다고 적는다.**
+   */
+  attendance(): { ok: boolean; pendingFailure: boolean } {
+    return {
+      ok: !this.declaredAbsent(),
+      pendingFailure: this.consecutiveFailures > 0 && !this.declaredAbsent(),
+    };
   }
 
   /**

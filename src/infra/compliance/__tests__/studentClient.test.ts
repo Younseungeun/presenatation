@@ -125,7 +125,9 @@ describe('usable() — 실집행 관문', () => {
     vi.stubGlobal('fetch', mockHealth(HEALTH, { ...SCREEN_BASE, findings: [] }));
     const c = createStudentClientFromEnv(env())!;
     expect(await c.usable()).toBe(false);
-    expect(c.consumeAvailabilityChange()?.detail).toContain('시맨틱 핑');
+    // 사유는 **잰 쪽**에 묻는다 — 알림은 두 번 연속 실패해야 나가므로(B안) 첫 실패에서
+    // `consumeAvailabilityChange()` 는 비어 있다. 여기서 재는 것은 알림이 아니라 판별력이다
+    expect(c.failureReasons?.()[0]?.sentence).toContain('시맨틱 핑');
   });
 
   it('**발작은 쓸 수 없다** — 무엇을 넣어도 고점을 뱉는 모델은 위반 핑을 전부 통과한다 (26차 CC-4)', async () => {
@@ -138,7 +140,7 @@ describe('usable() — 실집행 관문', () => {
     );
     const c = createStudentClientFromEnv(env())!;
     expect(await c.usable()).toBe(false);
-    expect(c.consumeAvailabilityChange()?.detail).toContain('발작');
+    expect(c.failureReasons?.()[0]?.sentence).toContain('발작');
   });
 
   it('핑 호출 자체가 죽어도 쓸 수 없다 — 못 잰 지능은 없는 지능으로 친다', async () => {
@@ -194,10 +196,13 @@ describe('consumeAvailabilityChange — 상태 엣지 (9차 G-2)', () => {
     expect(c.consumeAvailabilityChange()).toBeNull();
   });
 
-  it('처음부터 못 쓰는 상태는 알린다 — 가장 조용한 실패다', async () => {
+  it('처음부터 못 쓰는 상태는 알린다 — 가장 조용한 실패다 (다만 두 번 재고 나서)', async () => {
     vi.stubGlobal('fetch', mockHealth({ ...HEALTH, ready: false, ready_detail: 'x' }));
     const c = createStudentClientFromEnv(env())!;
     await c.usable();
+    // 첫 실패는 아직 사건이 아니다 (B안)
+    expect(c.consumeAvailabilityChange()).toBeNull();
+    await c.recheck!();
     expect(c.consumeAvailabilityChange()?.to).toBe(false);
   });
 
@@ -210,9 +215,11 @@ describe('consumeAvailabilityChange — 상태 엣지 (9차 G-2)', () => {
     );
     const c = createStudentClientFromEnv(env())!;
     await c.usable();
+    await c.recheck!();
     expect(c.consumeAvailabilityChange()?.to).toBe(false);
-    // 캐시가 만료된 뒤 다시 실패해도 전이가 아니다
-    await c.usable();
+    // 세 번째·네 번째 실패도 전이가 아니다 — 이미 결근이라고 말했다
+    await c.recheck!();
+    await c.recheck!();
     expect(c.consumeAvailabilityChange()).toBeNull();
   });
 
@@ -220,8 +227,68 @@ describe('consumeAvailabilityChange — 상태 엣지 (9차 G-2)', () => {
     vi.stubGlobal('fetch', mockHealth({ ...HEALTH, stub: true }));
     const c = createStudentClientFromEnv(env())!;
     await c.usable();
+    await c.recheck!();
     expect(c.consumeAvailabilityChange()).not.toBeNull();
     expect(c.consumeAvailabilityChange()).toBeNull();
+  });
+
+  /**
+   * **한 번의 헛걸음은 결근이 아니다** (2026-08-23 창업자 확정 B안).
+   *
+   * 실제로 04:49 에 `The operation was aborted due to timeout` 하나로 결근 문자가
+   * 나가고 04:54 에 복귀 문자가 또 나갔다. 사이드카는 멀쩡했고 원인은 그 순간 CPU 를
+   * 다 쓰던 시험이었다. 그런 문자가 몇 번 반복되면 진짜 결근에도 폰을 안 본다.
+   */
+  describe('결근 선언 — 두 번 연속이어야 한다 (B안)', () => {
+    /** 부를 때마다 답이 바뀌는 사이드카 — 첫 회 실패, 그다음 정상 */
+    const flaky = (fail: boolean[]) => {
+      let n = 0;
+      return vi.fn(async (url: string, init?: RequestInit) => {
+        const down = fail[Math.min(n, fail.length - 1)];
+        if (String(url).endsWith('/health')) n += 1;
+        if (down) throw new Error('The operation was aborted due to timeout');
+        return mockHealth(HEALTH)(url, init);
+      });
+    };
+
+    it('첫 실패는 집행을 막되 알리지 않는다 — 게시는 이미 보류로 간다', async () => {
+      vi.stubGlobal('fetch', flaky([true]));
+      const c = createStudentClientFromEnv(env())!;
+      // **집행은 유예하지 않는다** — 못 미더운 모델에게 판정을 맡기느니 보류가 낫다
+      expect(await c.usable()).toBe(false);
+      expect(c.consumeAvailabilityChange()).toBeNull();
+      // 화면은 "확인 중" — 근무 중도 결근도 아니다
+      expect(c.attendance?.()).toEqual({ ok: true, pendingFailure: true });
+    });
+
+    it('사이에 한 번이라도 응답하면 없던 일이 된다 — 04:49 사건이 이 줄이다', async () => {
+      vi.stubGlobal('fetch', flaky([true, false]));
+      const c = createStudentClientFromEnv(env())!;
+      await c.usable();
+      expect(await c.recheck!()).toBe(true);
+      // 문자가 한 통도 나가지 않는다 — 결근을 선언한 적이 없으므로 복귀도 없다
+      expect(c.consumeAvailabilityChange()).toBeNull();
+      expect(c.attendance?.()).toEqual({ ok: true, pendingFailure: false });
+    });
+
+    it('두 번 연속이면 결근이다 — 유예는 미루기지 덮기가 아니다', async () => {
+      vi.stubGlobal('fetch', flaky([true]));
+      const c = createStudentClientFromEnv(env())!;
+      await c.usable();
+      await c.recheck!();
+      expect(c.consumeAvailabilityChange()?.to).toBe(false);
+      expect(c.attendance?.()).toEqual({ ok: false, pendingFailure: false });
+    });
+
+    it('회복은 즉시 알린다 — 한 번이라도 응답하면 그건 헛걸음이 아니라 사실이다', async () => {
+      vi.stubGlobal('fetch', flaky([true, true, false]));
+      const c = createStudentClientFromEnv(env())!;
+      await c.usable();
+      await c.recheck!();
+      expect(c.consumeAvailabilityChange()?.to).toBe(false);
+      expect(await c.recheck!()).toBe(true);
+      expect(c.consumeAvailabilityChange()?.to).toBe(true);
+    });
   });
 });
 

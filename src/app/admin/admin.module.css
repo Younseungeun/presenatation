@@ -142,37 +142,43 @@
      · **지금 무엇이 사실인가** → 그대로 남긴다 (경고·상태는 접으면 안 된다)
    지우지 않고 접는 이유: 이 문단들이 곧 이 화면의 설계 근거고,
    한 달 뒤에 "왜 이렇게 했지"를 묻는 사람이 나 자신이다. */
+/* 도움말 — **동그라미를 걷고 물음표 자체를 버튼으로** (2026-08-23 창업자 지시).
+   테두리 원은 그 자체로 하나의 물건처럼 보여, 옆 글자와 경쟁하고 줄의 리듬을 끊었다.
+   글리프만 남기면 문장에 얹힌 각주 표시로 읽힌다 — 누를 수 있다는 것은 색과 커서가
+   말하고, 켜졌다는 것은 색이 진해지는 것으로 말한다.
+   **누르는 면적은 줄지 않는다**: 글자는 작아도 padding 으로 손가락 자리를 남긴다 */
 .why {
+  /* **글자가 됐으니 글자처럼 앉힌다** (2026-08-23 창업자 지적).
+     inline-grid + vertical-align:middle 은 상자를 만들어 줄 가운데에 맞추는데,
+     테두리가 사라진 뒤로는 맞출 상자가 없어 물음표만 아래로 떨어져 보였다.
+     그냥 인라인으로 두고 **베이스라인**에 앉히면 옆 글자와 같은 줄에 선다 —
+     글리프에는 그것이 곧 정렬이다 */
   font: inherit;
-  font-size: 10px;
+  font-size: 1.05em;
   font-weight: 800;
-  width: 16px;
-  height: 16px;
   flex: 0 0 auto;
-  border-radius: 99px;
-  border: 1.3px solid #c9d0d8;
+  border: 0;
   background: transparent;
-  color: #6b7684;
+  color: #98a2b3;
   cursor: pointer;
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
-  line-height: 1;
-  margin-left: 2px;
-  vertical-align: middle;
+  display: inline;
+  /* 세로 여백은 0 — 줄 높이를 밀지 않으면서 가로로만 손가락 자리를 넓힌다 */
+  padding: 0 3px;
+  line-height: inherit;
+  margin-left: 1px;
+  vertical-align: baseline;
 }
 .why:hover {
-  border-color: var(--pos);
   color: var(--pos);
 }
+/* 켜짐 — 바탕을 채우지 않는다. 글리프 하나가 검게 서면 그것이 곧 "열려 있다"다 */
 .whyOn {
-  background: #191f28;
-  border-color: #191f28;
-  color: #fff;
+  color: #191f28;
 }
 .why:focus-visible {
   outline: 2px solid var(--pos);
-  outline-offset: 2px;
+  outline-offset: 1px;
+  border-radius: 4px;
 }
 
 /* ── 상자 ─────────────────────────────────────────────────── */

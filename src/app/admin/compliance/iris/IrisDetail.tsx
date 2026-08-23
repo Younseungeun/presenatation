@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { WhyBody, WhyGroup, WhyToggle } from "../../Why";
 import a from "../../admin.module.css";
 import s from "../irisStatus.module.css";
 
@@ -20,12 +21,16 @@ interface Student {
   mode: "live" | "shadow" | "off";
   reviewerId: string | null;
   usable: boolean;
+  /** 한 번 어긋났지만 아직 결근은 아니다 — 두 번 연속이어야 선언한다 (B안) */
+  pendingFailure?: boolean;
   unavailableReason?: string | null;
   modelSha: string | null;
   name?: string | null;
   run?: string | null;
   promoted: { sha: string; at: string } | null;
   promotionMatches: boolean | null;
+  /** 검수 기록에 실제로 박히는 표식 — 서버가 조립한다(화면이 rule+ 를 이어 붙이지 않는다) */
+  reviewerStamp?: string | null;
 }
 
 interface Board {
@@ -36,15 +41,31 @@ interface Board {
 }
 
 const MODE_LABEL: Record<Student["mode"], string> = {
-  live: "근무 (소견이 보류를 만든다)",
+  live: "근무 중 (소견이 보류를 만든다)",
   shadow: "연수 중 (판정하되 기록만)",
   off: "미출근 (규칙 단독 검수)",
 };
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({
+  label,
+  sub,
+  children,
+}: {
+  label: string;
+  /** 라벨 아래 한 줄 — 오른쪽 값이 둘일 때 **무엇이 무엇인지**를 왼쪽에서 짝지어 준다 */
+  sub?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className={a.row} style={{ padding: "8px 0", alignItems: "flex-start" }}>
-      <span style={{ minWidth: 128, color: "var(--text-muted)" }}>{label}</span>
+      <span style={{ minWidth: 128, color: "var(--text-muted)" }}>
+        {label}
+        {sub && (
+          <span style={{ display: "block", fontSize: 11.5, color: "var(--text-faint)", marginTop: 3 }}>
+            {sub}
+          </span>
+        )}
+      </span>
       <span style={{ textAlign: "right", flex: 1 }}>{children}</span>
     </div>
   );
@@ -88,49 +109,115 @@ export function IrisDetail() {
 
   return (
     <>
-      {/* 상태 — 계기판의 점이 말하던 것을 여기서는 문장으로 */}
-      <div className={a.card}>
-        <div className={a.row}>
-          <div className={a.ttl}>
-            {student.usable ? (
-              <span className={s.dot} aria-hidden="true" />
-            ) : (
-              <span className={s.alert} aria-hidden="true">
-                !
-              </span>
-            )}{" "}
-            {student.usable ? "출근" : "결근"}
-          </div>
-          <span className={a.rowTags}>
-            <span className={a.chip}>{MODE_LABEL[student.mode]}</span>
+      {/* **상태는 제목 옆 칩 하나로** (2026-08-23 창업자 지시).
+          예전에는 제목에 물음표, 그 아래 카드에 `출근` + 같은 칩이 또 있었다 — 같은
+          사실이 세 곳에 흩어져 있었던 셈이다. 제목 줄에 붙이면 이 화면에 들어선 순간
+          **첫 줄에서 답이 난다**. 물음표는 걷었다: 그 안의 설명은 아래 신원·도장 칸이
+          이미 값과 함께 말하고 있어, 접힌 문단은 같은 말을 한 번 더 하는 자리였다 */}
+      <div className={a.sech}>
+        <div className={a.sechTitle}>
+          IRIS
+          <span className={a.rowTags} style={{ marginLeft: 8 }}>
+            {/* **세 번째 상태가 있다** (2026-08-23 창업자 확정 B안) — 한 번 어긋났지만
+                아직 결근은 아닌 자리. 근무 중이라고 하면 화면이 거짓말이고 결근이라고
+                하면 헛걸음 하나로 문자가 나간다. 색은 어느 쪽도 아닌 회색이다 */}
+            <span
+              className={`${s.stateChip} ${
+                student.pendingFailure ? "" : student.usable ? s.stateOn : s.stateOff
+              }`}
+            >
+              {/* 문구를 이어 붙이지 않는다 — `근무 중` 을 앞에 덧대니 `근무 중 근무 (…)`
+                  가 됐다. 상태 이름은 MODE_LABEL 한 곳에만 있어야 한다 */}
+              {student.pendingFailure
+                ? "확인 중 (한 번 응답이 없었다)"
+                : student.usable
+                  ? MODE_LABEL[student.mode]
+                  : "결근 중"}
+            </span>
           </span>
         </div>
-        {/* 결근이면 사유가 여기 있어야 한다 — 알림은 상태가 바뀌는 순간 한 번뿐이라,
-            나중에 고치러 온 사람에게는 이 줄이 유일한 단서다 */}
-        {!student.usable && student.unavailableReason && (
-          <div className={`${a.note} ${a.noteNeg}`}>
-            <b>사유</b> — {student.unavailableReason}
-          </div>
-        )}
       </div>
+
+      {/* **결근일 때만 카드를 그린다** — 사유는 알림이 상태가 바뀌는 순간 한 번만 보내므로,
+          나중에 고치러 온 사람에게는 이 줄이 유일한 단서다. 근무 중이면 위 칩이 이미
+          전부라, 빈 카드를 남겨 두면 읽을 것 없는 상자가 하나 는다 */}
+      {(!student.usable || student.pendingFailure) && (
+        <div className={a.card}>
+          <div className={a.row}>
+            <div className={a.ttl}>
+              <span className={s.alert} aria-hidden="true">
+                !
+              </span>{" "}
+              {student.pendingFailure ? "확인 중" : "결근"}
+            </div>
+            <span className={a.rowTags}>
+              <span className={a.chip}>{MODE_LABEL[student.mode]}</span>
+            </span>
+          </div>
+          {student.unavailableReason && (
+            <div className={`${a.note} ${a.noteNeg}`}>
+              <b>사유</b> — {student.unavailableReason}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 신원 — 이름·지문·승격 기록. 셋이 서로를 검사한다 */}
       <div className={a.card}>
-        <div className={a.ttl}>신원</div>
-        <Row label="이름">
-          <b>{student.name ?? "—"}</b>
-          {student.name && (
-            <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
-              파일이 들고 온 값입니다 (<code>config.json</code> 의 <code>name</code>) — 설정에
-              적힌 이름이 아니라
-            </div>
-          )}
-        </Row>
+        {/* **이름 아래에 표식을 그대로 둔다** (2026-08-23 창업자 지시).
+            "파일이 들고 온 값" 이라는 설명을 걷어낸 자리다 — 그 문장은 출처를 말할 뿐
+            **확인할 것을 주지 않았다.** 표식은 검수 기록에 실제로 박히는 문자열이라,
+            위 이름이 그 안에 그대로 들어 있는 것이 곧 "이 이름이 참"이라는 증거다.
+            라벨을 왼쪽에 짝지어 두는 이유: 오른쪽에 값이 둘인데 왼쪽이 하나면
+            아래 문자열이 이름의 부연인지 다른 값인지 알 수 없다 */}
+        <WhyGroup>
+          <Row
+            label="모델명"
+            sub={
+              student.reviewerStamp ? (
+                <>
+                  검수 기록 표식
+                  <WhyToggle />
+                </>
+              ) : undefined
+            }
+          >
+            <b>{student.name ?? "—"}</b>
+            {student.reviewerStamp && (
+              <div className={s.stampCode} style={{ marginTop: 3 }}>
+                {student.reviewerStamp}
+              </div>
+            )}
+          </Row>
+          {/* **조각마다 무엇인지** — 아래 있던 카드를 여기로 접어 넣었다 (창업자 지시).
+              값이 두 곳에 있으면 하나는 반드시 낡으므로, 값은 위 한 줄에만 두고
+              읽는 법만 물음표 뒤로 넣는다 */}
+          <WhyBody className={a.meta}>
+            <span>
+              <code>rule</code> — 규칙 엔진(정규식·학습 표현). <b>늘 참여합니다</b>
+            </span>
+            <span>
+              <code>student:</code> — 로컬 검사기라는 뜻. 외부 AI 는 <code>claude:</code>
+            </span>
+            <span>
+              <code>IRIS.v5</code> — 모델 파일이 들고 온 이름(<code>config.json</code>)
+            </span>
+            <span>
+              <code>@t0.7</code> — 임계값. <b>모델이 아니라 설정</b>이라 이 값만 바꿔도
+              판정이 달라집니다(실측 t0.5 탐지 24% · t0.7 6%)
+            </span>
+            <span>
+              <code>/L7</code> — 켜진 라벨 수. 8종을 낼 수 있고 그중 졸업한 것만 켭니다
+            </span>
+          </WhyBody>
+        </WhyGroup>
         <Row label="적재 지문">
           <code style={{ fontSize: 11.5, wordBreak: "break-all" }}>{student.modelSha ?? "—"}</code>
-          <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
-            사이드카가 실제로 메모리에 올린 파일을 통째로 계산한 값입니다
-          </div>
+          {/* **어떻게 만든 값인지가 아니라 무엇인지를 적는다** (2026-08-23 창업자 지시).
+              "메모리에 올린 파일을 통째로 계산한"은 만드는 과정을 말할 뿐이라, 읽는
+              사람이 이 줄로 무엇을 할 수 있는지가 안 나온다. **파일마다 다른 번호**라는
+              한 마디가 그 아래 `대조` 줄(적재 지문 = 승격 기록)을 곧바로 이해시킨다 */}
+          <div style={{ fontSize: 12, color: "var(--text-faint)" }}>파일 고유의 번호입니다</div>
         </Row>
         <Row label="승격 기록">
           {student.promoted ? (
@@ -155,40 +242,18 @@ export function IrisDetail() {
         </Row>
       </div>
 
-      {/* 도장 — 소견에 실제로 박히는 값. 조각마다 무엇인지 풀어 둔다 */}
-      <div className={a.card}>
-        <div className={a.ttl}>소견에 박히는 도장</div>
-        <code className={s.stampCode} style={{ display: "block", margin: "6px 0 10px" }}>
-          {student.reviewerId ?? "—"}
-        </code>
-        <Row label="student:">로컬 검사기 — API 모델은 <code>claude:</code>, 규칙은 <code>rule</code></Row>
-        <Row label="@t">
-          임계값
-          <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
-            <b>모델이 아니라 설정입니다.</b> 같은 이름이어도 이 값이 바뀌면 판정이 달라집니다 —
-            실측으로 t0.5 에서 탐지 24%, t0.7 에서 6%
-          </div>
-        </Row>
-        <Row label="/L">
-          켜진 라벨 수
-          <div style={{ fontSize: 12, color: "var(--text-faint)" }}>
-            모델은 8종을 낼 수 있고 그중 졸업한 것만 켭니다 — 이것도 설정입니다
-          </div>
-        </Row>
-      </div>
+      {/* **회차 기록 카드는 걷었다** (2026-08-23 창업자 판단).
+          `run` 은 "이 회차에 무엇이 달라졌나"라 성적이 움직인 이유를 찾을 때 첫 단서가
+          되는데, 그 쓸모는 **회차가 둘 이상일 때** 생긴다. 모델이 r5 하나뿐인 지금은
+          비교할 상대가 없어 고정된 문장 하나가 자리만 차지했다.
 
-      {/* 회차 기록 — 이름이 아니라 사람이 읽는 문장. 대장과 같은 값 */}
-      {student.run && (
-        <div className={a.card}>
-          <div className={a.ttl}>회차 기록</div>
-          <div style={{ marginTop: 6 }}>{student.run}</div>
-          <div className={a.note}>
-            학습 대장(<code>ledger.jsonl</code>)과 같은 문장입니다. <b>이름이 아닙니다</b> — 도장과
-            화면에는 위의 <code>name</code> 을 씁니다. 한때 이 문장이 이름 자리에 들어가
-            근무자 이름으로 떴습니다.
-          </div>
-        </div>
-      )}
+          값이 사라진 것은 아니다 — 학습 대장(`training/ledger.jsonl`)과 `/health` 의
+          `run` 에 그대로 있고, 라우트도 계속 실어 보낸다. 재학습이 한 번이라도 돌면
+          그때 되살린다(그때는 이전 회차와 나란히 놓는 편이 맞을 것이다).
+
+          ⚠ 되살릴 때 **이 문장을 이름 자리에 쓰지 말 것** — 2026-08-22 에 그렇게 해서
+          근무자 이름 칸에 회차 문장이 통째로 떴다. 이름은 `name`, 이 문장은 `run` 이다
+          (회신 14호가 칸을 나눈 이유) */}
     </>
   );
 }

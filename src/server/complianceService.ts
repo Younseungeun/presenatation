@@ -240,6 +240,23 @@ export async function notifyStudentAvailability(
 }
 
 /** 검수 실행 (기록 없음) — 순수 조합 로직이라 테스트가 쉽다 */
+/**
+ * **검수 기록에 박히는 표식을 만든다** — 조립 규칙의 정의는 여기 하나뿐이다 (2026-08-23).
+ *
+ * 기록의 `reviewer` 는 "이 리포트를 누가 봤나"라 **참여한 검사기를 이어 붙인** 값이다:
+ *
+ *   rule                                 규칙만 (AI 키 없음 · 학생 꺼짐)
+ *   rule+student:IRIS.v5@t0.7/L7         규칙 + IRIS
+ *   rule+claude:…+student:…              셋 다
+ *
+ * 운영 상세 화면도 같은 문자열을 보여 줘야 하는데, 거기서 `rule+` 를 손으로 이어 붙이면
+ * AI 를 켜는 날 조용히 갈라진다 — 오늘 `nextAt` 에서 겪은 것과 같은 모양이라, 조립을
+ * 함수로 꺼내 **양쪽이 같은 것을 쓰게** 한다.
+ */
+export function composeReviewerStamp(base: string, studentId: string | null): string {
+  return studentId ? `${base}+${studentId}` : base;
+}
+
 export async function runScreening(
   input: ScreeningInput,
   screener: ComplianceScreener | null,
@@ -252,9 +269,10 @@ export async function runScreening(
   const ruleDecision = decide(tier1.code);
   const ruleFindings = tier1.all;
 
+
   // 판정에 **무엇이 참여했는지**를 기록에 남긴다. 나중에 "이 소견은 누가 냈나"를
   // findingsJson 없이도 알 수 있어야 하고, 학생을 껐다 켜는 구간의 비교가 여기서 갈린다.
-  const withStudent = (base: string) => (ctx.student ? `${base}+${ctx.student.reviewerId}` : base);
+  const withStudent = (base: string) => composeReviewerStamp(base, ctx.student?.reviewerId ?? null);
 
   // ── 검사기가 죽으면 게시를 보류한다 (Q0 · 2026-08-21 창업자 확정) ──────────
   //

@@ -9,6 +9,8 @@ import {
 import { requireOperatorId, toErrorResponse } from '../../../_lib/http';
 import { SETTING_KEYS } from '@/server/appSettings';
 import { readCanaryBeat } from '@/server/screeningCanaryRunner';
+import { composeReviewerStamp } from '@/server/complianceService';
+import { createClaudeScreenerFromEnv } from '@/infra/compliance/claudeScreener';
 import { readAttendanceBeat } from '@/server/studentAttendance';
 import { readHeartbeat } from '@/server/schedulerHealth';
 import {
@@ -36,6 +38,8 @@ export async function GET(req: NextRequest) {
     const board = await getStudentOutageBoard(prisma);
     const mode = studentMode();
     const client = mode === 'off' ? null : createStudentClientFromEnv();
+    // 2차 AI 검수가 붙어 있는지 — 표식에 그 조각이 들어갈지가 여기서 갈린다
+    const claudeScreener = createClaudeScreenerFromEnv();
 
     // **화면을 열 때는 새로 잰다** (2026-08-23 창업자 지시 — 검수 규칙과 같은 규칙).
     //
@@ -47,9 +51,18 @@ export async function GET(req: NextRequest) {
     // 재면 `/health` 1 + 핑 8 = 9회가 30초마다다(시간당 1,080회) — 5분 주기 스케줄러
     // 점검(시간당 108회)의 열 배다. 그래서 **여는 순간에만** `?fresh=1` 로 요청한다.
     const fresh = req.nextUrl.searchParams.get('fresh') === '1';
-    const usable = client
+    const measured = client
       ? await (fresh && client.recheck ? client.recheck() : client.usable()).catch(() => false)
       : false;
+    // **화면이 띄우는 것은 잰 값이 아니라 확정된 상태다** (2026-08-23 창업자 확정 B안).
+    //
+    // 한 번의 2초 초과로 결근 문자가 나갔다 5분 뒤 복귀 문자가 또 나간 일이 실제로
+    // 있었다(원인은 사이드카가 아니라 CPU 를 다 쓰던 시험). 그래서 **두 번 연속**
+    // 실패해야 결근이다 — 주기가 5분이라 진짜 결근은 늦어도 10분 안에 잡힌다.
+    // 집행은 이미 첫 실패에서 막고 있으므로(`measured` 가 false 면 게시는 보류)
+    // 이 유예로 위험해지는 것은 없다. 미루는 것은 **알림과 표시**뿐이다.
+    const attendance = client?.attendance?.() ?? { ok: measured, pendingFailure: false };
+    const usable = attendance.ok;
     // **적재 가중치 지문** (3회차 B-1): reviewerId 는 설정에서 조립되어 재학습으로
     // 가중치만 갈리면 그대로다 — "지금 누가 근무 중인가"는 사이드카가 실제로 적재한
     // 것의 지문으로만 말할 수 있다. 화면은 표식 옆에 앞 8자를 함께 그린다
@@ -74,7 +87,9 @@ export async function GET(req: NextRequest) {
     // 늘 "상태는 정상인데 고정 문항이 어긋납니다"만 떴다 — 모델이 죽은 것인지·늦은
     // 것인지·지문이 어긋난 것인지 화면으로 구별할 수 없었다(고칠 곳이 전혀 다른 셋이다).
     // 클라이언트가 사유를 안 남기면(시험 목·URL 미설정) 그때만 여기서 계산한다.
-    const reasons = usable
+    // 사유는 **잰 값**을 따른다 — 확정 전(`pendingFailure`)에도 무엇이 어긋났는지는
+    // 이미 알고 있고, 화면이 "확인 중"이라고만 적고 이유를 감추면 볼 것이 없어진다
+    const reasons = measured
       ? []
       : (client?.failureReasons?.() ?? []).length > 0
         ? client!.failureReasons!()
@@ -111,6 +126,9 @@ export async function GET(req: NextRequest) {
         mode,
         reviewerId: client?.reviewerId ?? null,
         usable,
+        // **한 번 어긋났지만 아직 결근은 아니다** — 화면은 이 값을 "확인 중"으로 그린다.
+        // 근무 중이라고 잘라 말하면 거짓말이고 결근이라고 하면 헛걸음 하나로 사람을 깨운다
+        pendingFailure: attendance.pendingFailure,
         modelSha: health?.modelSha ?? null,
         // 파일이 들고 온 이름 — .env 태그가 아니라 config.json 의 run (회신 13호). 화면의 "근무자 표식" 근거
         name: health?.name ?? null,
@@ -120,10 +138,16 @@ export async function GET(req: NextRequest) {
         // 장애 알림은 상태가 **바뀌는 순간** 한 번만 나가는데 고치러 오는 사람이 보는 곳은
         // 화면이라, 알림을 놓치면 "결근"만 남는다 (2026-08-22 토크나이저 건이 그랬다).
         // 쓸 수 있을 때는 null — 정상인데 사유를 적으면 그 줄이 배경음이 된다
-        unavailableReason: usable ? null : (reasons[0]?.sentence ?? null),
+        unavailableReason: reasons[0]?.sentence ?? null,
         // 항목으로도 보낸다 — 계기판이 배지로 늘어놓는다(검수 규칙의 층 배지와 같은 자리).
         // 고칠 것이 몇 개인지가 **고치러 가기 전에** 보여야 한다
-        unavailableReasons: usable ? [] : reasons,
+        unavailableReasons: reasons,
+        // **검수 기록에 실제로 박히는 표식** — 화면이 이어 붙이지 않고 서버가 조립한다.
+        // 규칙은 늘 참여하므로 base 가 rule 이고, AI 키가 있으면 그 사이에 들어간다
+        reviewerStamp: composeReviewerStamp(
+          claudeScreener ? `rule+${claudeScreener.reviewerId}` : 'rule',
+          client?.reviewerId ?? null,
+        ),
         promoted,
         promotionMatches: promoted && health?.modelSha ? promoted.sha === health.modelSha : null,
       },

@@ -89,7 +89,7 @@ import { BuyerView } from "../BuyerView";
 import { flaggedQuotes } from "../FlaggedBody";
 import { getAbuseGroupDetail } from "@/server/abuseGroupDetail";
 import { AdminHead } from "../AdminHead";
-import { SecHead, WhyBody, WhyGroup, WhyToggle } from "../Why";
+import { SecHead } from "../Why";
 import { PhraseToggle } from "./PhraseToggle";
 import { RewardNotice } from "./RewardNotice";
 import { ResolveButton } from "./ResolveButton";
@@ -749,77 +749,36 @@ function pct(v: number | null) {
   return v === null ? "-" : `${Math.round(v * 100)}%`;
 }
 
-function AccuracyPanel({ summary, bare }: { summary: AccuracySummary; bare?: boolean }) {
+function AccuracyPanel({ summary }: { summary: AccuracySummary }) {
   if (summary.labeled === 0) {
     return (
-      <p className={a.hint} style={{ marginBottom: 14 }}>
+      <p className={a.hint}>
         아직 판정 표본이 없습니다. 승인·반려·철회를 내리면 그 결정이 검수의 정답 라벨이 되어
         오탐률·미탐 건수가 여기 집계됩니다.
       </p>
     );
   }
-  const worst = summary.byCategory.filter((c) => c.falsePositive > 0).slice(0, 3);
-  const missed = summary.byCategory.filter((c) => c.missed > 0).slice(0, 3);
-
+  /* **한 줄이 전부다** (2026-08-23 창업자 지시).
+     이 줄은 IRIS 상자 맨 위에 얹혀 매일 곁눈질로 잡는 자리라, 숫자 셋 말고는 아무것도
+     두지 않는다. 표본·유형별 분해·물음표는 **상세 화면**(/admin/compliance/iris)이
+     건수와 함께 편다 — 상자를 누르면 거기로 가므로 여는 손잡이가 여기 또 있으면
+     같은 설명이 두 곳에 생기고, 그러면 하나는 반드시 낡는다. */
   return (
-    <WhyGroup>
-    <div className={bare ? undefined : a.card} style={bare ? undefined : { marginBottom: 14, padding: "12px 16px" }}>
-      {/* 시안의 이 카드는 **한 줄**이다 — 매일 곁눈질로 잡는 숫자 셋뿐.
-          표본·유형별 분해는 "왜 이 숫자인가"라 물음표 뒤로 접는다 */}
-      <div className={a.row}>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-weak)" }}>
-          검수 정확도 90일
-          <WhyToggle />
-        </span>
-        <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-weak)" }}>
-          정탐 <b style={{ color: "#0e8a71" }}>{pct(summary.precision)}</b> · 오탐{" "}
-          <b style={{ color: summary.falsePositive > 0 ? "#b45309" : undefined }}>
-            {pct(summary.falsePositiveRate)}
-          </b>{" "}
-          · 미탐{" "}
-          <b style={{ color: summary.falseNegative > 0 ? "#c4303b" : undefined }}>
-            {summary.falseNegative}건
-          </b>
-        </span>
-      </div>
-      <WhyBody className={a.meta}>
-        <span>표본 {summary.labeled}건</span>
-        <span>보류 {summary.held}건 중 {summary.truePositive}건이 실제 위반</span>
-        <span>경미 {summary.minor}건</span>
-      </WhyBody>
-      {/* 총합 하나는 "무엇을 놓쳤는가"를 가린다 — 처방이 유형마다 다르므로 갈라서 적는다:
-          규칙 오탐은 정규식을, AI 오탐은 프롬프트를 고쳐야 한다 */}
-      {worst.length > 0 && (
-        <WhyBody className={a.auto}>
-          <span className={a.chip}>오탐</span>
-          <span>
-            <b>
-              {worst.map((c) => `${RISK_CATEGORY_LABEL[c.key]} ${c.falsePositive}건`).join(" · ")}
-            </b>{" "}
-            — 출처별{" "}
-            {summary.bySource
-              .map(
-                (s) =>
-                  `${s.key === "rule" ? "규칙" : s.key === "ai" ? "AI" : "미상"} ${s.falsePositive}건`,
-              )
-              .join(" · ")}
-            . 규칙 오탐은 정규식을, AI 오탐은 프롬프트를 고쳐야 합니다 (AI 오탐 사례는 다음
-            검수 요청에 보정 자료로 자동 첨부됩니다).
-          </span>
-        </WhyBody>
-      )}
-      {missed.length > 0 && (
-        <WhyBody className={a.auto}>
-          <span className={`${a.chip} ${a.chipNeg}`}>미탐</span>
-          <span>
-            검수가 못 잡은 유형:{" "}
-            <b>{missed.map((c) => `${RISK_CATEGORY_LABEL[c.key]} ${c.missed}건`).join(" · ")}</b> —
-            사람이 잡아 준 것이라, 이 숫자가 곧 <b>기계가 배워야 할 목록</b>입니다.
-          </span>
-        </WhyBody>
-      )}
+    <div className={a.row}>
+      <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-weak)" }}>
+        검수 정확도 90일
+      </span>
+      <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-weak)" }}>
+        정탐 <b style={{ color: "#0e8a71" }}>{pct(summary.precision)}</b> · 오탐{" "}
+        <b style={{ color: summary.falsePositive > 0 ? "#b45309" : undefined }}>
+          {pct(summary.falsePositiveRate)}
+        </b>{" "}
+        · 미탐{" "}
+        <b style={{ color: summary.falseNegative > 0 ? "#c4303b" : undefined }}>
+          {summary.falseNegative}건
+        </b>
+      </span>
     </div>
-    </WhyGroup>
   );
 }
 
@@ -1034,7 +993,7 @@ export default async function AdminCompliancePage({
            검수하는 것이 둘이고 그 둘이 얼마나 맞히는지는 같은 물음의 뒷면이라 한 상자에
            둔다. 서버 컴포넌트를 **prop 으로 넘긴다** — 집계는 서버에서 끝나고, 클라이언트
            패널은 그 결과를 자리에만 놓는다(정확도 계산이 브라우저로 내려가지 않는다) */
-        accuracy={<AccuracyPanel summary={accuracy} bare />} />
+        accuracy={<AccuracyPanel summary={accuracy} />} />
       {/* 검수 규칙 띠지(CanaryPanel)는 2026-08-23에 걷었다 — 같은 사실을 위 IRIS 상자의
           `검수 규칙` 줄이 말한다. 층별 통과 여부를 여섯 칸으로 늘어놓던 자리인데, 전부
           통과일 때는 초록 여섯 개가 아무 말도 하지 않고 화면만 먹었다. 실패했을 때
@@ -1052,10 +1011,13 @@ export default async function AdminCompliancePage({
           둘이 떨어져 있으면 "오탐이 많다"와 "그래서 안 읽고 넘긴다"가 따로 읽힌다 */}
       <DecisionSpeedPanel rows={decisionSpeed} coverage={elapsedCoverage} />
 
-      {/* 재학습 신호는 IRIS 순이익과 **같은 질문의 다른 면**이다 — 저쪽은 "지금 IRIS가
-          쓸 만한가", 이쪽은 "다시 가르칠 때가 됐나". 전용 화면을 따로 두면 숫자 하나를
-          보러 가는 길이 하나 더 생기고, 그 길은 곧 안 걸어가게 된다 */}
-      <RetrainGauge {...retrain} />
+      {/* **문턱에 닿았을 때만 여기 뜬다** (2026-08-23 창업자 지시).
+          평소 이 숫자는 0/50 에서 며칠씩 움직이지 않는다 — 매일 보는 화면에서
+          안 변하는 숫자는 읽히지 않고 자리만 차지하다가, 정작 47이 됐을 때도 그냥
+          지나치게 된다. 그래서 **닿기 전에는 검수 상세로 접어 두고**, 닿는 순간
+          여기로 올라온다: 그때는 "창업자가 진위를 가릴 차례"라는 할 일이 생기고,
+          할 일은 계기판에 있어야 한다 */}
+      {retrain.reached && <RetrainGauge {...retrain} />}
 
       {/* IRIS을 계속 켜 둘 것인가 (9차 G-4).
           채택선과 **같은 공식**(순이익)으로 최근 창을 다시 잰다 — 켤 때와 끌 때의
