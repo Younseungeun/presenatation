@@ -289,6 +289,43 @@ cd .. && npm run eval:student -- --sweep
 | 운영자 판정 없이 **자동으로 학습 자료 채택** | 잘못된 판정이 그대로 학습된다 |
 | 리서처에게 **금지어 목록 노출** | 반려 사유·인용문은 주되 규칙 자체는 비공개(영업비밀). 반려 3회면 자동 통과 경로가 닫히는 장치가 이미 있다(`REPUBLISH_REVIEW_THRESHOLD`) |
 | 소견에서 **원문 인용 제거** | 리서처가 자기 글에서 어디를 고칠지 모른다. 인용은 반드시 원문 기준(정규화본이 아니라) |
+| 관리자 화면을 만들면서 **인증 관문을 `layout.tsx` 에 맡기기** | 아래 §8-1. 실제로 한 번 뚫렸다 |
+
+### 8-1. 관리자 화면은 **페이지마다** 잠근다 (2026-08-23 실제 사고)
+
+`src/app/admin/layout.tsx` 는 이름도 주석도 "전면 게이트"처럼 읽히지만 **인증 관문이
+아니다.** 실제로 막는 것은 *운영자인데 패스키가 0개인 경우* 하나뿐이고, 나머지는 전부
+그대로 통과시킨다:
+
+```tsx
+if (!userId) return <>{children}</>;                  // 비로그인 → 그냥 그린다
+if (me?.role !== "OPERATOR") return <>{children}</>;  // 일반 이용자 → 그냥 그린다
+```
+
+의도된 설계다(각 페이지가 자기 `notFound()` 로 닫는다는 전제). 문제는 **레이아웃이
+있으니 덮여 있겠지**로 읽히기 딱 좋다는 것이고, 실제로 그렇게 됐다 —
+`/admin/compliance/iris` 가 **로그인 없이 200** 이었다(모델명·적재 지문·검수 정확도·
+운영자 판정 건수가 그대로 노출). 화면을 만든 사람도, 시험 1,600건도, `tsc` 도 아무도
+잡지 못했다. **관문이 없는 것은 오류가 아니라 침묵이기 때문이다.**
+
+새 관리자 화면에는 이 네 줄을 **직접** 넣는다:
+
+```tsx
+const userId = await getSessionUserId();
+if (!userId) notFound();
+const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+if (user?.role !== "OPERATOR") notFound();
+```
+
+`403` 이 아니라 `notFound()` 인 이유 — `403` 은 "여기 뭔가 있다"를 알려 준다.
+
+**확인하는 법** (서버를 띄운 채, 로그인하지 않은 상태로):
+
+```bash
+curl -o /dev/null -s -w "%{http_code}\n" http://localhost:3000/admin/<새화면>
+```
+
+`404` 가 나와야 한다. `200` 이면 관문이 없는 것이다.
 
 ---
 
@@ -302,6 +339,7 @@ cd .. && npm run eval:student -- --sweep
 | 검수 실행 · 기록 | `src/server/complianceService.ts` |
 | 학생 모델 입력 직렬화 (**학습·추론 공유**) | `src/domain/studentText.ts` |
 | 현재 관리자 화면 | `src/app/admin/compliance/page.tsx` |
+| **관리자 화면 인증 관문의 본보기** | `src/app/admin/compliance/page.tsx` 머리 네 줄 (§8-1) |
 | **못 막는 것 목록** | `docs/screening-known-limits.md` |
 | 전체 기획 (검수 절 포함) | `CLAUDE.md` |
 
