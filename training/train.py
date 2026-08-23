@@ -216,6 +216,11 @@ def main():
     ap.add_argument("--name", required=True, type=model_name, help="모델 이름, 예: IRIS.v6-P1-A (공백·@·/ 금지)")
     ap.add_argument("--run", default=None, help="회차 기록 — 대장(ledger)의 run 과 같은 문장")
     ap.add_argument("--base", default=DEFAULT_MODEL)
+    # 부검 런(31차 사전 등록)은 out/student 를 덮어쓰면 안 된다 — 런마다 자기 폴더
+    ap.add_argument("--out", default="out/student", help="산출물 폴더 (기본 out/student)")
+    # 런 B(base 관례): warmup 10% + weight decay 0.01. 기본값 0 은 r5 설정(런 A)과 동일
+    ap.add_argument("--warmup", type=float, default=0.0, help="선형 워밍업 비율 (전체 스텝 대비, 예: 0.1)")
+    ap.add_argument("--weight-decay", type=float, default=0.0)
     ap.add_argument("--epochs", type=int, default=8)
     ap.add_argument("--lr", type=float, default=3e-5)
     ap.add_argument("--batch", type=int, default=16)
@@ -291,11 +296,18 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = Student(args.base, len(labels)).to(device)
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    # 워밍업 뒤 선형 감쇠 (HF 관례). warmup=0 이면 감쇠도 없이 상수 lr — 런 A 와 r5 가 같은 설정이어야 한다
+    total_steps = max(1, args.epochs * ((len(train_rows) + args.batch - 1) // args.batch))
+    warm_steps = int(total_steps * args.warmup)
+    if args.warmup > 0:
+        sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda st: (st + 1) / max(1, warm_steps) if st < warm_steps else max(0.0, (total_steps - st) / max(1, total_steps - warm_steps)))
+    else:
+        sched = None
     loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight.to(device), reduction="none")
 
     best = (-1.0, float("-inf"))  # (AP, 순이익) — 순이익은 음수로 시작할 수 있다
-    out_dir = Path("out/student")
+    out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     for epoch in range(args.epochs):
@@ -316,6 +328,8 @@ def main():
             loss = (per * scale).mean()
             loss.backward()
             opt.step()
+            if sched is not None:
+                sched.step()
             total += loss.item()
 
         model.eval()

@@ -21,7 +21,8 @@ from transformers import AutoTokenizer
 from contract import MAX_LEN
 from train import Student
 
-OUT = Path("out/student")
+import os
+OUT = Path(os.environ.get("STUDENT_OUT", "out/student"))
 
 PROBES = [
     "[카드] 방향 상승\n[제목] \n[요약] \n[본문] 영업이익률은 8.4%로 전분기와 유사한 수준입니다.",

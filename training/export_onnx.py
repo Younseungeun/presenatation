@@ -41,7 +41,9 @@ import torch
 from contract import CANARY_FILE, CANARY_TEXTS, CANARY_TOL, MAX_LEN
 from train import Student
 
-OUT = Path("out/student")
+import os
+# 부검 런은 런마다 폴더가 다르다 — STUDENT_OUT 로 바꿔 잡는다 (기본 out/student)
+OUT = Path(os.environ.get("STUDENT_OUT", "out/student"))
 
 # 검사에 쓰는 토큰 열. **퇴화하지 않아야 한다** — 같은 값이 반복되거나 두 입력이
 # 같은 객체면 내보내기가 그 상황에 특수화한다(이 파일이 겪은 실패 그대로).
