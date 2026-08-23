@@ -253,6 +253,25 @@
 .noteNeg {
   color: #c4303b;
 }
+
+/* 사유 항목 — 뭉친 숫자 하나를 "무엇이 몇 건"으로 펼치는 자리 (판단 소요 시간).
+   들여쓰기는 불릿이 아니라 여백으로 준다: 불릿이 있으면 목록이 note 보다 무거워져
+   본문(어떤 유형이 유독 빠른가)에서 눈을 가져간다 */
+.reasonList {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.reasonList li {
+  margin-top: 4px;
+  padding-left: 10px;
+  border-left: 2px solid var(--line, #e5e8eb);
+}
+/* **고칠 것이 있는 사유만 색을 준다** — 나이(측정 전)까지 붉으면 매일 빨간 줄을
+   보게 되고, 그러면 진짜 신호가 왔을 때 구별되지 않는다 */
+.reasonBad {
+  color: #c4303b;
+}
 .noteWarn {
   color: #b45309;
 }

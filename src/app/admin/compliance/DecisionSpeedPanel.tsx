@@ -1,20 +1,21 @@
 import { RISK_CATEGORY_LABEL, type RiskCategory } from "@/domain/compliance";
-import type {
-  ApprovedElapsedCoverage,
-  DecisionSpeedRow,
+import {
+  DECISION_SPEED_WINDOW_DAYS,
+  ELAPSED_MEASURE_START,
+  type ApprovedElapsedCoverage,
+  type DecisionSpeedRow,
 } from "@/server/decisionSpeedService";
 import { SecHead } from "../Why";
 import a from "../admin.module.css";
 
-/**
- * 판단 시간을 실제로 재기 시작한 날. 집계 창(7일)이 이 날짜를 넘어설 때까지는
- * "시간 없음"의 대부분이 **측정 도입 전 승인**이라 결함이 아니다 — 그 사실을 한 줄로
- * 덧붙이되, 창이 지나가면 저절로 사라진다. 사람이 지우는 것을 기억해야 하는 문구는
- * 언젠가 낡은 채로 남는다.
- */
-const MEASURE_START = Date.UTC(2026, 7, 22);
-const MEASURE_START_LABEL = "8월 22일";
-const WINDOW_DAYS = 7;
+/* 창도 측정 시작일도 **서비스에서 받는다** — 예전에는 이 파일이 둘 다 손으로 들고
+   있었고, 서비스 쪽 `7` 과 갈라지면 화면이 "최근 7일"이라 적으면서 다른 구간을
+   그리게 된다. 문턱을 내려도 로그만 옛 숫자를 외치던 것과 같은 종류의 버그다 */
+const MEASURE_START_LABEL = new Date(ELAPSED_MEASURE_START).toLocaleDateString("ko-KR", {
+  month: "long",
+  day: "numeric",
+  timeZone: "UTC",
+});
 
 /**
  * **판단 소요 시간** (26차 CC-1 반증 조건 — 피로도 함정 감지).
@@ -49,9 +50,28 @@ export function DecisionSpeedPanel({
   if (rows.length === 0 && missing === 0) return null;
 
   const suspects = rows.filter((r) => r.fatigueSuspect);
-  // 집계 창이 아직 측정 시작일을 물고 있는가
-  const windowStart = Date.now() - WINDOW_DAYS * 86_400_000;
-  const spansPreMeasure = windowStart < MEASURE_START;
+
+  /* **사유별로 항목을 만든다** (2026-08-24 창업자 지시). 예전에는 "N건에 시간이 없다"
+     한 줄이었고 이유는 집계 창이 측정 시작일을 물고 있는지로 짐작했다 — 창의 성질이라
+     걸쳐 있는 동안에는 진짜 큐 밖 승인까지 "측정 전"으로 덮였다. 이제 서버가 행마다
+     갈라 세므로 **둘이 동시에 뜰 수 있다.**
+     순서는 나이 → 신호 — 위가 저절로 사라질 것이고 아래가 사람이 볼 것이다 */
+  const reasons: { key: string; label: string; count: number; note: string; bad: boolean }[] = [
+    {
+      key: "pre",
+      label: `측정 전 승인`,
+      count: coverage.beforeMeasureStart,
+      note: `측정은 ${MEASURE_START_LABEL}에 시작했습니다. 그 전 승인에는 잴 장치가 없었고, 창이 지나가면 이 줄은 사라집니다.`,
+      bad: false,
+    },
+    {
+      key: "off",
+      label: `큐 밖 경로 승인`,
+      count: coverage.offQueue,
+      note: `측정이 도는 중인데 시간이 실려 오지 않았습니다 — 큐에서 펼친 카드가 아닌 경로로 승인됐다는 뜻입니다.`,
+      bad: true,
+    },
+  ].filter((r) => r.count > 0);
 
   return (
     <>
@@ -119,18 +139,24 @@ export function DecisionSpeedPanel({
             승인 전체가 아니라 그 일부다 */}
         {missing > 0 ? (
           <div className={a.note}>
-            최근 {WINDOW_DAYS}일 승인 <b>{coverage.approvedTotal}건 중 {missing}건</b>에
-            판단 시간이 없습니다 — 위 표의 분모에서도 빠져 있고, 학습의 3초 필터도 이
+            최근 {DECISION_SPEED_WINDOW_DAYS}일 승인{" "}
+            <b>
+              {coverage.approvedTotal}건 중 {missing}건
+            </b>
+            에 판단 시간이 없습니다 — 위 표의 분모에서도 빠져 있고, 학습의 3초 필터도 이
             건들은 보지 못합니다.
-            {spansPreMeasure ? (
-              <>
-                {" "}
-                측정은 <b>{MEASURE_START_LABEL}</b>에 시작해, 그 전 승인이 아직 이 창에
-                남아 있습니다. 창이 지나면 이 줄은 사라집니다.
-              </>
-            ) : (
-              <> 큐에서 펼친 카드가 아닌 경로로 승인됐거나, 시간이 실려 오지 않았습니다.</>
-            )}
+            {/* **사유를 항목으로 적는다** — 뭉쳐 놓으면 "고칠 것이 있나"에 답할 수 없다.
+                나이(측정 전)와 신호(큐 밖)는 처방이 아예 다르고, 둘이 섞여 있을 수도 있다 */}
+            <ul className={a.reasonList}>
+              {reasons.map((r) => (
+                <li key={r.key}>
+                  <b className={r.bad ? a.reasonBad : undefined}>
+                    {r.label} {r.count}건
+                  </b>{" "}
+                  — {r.note}
+                </li>
+              ))}
+            </ul>
           </div>
         ) : null}
       </div>

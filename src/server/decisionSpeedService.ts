@@ -10,6 +10,29 @@ import type { PrismaClient } from '@prisma/client';
 // 시간은 관리자 화면이 재서 보낸다(서버는 열람 시각을 모른다). 텔레메트리라 판정
 // 트랜잭션에 합류하지 않는다 — 기록이 실패해도 판정은 성립해야 한다.
 
+/**
+ * 집계 창.
+ *
+ * @근거 설계 피로는 지금 상태이지 이력이 아니라 짧게 본다. 더 짧으면(3일) 조용한
+ *   주말에 표본이 5건 미만으로 떨어져 유형별 판정이 통째로 침묵하고, 더 길면(30일)
+ *   이미 고쳐진 습관이 계속 빨갛게 남는다. **화면 문구도 이 값에서 뽑는다** — 예전에는
+ *   서비스와 화면 네 곳에 `7` 이 손으로 적혀 있었다.
+ */
+export const DECISION_SPEED_WINDOW_DAYS = 7;
+/** @근거 설계 위 값의 밀리초 환산 — 고르는 값이 아니라 유도값이다. 손으로 곱한 수를
+ *    쓰지 않는 이유는 날짜를 바꿀 때 둘 중 하나만 따라가는 사고를 막기 위해서다 */
+export const DECISION_SPEED_WINDOW_MS = DECISION_SPEED_WINDOW_DAYS * 86_400_000;
+
+/**
+ * 판단 시간을 실제로 재기 시작한 순간 = `decisionElapsedMs` 가 배포된 날.
+ *
+ * @근거 설계 이 앞의 승인에는 잴 장치가 자체가 없었다 — "시간이 없다"가 결함이 아니라
+ *   **나이**인 구간의 경계다. 관측으로 유도하지 않는 이유: 가장 이른 non-null 판정
+ *   시각으로 뽑을 수도 있지만, 그러면 소급 기입·시드 한 건이 경계를 통째로 옮긴다.
+ *   배포일은 사실이고 움직이지 않는다.
+ */
+export const ELAPSED_MEASURE_START = Date.UTC(2026, 7, 22);
+
 /** @근거 설계 — 하루를 넘는 값은 측정이 아니라 방치다 (탭을 열어 둔 채 퇴근) */
 const MAX_ELAPSED_MS = 86_400_000;
 
@@ -41,9 +64,9 @@ export interface DecisionSpeedRow {
   fatigueSuspect: boolean;
 }
 
-/** 최근 7일, 소견 유형별 판단 시간 중앙값 — 관리자 화면 표시용 */
+/** 집계 창 안의 소견 유형별 판단 시간 중앙값 — 관리자 화면 표시용 */
 export async function getDecisionSpeedByCategory(prisma: PrismaClient): Promise<DecisionSpeedRow[]> {
-  const since = new Date(Date.now() - 7 * 86_400_000);
+  const since = new Date(Date.now() - DECISION_SPEED_WINDOW_MS);
   const rows = await prisma.complianceReview.findMany({
     where: { operatorReviewedAt: { gte: since }, NOT: { operatorVerdict: null } },
     select: { findingsJson: true, operatorReviewedAt: true, id: true },
@@ -93,10 +116,21 @@ export async function getDecisionSpeedByCategory(prisma: PrismaClient): Promise<
 }
 
 export interface ApprovedElapsedCoverage {
-  /** 최근 7일 승인 판정 수 */
+  /** 최근 창 안의 승인 판정 수 */
   approvedTotal: number;
-  /** 그중 판단 시간이 비어 있는 건 — 0 이 아니면 큐 밖 경로로 승인되는 건이 있다 */
+  /** 그중 판단 시간이 비어 있는 건 = beforeMeasureStart + offQueue */
   approvedWithoutElapsed: number;
+  /**
+   * **측정 도입 전에 판정된 건** — 결함이 아니라 나이다. 잴 장치가 없던 때의 기록이라
+   * 고칠 것이 없고, 창이 지나가면 저절로 사라진다.
+   */
+  beforeMeasureStart: number;
+  /**
+   * **측정이 돌고 있는데도 시간이 없는 건 — 이쪽이 진짜 신호다.**
+   * 화면이 시간을 재서 보내는 구조라, 비어 있다는 것은 큐에서 펼친 카드가 아닌
+   * 경로로 승인이 들어왔거나 시간이 실려 오지 않았다는 뜻이다.
+   */
+  offQueue: number;
 }
 
 /**
@@ -107,15 +141,30 @@ export interface ApprovedElapsedCoverage {
  */
 export async function getApprovedElapsedCoverage(
   prisma: PrismaClient,
+  now = new Date(),
 ): Promise<ApprovedElapsedCoverage> {
-  const since = new Date(Date.now() - 7 * 86_400_000).getTime();
-  const [row] = await prisma.$queryRaw<{ total: bigint | number; missing: bigint | number }[]>`
+  const since = now.getTime() - DECISION_SPEED_WINDOW_MS;
+  /* **사유를 건별로 가른다** (2026-08-24 창업자 지시). 예전에는 빈 건을 하나로 세고,
+     이유는 화면이 **집계 창이 측정 시작일을 물고 있는가**로 짐작했다 — 창의 성질이지
+     그 건의 성질이 아니라, 창이 걸쳐 있는 동안에는 진짜 큐 밖 승인까지 전부 "측정 전"
+     으로 덮였다. 판정 시각은 행마다 있으므로 행에게 직접 물으면 될 일이었다 */
+  const [row] = await prisma.$queryRaw<
+    { total: bigint | number; before: bigint | number; off: bigint | number }[]
+  >`
     SELECT COUNT(*) AS total,
-           SUM(CASE WHEN "decisionElapsedMs" IS NULL THEN 1 ELSE 0 END) AS missing
+           SUM(CASE WHEN "decisionElapsedMs" IS NULL
+                     AND "operatorReviewedAt" <  ${ELAPSED_MEASURE_START} THEN 1 ELSE 0 END) AS before,
+           SUM(CASE WHEN "decisionElapsedMs" IS NULL
+                     AND "operatorReviewedAt" >= ${ELAPSED_MEASURE_START} THEN 1 ELSE 0 END) AS off
     FROM "ComplianceReview"
     WHERE "operatorVerdict" = 'APPROVED' AND "operatorReviewedAt" >= ${since}`;
+  const beforeMeasureStart = Number(row?.before ?? 0);
+  const offQueue = Number(row?.off ?? 0);
   return {
     approvedTotal: Number(row?.total ?? 0),
-    approvedWithoutElapsed: Number(row?.missing ?? 0),
+    // 합으로 낸다 — 따로 세면 세 숫자가 언젠가 어긋나고, 화면은 그 어긋남을 못 본다
+    approvedWithoutElapsed: beforeMeasureStart + offQueue,
+    beforeMeasureStart,
+    offQueue,
   };
 }
