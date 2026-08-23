@@ -339,6 +339,7 @@ export function StudentValvePanel({
   measuredAt,
   canaryIntervalMs,
   canaryStaleMs,
+  accuracy,
 }: {
   canaryFailures?: { layer: string }[];
   /** 카나리아 주기 (스케줄러 `CANARY_INTERVAL_MS`) — 화면이 잰 값의 유효기간을 겸한다 */
@@ -347,6 +348,14 @@ export function StudentValvePanel({
   canaryStaleMs: number;
   /** `canaryFailures` 를 잰 시각(서버 렌더 시점) — 없으면 늙지 않는 값으로 본다 */
   measuredAt?: number;
+  /**
+   * **검수 정확도 줄** — 서버에서 집계해 넘어온 조각 (2026-08-23 창업자 지시).
+   *
+   * 계산을 여기서 하지 않는 이유: 집계는 DB 조회가 필요한 서버 일이고, 클라이언트로
+   * 내리면 라벨 원본이 브라우저까지 나간다. 서버 컴포넌트를 prop 으로 받아 **자리에만**
+   * 놓는다 — 이 패널은 무엇이 그려지는지 모르고 어디에 놓을지만 안다.
+   */
+  accuracy?: React.ReactNode;
 }) {
   const router = useRouter();
   const [board, setBoard] = useState<Board | null>(null);
@@ -466,6 +475,11 @@ export function StudentValvePanel({
           ...(tone === "warn" ? { borderLeft: "4px solid #c4303b" } : {}),
         }}
       >
+        {/* **정확도가 맨 위** (2026-08-23 창업자 지시).
+            아래 두 줄이 "지금 도는가"라면 이 줄은 "지난 90일 얼마나 맞혔나"다 — 시간
+            축이 달라 섞이면 안 되므로, 같은 상자에 두되 **선으로 가른다.** 위는 성적,
+            아래는 맥박이다. 서버에서 집계해 넘어온 조각을 자리에만 놓는다(prop 주석) */}
+        {accuracy && <div className={s.accuracy}>{accuracy}</div>}
         <div className={a.row}>
           {/* **박스 전체가 상세로 가는 문이다** (창업자 지시). 도장·지문·회차 기록은
               지운 것이 아니라 `/admin/compliance/iris` 로 옮겼다 — 되짚을 때만 필요한

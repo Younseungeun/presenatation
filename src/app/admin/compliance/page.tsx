@@ -1029,7 +1029,12 @@ export default async function AdminCompliancePage({
         canaryFailures={canary.failures.map((f) => ({ layer: f.layer }))}
         measuredAt={now.getTime()}
         canaryIntervalMs={CANARY_INTERVAL_MS}
-        canaryStaleMs={CANARY_STALE_MS} />
+        canaryStaleMs={CANARY_STALE_MS}
+        /* **정확도를 같은 상자 안, 맨 위에** (2026-08-23 창업자 지시).
+           검수하는 것이 둘이고 그 둘이 얼마나 맞히는지는 같은 물음의 뒷면이라 한 상자에
+           둔다. 서버 컴포넌트를 **prop 으로 넘긴다** — 집계는 서버에서 끝나고, 클라이언트
+           패널은 그 결과를 자리에만 놓는다(정확도 계산이 브라우저로 내려가지 않는다) */
+        accuracy={<AccuracyPanel summary={accuracy} bare />} />
       {/* 검수 규칙 띠지(CanaryPanel)는 2026-08-23에 걷었다 — 같은 사실을 위 IRIS 상자의
           `검수 규칙` 줄이 말한다. 층별 통과 여부를 여섯 칸으로 늘어놓던 자리인데, 전부
           통과일 때는 초록 여섯 개가 아무 말도 하지 않고 화면만 먹었다. 실패했을 때
@@ -1040,7 +1045,8 @@ export default async function AdminCompliancePage({
         teacherTag={teacher.tag}
         stale={teacher.stale}
       />
-      <AccuracyPanel summary={accuracy} />
+      {/* 정확도 카드는 2026-08-23에 IRIS 상자 안(맨 위)으로 올라갔다 — 검수하는 것이
+          둘이고 그 둘이 얼마나 맞히는지는 같은 물음의 뒷면이라 한자리에 둔다 */}
 
       {/* 정확도 옆자리다 — 저쪽은 **무엇을 틀렸나**, 이쪽은 **읽고 틀렸나**를 말한다.
           둘이 떨어져 있으면 "오탐이 많다"와 "그래서 안 읽고 넘긴다"가 따로 읽힌다 */}
