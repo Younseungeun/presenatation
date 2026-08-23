@@ -37,7 +37,6 @@ import {
   CANARY_STALE_MS,
   getCanaryScreen,
 } from "@/server/screeningCanaryRunner";
-import { readHeartbeat } from "@/server/schedulerHealth";
 import { FindingRow } from "../FindingRow";
 import { StudentValvePanel } from "./StudentValvePanel";
 import { AskTeacher } from "./AskTeacher";
@@ -845,7 +844,6 @@ export default async function AdminCompliancePage({
     manualQueue,
     pause,
     canary,
-    schedulerBeat,
     teacherPending,
     teacherCoverage,
     teacher,
@@ -865,9 +863,6 @@ export default async function AdminCompliancePage({
     getManualJudgmentQueue(prisma),
     getPauseState(prisma),
     getCanaryScreen(prisma),
-    // 스케줄러가 아예 멎어 있으면 자동 점검 표시를 걷는다 — 그 고장은 홈 화면의
-    // ON/OFF 가 이미 2분 안에 말하고, 한 고장을 두 곳에서 띄우면 원인을 두 번 쫓는다
-    readHeartbeat(prisma),
     getTeacherAnswerPending(prisma),
     getTeacherAskCoverage(prisma),
     getTeacherTag(prisma),
@@ -1025,13 +1020,16 @@ export default async function AdminCompliancePage({
           어제까지의 이야기일 뿐이다 */}
       {/* **장애가 규칙 상태보다 먼저다** — 규칙이 전부 초록이어도 IRIS가 죽어 있으면
           지금 게시가 멈춰 있다. 그 사실이 아래 어느 숫자보다 급하다 */}
-      <StudentValvePanel canaryFailures={canary.failures.map((f) => ({ layer: f.layer }))}
-        heartbeatStale={canary.heartbeatStale}
+      {/* **박동 값(다음 점검·문턱 초과·스케줄러 상태)은 넘기지 않는다** (2026-08-23).
+          여기서 넘기면 서버 렌더 시점의 스냅샷이라, 화면을 켜 둔 채 주기가 지나면 늙은
+          값으로 **정상인데 타이머가 노랑·빨강으로 올라간다.** 패널이 라우트에서 30초마다
+          직접 읽는다. 여기서 넘기는 것은 **화면이 방금 직접 잰 값**(층별 결과)과 그것을
+          잰 시각뿐이고, 그건 늙으면 점이 회색으로 내려가 스스로 말한다 */}
+      <StudentValvePanel
+        canaryFailures={canary.failures.map((f) => ({ layer: f.layer }))}
         measuredAt={now.getTime()}
-        canaryNextAt={canary.nextAt}
         canaryIntervalMs={CANARY_INTERVAL_MS}
-        canaryStaleMs={CANARY_STALE_MS}
-        schedulerOff={schedulerBeat.stale} />
+        canaryStaleMs={CANARY_STALE_MS} />
       {/* 검수 규칙 띠지(CanaryPanel)는 2026-08-23에 걷었다 — 같은 사실을 위 IRIS 상자의
           `검수 규칙` 줄이 말한다. 층별 통과 여부를 여섯 칸으로 늘어놓던 자리인데, 전부
           통과일 때는 초록 여섯 개가 아무 말도 하지 않고 화면만 먹었다. 실패했을 때

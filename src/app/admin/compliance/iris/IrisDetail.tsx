@@ -56,7 +56,10 @@ export function IrisDetail() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/compliance/student-valve");
+      // 상세 화면도 **여는 순간**이라 캐시 없이 다시 잰다 — 원인을 보러 온 사람에게
+      // 어제 값을 보여 주면 그 화면의 목적이 사라진다 (2026-08-23). 이 화면은 폴링하지
+      // 않으므로 이 한 번이 전부다
+      const res = await fetch("/api/admin/compliance/student-valve?fresh=1");
       return res.ok ? ((await res.json()) as Board) : null;
     } catch {
       return null;
