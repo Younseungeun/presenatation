@@ -179,6 +179,8 @@ npm run student:promote -- <onnx_sha>
 7. 작성 중 검사에 학생을 넣지 않는다 (Q10)
 8. `_prisma_migrations` 를 손으로 적지 않는다 — 적어야 했다면 `sqlite_master` 로 표 실재를 확인하고 기록을 남긴다
 9. 약점 문서를 리서처 화면에 노출하지 않는다
+10. 관리자 화면을 새로 만들 때 `admin/layout.tsx` 를 관문으로 믿지 않는다 — 그 레이아웃은 "운영자인데 패스키 0개"만 막고 비로그인·일반 이용자는 그대로 그린다. **페이지마다** `getSessionUserId` + 역할 검사 + `notFound()` 네 줄을 직접 넣는다 (회신 18호 ⑥: /admin/compliance/iris 가 비로그인 200 이었다)
+11. 스케줄러를 재기동할 때 `npm` 만 죽이지 않는다 — npm → tsx → node 3단이라 알맹이가 살아남아 두 벌이 돈다(회신 18호 ⑤, 같은 문자 두 번). 명령줄로 `scheduler` 를 매칭해 자식까지 정리한다
 
 ---
 
@@ -186,6 +188,7 @@ npm run student:promote -- <onnx_sha>
 
 회차제 검토는 끝났다(29차 FF-5). 다음 중 하나가 나면 `docs/compliance-review-prompt.md` 형식으로 다시 연다:
 - 채택 게이트 실패 · 부팅 검사 실패 · 카나리아 실패 · `promotionMatches === false`
+  (한계: 알림은 전부 스케줄러·웹 서버 안에서 나간다 — 스케줄러가 죽으면 그 사실을 알릴 사람이 없다. 외부 업타임 모니터(/api/health/scheduler)는 상시 호스팅 뒤에 붙인다 — 회신 18호 ⑤)
 - 게이트 6종이 예측 못 한 패턴의 오탐/미탐으로 큐가 마비 (= 수렴 선언이 틀렸다는 반증)
 - 110M 부검 결과 도착 (`docs/model-swap-rule.md` 의 규칙으로 판정)
 - 분기 1회
