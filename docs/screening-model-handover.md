@@ -74,7 +74,12 @@
 
 2번은 2026-08-22 사고에서 나왔다: 마이그레이션 기록은 "적용됨"인데 표가 없었다.
 `prisma migrate status` 를 믿지 말고, 새 환경에서는 첫 기동이 말하게 둔다.
-새 raw SQL 을 쓰면 `REQUIRED_SCHEMA` 에 표를 추가해야 한다 — 빠뜨리면 `schemaBootCheck.test.ts` 가 깨진다.
+새 raw SQL 을 쓰면 `REQUIRED_SCHEMA` 에 표를 추가해야 한다 — 빠뜨리면 `schemaBootCheck.db.test.ts` 가 깨진다.
+
+시험 갈래 규칙(회신 19호): **DB 를 쓰는 시험은 `*.db.test.ts`** — 그래야 순차 갈래에 들어간다. 이름이 틀리면
+병렬 갈래에서 `prisma migrate deploy` 가 겹쳐 간헐 실패가 나고, 그 빨간 줄은 마이그레이션을 가리켜 두 세션이
+같은 곳을 잘못 짚었다. `testLaneGuard.test.ts` 가 이제 그 이름을 강제한다. 관문 없음은 침묵, 근거 없는 상수는
+침묵, 갈래 잘못됨은 거짓말 — 셋 다 사람의 기억이 아니라 시험이 막는다.
 
 ---
 
