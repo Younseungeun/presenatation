@@ -254,6 +254,20 @@
   color: #c4303b;
 }
 
+/* 화면에는 없고 낭독기에만 있는 글자. 상태를 **점의 색으로만** 말하는 자리에 함께 둔다 —
+   색은 색각 이상·흑백에서 사라지고, 형태(점 vs 느낌표)만으로는 낭독되지 않는다 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
 /* 사유 항목 — 뭉친 숫자 하나를 "무엇이 몇 건"으로 펼치는 자리 (판단 소요 시간).
    들여쓰기는 불릿이 아니라 여백으로 준다: 불릿이 있으면 목록이 note 보다 무거워져
    본문(어떤 유형이 유독 빠른가)에서 눈을 가져간다 */

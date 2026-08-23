@@ -8,17 +8,12 @@ import {
   getCanaryScreen,
 } from "@/server/screeningCanaryRunner";
 import { getScreeningAccuracy } from "@/server/complianceService";
-import {
-  getApprovedElapsedCoverage,
-  getDecisionSpeedByCategory,
-} from "@/server/decisionSpeedService";
 import { countHardNegatives } from "@/server/retrainSignalService";
 import { AdminHead } from "../../AdminHead";
 import a from "../../admin.module.css";
 import { IrisDetail } from "./IrisDetail";
 import { RuleDetail } from "./RuleDetail";
 import { AccuracyDetail } from "./AccuracyDetail";
-import { DecisionSpeedPanel } from "../DecisionSpeedPanel";
 import { RetrainGauge } from "../RetrainGauge";
 
 /**
@@ -45,15 +40,12 @@ export default async function IrisPage() {
   if (user?.role !== "OPERATOR") notFound();
 
   const now = new Date();
-  const [canary, schedulerBeat, accuracy, retrain, decisionSpeed, elapsedCoverage] =
-    await Promise.all([
-      getCanaryScreen(prisma, now),
-      readHeartbeat(prisma, now),
-      getScreeningAccuracy(prisma),
-      countHardNegatives(prisma),
-      getDecisionSpeedByCategory(prisma),
-      getApprovedElapsedCoverage(prisma),
-    ]);
+  const [canary, schedulerBeat, accuracy, retrain] = await Promise.all([
+    getCanaryScreen(prisma, now),
+    readHeartbeat(prisma, now),
+    getScreeningAccuracy(prisma),
+    countHardNegatives(prisma),
+  ]);
 
   return (
     <>
@@ -64,12 +56,17 @@ export default async function IrisPage() {
             표본이 작을 때 거짓말한다(4건 중 1건도 25%, 400건 중 100건도 25%) */}
         <AccuracyDetail summary={accuracy} />
 
-        {/* **정확도 바로 아래** (2026-08-24 창업자 지시로 계기판에서 내려옴).
-            저쪽은 **무엇을 틀렸나**, 이쪽은 **읽고 틀렸나**를 말한다 — 떨어져 있으면
-            "오탐이 많다"와 "그래서 안 읽고 넘긴다"가 따로 읽힌다.
-            계기판에 있을 자리가 아니었던 이유: 유형별 중앙값은 곁눈질하는 값이 아니라
-            되짚으러 와서 읽는 값이다 */}
-        <DecisionSpeedPanel rows={decisionSpeed} coverage={elapsedCoverage} />
+        {/* **판단 소요 시간 상자는 걷었다** (2026-08-24 창업자 지시).
+            공백은 위 정확도 줄의 칩이 이미 말하고, 그쪽이 더 정확하다 — 상자는
+            `승인만·최근 7일`을 세는데 칩은 `판정 전체`를 세어 **같은 화면에서 두 숫자가
+            어긋났다**(상자 2건 vs 칩 3건). 한 화면이 같은 것을 두 번 말하면서 다르게
+            말하면 둘 다 못 믿게 된다.
+            ⚠ **함께 사라진 것: 유형별 판단 시간 중앙값**(26차 CC-1 피로도 감지 —
+            "어떤 유형만 유독 빠르면 그 소견은 읽히지 않고 승인되고 있다"). 지금은 잰
+            값이 0건이라 어차피 빈 표였지만, 시간이 쌓이면 **그 표가 다시 필요하다.**
+            재는 쪽(`getDecisionSpeedByCategory`)과 시험은 그대로 살아 있고 그리는
+            부품만 걷었다 — 되살릴 때는 `git show 0233743:src/app/admin/compliance/DecisionSpeedPanel.tsx`.
+            그때는 공백 줄 없이 **중앙값 표만** 그린다(공백은 위 칩이 말한다) */}
 
         {/* 제목과 상태 칩은 IrisDetail 이 함께 그린다 — 상태를 아는 쪽이 제목도 쓴다
             (2026-08-23 창업자 지시로 물음표를 걷고 그 자리에 근무/결근 칩을 놓음) */}
