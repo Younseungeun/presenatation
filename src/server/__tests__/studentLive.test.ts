@@ -6,7 +6,7 @@ import type {
   StudentOutput,
 } from '@/infra/compliance/studentClient';
 import { studentMode } from '@/infra/compliance/studentClient';
-import { collectFirstTierFindings, runScreening } from '../complianceService';
+import { collectAutoScreenFindings, runScreening } from '../complianceService';
 
 // 학생 모델이 **실집행에 합류한 뒤** 지켜야 하는 것들 (8차 E-6).
 //
@@ -159,17 +159,17 @@ describe('학생 모델이 라이브로 합류했을 때', () => {
   });
 });
 
-describe('collectFirstTierFindings — 조립이 한 곳에만 있다', () => {
+describe('collectAutoScreenFindings — 조립이 한 곳에만 있다', () => {
   it('code 와 all 을 나눠 돌려준다 — 즉시 거절 판단의 근거는 code 뿐이다', async () => {
     // 이 분리가 무너지면 학생 소견이 거절 판단에 섞인다. 게시 검수와 작성 중 사전 검사가
     // 같은 이 함수를 쓰므로, 여기서 지켜지면 두 곳 모두에서 지켜진다.
-    const r = await collectFirstTierFindings(input(), { student: client() });
+    const r = await collectAutoScreenFindings(input(), { student: client() });
     expect(r.all.some((f) => f.source === 'student')).toBe(true);
     expect(r.code.some((f) => f.source === 'student')).toBe(false);
   });
 
   it('학생이 없으면 code 와 all 이 같다', async () => {
-    const r = await collectFirstTierFindings(input(), {});
+    const r = await collectAutoScreenFindings(input(), {});
     expect(r.all).toEqual(r.code);
   });
 });

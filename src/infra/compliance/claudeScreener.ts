@@ -363,8 +363,36 @@ export class ClaudeComplianceScreener implements ComplianceScreener {
   }
 }
 
-/** ANTHROPIC_API_KEY가 있으면 Claude 검수기, 없으면 null (규칙 검수만 동작) */
-export function createClaudeScreenerFromEnv(env = process.env): ComplianceScreener | null {
+/**
+ * Claude 검수기를 쓸 수 있는 자리 — **운영 검수는 여기 없다** (2026-08-24 창업자 확정).
+ *
+ * · `teacher` — 교사 라벨(오프라인). 운영자가 질문지를 손으로 나르는 경로와, 합성 자료
+ *   라벨링(`train:synth`). 사람이 시작하고 사람이 끝낸다.
+ * · `eval`    — 교사 기준선 측정(`eval:teacher`·`eval:coherence`). 채점용이라 게시와 무관.
+ *
+ * 게시 검수(`runScreening`)는 이 목록에 **없다.** 그것이 인수인계서 §8-1 의
+ * "운영 경로에 외부 AI API 호출을 넣지 않는다"이고, 위반 시 프로젝트가 뒤집히는 금지다.
+ */
+export type ClaudeUse = 'teacher' | 'eval';
+
+/**
+ * Claude 검수기를 만든다 — **쓰임새를 반드시 밝혀야 한다** (2026-08-24 창업자 확정).
+ *
+ * 예전에는 인자가 없어서 `ANTHROPIC_API_KEY` 하나만 들어오면 **게시 검수 중에 조용히
+ * 호출되기 시작**했다. 금지는 문서에만 있었고 코드에는 아무 관문도 없었다 — 키를 넣는
+ * 날 아무 경고 없이 깨지는 구조다. 그래서 부르는 쪽이 **어디에 쓸 것인지**를 적게 한다:
+ * 게시 검수에는 적을 수 있는 값이 없으므로 그 경로는 컴파일 단계에서 막힌다.
+ *
+ * 키가 없으면 종전대로 null 이다 — 지금 운영이 그 상태고, 교사 경로는 사람이 손으로 나른다.
+ */
+export function createClaudeScreenerFromEnv(
+  use: ClaudeUse,
+  env = process.env,
+): ComplianceScreener | null {
+  if (use !== 'teacher' && use !== 'eval') {
+    // 타입을 우회해 들어온 경우 — 던져서 조용히 켜지지 않게 한다
+    throw new Error(`Claude 검수기는 운영 검수에 쓸 수 없습니다 (요청된 쓰임새: ${use})`);
+  }
   if (!env.ANTHROPIC_API_KEY && !env.ANTHROPIC_AUTH_TOKEN) return null;
   // COMPLIANCE_EFFORT는 **대량 라벨 생산 전용 레버**다. 집행·기준선 측정에서 내리면
   // 천장이 함께 내려가므로(위 DEFAULT_EFFORT 주석) 운영 환경에는 두지 않는다.

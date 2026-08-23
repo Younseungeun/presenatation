@@ -1169,21 +1169,42 @@ export function decide(findings: Finding[]): Exclude<ComplianceDecision, 'UNAVAI
 }
 
 /**
- * **2차 검수기가 이 건을 봤는가** (2026-08-21).
+ * **자동 검수에 누가 참여했는가** (2026-08-24 창업자 확정 — 번호 체계 폐기).
  *
- * `reviewer`는 판정에 참여한 주체를 `+`로 이은 목록이다 — `rule` ·
- * `rule+student:v3@t0.5` · `rule+claude:claude-opus-5`. 1차 참여자는 이름이 정해져
- * 있으므로(`rule`, `student:*`) **그 밖의 조각이 있으면 2차가 돈 것**이다.
+ * ── 왜 이름이 바뀌었나 ────────────────────────────────────────────
+ * 예전에는 `hadSecondTier`(2차가 돌았나)였고, 그 "2차"는 Claude 자리였다. 그런데
+ * **Claude 는 게시 검수에 참여하지 않고**(claudeScreener.ts 의 관문), IRIS 는
+ * 규칙 엔진과 **같은 층**에서 돈다(collectAutoScreenFindings 가 둘을 함께 모은다).
+ * 그래서 옛 함수는 `rule+student:IRIS...` 에 대해 **false** 를 돌려줬고, 화면은
+ * IRIS 가 멀쩡히 판정한 건에까지 "2차 AI 검수가 돌지 않았습니다"를 빨갛게 띄웠다.
  *
- * 이 구별이 필요한 이유: `ANTHROPIC_API_KEY`가 없으면 2차가 통째로 건너뛰어지고,
- * 그때도 1차 소견이 있으면 똑같이 보류된다. 화면에서 두 보류가 같은 얼굴이면
- * 운영자는 **"AI가 보고도 애매하다고 한 건"과 "아무도 안 본 건"을 구별할 수 없다.**
- * 뒤쪽은 사람이 직접 판단해야 하는 건이라 할 일이 완전히 다르다.
+ * 번호가 자리를 가리키기 때문에 생긴 사고다 — 층이 하나 빠지자 모든 번호가 한 칸씩
+ * 어긋났는데 "2차"라는 말은 여전히 말이 돼서 **틀렸다는 사실이 드러나지 않았다.**
+ * 그래서 번호를 버리고 참여자를 이름으로 센다.
+ *
+ * ── 표식 읽는 법 ──────────────────────────────────────────────────
+ *   rule                              규칙만 — AI 가 안 봤다
+ *   rule+student:IRIS.v5@t0.7/L7      규칙 + IRIS (정상)
+ *   rule+student:…+student(장애)       IRIS 를 부르다 죽었다 → 보류
  */
-export function hadSecondTier(reviewer: string): boolean {
-  return reviewer
-    .split('+')
-    .some((part) => part !== 'rule' && !part.startsWith('student:'));
+export interface AutoScreenParticipation {
+  /** 규칙 엔진은 언제나 돈다 — 거짓이면 표식 자체가 깨진 것이다 */
+  rules: boolean;
+  /** IRIS 가 소견을 낼 수 있는 상태로 참여했는가 */
+  ai: boolean;
+  /** 참여하지 못했다면 왜 — `OUTAGE`(부르다 죽음) · `OFF`(애초에 없었음) */
+  aiMissing: 'OUTAGE' | 'OFF' | null;
+}
+
+export function autoScreenParticipation(reviewer: string): AutoScreenParticipation {
+  const parts = reviewer.split('+');
+  const rules = parts.includes('rule');
+  // `student(장애)` 는 "불렀는데 죽었다"의 표식이라 `student:` 와 함께 붙는다 —
+  // 참여 여부를 가르는 것은 이쪽이 먼저다
+  const outage = parts.some((p) => p.startsWith('student(') || p === 'student(장애)');
+  const joined = parts.some((p) => p.startsWith('student:'));
+  const ai = joined && !outage;
+  return { rules, ai, aiMissing: ai ? null : outage ? 'OUTAGE' : 'OFF' };
 }
 
 /**

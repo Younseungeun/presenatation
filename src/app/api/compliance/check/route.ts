@@ -10,7 +10,7 @@ import {
 } from '@/infra/compliance/studentClient';
 import { prisma } from '@/server/db';
 import {
-  collectFirstTierFindings,
+  collectAutoScreenFindings,
   getCategoryOutcomeRates,
 } from '@/server/complianceService';
 import { getKnownInstrumentNames } from '@/server/instrumentNames';
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     // **게시 검수와 같은 함수로 조립한다** (8차 E-6). 예전에는 여기서 따로 이어 붙였는데,
     // 그러면 한쪽에만 탐지기를 더하는 날 화면과 실제 결과가 갈라진다 — 리서처는
-    // "소견 없음"을 보고 제출했다가 보류를 맞는다. 조립은 collectFirstTierFindings 한 곳에만.
+    // "소견 없음"을 보고 제출했다가 보류를 맞는다. 조립은 collectAutoScreenFindings 한 곳에만.
     //
     // **학생은 작성 중 검사에서 뺀다** (Q10 · 2026-08-21). 두 이유:
     //   ① 부하 — 디바운스 600ms 면 리포트 한 건 쓰는 동안 사이드카를 수십 번 부른다.
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     //     이었는데 학생 호출이 슬쩍 들어와 그 전제를 깨고 있었다
     //   ② 화면 문구가 이미 정직하다 — "명백한 금지 표현은 없습니다"까지만 말하고
     //     통과를 보장하지 않는다. 학생 몫의 판단은 게시 시점에 돈다
-    const { all: findings } = await collectFirstTierFindings(input, {
+    const { all: findings } = await collectAutoScreenFindings(input, {
       phrases,
       knownNames,
     });

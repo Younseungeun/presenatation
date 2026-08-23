@@ -35,7 +35,7 @@ function cachedDetector(cache: Map<string, Finding[]>): Detector {
 }
 
 async function main() {
-  const screener = createClaudeScreenerFromEnv();
+  const screener = createClaudeScreenerFromEnv('eval');
   if (!screener) {
     console.log(
       '\nANTHROPIC_API_KEY가 없어 교사 검수를 돌릴 수 없습니다.\n' +

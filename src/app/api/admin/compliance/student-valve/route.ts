@@ -10,7 +10,6 @@ import { requireOperatorId, toErrorResponse } from '../../../_lib/http';
 import { SETTING_KEYS } from '@/server/appSettings';
 import { readCanaryBeat } from '@/server/screeningCanaryRunner';
 import { composeReviewerStamp } from '@/server/complianceService';
-import { createClaudeScreenerFromEnv } from '@/infra/compliance/claudeScreener';
 import { readAttendanceBeat } from '@/server/studentAttendance';
 import { readHeartbeat } from '@/server/schedulerHealth';
 import {
@@ -38,8 +37,6 @@ export async function GET(req: NextRequest) {
     const board = await getStudentOutageBoard(prisma);
     const mode = studentMode();
     const client = mode === 'off' ? null : createStudentClientFromEnv();
-    // 2차 AI 검수가 붙어 있는지 — 표식에 그 조각이 들어갈지가 여기서 갈린다
-    const claudeScreener = createClaudeScreenerFromEnv();
 
     // **화면을 열 때는 새로 잰다** (2026-08-23 창업자 지시 — 검수 규칙과 같은 규칙).
     //
@@ -145,12 +142,12 @@ export async function GET(req: NextRequest) {
         // 항목으로도 보낸다 — 계기판이 배지로 늘어놓는다(검수 규칙의 층 배지와 같은 자리).
         // 고칠 것이 몇 개인지가 **고치러 가기 전에** 보여야 한다
         unavailableReasons: reasons,
-        // **검수 기록에 실제로 박히는 표식** — 화면이 이어 붙이지 않고 서버가 조립한다.
-        // 규칙은 늘 참여하므로 base 가 rule 이고, AI 키가 있으면 그 사이에 들어간다
-        reviewerStamp: composeReviewerStamp(
-          claudeScreener ? `rule+${claudeScreener.reviewerId}` : 'rule',
-          client?.reviewerId ?? null,
-        ),
+        /* **검수 기록에 실제로 박히는 표식** — 화면이 이어 붙이지 않고 서버가 조립한다.
+           자동 검수 참여자는 **규칙 엔진 + IRIS** 둘뿐이라 base 는 언제나 `rule` 이다.
+           예전에는 `ANTHROPIC_API_KEY` 가 있으면 여기에 `claude:` 조각을 끼워 미리
+           보여 줬는데, Claude 는 게시 검수에 참여하지 않으므로(2026-08-24 창업자 확정)
+           **실제로 박히는 표식과 어긋나는 예고**였다 */
+        reviewerStamp: composeReviewerStamp('rule', client?.reviewerId ?? null),
         promoted,
         promotionMatches: promoted && health?.modelSha ? promoted.sha === health.modelSha : null,
       },

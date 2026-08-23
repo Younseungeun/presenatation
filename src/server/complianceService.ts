@@ -100,7 +100,7 @@ export interface ScreeningContext {
  * 즉시 거절 권한은 코드 규칙에만 있고, 그 판단은 호출자가 `applyRules` 결과로 따로 낸다 —
  * 여기 무엇이 더해져도 새로운 거절이 생기지 않는다.
  */
-export async function collectFirstTierFindings(
+export async function collectAutoScreenFindings(
   input: ScreeningInput,
   ctx: ScreeningContext = {},
 ): Promise<{ code: Finding[]; all: Finding[]; studentFailed: boolean }> {
@@ -263,7 +263,7 @@ export async function runScreening(
   screener: ComplianceScreener | null,
   ctx: ScreeningContext = {},
 ): Promise<ComplianceResult> {
-  const tier1 = await collectFirstTierFindings(input, ctx);
+  const tier1 = await collectAutoScreenFindings(input, ctx);
   // **즉시 거절 판단은 코드 규칙만으로 한다.** 학습 표현·의미 검색·학생은 전부 WARN이라
   // 이 값을 움직일 수 없고, 그것이 "사람 확인 없이 정상 리포트를 죽이지 않는다"는
   // 이 파이프라인의 절대 조건을 지키는 방식이다.

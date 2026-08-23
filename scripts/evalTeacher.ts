@@ -232,7 +232,7 @@ function sample<T>(items: T[], limit: number): T[] {
 }
 
 async function runFromApi(limit: number) {
-  const screener = createClaudeScreenerFromEnv();
+  const screener = createClaudeScreenerFromEnv('eval');
   if (!screener) {
     console.log(
       '\nANTHROPIC_API_KEY가 없어 API 교사를 돌릴 수 없습니다.\n' +

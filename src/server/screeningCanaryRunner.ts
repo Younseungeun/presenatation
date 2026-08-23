@@ -7,14 +7,14 @@ import {
   type CanaryFailure,
 } from '@/domain/screeningCanary';
 import type { RiskCategory } from '@/domain/compliance';
-import { collectFirstTierFindings } from './complianceService';
+import { collectAutoScreenFindings } from './complianceService';
 import { getKnownInstrumentNames } from './instrumentNames';
 import { getActiveLearnedPhrases } from './learnedPhraseService';
 import { notifyOperators } from './opsAlert';
 
 // 규칙 검수 카나리아 실행기 (14차 R-1).
 //
-// **운영 경로와 같은 함수를 부른다** — `collectFirstTierFindings`. 여기서 지름길을 타면
+// **운영 경로와 같은 함수를 부른다** — `collectAutoScreenFindings`. 여기서 지름길을 타면
 // 카나리아가 특권 경로를 재게 되어, 검토 답변이 반증 조건으로 지목한 바로 그 상태가 된다
 // ("카나리아는 통과했는데 실제 유저는 우회하는 현상").
 
@@ -68,7 +68,7 @@ export async function runCanaryChecks(prisma: PrismaClient): Promise<CanaryRepor
   const failures: CanaryFailure[] = [];
   for (const c of SCREENING_CANARY) {
     // 학생은 빼고 부른다 — 확률적이라 카나리아를 흔들고, 학생에겐 자기 카나리아가 있다
-    const { code } = await collectFirstTierFindings(canaryInput(c), {
+    const { code } = await collectAutoScreenFindings(canaryInput(c), {
       knownNames,
       // 사전 배선 카나리아(Q6): 합성 표식을 함께 주입한다 — 이게 안 잡히면 배선이 끊긴 것
       phrases: [...phrases, CANARY_PHRASE],

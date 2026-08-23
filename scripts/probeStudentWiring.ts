@@ -14,7 +14,7 @@
 //
 // ── 왜 서버를 안 띄우나 ────────────────────────────────────────────
 // `POST /api/compliance/check` 는 리서처 세션을 요구한다(로그인 없이는 못 부른다).
-// 그런데 그 라우트가 하는 일은 `collectFirstTierFindings` 를 부르는 것뿐이라,
+// 그런데 그 라우트가 하는 일은 `collectAutoScreenFindings` 를 부르는 것뿐이라,
 // **같은 함수를 직접 부르면 인증과 HTTP 만 빼고 전부 같은 경로**를 지난다.
 //
 // `@/server/db` 를 임포트하는 이유는 DB 를 쓰기 위해서가 아니라 **Prisma Client 가
@@ -23,7 +23,7 @@
 import '@/server/db';
 import type { ScreeningInput } from '../src/domain/compliance';
 import { applyRules, RISK_CATEGORY_LABEL } from '../src/domain/compliance';
-import { collectFirstTierFindings } from '../src/server/complianceService';
+import { collectAutoScreenFindings } from '../src/server/complianceService';
 import {
   createStudentClientFromEnv,
   studentMode,
@@ -88,7 +88,7 @@ async function main() {
 
   // ── 여기부터가 진짜 확인: 게시 경로가 쓰는 그 함수를 그대로 부른다 ──
   const ruleOnly = applyRules(input);
-  const tier1 = await collectFirstTierFindings(input, { student: client });
+  const tier1 = await collectAutoScreenFindings(input, { student: client });
   const fromStudent = tier1.all.filter((f) => f.source === 'student');
 
   console.log(`\n  시험 문장  "${PROBE}"`);

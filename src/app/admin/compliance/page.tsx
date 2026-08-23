@@ -10,7 +10,7 @@ import { notFound } from "next/navigation";
 import {
   deadlineRisk,
   formatElapsed,
-  hadSecondTier,
+  autoScreenParticipation,
   HOLD_ATTENTION_HOURS,
   HOLD_OVERDUE_HOURS,
   holdUrgency,
@@ -482,6 +482,36 @@ function PromotionCandidate({
   );
 }
 
+/**
+ * **자동 검수에 AI 가 빠졌다는 사실을 칩으로 말한다** (2026-08-24 창업자 지시).
+ *
+ * 예전에는 카드 안에 문장으로 적혀 있었다 — "AI 검수가 실패해 결정적 규칙만 적용된
+ * 상태입니다". 그런데 그 문장은 **카드를 펼쳐야** 보이고, 다른 안내문과 같은 무게라
+ * 훑을 때 걸리지 않았다. 큐에서 **무엇부터 볼지 고르는 순간**에 필요한 정보라
+ * 접힌 줄에도 서야 한다.
+ *
+ * 정상(규칙 + IRIS)에는 아무것도 그리지 않는다 — 잘 돈 것은 사건이 아니다.
+ */
+function AutoScreenChip({ reviewer }: { reviewer: string }) {
+  const { ai, aiMissing } = autoScreenParticipation(reviewer);
+  if (ai) return null;
+  // 둘은 처방이 다르다: 장애는 **다시 될 수 있는 것**이고(사이드카를 보면 된다),
+  // 꺼짐은 그 건이 애초에 규칙만 통과한 것이라 **사람이 대신 봐야 한다**
+  const outage = aiMissing === "OUTAGE";
+  return (
+    <span
+      className={`${a.chip} ${outage ? a.chipNeg : a.chipWarn}`}
+      title={
+        outage
+          ? "IRIS 를 부르다 실패해 규칙 엔진만 판정했습니다. 본문을 직접 확인해 주세요."
+          : "IRIS 가 참여하지 않은 채 규칙 엔진만 판정했습니다. 규칙이 못 잡는 패러프레이즈는 걸러지지 않았습니다."
+      }
+    >
+      {outage ? "AI 검수 실패 · 규칙만" : "규칙만"}
+    </span>
+  );
+}
+
 function ReviewCard({
   review,
   now,
@@ -542,6 +572,9 @@ function ReviewCard({
                   ? "위반 판정"
                   : "확인 필요"}
             </span>
+            {/* **고를 때 쓰는 정보다** — 규칙만 돈 건은 사람이 대신 봐야 해서 할 일의
+                무게가 다르다. 펼쳐야 보이면 고르는 순간에 못 쓴다 */}
+            <AutoScreenChip reviewer={review.reviewer} />
             {/* 무엇으로 걸렸는지 — 유형이 곧 "무엇을 볼 것인가"다 */}
             {[...new Set(findings.map((f) => f.category))].slice(0, 2).map((c) => (
               <span key={c} className={a.chip}>
@@ -572,6 +605,7 @@ function ReviewCard({
       <div className={a.row}>
         <span className={a.ttl}>{review.report.title}</span>
         <span className={a.liteRight}>
+          <AutoScreenChip reviewer={review.reviewer} />
           {urgencyLabel && (
             <span className={`${a.chip} ${urgency === "OVERDUE" ? a.chipNeg : a.chipWarn}`}>
               {urgencyLabel} · {formatElapsed(review.createdAt, now)}
@@ -585,9 +619,13 @@ function ReviewCard({
           {researcher.penName ?? researcher.email} ·{" "}
           {TIER_NAME[review.report.researcher.tier as Tier] ?? review.report.researcher.tier}
         </span>
-        {/* 원시 문자열(rule+claude:claude-opus-5)을 그대로 뿌리면 읽는 사람이
-            매번 해독해야 한다. 여기서 알아야 하는 것은 단 하나 — **2차가 돌았나** */}
-        <span>{hadSecondTier(review.reviewer) ? "1차 + AI 검수" : "1차 규칙만"}</span>
+        {/* 원시 표식(`rule+student:IRIS.v5@t0.7/L7`)을 그대로 뿌리면 읽는 사람이 매번
+            해독해야 한다. 여기서 알아야 하는 것은 **누가 봤나** 하나다.
+            번호(1차·2차)를 쓰지 않는다 — 층이 하나 빠지자 모든 번호가 어긋났는데
+            "2차"라는 말은 여전히 말이 돼서 틀린 줄 몰랐다 (2026-08-24) */}
+        <span>
+          {autoScreenParticipation(review.reviewer).ai ? "자동 검수 규칙 + IRIS" : "자동 검수 규칙만"}
+        </span>
         {/* `formatElapsed`가 이미 "9시간 대기"를 만든다 — 뒤에 또 붙여 `대기 대기`가
             나오고 있었다 (2026-08-20) */}
         <span>{formatElapsed(review.createdAt, now)}</span>
@@ -634,52 +672,40 @@ function ReviewCard({
         </div>
       )}
 
-      {/* **2차가 아예 안 돌았다는 사실을 화면이 말한다** (2026-08-21 사용자 확정).
-          `ANTHROPIC_API_KEY`가 없으면 2차 검수가 통째로 건너뛰어지고, 1차 소견이 있는
-          건은 그대로 여기 쌓인다. 그런데 화면에서는 "AI가 보고도 애매하다고 한 건"과
-          똑같이 보였다 — 할 일이 정반대인데(하나는 검토, 하나는 **판단을 대신 해야 함**)
-          구별이 없었다.
-          검수 실패(UNAVAILABLE)와도 다르다: 저쪽은 시도했다 실패한 것이고 이쪽은
-          애초에 시도하지 않은 것이라, 다시 눌러 봐야 소용없다 */}
-      {review.decision !== "UNAVAILABLE" && !hadSecondTier(review.reviewer) && (
-        <div className={`${a.note} ${a.noteNeg}`} style={{ marginTop: 12 }}>
-          <b>2차 AI 검수가 돌지 않았습니다</b> — 검수기가 연결돼 있지 않아 1차 규칙만 본
-          결과입니다. 질문지를 교사에게 붙여 넣고 답을 받으세요.{" "}
-          <b>먼저 승인·반려를 결정한 뒤</b> 그 답을 기록합니다 — 답을 보고 고르면 두
-          판단이 같은 출처가 되어 나중에 교사를 검증할 수 없게 됩니다.
-          {/* **큐가 밀리면 다 물어볼 수 없다** (18차 V-7). 그때 무엇을 반드시 물을지
-              화면이 말해 준다 — 말하지 않으면 운영자는 앞에서부터 자르고, 그 순서에는
-              위험의 크기가 들어 있지 않다 */}
-          <br />
-          {(() => {
-            const ask = teacherAskRequirement({
-              findings,
-              judgedCardCount,
-              rejectionCount: review.report.rejectionCount,
-            });
-            return ask.requirement === "REQUIRED" ? (
-              <b>반드시 물어야 하는 건입니다 — {ask.reason}</b>
-            ) : (
-              <span style={{ color: "var(--text-faint)" }}>{ask.reason}</span>
-            );
-          })()}
-        </div>
-      )}
-      {review.decision !== "UNAVAILABLE" && !hadSecondTier(review.reviewer) && (
-        <div style={{ marginTop: 10 }}>
-          {/* 보류 큐의 건은 아직 결정 전이다 — 결정 뒤에는 **교사 답 대기** 줄에서
-              답을 적는다(TeacherAnswerBox). 여기서 답까지 받으면 순서가 뒤집힌다 */}
-          <AskTeacher reviewId={review.id} decided={false} />
-        </div>
-      )}
+      {/* **교사 질문지는 늘 열어 둔다** (2026-08-24 창업자 확정으로 조건 삭제).
+          예전에는 "2차가 안 돌았을 때"만 띄웠는데, 그 조건이 `hadSecondTier` 라
+          IRIS 가 도는 지금은 **모든 건에서 사라질 뻔했다.** 교사의 몫은 대타가 아니라
+          **학습 자료 수집**이다 — 운영자 판정에 교사 답이 붙어야 재학습 라벨이 된다
+          (operatorLabelExport 의 `operator:<id>|teacher:<표식>`). 조건을 걸면 그
+          통로가 조용히 막힌다.
+          ⚠ 순서는 그대로 지킨다: **먼저 승인·반려를 결정한 뒤** 답을 기록한다 —
+          답을 보고 고르면 두 판단이 같은 출처가 되어 나중에 교사를 검증할 수 없다 */}
+      <div className={`${a.note}`} style={{ marginTop: 12 }}>
+        {/* **큐가 밀리면 다 물어볼 수 없다** (18차 V-7). 그때 무엇을 반드시 물을지
+            화면이 말해 준다 — 말하지 않으면 운영자는 앞에서부터 자르고, 그 순서에는
+            위험의 크기가 들어 있지 않다 */}
+        {(() => {
+          const ask = teacherAskRequirement({
+            findings,
+            judgedCardCount,
+            rejectionCount: review.report.rejectionCount,
+          });
+          return ask.requirement === "REQUIRED" ? (
+            <b>반드시 물어야 하는 건입니다 — {ask.reason}</b>
+          ) : (
+            <span style={{ color: "var(--text-faint)" }}>{ask.reason}</span>
+          );
+        })()}
+      </div>
+      <div style={{ marginTop: 10 }}>
+        {/* 보류 큐의 건은 아직 결정 전이다 — 결정 뒤에는 **교사 답 대기** 줄에서
+            답을 적는다(TeacherAnswerBox). 여기서 답까지 받으면 순서가 뒤집힌다 */}
+        <AskTeacher reviewId={review.id} decided={false} />
+      </div>
 
-      {review.decision === "UNAVAILABLE" ? (
-        <div className={a.note}>
-          AI 검수가 실패해 <b>결정적 규칙만</b> 적용된 상태입니다. 본문을 직접 확인해 주세요.
-        </div>
-      ) : (
-        findings.map((f, i) => <FindingRow key={i} f={f} />)
-      )}
+      {/* 규칙만 돈 사실은 **칩이 말한다**(제목 옆) — 예전에는 여기 문장으로 적었는데,
+          카드를 펼쳐야 보이는 데다 다른 안내문과 같은 무게라 훑을 때 걸리지 않았다 */}
+      {findings.map((f, i) => <FindingRow key={i} f={f} />)}
 
       <ResolveButton
         reviewId={review.id}

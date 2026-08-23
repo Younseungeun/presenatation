@@ -29,14 +29,14 @@ function tsFiles(dir: string): string[] {
   });
 }
 
-/** `collectFirstTierFindings(` / `runScreening(` 호출이 있는 파일 */
+/** `collectAutoScreenFindings(` / `runScreening(` 호출이 있는 파일 */
 function callSites(): { file: string; src: string }[] {
   return [...tsFiles(SERVER_DIR), ...tsFiles(APP_DIR)]
     .map((file) => ({ file, src: readFileSync(file, 'utf-8') }))
     .filter(
       ({ file, src }) =>
         !file.endsWith('complianceService.ts') &&
-        /(?:collectFirstTierFindings|runScreening)\s*\(/.test(src),
+        /(?:collectAutoScreenFindings|runScreening)\s*\(/.test(src),
     );
 }
 

@@ -114,7 +114,7 @@ async function generate(perCategory: number) {
 }
 
 async function label() {
-  const screener = createClaudeScreenerFromEnv();
+  const screener = createClaudeScreenerFromEnv('teacher');
   if (!screener) throw new Error('ANTHROPIC_API_KEY가 없습니다');
   if (!existsSync(CANDIDATES)) throw new Error(`${CANDIDATES} 없음 — --generate 먼저`);
 
