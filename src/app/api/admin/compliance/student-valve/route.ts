@@ -120,7 +120,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       ...board,
       canary: { ...canaryBeat, schedulerOff: schedulerBeat.stale },
-      // student.attendance.{lastOkAt,nextAt,stale} — 화면은 검수 규칙 줄과 같은 타이머를 IRIS 줄에 그린다
+      // student.attendance.{lastOkAt,lastRanAt,nextAt,stale,timerStale} — 화면은 검수 규칙 줄과
+      // 같은 타이머를 IRIS 줄에 그린다. **타이머 칸이 읽는 것은 `timerStale`** 이다:
+      // 그 칸이 답하는 질문은 "IRIS 가 답했나"가 아니라 "물어보러 갔나"이고, IRIS 자신의
+      // 상태는 바로 옆 상태 칩(근무 중·확인 중·결근)이 이미 말한다
       attendance: { ...attendanceBeat, schedulerOff: schedulerBeat.stale },
       student: {
         mode,

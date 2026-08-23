@@ -16,6 +16,18 @@ import { CANARY_INTERVAL_MS, CANARY_STALE_MS } from './screeningCanaryRunner';
 
 /** 마지막으로 출근이 확인된 시각 — 성공했을 때만 찍는다 (카나리아와 같은 규칙) */
 export const STUDENT_ATTENDANCE_LASTOK_KEY = 'student.attendance.lastOk';
+/**
+ * 마지막으로 **점검을 시도한** 시각 — 결과와 무관하게 찍는다 (2026-08-23).
+ *
+ * `lastOk` 하나로는 두 고장이 같은 모양이었다: **타이머가 안 돌았다**와 **타이머는
+ * 돌았는데 IRIS 가 계속 실패했다**. 둘 다 "박동 없음"으로 보이는데 처방은 정반대다 —
+ * 앞은 스케줄러를 재기동하고 뒤는 사이드카를 봐야 한다. 알림이 늘 앞쪽이라고 말하고
+ * 있었으므로, 뒤쪽일 때는 **엉뚱한 데를 고치라고 시키고 있었다.**
+ *
+ * 실제로 2026-08-23 오후 3시~밤 10시에 이 구분이 필요했다. 결과를 보고 사람이
+ * 추론해야 했던 것을 이 칸 하나가 그 자리에서 답한다.
+ */
+export const STUDENT_ATTENDANCE_RAN_KEY = 'student.attendance.lastRan';
 /** 다음 점검 예정 시각 — 주기를 아는 곳은 스케줄러 한 곳, 화면은 읽기만 */
 export const STUDENT_ATTENDANCE_NEXT_AT_KEY = 'student.attendance.nextAt';
 
@@ -65,6 +77,17 @@ export async function runStudentAttendance(
     })
     .catch((e) => console.error('IRIS 출근 점검 예정 시각 기록 실패:', e));
 
+  // **돌았다는 사실부터 찍는다** — 재기 전에 찍는 이유는 이 칸이 답하는 질문이
+  // "성공했나"가 아니라 "타이머가 이 시각에 살아 있었나"이기 때문이다. 점검 자체가
+  // 던지거나 프로세스가 그 도중에 죽어도 **여기까지 왔다는 사실**은 남아야 한다
+  await prisma.appSetting
+    .upsert({
+      where: { key: STUDENT_ATTENDANCE_RAN_KEY },
+      create: { key: STUDENT_ATTENDANCE_RAN_KEY, value: now.toISOString() },
+      update: { value: now.toISOString() },
+    })
+    .catch((e) => console.error('IRIS 출근 점검 시도 기록 실패:', e));
+
   const ok = await (client.recheck ? client.recheck() : client.usable()).catch(() => false);
 
   if (ok) {
@@ -82,24 +105,41 @@ export async function runStudentAttendance(
 }
 
 export interface AttendanceBeat {
+  /** 노트 2권 — IRIS 가 마지막으로 **답한** 시각 */
   lastOkAt: Date | null;
+  /** 노트 1권 — 타이머가 마지막으로 **물어보러 간** 시각 (결과 무관) */
+  lastRanAt: Date | null;
   nextAt: Date | null;
-  /** 박동이 문턱(주기 2배 = 10분) 넘게 낡았는가 = 스케줄러의 출근 점검 타이머가 멎었다 */
+  /** IRIS 의 답이 문턱(주기 2배 = 10분) 넘게 없다 — **어느 쪽 고장인지는 말하지 않는다** */
   stale: boolean;
+  /**
+   * **타이머 자신이** 문턱 넘게 안 돌았다 = 스케줄러의 점검 타이머가 멎었다.
+   *
+   * `stale && !timerStale` 이면 정반대의 뜻이다 — 타이머는 멀쩡히 도는데 IRIS 가
+   * 계속 응답하지 않는 것이라, 재기동할 대상이 스케줄러가 아니라 사이드카다.
+   */
+  timerStale: boolean;
 }
 
 /** 화면이 읽는 값 — 재지 않는다. "지금 어떤가"는 화면이 recheck 로 따로 잰다(회신 16호 §6) */
 export async function readAttendanceBeat(prisma: PrismaClient, now = new Date()): Promise<AttendanceBeat> {
-  const [okRow, nextRow] = await Promise.all([
+  const [okRow, ranRow, nextRow] = await Promise.all([
     prisma.appSetting.findUnique({ where: { key: STUDENT_ATTENDANCE_LASTOK_KEY } }).catch(() => null),
+    prisma.appSetting.findUnique({ where: { key: STUDENT_ATTENDANCE_RAN_KEY } }).catch(() => null),
     prisma.appSetting.findUnique({ where: { key: STUDENT_ATTENDANCE_NEXT_AT_KEY } }).catch(() => null),
   ]);
   const last = okRow ? Date.parse(okRow.value) : NaN;
+  const ran = ranRow ? Date.parse(ranRow.value) : NaN;
   const next = nextRow ? Date.parse(nextRow.value) : NaN;
   return {
     lastOkAt: Number.isFinite(last) ? new Date(last) : null,
+    lastRanAt: Number.isFinite(ran) ? new Date(ran) : null,
     nextAt: Number.isFinite(next) ? new Date(next) : null,
     stale: !Number.isFinite(last) || now.getTime() - last > STUDENT_ATTENDANCE_STALE_MS,
+    // **없으면 멎은 것으로 본다** — 이 칸은 2026-08-23에 생겨서, 그 전에 돌던
+    // 스케줄러의 기록에는 없다. 다만 한 회차(5분)만 돌면 채워지므로 잘못된 경보가
+    // 오래 가지 않고, 반대로 낙관하면 진짜 정지를 놓친다
+    timerStale: !Number.isFinite(ran) || now.getTime() - ran > STUDENT_ATTENDANCE_STALE_MS,
   };
 }
 
@@ -116,17 +156,41 @@ export async function alertIfAttendanceStale(
   if (!client) return false; // 학생이 꺼져 있으면 점검도 없는 것이 정상이다
   const beat = await readAttendanceBeat(prisma, now);
   if (!beat.stale) return false;
+
+  const min = Math.round(STUDENT_ATTENDANCE_STALE_MS / 60_000);
+  const interval = Math.round(STUDENT_ATTENDANCE_INTERVAL_MS / 60_000);
+  const lastOk = beat.lastOkAt
+    ? `마지막 출근 확인: ${beat.lastOkAt.toISOString()}\n`
+    : '출근 확인 기록이 아예 없습니다.\n';
+
+  /* **두 고장을 가른다** (2026-08-23). 노트가 한 권일 때는 둘이 같은 모양이라 알림이
+     늘 "스케줄러를 재기동하라"고 말했는데, 아래쪽 경우에는 재기동해도 안 고쳐진다.
+     가르는 값이 `timerStale` — 타이머 자신이 돌았다는 기록이다 */
+  const alert = beat.timerStale
+    ? {
+        title: '[검수] IRIS 출근 점검이 멈췄습니다 — IRIS 가 도는지 아무도 모르는 상태입니다',
+        body:
+          lastOk +
+          `${interval}분 주기 점검이 ${min}분 넘게 **돌지 않았습니다.** IRIS 가 죽은 것이 ` +
+          '아니라 물어보러 가는 타이머가 멎은 것이라, IRIS 자체는 멀쩡할 수도 있습니다 — ' +
+          '어느 쪽이든 지금은 아무도 확인하지 않고 있습니다. 스케줄러를 재기동하십시오.',
+        dedupeKey: 'student.attendance.stale',
+      }
+    : {
+        title: '[검수] IRIS 가 응답하지 않습니다 — 점검은 돌고 있는데 답이 없습니다',
+        body:
+          lastOk +
+          `점검 타이머는 ${interval}분마다 정상으로 돌고 있습니다(마지막 시도: ` +
+          `${beat.lastRanAt?.toISOString() ?? '기록 없음'}). 그런데 IRIS 가 ${min}분 넘게 ` +
+          '한 번도 답하지 않았습니다 — **스케줄러가 아니라 사이드카를 보십시오.** ' +
+          '그동안 게시는 전부 보류로 갑니다.',
+        dedupeKey: 'student.attendance.unreachable',
+      };
+
   await notifyOperators(prisma, {
-    title: '[검수] IRIS 출근 점검이 멈췄습니다 — IRIS 가 도는지 아무도 모르는 상태입니다',
-    body:
-      (beat.lastOkAt
-        ? `마지막 출근 확인: ${beat.lastOkAt.toISOString()}\n`
-        : '출근 확인 기록이 아예 없습니다.\n') +
-      '5분 주기 점검의 박동이 10분 넘게 없습니다. IRIS 자체의 장애는 따로 알립니다 — 이것은 ' +
-      '스케줄러의 점검 타이머가 멎었다는 뜻입니다. 스케줄러를 재기동하십시오.',
+    ...alert,
     link: '/admin/compliance',
     type: 'COMPLIANCE_REVIEW',
-    dedupeKey: 'student.attendance.stale',
   }).catch((e) => console.error('IRIS 출근 정지 알림 실패:', e));
   return true;
 }

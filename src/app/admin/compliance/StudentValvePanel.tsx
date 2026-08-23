@@ -37,9 +37,15 @@ interface Board {
    * 때도 누가 확인하고 있나**를 말한다.
    */
   attendance?: {
+    /** 노트 2권 — IRIS 가 마지막으로 **답한** 시각 */
     lastOkAt: string | null;
+    /** 노트 1권 — 타이머가 마지막으로 **물어보러 간** 시각 (결과 무관) */
+    lastRanAt: string | null;
     nextAt: string | null;
+    /** IRIS 의 답이 문턱 넘게 없다 — 어느 쪽 고장인지는 말하지 않는다 */
     stale: boolean;
+    /** **타이머 자신이** 안 돌았다. 타이머 칸이 읽는 것은 이쪽이다 */
+    timerStale: boolean;
     schedulerOff: boolean;
   };
   /**
@@ -521,7 +527,11 @@ export function StudentValvePanel({
                 둘이고, 화면에서도 같은 문법으로 말해야 한다 */}
             <WatchTimer
               label="출근 점검"
-              stale={board.attendance?.stale ?? true}
+              /* **타이머 칸은 타이머만 말한다** (2026-08-23) — 예전에는 `stale`(IRIS 가
+                 답한 시각)을 읽어서, 타이머가 멀쩡히 도는데도 IRIS 가 죽어 있으면
+                 "점검이 멎었다"고 그렸다. 두 고장이 한 칸에 겹쳐 있던 것이고,
+                 IRIS 자신의 상태는 바로 왼쪽 상태 칩이 이미 말한다 */
+              stale={board.attendance?.timerStale ?? true}
               schedulerOff={board.attendance?.schedulerOff ?? false}
               nextAt={board.attendance?.nextAt ? new Date(board.attendance.nextAt) : null}
               freshMs={canaryIntervalMs}
