@@ -220,6 +220,9 @@ def main():
     ap.add_argument("--out", default="out/student", help="산출물 폴더 (기본 out/student)")
     # 런 B(base 관례): warmup 10% + weight decay 0.01. 기본값 0 은 r5 설정(런 A)과 동일
     ap.add_argument("--warmup", type=float, default=0.0, help="선형 워밍업 비율 (전체 스텝 대비, 예: 0.1)")
+    # RTX 2060 6GB 실측(2026-08-24): 110M 은 batch 16×512 가 6.35GB 로 넘쳐 공유 메모리로 흘러 5배 느려진다.
+    # batch 8(3.92GB)이 안전선 — --batch 8 --accum 2 로 **유효 batch 16 을 유지**한다(사전 등록 설정 보존).
+    ap.add_argument("--accum", type=int, default=1, help="gradient accumulation — 유효 batch = batch × accum")
     ap.add_argument("--weight-decay", type=float, default=0.0)
     ap.add_argument("--epochs", type=int, default=8)
     ap.add_argument("--lr", type=float, default=3e-5)
@@ -298,7 +301,8 @@ def main():
     model = Student(args.base, len(labels)).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     # 워밍업 뒤 선형 감쇠 (HF 관례). warmup=0 이면 감쇠도 없이 상수 lr — 런 A 와 r5 가 같은 설정이어야 한다
-    total_steps = max(1, args.epochs * ((len(train_rows) + args.batch - 1) // args.batch))
+    eff_batch = args.batch * args.accum
+    total_steps = max(1, args.epochs * ((len(train_rows) + eff_batch - 1) // eff_batch))
     warm_steps = int(total_steps * args.warmup)
     if args.warmup > 0:
         sched = torch.optim.lr_scheduler.LambdaLR(opt, lambda st: (st + 1) / max(1, warm_steps) if st < warm_steps else max(0.0, (total_steps - st) / max(1, total_steps - warm_steps)))
@@ -313,8 +317,8 @@ def main():
     for epoch in range(args.epochs):
         model.train()
         total = 0.0
-        for batch in DataLoader(train_ds, batch_size=args.batch, shuffle=True, collate_fn=collate):
-            opt.zero_grad()
+        opt.zero_grad()
+        for bi, batch in enumerate(DataLoader(train_ds, batch_size=args.batch, shuffle=True, collate_fn=collate)):
             logits = model(batch["input_ids"].to(device), batch["attention_mask"].to(device))
             raw = loss_fn(logits, batch["labels"].to(device))
             if args.mask_unlabeled:
@@ -325,11 +329,14 @@ def main():
             else:
                 per = raw.mean(dim=1)
             scale = 1.0 + (args.doc_weight - 1.0) * batch["is_doc"].to(device)
-            loss = (per * scale).mean()
+            loss = (per * scale).mean() / args.accum  # 누적 시 평균이 유효 batch 기준이 되도록
             loss.backward()
-            opt.step()
-            if sched is not None:
-                sched.step()
+            if (bi + 1) % args.accum == 0:
+                opt.step()
+                opt.zero_grad()
+                # 스케줄러는 옵티마이저 스텝을 따라간다 — 누적 중간에 밟으면 lr 이 accum 배 빨리 식는다
+                if sched is not None:
+                    sched.step()
             total += loss.item()
 
         model.eval()
