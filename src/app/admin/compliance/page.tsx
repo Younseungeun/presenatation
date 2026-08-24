@@ -11,6 +11,7 @@ import {
   deadlineRisk,
   formatElapsed,
   autoScreenParticipation,
+  requiresReviewAfterRejections,
   HOLD_ATTENTION_HOURS,
   HOLD_OVERDUE_HOURS,
   holdUrgency,
@@ -483,6 +484,60 @@ function PromotionCandidate({
 }
 
 /**
+ * **왜 이 건이 큐에 왔는가** — 평소와 다른 이유일 때만 그린다 (2026-08-24 창업자 지시).
+ *
+ * ── 걷어낸 것: `확인 필요` ────────────────────────────────────────
+ * 예전에는 `decision` 을 세 문구로 옮겨 언제나 칩을 그렸고, 그중 `확인 필요`가
+ * **큐 16건 중 14건**이었다. 그런데 큐에 있다는 것 자체가 이미 "확인이 필요하다"는
+ * 뜻이고, 소견이 있는 건은 바로 옆에 **유형 칩**(수익 보장·비현실적 예측 크기…)이
+ * 붙어 "무엇 때문에"까지 말한다. `확인 필요`는 그 앞에서 같은 말을 한 번 더 했다.
+ *
+ * ── 대신 채운 것: `반려 3회` ──────────────────────────────────────
+ * `확인 필요` 가 **엉뚱한 답을 하던 자리**가 하나 있었다: 소견이 0건인데 큐에 온 건.
+ * 반려가 누적돼 자동 통과 경로가 닫힌 것인데(REPUBLISH_REVIEW_THRESHOLD), 소견이
+ * 없으니 유형 칩도 없어서 **왜 여기 있는지 화면 어디에도 없었다.** 판단 기준부터
+ * 다른 건이다 — "이 문장이 위반인가"가 아니라 "이 사람이 규칙을 더듬고 있나"다.
+ *
+ * 남는 규칙: **칩이 붙은 카드는 전부 평소와 다른 이유로 온 건**이라, 훑다가 걸리는
+ * 것 자체가 신호가 된다.
+ */
+function QueueReasonChip({
+  decision,
+  rejectionCount,
+}: {
+  decision: string;
+  rejectionCount: number;
+}) {
+  if (decision === "UNAVAILABLE") {
+    return (
+      <span
+        className={`${a.chip} ${a.chipWarn}`}
+        title="IRIS 를 부르다 실패해 규칙 엔진만 판정했습니다."
+      >
+        검수 실패
+      </span>
+    );
+  }
+  if (decision === "BLOCK") {
+    return (
+      <span className={`${a.chip} ${a.chipNeg}`} title="즉시 거절 수준의 소견이 나왔습니다.">
+        위반 판정
+      </span>
+    );
+  }
+  // **소견이 있어서 온 건에는 아무것도 안 그린다** — 옆 유형 칩이 이미 말한다
+  if (!requiresReviewAfterRejections(rejectionCount)) return null;
+  return (
+    <span
+      className={`${a.chip} ${a.chipWarn}`}
+      title={`반려 ${rejectionCount}회 — 검수를 통과해도 자동 게시하지 않습니다. 문구만 바꿔 재제출하며 검수 경계를 더듬는 것을 막는 장치입니다. 볼 것이 문장이 아니라 재제출 이력입니다.`}
+    >
+      반려 {rejectionCount}회
+    </span>
+  );
+}
+
+/**
  * **자동 검수에 AI 가 빠졌다는 사실을 칩으로 말한다** (2026-08-24 창업자 지시).
  *
  * 예전에는 카드 안에 문장으로 적혀 있었다 — "AI 검수가 실패해 결정적 규칙만 적용된
@@ -563,15 +618,10 @@ function ReviewCard({
             {formatElapsed(review.createdAt, now)}
           </span>
           <span className={a.liteTags}>
-            <span
-              className={`${a.chip} ${review.decision === "UNAVAILABLE" ? a.chipWarn : a.chipNeg}`}
-            >
-              {review.decision === "UNAVAILABLE"
-                ? "검수 실패"
-                : review.decision === "BLOCK"
-                  ? "위반 판정"
-                  : "확인 필요"}
-            </span>
+            <QueueReasonChip
+              decision={review.decision}
+              rejectionCount={review.report.rejectionCount}
+            />
             {/* **고를 때 쓰는 정보다** — 규칙만 돈 건은 사람이 대신 봐야 해서 할 일의
                 무게가 다르다. 펼쳐야 보이면 고르는 순간에 못 쓴다 */}
             <AutoScreenChip reviewer={review.reviewer} />
@@ -643,13 +693,10 @@ function ReviewCard({
               : "판매 종료"}
         </span>
         {/* 소견은 규칙에서도 나오므로 "AI"로 못 박지 않는다 (건별 출처는 아래 목록에 표시) */}
-        <span className={`${a.chip} ${review.decision === "UNAVAILABLE" ? a.chipWarn : a.chipNeg}`}>
-          {review.decision === "UNAVAILABLE"
-            ? "검수 실패"
-            : review.decision === "BLOCK"
-              ? "위반 판정"
-              : "확인 필요"}
-        </span>
+        <QueueReasonChip
+          decision={review.decision}
+          rejectionCount={review.report.rejectionCount}
+        />
       </div>
 
       {/* 발췌(아래 소견 인용)가 아니라 **이용자가 보게 될 화면 전체**를 여는 문 —
