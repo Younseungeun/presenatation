@@ -26,7 +26,7 @@ async function main() {
     .filter((t) => t.length > 120);
   // 토큰 ≈ 글자/2 (한국어 KoELECTRA 실측 근사). 문장 수가 창 수를 정하므로 문장 수도 찍는다
   const prefixes: { name: string; text: string }[] = [];
-  for (const targetChars of [3000, 6000]) {
+  for (const targetChars of [1400, 3000, 6000]) {
     let p = '';
     for (const s of dart) { if (p.length >= targetChars) break; p += s + ' '; }
     prefixes.push({ name: `≈${targetChars / 2}tk`, text: p });
