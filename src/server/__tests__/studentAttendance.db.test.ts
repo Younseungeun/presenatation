@@ -97,7 +97,18 @@ describe('두 고장이 갈린다', () => {
     expect(note.body).toContain('스케줄러를 재기동');
   });
 
-  it('② 타이머는 도는데 IRIS 가 계속 실패 → **다른 문자**, "사이드카를 보십시오"', async () => {
+  /**
+   * ② **타이머는 도는데 IRIS 가 답이 없다 → 여기서는 안 알린다** (2026-08-25 확정).
+   *
+   * 그 사실을 알리는 문은 이미 있다: `notifyStudentAvailability` 가
+   * `[긴급][검수] IRIS 연결 유실` 을 보낸다. 그쪽은 **두 번 연속 실패**해야 나가는
+   * 브레이크(B안)를 달고 있고, 근거도 기록이 아니라 **방금 잰 값**이다.
+   *
+   * 2026-08-24 에 내가 여기에 같은 일을 하는 분기를 얹었는데 브레이크가 없었다.
+   * 스케줄러 재기동 직후 첫 점검이 기동 따라잡기에 밀려 한 번 시간 초과했을 때,
+   * B안은 옳게 침묵했는데 **이 분기가 먼저 울렸다.**
+   */
+  it('타이머는 도는데 IRIS 가 계속 실패해도 **여기서는 침묵한다**', async () => {
     // 문턱을 넘기며 계속 점검한다 — 갈 때마다 1권은 새로 찍히고 2권은 끝내 비어 있다
     const client = downClient();
     for (let t = 0; t <= STUDENT_ATTENDANCE_STALE_MS + 1; t += STUDENT_ATTENDANCE_INTERVAL_MS) {
@@ -106,24 +117,13 @@ describe('두 고장이 갈린다', () => {
     const now = later(STUDENT_ATTENDANCE_STALE_MS + 1);
     const beat = await readAttendanceBeat(prisma, now);
 
-    // **여기가 갈리는 자리다** — 노트가 한 권이었을 때는 둘 다 "박동 없음"이었다
+    // 노트 둘이 갈린 것은 그대로다 — 화면은 이 값으로 두 고장을 구별한다
     expect(beat.stale).toBe(true);
     expect(beat.timerStale).toBe(false);
 
-    expect(await alertIfAttendanceStale(prisma, client, now)).toBe(true);
-    const [note] = await prisma.notification.findMany({ orderBy: { createdAt: 'desc' }, take: 1 });
-    expect(note.title).toContain('IRIS 가 응답하지 않습니다');
-    expect(note.body).toContain('사이드카를 보십시오');
-    // **재기동하라고 말하지 않는다** — 재기동해도 안 고쳐지는 고장이다
-    expect(note.body).not.toContain('스케줄러를 재기동');
+    // **울리는 것은 이 함수가 아니다** (notifyStudentAvailability 의 몫)
+    expect(await alertIfAttendanceStale(prisma, client, now)).toBe(false);
   });
-
-  /* **dedupeKey 가 갈렸다는 것은 위 ② 시험이 이미 증명한다.**
-     `notifyOperators` 의 dedupe 는 모듈 수준 Map 이라 같은 키는 한동안 다시 안 나가는데,
-     ①이 먼저 돌면서 자기 키를 태워 놓았다. 두 고장이 키를 공유했다면 ②의 알림이 그
-     자리에서 묻혀 `notification` 이 비었을 것이고, ②는 통과하지 못한다.
-     — 그래서 같은 것을 재는 시험을 따로 두지 않는다(둘째 시험은 첫째가 이미 지키는
-     성질을 다시 적는 것이라, 깨질 때 둘 다 빨개져 원인만 흐려진다). */
 });
 
 /**
@@ -138,9 +138,12 @@ describe('두 고장이 갈린다', () => {
  * 기동보다 2분 빨랐다. B안(두 번 연속 실패해야 결근)이 이 경로를 못 막는 이유는
  * 여기서 보는 것이 **잰 값이 아니라 기록**이기 때문이다.
  */
-describe('낡은 기록만으로 울리지 않는다 — 울리기 전에 물어본다', () => {
-  it('**기록은 낡았지만 지금 답하면 침묵한다** — 재기동 직후가 이 경우다', async () => {
-    // 어제 성공한 기록 + **타이머는 방금 돌았다**(재기동 직후의 모양)
+describe('재기동 직후에 울리지 않는다', () => {
+  /**
+   * `lastOk` 는 DB 에 남는다. 스케줄러가 오래 죽어 있다 살아나면 그 값은 **무조건**
+   * 낡아 있다. 그 낡음은 IRIS 에 대한 증거가 아니라 **아무도 안 물어본 시간**의 기록이다.
+   */
+  it('기록이 낡아도 타이머가 돌고 있으면 침묵한다 — 낡음은 IRIS 의 잘못이 아니다', async () => {
     const now = later(STUDENT_ATTENDANCE_STALE_MS * 10);
     await prisma.appSetting.create({
       data: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: T0.toISOString() },
@@ -150,38 +153,10 @@ describe('낡은 기록만으로 울리지 않는다 — 울리기 전에 물어
     });
     expect((await readAttendanceBeat(prisma, now)).stale).toBe(true);
 
-    // IRIS 는 멀쩡하다
+    // IRIS 가 멀쩡하든(upClient) 아니든(downClient) 이 함수는 울리지 않는다 —
+    // IRIS 의 상태를 말하는 것은 notifyStudentAvailability 의 몫이다
     expect(await alertIfAttendanceStale(prisma, upClient(), now)).toBe(false);
-    expect(await prisma.notification.count()).toBe(0);
-  });
-
-  it('물어봐서 답했으면 **그 사실을 찍는다** — 안 찍으면 매 회차 또 물어본다', async () => {
-    // 어제 성공한 기록 + **타이머는 방금 돌았다**(재기동 직후의 모양)
-    const now = later(STUDENT_ATTENDANCE_STALE_MS * 10);
-    await prisma.appSetting.create({
-      data: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: T0.toISOString() },
-    });
-    await prisma.appSetting.create({
-      data: { key: STUDENT_ATTENDANCE_RAN_KEY, value: now.toISOString() },
-    });
-    await alertIfAttendanceStale(prisma, upClient(), now);
-    // 기록이 갱신돼 다음 회차는 stale 자체가 아니다
-    expect((await readAttendanceBeat(prisma, now)).stale).toBe(false);
-  });
-
-  it('**진짜로 안 답하면 그대로 알린다** — 침묵하는 쪽으로 기울지 않는다', async () => {
-    // 어제 성공한 기록 + **타이머는 방금 돌았다**(재기동 직후의 모양)
-    const now = later(STUDENT_ATTENDANCE_STALE_MS * 10);
-    await prisma.appSetting.create({
-      data: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: T0.toISOString() },
-    });
-    await prisma.appSetting.create({
-      data: { key: STUDENT_ATTENDANCE_RAN_KEY, value: now.toISOString() },
-    });
-    /* 알림 **행 수**를 세지 않는다 — `notifyOperators` 의 dedupe 는 모듈 수준 Map 이라
-       위 ② 시험이 같은 키를 이미 태워 놓았다. 여기서 재는 것은 "울릴 결정을 했는가"고,
-       그 답이 곧 반환값이다 (위 두 시험의 `false` 와 정확히 갈린다) */
-    expect(await alertIfAttendanceStale(prisma, downClient(), now)).toBe(true);
+    expect(await alertIfAttendanceStale(prisma, downClient(), now)).toBe(false);
   });
 
   /**

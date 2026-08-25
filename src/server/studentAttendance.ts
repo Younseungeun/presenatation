@@ -207,46 +207,23 @@ export async function alertIfAttendanceStale(
     return true;
   }
 
-  if (!beat.stale) return false;
-
-  /* **울리기 전에 한 번 직접 물어본다** (2026-08-25 창업자 지시 — 실제 헛문자 뒤).
-     ── 왜 필요한가 ──────────────────────────────────────────────────
-     `lastOk` 는 DB 에 남는다. 스케줄러가 오래 죽어 있다가 살아나면 그 값은 **무조건**
-     낡아 있고, 첫 성공 틱이 돌기 전에 이 검사가 먼저 지나간다 — 즉 **재기동 때마다
-     반드시 한 번 잘못 울린다.** 실제로 그랬다: 2026-08-25 00:23 에
-     "IRIS 가 응답하지 않습니다 — 사이드카를 보십시오" 가 나갔고 **20초 뒤 근무 중**이었다.
-     (스케줄러가 22시간 죽어 있었고, 재기동 직후 첫 점검이 사이드카 기동보다 2분 빨랐다.)
-     B안(두 번 연속 실패해야 결근)은 IRIS 가 삐끗하는 것을 막지만 이 경로는 못 막는다 —
-     여기서 보는 것은 잰 값이 아니라 **기록**이기 때문이다.
-     ── 왜 안전한가 ──────────────────────────────────────────────────
-     이 물음은 `stale` 일 때만 나간다. 정상 운영에서는 그 경우가 없으므로 사이드카
-     호출이 늘지 않는다. 실패하면(못 물어봄) 종전대로 알린다 — 침묵하는 쪽으로
-     기울면 진짜 장애를 놓친다. */
-  const answersNow = await (client.recheck ? client.recheck() : client.usable()).catch(() => false);
-  if (answersNow) {
-    // 낡은 기록은 지나간 일이다. **그 사실을 지금 찍어 둔다** — 안 찍으면 다음 회차가
-    // 같은 낡은 값을 보고 또 여기까지 온다(30초마다 사이드카를 부르게 된다)
-    await prisma.appSetting
-      .upsert({
-        where: { key: STUDENT_ATTENDANCE_LASTOK_KEY },
-        create: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: now.toISOString() },
-        update: { value: now.toISOString() },
-      })
-      .catch((e) => console.error('IRIS 출근 박동 기록 실패:', e));
-    return false;
-  }
-
-  await notifyOperators(prisma, {
-    title: '[검수] IRIS 가 응답하지 않습니다 — 점검은 돌고 있는데 답이 없습니다',
-    body:
-      lastOkLine +
-      `점검 타이머는 ${interval}분마다 정상으로 돌고 있습니다(마지막 시도: ` +
-      `${beat.lastRanAt?.toISOString() ?? '기록 없음'}). 그런데 IRIS 가 ${min}분 넘게 ` +
-      '한 번도 답하지 않았고, **방금 다시 물어봤는데도 답하지 않았습니다** — ' +
-      '스케줄러가 아니라 사이드카를 보십시오. 그동안 게시는 전부 보류로 갑니다.',
-    dedupeKey: 'student.attendance.unreachable',
-    link: '/admin/compliance',
-    type: 'COMPLIANCE_REVIEW',
-  }).catch((e) => console.error('IRIS 출근 정지 알림 실패:', e));
-  return true;
+  /* **"IRIS 가 응답하지 않는다"는 여기서 알리지 않는다** (2026-08-25 창업자 확정).
+     ── 문이 둘이었고, 내가 낸 쪽에 브레이크가 없었다 ────────────────
+     이 파일 머리말이 처음부터 경계를 그어 두었다: 점검이 "결근"이라고 말하는 것은
+     `notifyStudentAvailability` 가, 점검이 **아예 안 도는 것**은 이 함수가 알린다.
+     그런데 2026-08-24 에 내가 여기에 "타이머는 도는데 IRIS 가 답이 없다" 분기를
+     얹었고, 그것이 앞 문과 **같은 사실을 두 번째로** 말하는 문이 됐다.
+     나쁜 것은 중복 자체가 아니라 **브레이크가 없다는 것**이다:
+       · notifyStudentAvailability → 두 번 연속 실패해야 나간다 (B안)
+       · 이 분기                    → `lastOk` 기록만 보고 곧바로 나간다
+     그래서 실제로 이렇게 됐다 — 스케줄러 재기동 직후 첫 점검이 기동 따라잡기에 밀려
+     한 번 시간 초과(`The operation was aborted due to timeout`, 04:49 사고와 같은
+     원인)했을 때, B안은 옳게 침묵했는데 **이 분기가 먼저 울렸다.**
+     되물음(직접 한 번 더 물어보기)으로 막아 보려 했으나 같은 이유로 그 물음도 밀렸다 —
+     기동 순간은 무엇을 물어도 답이 늦는 자리다.
+     ── 지워도 잃는 것이 없다 ────────────────────────────────────────
+     IRIS 가 진짜로 응답하지 않으면 `runStudentAttendance` → `notifyStudentAvailability`
+     가 `[긴급][검수] IRIS 연결 유실` 을 보낸다. 그쪽이 잰 값(연속 실패)을 근거로 하고
+     브레이크도 있다. 여기 남은 일은 **"아무도 재고 있지 않다"** 하나뿐이다. */
+  return false;
 }
