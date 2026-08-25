@@ -28,6 +28,7 @@ import {
   STUDENT_ATTENDANCE_INTERVAL_MS,
   STUDENT_ATTENDANCE_OFFSET_MS,
   alertIfAttendanceStale,
+  markAttendanceTimerScheduled,
   runStudentAttendance,
 } from '../src/server/studentAttendance';
 import { checkWhitelistCollisions } from '../src/server/whitelistCollision';
@@ -990,6 +991,9 @@ const canaryTimer = setInterval(canaryTick, CANARY_INTERVAL_MS);
 // IRIS 출근 점검은 카나리아와 **주기의 절반만큼 어긋나게** 시작한다 (회신 16호 §1-1) —
 // 기동 때 그만큼 늦게 첫 회를 치고 이후 같은 주기. 벽시계 나머지가 아니라 재기동해도 간격이 남는다
 let attendanceTimer: NodeJS.Timeout | null = null;
+// **예약했다는 사실을 먼저 찍는다** (2026-08-25) — 첫 점검이 2분 30초 뒤라, 안 찍으면
+// 그 사이 `lastRan` 이 직전 실행 때의 값이라 **방금 켠 스케줄러에게 "재기동하십시오"** 가 나간다
+if (studentClient) void markAttendanceTimerScheduled(prisma);
 const attendanceStart = setTimeout(() => {
   attendanceTick();
   attendanceTimer = setInterval(attendanceTick, STUDENT_ATTENDANCE_INTERVAL_MS);

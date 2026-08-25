@@ -104,6 +104,30 @@ export async function runStudentAttendance(
   return { ok, notified };
 }
 
+/**
+ * **타이머가 예약됐다는 사실을 기동 때 찍는다** (2026-08-25).
+ *
+ * 첫 점검은 카나리아와 어긋나게 하려고 주기의 절반(2분 30초)만큼 늦게 돈다
+ * (STUDENT_ATTENDANCE_OFFSET_MS). 그 사이에는 `lastRan` 이 **직전 실행 때의 값**이라,
+ * 스케줄러가 오래 죽어 있었다면 재기동 직후 2분 30초 동안 `timerStale` 이 참이 된다 —
+ * **방금 켠 스케줄러를 두고 "스케줄러를 재기동하십시오" 라고 말하게 된다.**
+ *
+ * 이 칸이 답하는 질문은 "타이머가 살아 있나"이고, 기동한 순간 그 답은 참이다.
+ * 점검이 실제로 돈 시각은 `runStudentAttendance` 가 곧바로 덮어쓴다.
+ */
+export async function markAttendanceTimerScheduled(
+  prisma: PrismaClient,
+  now = new Date(),
+): Promise<void> {
+  await prisma.appSetting
+    .upsert({
+      where: { key: STUDENT_ATTENDANCE_RAN_KEY },
+      create: { key: STUDENT_ATTENDANCE_RAN_KEY, value: now.toISOString() },
+      update: { value: now.toISOString() },
+    })
+    .catch((e) => console.error('IRIS 출근 타이머 예약 기록 실패:', e));
+}
+
 export interface AttendanceBeat {
   /** 노트 2권 — IRIS 가 마지막으로 **답한** 시각 */
   lastOkAt: Date | null;
@@ -155,40 +179,72 @@ export async function alertIfAttendanceStale(
 ): Promise<boolean> {
   if (!client) return false; // 학생이 꺼져 있으면 점검도 없는 것이 정상이다
   const beat = await readAttendanceBeat(prisma, now);
-  if (!beat.stale) return false;
 
   const min = Math.round(STUDENT_ATTENDANCE_STALE_MS / 60_000);
   const interval = Math.round(STUDENT_ATTENDANCE_INTERVAL_MS / 60_000);
-  const lastOk = beat.lastOkAt
+  const lastOkLine = beat.lastOkAt
     ? `마지막 출근 확인: ${beat.lastOkAt.toISOString()}\n`
     : '출근 확인 기록이 아예 없습니다.\n';
 
-  /* **두 고장을 가른다** (2026-08-23). 노트가 한 권일 때는 둘이 같은 모양이라 알림이
-     늘 "스케줄러를 재기동하라"고 말했는데, 아래쪽 경우에는 재기동해도 안 고쳐진다.
-     가르는 값이 `timerStale` — 타이머 자신이 돌았다는 기록이다 */
-  const alert = beat.timerStale
-    ? {
-        title: '[검수] IRIS 출근 점검이 멈췄습니다 — IRIS 가 도는지 아무도 모르는 상태입니다',
-        body:
-          lastOk +
-          `${interval}분 주기 점검이 ${min}분 넘게 **돌지 않았습니다.** IRIS 가 죽은 것이 ` +
-          '아니라 물어보러 가는 타이머가 멎은 것이라, IRIS 자체는 멀쩡할 수도 있습니다 — ' +
-          '어느 쪽이든 지금은 아무도 확인하지 않고 있습니다. 스케줄러를 재기동하십시오.',
-        dedupeKey: 'student.attendance.stale',
-      }
-    : {
-        title: '[검수] IRIS 가 응답하지 않습니다 — 점검은 돌고 있는데 답이 없습니다',
-        body:
-          lastOk +
-          `점검 타이머는 ${interval}분마다 정상으로 돌고 있습니다(마지막 시도: ` +
-          `${beat.lastRanAt?.toISOString() ?? '기록 없음'}). 그런데 IRIS 가 ${min}분 넘게 ` +
-          '한 번도 답하지 않았습니다 — **스케줄러가 아니라 사이드카를 보십시오.** ' +
-          '그동안 게시는 전부 보류로 갑니다.',
-        dedupeKey: 'student.attendance.unreachable',
-      };
+  /* **타이머가 멎은 것은 IRIS 와 무관하다** — 먼저, 따로 본다 (2026-08-25 구조 수정).
+     예전에는 함수 전체가 `stale`(= lastOk 기준)로 잠겨 있었는데, 두 알림 중 하나는
+     `lastRan` 에 대한 것이라 **잠금과 주장이 서로 다른 값을 보고 있었다.**
+     여기서 요점은 "IRIS 가 살아 있나"가 아니라 **"아무도 확인하지 않고 있다"** 이므로
+     아래의 되물음(IRIS 에게 직접 묻기)을 태우지 않는다 — IRIS 가 멀쩡해도 재는
+     사람이 없으면 그 사실은 그대로 사고다. */
+  if (beat.timerStale) {
+    await notifyOperators(prisma, {
+      title: '[검수] IRIS 출근 점검이 멈췄습니다 — IRIS 가 도는지 아무도 모르는 상태입니다',
+      body:
+        lastOkLine +
+        `${interval}분 주기 점검이 ${min}분 넘게 **돌지 않았습니다.** IRIS 가 죽은 것이 ` +
+        '아니라 물어보러 가는 타이머가 멎은 것이라, IRIS 자체는 멀쩡할 수도 있습니다 — ' +
+        '어느 쪽이든 지금은 아무도 확인하지 않고 있습니다. 스케줄러를 재기동하십시오.',
+      dedupeKey: 'student.attendance.stale',
+      link: '/admin/compliance',
+      type: 'COMPLIANCE_REVIEW',
+    }).catch((e) => console.error('IRIS 출근 정지 알림 실패:', e));
+    return true;
+  }
+
+  if (!beat.stale) return false;
+
+  /* **울리기 전에 한 번 직접 물어본다** (2026-08-25 창업자 지시 — 실제 헛문자 뒤).
+     ── 왜 필요한가 ──────────────────────────────────────────────────
+     `lastOk` 는 DB 에 남는다. 스케줄러가 오래 죽어 있다가 살아나면 그 값은 **무조건**
+     낡아 있고, 첫 성공 틱이 돌기 전에 이 검사가 먼저 지나간다 — 즉 **재기동 때마다
+     반드시 한 번 잘못 울린다.** 실제로 그랬다: 2026-08-25 00:23 에
+     "IRIS 가 응답하지 않습니다 — 사이드카를 보십시오" 가 나갔고 **20초 뒤 근무 중**이었다.
+     (스케줄러가 22시간 죽어 있었고, 재기동 직후 첫 점검이 사이드카 기동보다 2분 빨랐다.)
+     B안(두 번 연속 실패해야 결근)은 IRIS 가 삐끗하는 것을 막지만 이 경로는 못 막는다 —
+     여기서 보는 것은 잰 값이 아니라 **기록**이기 때문이다.
+     ── 왜 안전한가 ──────────────────────────────────────────────────
+     이 물음은 `stale` 일 때만 나간다. 정상 운영에서는 그 경우가 없으므로 사이드카
+     호출이 늘지 않는다. 실패하면(못 물어봄) 종전대로 알린다 — 침묵하는 쪽으로
+     기울면 진짜 장애를 놓친다. */
+  const answersNow = await (client.recheck ? client.recheck() : client.usable()).catch(() => false);
+  if (answersNow) {
+    // 낡은 기록은 지나간 일이다. **그 사실을 지금 찍어 둔다** — 안 찍으면 다음 회차가
+    // 같은 낡은 값을 보고 또 여기까지 온다(30초마다 사이드카를 부르게 된다)
+    await prisma.appSetting
+      .upsert({
+        where: { key: STUDENT_ATTENDANCE_LASTOK_KEY },
+        create: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: now.toISOString() },
+        update: { value: now.toISOString() },
+      })
+      .catch((e) => console.error('IRIS 출근 박동 기록 실패:', e));
+    return false;
+  }
 
   await notifyOperators(prisma, {
-    ...alert,
+    title: '[검수] IRIS 가 응답하지 않습니다 — 점검은 돌고 있는데 답이 없습니다',
+    body:
+      lastOkLine +
+      `점검 타이머는 ${interval}분마다 정상으로 돌고 있습니다(마지막 시도: ` +
+      `${beat.lastRanAt?.toISOString() ?? '기록 없음'}). 그런데 IRIS 가 ${min}분 넘게 ` +
+      '한 번도 답하지 않았고, **방금 다시 물어봤는데도 답하지 않았습니다** — ' +
+      '스케줄러가 아니라 사이드카를 보십시오. 그동안 게시는 전부 보류로 갑니다.',
+    dedupeKey: 'student.attendance.unreachable',
     link: '/admin/compliance',
     type: 'COMPLIANCE_REVIEW',
   }).catch((e) => console.error('IRIS 출근 정지 알림 실패:', e));

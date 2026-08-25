@@ -8,6 +8,7 @@ import {
   STUDENT_ATTENDANCE_RAN_KEY,
   STUDENT_ATTENDANCE_STALE_MS,
   alertIfAttendanceStale,
+  markAttendanceTimerScheduled,
   readAttendanceBeat,
   runStudentAttendance,
 } from '../studentAttendance';
@@ -123,6 +124,84 @@ describe('두 고장이 갈린다', () => {
      자리에서 묻혀 `notification` 이 비었을 것이고, ②는 통과하지 못한다.
      — 그래서 같은 것을 재는 시험을 따로 두지 않는다(둘째 시험은 첫째가 이미 지키는
      성질을 다시 적는 것이라, 깨질 때 둘 다 빨개져 원인만 흐려진다). */
+});
+
+/**
+ * **재기동 직후의 헛문자** (2026-08-25 실제 사고 뒤 추가).
+ *
+ * `lastOk` 는 DB 에 남는다. 스케줄러가 오래 죽어 있다 살아나면 그 값은 **무조건**
+ * 낡아 있고, 첫 성공 틱이 돌기 전에 정지 검사가 먼저 지나간다 — 재기동 때마다
+ * 반드시 한 번 잘못 울리는 구조였다.
+ *
+ * 00:23 에 "IRIS 가 응답하지 않습니다 — 사이드카를 보십시오" 가 나갔고 **20초 뒤
+ * 근무 중**이었다. 스케줄러가 22시간 죽어 있었고 재기동 직후 첫 점검이 사이드카
+ * 기동보다 2분 빨랐다. B안(두 번 연속 실패해야 결근)이 이 경로를 못 막는 이유는
+ * 여기서 보는 것이 **잰 값이 아니라 기록**이기 때문이다.
+ */
+describe('낡은 기록만으로 울리지 않는다 — 울리기 전에 물어본다', () => {
+  it('**기록은 낡았지만 지금 답하면 침묵한다** — 재기동 직후가 이 경우다', async () => {
+    // 어제 성공한 기록 + **타이머는 방금 돌았다**(재기동 직후의 모양)
+    const now = later(STUDENT_ATTENDANCE_STALE_MS * 10);
+    await prisma.appSetting.create({
+      data: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: T0.toISOString() },
+    });
+    await prisma.appSetting.create({
+      data: { key: STUDENT_ATTENDANCE_RAN_KEY, value: now.toISOString() },
+    });
+    expect((await readAttendanceBeat(prisma, now)).stale).toBe(true);
+
+    // IRIS 는 멀쩡하다
+    expect(await alertIfAttendanceStale(prisma, upClient(), now)).toBe(false);
+    expect(await prisma.notification.count()).toBe(0);
+  });
+
+  it('물어봐서 답했으면 **그 사실을 찍는다** — 안 찍으면 매 회차 또 물어본다', async () => {
+    // 어제 성공한 기록 + **타이머는 방금 돌았다**(재기동 직후의 모양)
+    const now = later(STUDENT_ATTENDANCE_STALE_MS * 10);
+    await prisma.appSetting.create({
+      data: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: T0.toISOString() },
+    });
+    await prisma.appSetting.create({
+      data: { key: STUDENT_ATTENDANCE_RAN_KEY, value: now.toISOString() },
+    });
+    await alertIfAttendanceStale(prisma, upClient(), now);
+    // 기록이 갱신돼 다음 회차는 stale 자체가 아니다
+    expect((await readAttendanceBeat(prisma, now)).stale).toBe(false);
+  });
+
+  it('**진짜로 안 답하면 그대로 알린다** — 침묵하는 쪽으로 기울지 않는다', async () => {
+    // 어제 성공한 기록 + **타이머는 방금 돌았다**(재기동 직후의 모양)
+    const now = later(STUDENT_ATTENDANCE_STALE_MS * 10);
+    await prisma.appSetting.create({
+      data: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: T0.toISOString() },
+    });
+    await prisma.appSetting.create({
+      data: { key: STUDENT_ATTENDANCE_RAN_KEY, value: now.toISOString() },
+    });
+    /* 알림 **행 수**를 세지 않는다 — `notifyOperators` 의 dedupe 는 모듈 수준 Map 이라
+       위 ② 시험이 같은 키를 이미 태워 놓았다. 여기서 재는 것은 "울릴 결정을 했는가"고,
+       그 답이 곧 반환값이다 (위 두 시험의 `false` 와 정확히 갈린다) */
+    expect(await alertIfAttendanceStale(prisma, downClient(), now)).toBe(true);
+  });
+
+  /**
+   * **기동 직후 2분 30초의 구멍.** 첫 점검은 카나리아와 어긋나게 하려고 늦게 도는데,
+   * 그 사이 `lastRan` 은 직전 실행 때의 값이라 `timerStale` 이 참이 된다 —
+   * **방금 켠 스케줄러에게 "재기동하십시오"** 가 나가는 모양이다.
+   */
+  it('기동 때 예약을 찍어 두면 첫 점검 전에도 타이머가 멎었다고 하지 않는다', async () => {
+    const boot = later(STUDENT_ATTENDANCE_STALE_MS * 10);
+    // 직전 실행의 낡은 기록만 있는 상태 = 오래 죽어 있다 살아난 직후
+    await prisma.appSetting.create({
+      data: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: T0.toISOString() },
+    });
+    expect((await readAttendanceBeat(prisma, boot)).timerStale).toBe(true);
+
+    await markAttendanceTimerScheduled(prisma, boot);
+    expect((await readAttendanceBeat(prisma, boot)).timerStale).toBe(false);
+    // 첫 점검이 아직 안 돌았어도 "스케줄러를 재기동하라"고 하지 않는다
+    expect(await alertIfAttendanceStale(prisma, upClient(), boot)).toBe(false);
+  });
 });
 
 describe('정상이면 조용하다', () => {
