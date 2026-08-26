@@ -1,0 +1,719 @@
+<title>인투빌 사업계획서</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600&display=swap">
+
+<style>
+  /* ── 토큰: 밝은 쪽이 기본 ────────────────────────────────────────
+     민트(#12B896)는 브랜드 규정상 "플랫폼 검증" 전용이라 강조로만 쓴다.
+     뉴트럴에 청록을 아주 미세하게 섞어 민트와 같은 계열로 앉힌다. */
+  :root {
+    --ink:        #10201c;
+    --ink-mid:    #55655f;
+    --ink-faint:  #8b9a94;
+    --ground:     #f7f9f8;
+    --surface:    #ffffff;
+    --line:       #dfe6e3;
+    --line-soft:  #ecf1ef;
+    --mint:       #0f9c80;
+    --mint-soft:  #e6f5f1;
+    --pos:        #0e8a71;
+    --neg:        #c4303b;
+    --warn:       #b45309;
+    --shadow:     0 1px 2px rgba(16,32,28,.05), 0 8px 24px -12px rgba(16,32,28,.14);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink:       #e8efec;
+      --ink-mid:   #9aaba5;
+      --ink-faint: #6b7c76;
+      --ground:    #0d1412;
+      --surface:   #141d1a;
+      --line:      #26332e;
+      --line-soft: #1c2724;
+      --mint:      #3ecfae;
+      --mint-soft: #142b25;
+      --pos:       #45c9a5;
+      --neg:       #e8737c;
+      --warn:      #d99a4e;
+      --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink:       #e8efec;
+    --ink-mid:   #9aaba5;
+    --ink-faint: #6b7c76;
+    --ground:    #0d1412;
+    --surface:   #141d1a;
+    --line:      #26332e;
+    --line-soft: #1c2724;
+    --mint:      #3ecfae;
+    --mint-soft: #142b25;
+    --pos:       #45c9a5;
+    --neg:       #e8737c;
+    --warn:      #d99a4e;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans KR", system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    font-size: 15.5px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { display: grid; grid-template-columns: 232px minmax(0,1fr); gap: 0; max-width: 1180px; margin: 0 auto; }
+
+  /* ── 좌측 목차 ─────────────────────────────────────────────── */
+  nav {
+    position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+    padding: 44px 26px 44px 30px; border-right: 1px solid var(--line-soft);
+  }
+  .brand { font-family: "Gowun Batang", serif; font-size: 21px; font-weight: 700; letter-spacing: -.01em; margin: 0 0 2px; }
+  .brand em { font-style: normal; color: var(--mint); }
+  .brand-sub { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); margin: 0 0 26px; }
+  nav ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 1px; counter-reset: s; }
+  nav a {
+    display: flex; gap: 9px; padding: 5px 0; color: var(--ink-mid);
+    text-decoration: none; font-size: 13px; line-height: 1.5;
+    border-bottom: 1px solid transparent;
+  }
+  nav a::before { counter-increment: s; content: counter(s,decimal-leading-zero); font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--ink-faint); padding-top: 2px; flex: none; }
+  nav a:hover { color: var(--mint); }
+  nav a:focus-visible { outline: 2px solid var(--mint); outline-offset: 2px; border-radius: 2px; }
+
+  main { padding: 44px 52px 120px; min-width: 0; }
+
+  /* ── 표지 ──────────────────────────────────────────────────── */
+  .cover { padding-bottom: 34px; border-bottom: 2px solid var(--ink); margin-bottom: 40px; }
+  .eyebrow { font-family: "IBM Plex Mono", monospace; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mint); margin: 0 0 14px; }
+  h1 { font-family: "Gowun Batang", serif; font-size: clamp(30px, 4.4vw, 46px); line-height: 1.24; font-weight: 700; letter-spacing: -.02em; margin: 0 0 18px; text-wrap: balance; }
+  .lede { font-size: 17px; line-height: 1.72; color: var(--ink-mid); max-width: 62ch; margin: 0 0 24px; }
+  .lede strong { color: var(--ink); font-weight: 500; }
+  .meta { display: flex; flex-wrap: wrap; gap: 6px 22px; font-family: "IBM Plex Mono", monospace; font-size: 11.5px; color: var(--ink-faint); }
+  .meta b { color: var(--ink-mid); font-weight: 500; }
+
+  /* ── 섹션 ──────────────────────────────────────────────────── */
+  section { margin: 0 0 58px; scroll-margin-top: 20px; }
+  h2 {
+    font-family: "Gowun Batang", serif; font-size: 25px; font-weight: 700; letter-spacing: -.015em;
+    margin: 0 0 6px; padding-top: 4px; text-wrap: balance;
+  }
+  .h2num { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--mint); letter-spacing: .1em; display: block; margin-bottom: 6px; }
+  .dek { color: var(--ink-mid); font-size: 14.5px; margin: 0 0 24px; max-width: 64ch; }
+  h3 { font-size: 15.5px; font-weight: 700; margin: 30px 0 10px; letter-spacing: -.005em; }
+  h4 { font-size: 13.5px; font-weight: 700; margin: 20px 0 7px; color: var(--ink-mid); }
+  p { margin: 0 0 13px; max-width: 66ch; }
+  ul, ol.body { margin: 0 0 13px; padding-left: 19px; max-width: 66ch; }
+  li { margin-bottom: 5px; }
+  strong { font-weight: 700; }
+  code { font-family: "IBM Plex Mono", monospace; font-size: .87em; background: var(--line-soft); padding: 1px 5px; border-radius: 3px; }
+
+  /* ── 지표 카드 ─────────────────────────────────────────────── */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(148px,1fr)); gap: 10px; margin: 22px 0; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 15px; }
+  .stat .k { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); display: block; margin-bottom: 5px; }
+  .stat .v { font-family: "IBM Plex Mono", monospace; font-size: 22px; font-weight: 600; letter-spacing: -.02em; font-variant-numeric: tabular-nums; display: block; line-height: 1.15; }
+  .stat .n { font-size: 11.5px; color: var(--ink-mid); display: block; margin-top: 4px; line-height: 1.45; }
+  .stat.ok .v { color: var(--pos); }
+  .stat.warn .v { color: var(--warn); }
+
+  /* ── 표 ────────────────────────────────────────────────────── */
+  .tw { overflow-x: auto; margin: 18px 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { padding: 9px 13px; text-align: left; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+  th { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; letter-spacing: .07em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; white-space: nowrap; background: var(--line-soft); }
+  tr:last-child td { border-bottom: none; }
+  td.num, th.num { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .pos { color: var(--pos); font-weight: 500; }
+  .neg { color: var(--neg); font-weight: 500; }
+  .muted { color: var(--ink-faint); }
+
+  /* ── 인용·경고 블록 ─────────────────────────────────────────── */
+  .note { border-left: 2px solid var(--mint); background: var(--mint-soft); padding: 13px 16px; margin: 18px 0; border-radius: 0 6px 6px 0; font-size: 14px; max-width: 68ch; }
+  .note p:last-child { margin-bottom: 0; }
+  .note .lbl { font-family: "IBM Plex Mono", monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--mint); display: block; margin-bottom: 5px; }
+  .risk { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 9%, transparent); }
+  .risk .lbl { color: var(--warn); }
+
+  /* ── 다이어그램 ─────────────────────────────────────────────── */
+  .flow { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; margin: 20px 0; overflow-x: auto; }
+  .flow pre { font-family: "IBM Plex Mono", monospace; font-size: 12px; line-height: 1.65; margin: 0; white-space: pre; color: var(--ink-mid); }
+  .flow pre b { color: var(--ink); font-weight: 600; }
+  .flow pre .m { color: var(--mint); }
+
+  /* ── 상태 칩 ───────────────────────────────────────────────── */
+  .chip { display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 500; letter-spacing: .04em; padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+  .chip.done { background: color-mix(in srgb, var(--pos) 14%, transparent); color: var(--pos); }
+  .chip.todo { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+  .chip.block { background: color-mix(in srgb, var(--neg) 13%, transparent); color: var(--neg); }
+
+  footer { border-top: 1px solid var(--line); padding-top: 20px; margin-top: 66px; font-size: 12.5px; color: var(--ink-faint); max-width: 66ch; }
+
+  @media (max-width: 880px) {
+    .wrap { grid-template-columns: 1fr; }
+    nav { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 30px 24px 22px; }
+    nav ol { flex-direction: row; flex-wrap: wrap; gap: 3px 16px; }
+    main { padding: 30px 24px 80px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+  /* ── 인쇄 · PDF ─────────────────────────────────────────────────
+     종이는 스크롤이 없고 되돌아갈 수 없다. 그래서 화면과 다르게 짠다:
+     · 목차는 첫 장에 **한 번만** — sticky 는 종이에서 뜻이 없고, 매 장에 끼면
+       읽을 폭만 먹는다. 대신 절 번호가 본문에 있어 찾아갈 수 있다
+     · 절·표·인용은 **쪼개지지 않게** — 표가 장을 넘어가면 머리글이 사라진다
+     · 색은 밝은 쪽으로 고정 — 어두운 팔레트를 종이에 얹으면 잉크만 먹고 안 읽힌다 */
+  @media print {
+    :root {
+      --ink: #14231f; --ink-mid: #4d5c57; --ink-faint: #7b8a84;
+      --ground: #fff; --surface: #fff; --line: #c8d4d0; --line-soft: #e8eeec;
+      --mint: #0b7f68; --mint-soft: #f0f8f6;
+      --pos: #0b7359; --neg: #a82a34; --warn: #8f4408; --shadow: none;
+    }
+    @page { size: A4; margin: 16mm 15mm 18mm; }
+    body { background: #fff; font-size: 10.2pt; line-height: 1.62; }
+    .wrap { display: block; max-width: none; }
+
+    /* 목차는 첫 장에만 — 표지 위에 가로로 눕힌다 */
+    nav {
+      position: static; height: auto; padding: 0 0 14pt; margin: 0 0 18pt;
+      border-right: none; border-bottom: 1px solid var(--line);
+      break-after: avoid;
+    }
+    nav ol { flex-direction: row; flex-wrap: wrap; gap: 2pt 14pt; }
+    nav a { border-bottom: none; font-size: 8.6pt; padding: 1pt 0; }
+    .brand { font-size: 15pt; margin-bottom: 0; }
+    .brand-sub { margin-bottom: 10pt; }
+
+    main { padding: 0; }
+    .cover { break-after: page; padding-bottom: 20pt; }
+    h1 { font-size: 26pt; }
+    .lede { font-size: 11.5pt; }
+
+    /* 절은 통째로, 안 되면 최소한 제목만 떨어뜨리지 않는다 */
+    section { margin-bottom: 22pt; break-inside: auto; }
+    h2 { break-after: avoid; font-size: 16pt; margin-bottom: 4pt; }
+    h3, h4 { break-after: avoid; }
+    .dek { margin-bottom: 12pt; }
+    p, li { orphans: 3; widows: 3; }
+
+    /* 표·인용·다이어그램은 쪼개지면 뜻이 깨진다 */
+    .tw, .note, .flow, .stat { break-inside: avoid; }
+    .tw { overflow-x: visible; }
+    table { font-size: 9.2pt; }
+    th, td { padding: 5pt 7pt; }
+    .flow pre { font-size: 8.6pt; white-space: pre-wrap; }
+    .stats { gap: 7pt; }
+    .stat .v { font-size: 16pt; }
+
+    /* 링크 밑줄·포커스링은 종이에서 노이즈다 */
+    a { text-decoration: none; color: inherit; }
+    footer { break-inside: avoid; margin-top: 24pt; }
+  }
+</style>
+
+<div class="wrap">
+<nav>
+  <p class="brand">인투빌<em>.</em></p>
+  <p class="brand-sub">Business Plan</p>
+  <ol>
+    <li><a href="#s1">한 장 요약</a></li>
+    <li><a href="#s2">문제와 해법</a></li>
+    <li><a href="#s3">검증 시스템</a></li>
+    <li><a href="#s4">점수 산정 모델</a></li>
+    <li><a href="#s5">검수 파이프라인</a></li>
+    <li><a href="#s6">등급과 수수료</a></li>
+    <li><a href="#s7">수익 구조</a></li>
+    <li><a href="#s8">운영 체계</a></li>
+    <li><a href="#s9">시장과 경쟁</a></li>
+    <li><a href="#s10">로드맵</a></li>
+    <li><a href="#s11">구현 현황</a></li>
+    <li><a href="#s12">리스크</a></li>
+    <li><a href="#s13">출시 전 과제</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<div class="cover">
+  <p class="eyebrow">사업계획서 · 2026-08-25</p>
+  <h1>맞았는지 시장이 채점하는<br>리서치 마켓플레이스</h1>
+  <p class="lede">독립 리서처가 주식·기업 분석 리포트를 판매하고, 그 안의 예측이 <strong>시장 데이터로 자동 판정</strong>되어 정산과 평판이 갱신된다. 틀리면 구매자는 현금으로 환불받는다. 평판은 팔로워 수가 아니라 <strong>판정된 트랙레코드</strong>로만 쌓인다.</p>
+  <div class="meta">
+    <span><b>서비스명</b> INTOVILL / 인투빌</span>
+    <span><b>자산 범위</b> 국내주식 · 미국주식 · 암호화폐</span>
+    <span><b>단계</b> MVP 구현 완료 · 출시 준비</span>
+  </div>
+</div>
+
+<!-- 1 ─────────────────────────────────────────────────────── -->
+<section id="s1">
+  <h2><span class="h2num">01</span>한 장 요약</h2>
+  <p class="dek">이 사업이 파는 것은 리포트가 아니라 <strong>검증된 판단</strong>이다.</p>
+
+  <div class="stats">
+    <div class="stat"><span class="k">핵심 차별화</span><span class="v">3</span><span class="n">무위험 진입 · 조작 불가 평판 · 정직한 신호</span></div>
+    <div class="stat"><span class="k">수수료</span><span class="v">20→10%</span><span class="n">등급이 오를수록 내려간다</span></div>
+    <div class="stat ok"><span class="k">구현 시험</span><span class="v">1,666</span><span class="n">149개 파일 전부 통과</span></div>
+    <div class="stat warn"><span class="k">출시 전 과제</span><span class="v">비코드</span><span class="n">계약 · 법률 · 배포</span></div>
+  </div>
+
+  <h3>세 문장</h3>
+  <ol class="body">
+    <li><strong>구매자는 무위험으로 들어온다.</strong> 신규 리서처 리포트는 100% 성과 연동 — 예측이 틀리면 대금 전액이 현금으로 돌아간다.</li>
+    <li><strong>평판은 조작할 수 없다.</strong> 모든 유료 리포트에 자동 채점 가능한 예측 카드가 붙고, 시한이 오면 시장 데이터가 판정한다. 사람이 개입하지 않는다.</li>
+    <li><strong>리서처의 확신이 조건에 드러난다.</strong> 선결제 비율을 높이면 수수료가 올라간다 — 자신 있는 사람만 지는 비용이라, 그 숫자 자체가 신호다.</li>
+  </ol>
+
+  <div class="note">
+    <span class="lbl">이 설계의 중심</span>
+    <p>이 서비스에서 <strong>사람이 판정에 손대는 자리가 없다.</strong> 판정은 시한과 시장 데이터가 정하고, 운영자는 <em>게시 전 검수</em>와 <em>돈의 집행</em>만 한다. 그래서 "우리가 봐줬다"는 의심이 구조적으로 성립하지 않는다.</p>
+  </div>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────────────── -->
+<section id="s2">
+  <h2><span class="h2num">02</span>문제와 해법</h2>
+  <p class="dek">투자 콘텐츠 시장의 공통 약점은 하나다 — <strong>사기 전에 실력을 확인할 방법이 없다.</strong></p>
+
+  <h3>지금 시장이 파는 신뢰의 근거</h3>
+  <div class="tw"><table>
+    <thead><tr><th>플랫폼</th><th>구매자가 볼 수 있는 것</th><th>빠진 것</th></tr></thead>
+    <tbody>
+      <tr><td>오렌지보드</td><td>고수의계좌 · 리포트 이력</td><td>예측의 사후 자동 판정</td></tr>
+      <tr><td>네이버 프리미엄콘텐츠</td><td>구독자 수 · 미리보기</td><td>성과 추적 자체가 없음</td></tr>
+      <tr><td>Seeking Alpha</td><td>기고자 성과 추적</td><td>구매 전 무위험 진입 없음</td></tr>
+      <tr><td>Substack · Smartkarma</td><td>팔로워 수 · 기관 평판</td><td>개별 예측의 검증</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>전부 <strong>팔로워 수가 실력의 대리 지표</strong>다. 팔로워는 먼저 시작한 사람에게 유리하고, 틀려도 줄지 않는다. 그래서 실력 있는 신규 진입자가 뚫고 들어갈 길이 없다.</p>
+
+  <h3>해법 — 결과를 기계가 채점한다</h3>
+  <p>모든 유료 리포트에 <strong>예측 카드</strong>를 필수로 붙인다. 종목·방향·크기·기간·신뢰도 다섯 값이 들어가면, 시한이 왔을 때 시세 데이터만으로 적중·실패가 갈린다. 이 판정이 세 가지를 동시에 만든다.</p>
+  <ul>
+    <li><strong>정산</strong> — 적중이면 리서처에게, 실패면 구매자에게 현금이 간다</li>
+    <li><strong>평판</strong> — 그 결과가 점수가 되고 점수가 등급이 된다</li>
+    <li><strong>데이터</strong> — 예측과 결과의 쌍이 쌓인다 (3단계 사업의 자산)</li>
+  </ul>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────────────── -->
+<section id="s3">
+  <h2><span class="h2num">03</span>검증 시스템</h2>
+  <p class="dek">예측 카드 · 자동 판정 · 마스킹 — 세 장치가 맞물려 조작 가능성을 닫는다.</p>
+
+  <h3>예측 카드 (필수)</h3>
+  <div class="tw"><table>
+    <thead><tr><th>입력</th><th>내용</th><th>왜 이 형태인가</th></tr></thead>
+    <tbody>
+      <tr><td>종목</td><td>종목 마스터에서 <strong>검색·선택</strong></td><td>자유 입력을 막아 자동 판정 가능성을 구조적으로 보장. 상폐 종목은 신규 게시 차단</td></tr>
+      <tr><td>방향</td><td>상승 / 하락</td><td>하락은 <strong>실제 숏 수단이 있는 종목만</strong> — 맞아도 수익화 못 하면 상품이 아니다</td></tr>
+      <tr><td>크기</td><td>% 또는 목표가</td><td>하한 = <code>1.2 × σ × √기간</code>. 종목 변동성에 연동해 "방향만 맞히기"를 막는다</td></tr>
+      <tr><td>기간</td><td>검증 시한</td><td>코인 최소 1일 · 주식 최소 14일 · 상한 365일</td></tr>
+      <tr><td>신뢰도</td><td>2 ~ 10 (등비 사다리)</td><td>한 칸 = 승산 ×1.73, 꼭대기 ×140. <strong>이것이 곧 확률 신고</strong>다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>구매 전에는 가린다</h4>
+  <p>종목·목표가·제목·요약을 <strong>서버에서 아예 내려보내지 않는다</strong>(화면에서 가리는 방식이 아니다). 구매 전 공개 범위는 리서처 신원·자산군·방향·확신 3종·시한·가격·환불 조건까지다. 제목을 가리는 이유는 자유 입력이라 <em>"비트코인 4분기 전망"</em> 한 줄로 나머지 마스킹이 통째로 무력화되기 때문이다.</p>
+
+  <h3>자동 판정 — 규칙은 하나다</h3>
+  <div class="flow"><pre><b>검증 시한 안에 목표가에 닿은 일봉 종가가 있는가?</b>
+
+  있다  →  적중.  판정가 = 목표가      (초과분은 반영하지 않는다)
+  없다  →  실패.  판정가 = 시한 종가   (극값으로 재면 잠깐 스친 카드가 이득)
+
+  <span class="m">· 종가만 본다</span>  장중 꼬리로 적중이 만들어지면 시세 조작 통로가 열린다
+  <span class="m">· 목표 도달일에 판정</span>  예측이 이뤄진 날 판정하는 것이지 "조기 판정"이 아니다
+  <span class="m">· 판정 불가</span>  거래정지·상장폐지 → 전액 환불 · 수수료 0 · 점수 0</pre></div>
+
+  <h3>판정을 지키는 장치</h3>
+  <ul>
+    <li><strong>앵커 방식 권리 사건 대응</strong> — 게시 시점 종가를 적어 두고, 같은 날짜를 다시 조회해 배수가 달라지면 그게 액면분할이다. 임계값 추측이 필요 없다</li>
+    <li><strong>교차 검증</strong> — 두 번째 시세 소스와 <em>값</em>이 아니라 <strong>결론</strong>을 대조한다. 목표선 근처에서만 갈리고, 거기가 정확히 사람이 봐야 하는 자리다</li>
+    <li><strong>불가능한 일봉 차단</strong> — 국내 30%(가격제한폭) 초과는 막되, <strong>거래량이 평소의 5배 이상이면 통과</strong>시킨다. 자릿수 오류는 가격만 튀고 진짜 사건은 거래량이 함께 터진다</li>
+    <li><strong>수동 큐에도 상한</strong> — 사람이 안 보면 영영 안 닫히던 구멍을 막았다. 시한 후 14일이면 전액 환불로 닫는다</li>
+  </ul>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────────────── -->
+<section id="s4">
+  <h2><span class="h2num">04</span>점수 산정 모델</h2>
+  <p class="dek">이름은 <strong>인투빌 점수 산정 모델 vmax</strong>. 카드를 확률 예보로 보고, 그 신고가 무정보보다 얼마나 위였는지를 잰다.</p>
+
+  <div class="flow"><pre><b>적중</b>   +S · w · ln( p̂ / p₀ )
+<b>실패</b>   +S · w · ln( (1−p̂) / (1−p₀) )
+
+  S  = 100          눈금
+  w  = 1.0 ~ 2.0    수익성 가중 (크기에 연속)
+  p̂  = 신고 확률     신뢰도가 함의하는 값
+  p₀ = <span class="m">무정보 도달 확률</span>  방향·크기·기간·그 종목의 σ로 계산</pre></div>
+
+  <h3>이 공식이 지키는 성질</h3>
+  <div class="tw"><table>
+    <thead><tr><th>성질</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td><strong>적정(proper)</strong></td><td>기대값이 <em>정직하게 신고할 때</em> 최대. 부풀리면 손해라 거짓말할 유인이 없다</td></tr>
+      <tr><td><strong>무실력자 기대값 ≤ 0</strong></td><td>확신을 신고하는 순간 음수. "은신처"를 따로 막을 장치가 필요 없다</td></tr>
+      <tr><td><strong>실력자 기대값 = +D(p‖p₀)</strong></td><td>그 사람이 시장에 더한 <em>정보량</em> 그 자체</td></tr>
+      <tr><td><strong>카드당 유계</strong></td><td>한 장으로 잃을 수 있는 점수에 한계가 있다 — 야심 있는 예측을 벌하지 않는다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>실측 분리력</h4>
+  <div class="stats">
+    <div class="stat ok"><span class="k">AUC 스팸↔준수</span><span class="v">0.961</span><span class="n">이전 모델 0.819</span></div>
+    <div class="stat ok"><span class="k">오분류</span><span class="v">0%</span><span class="n">스팸이 시니어에 오르지 않는다</span></div>
+    <div class="stat ok"><span class="k">꼬리 겹침</span><span class="v">없음</span><span class="n">준수 하위 5% +160 vs 스팸 상위 5% −30</span></div>
+  </div>
+
+  <h3>규율 래더 — 과장을 잡는 순차 검정</h3>
+  <p>정보량이 음수로 쌓이면 신뢰도 상한을 내린다. 문턱을 <strong>고르지 않는다</strong> — 점수가 로그우도비라 Ville 부등식이 그대로 적용되어, 각 단이 <em>"정직한 사람을 잘못 잡을 확률"</em>을 이름으로 달고 있다.</p>
+  <div class="tw"><table>
+    <thead><tr><th class="num">단</th><th class="num">오작동 확률 α</th><th>처분</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td class="num">10%</td><td>신뢰도 상한 6</td></tr>
+      <tr><td class="num">2</td><td class="num">1%</td><td>신뢰도 상한 4</td></tr>
+      <tr><td class="num">3</td><td class="num">0.1%</td><td>신뢰도 상한 2</td></tr>
+      <tr><td class="num">4</td><td class="num">0.01%</td><td>게시 정지</td></tr>
+    </tbody>
+  </table></div>
+  <p>두 가지 보정이 붙어 있다. <strong>상관 보정</strong> — 같은 기간에 함께 열린 상관 카드(반도체 3종목 상승)를 독립 증거 셋으로 세면 정직한 리서처가 잡힌다(실측 오작동 3.6% → 41.3%). 겹친 기간만큼 하중을 나눈다. <strong>증거는 시즌으로 끊지 않는다</strong> — 점수·등급은 분기마다 0에서 시작하지만 증거는 평생 누적한다. 분기로 끊으면 유효 표본이 2.6장뿐이라 래더가 한 번도 발동하지 못했다(실측).</p>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────────────── -->
+<section id="s5">
+  <h2><span class="h2num">05</span>검수 파이프라인</h2>
+  <p class="dek">게시 전에 위법·위험 표현을 거른다. <strong>두 단계</strong>고, 앞은 기계 뒤는 사람이다.</p>
+
+  <div class="flow"><pre><b>자동 검수</b> ─┬─ 규칙 엔진 (정규식 · 학습 표현)   <span class="m">← 즉시 거절은 여기만</span>
+              └─ IRIS (자체 증류 분류기)        <span class="m">← 언제나 WARN</span>
+                     │
+<b>운영자 판정</b> ────┴─ 승인 / 반려</pre></div>
+
+  <div class="note">
+    <span class="lbl">절대 조건</span>
+    <p><strong>즉시 거절 권한은 결정적 규칙에만 있다.</strong> 모델은 재현 불가능한 판정을 낸다 — 같은 글을 다시 넣으면 다른 답이 나올 수 있는 것에 사람의 생계를 끊는 권한을 주지 않는다. 모델이 BLOCK을 내도 처리는 <em>보류</em>고, 보류는 판매가 시작되지 않아 규제 노출이 0이면서 승인으로 되살아난다.</p>
+  </div>
+
+  <h3>규칙 엔진 — 여섯 층</h3>
+  <div class="tw"><table>
+    <thead><tr><th>층</th><th>무엇을 보나</th><th>예</th><th>판정</th></tr></thead>
+    <tbody>
+      <tr><td>① 원문</td><td>정규식 그대로</td><td><code>원금을 보장합니다</code></td><td class="neg">BLOCK</td></tr>
+      <tr><td>② 기호 제거</td><td>글자를 벌린 것</td><td><code>원.금.보.장</code></td><td>WARN</td></tr>
+      <tr><td>③ 깊은 정규화</td><td>유니코드 · 낱자</td><td><code>ㅇ ㅝ ㄴ ㄱ ㅡ ㅁ</code></td><td>WARN</td></tr>
+      <tr><td>④ 연락처 모양</td><td>번호 묶음 형태</td><td><code>010-8923-7890</code></td><td>조건부</td></tr>
+      <tr><td>⑤ 음성 변형</td><td>자모 편집거리 1</td><td><code>원금보쟝</code></td><td>WARN</td></tr>
+      <tr><td>⑥ 훼손 사실</td><td>뜻은 몰라도 "바꿨다"</td><td><code>텔le그ram</code></td><td>WARN</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>⑥번이 이 설계의 핵심이다 — <strong>무엇을 감췄는지 해독하지 않고 감췄다는 사실만</strong> 지적한다. 동형자 표는 항상 한 수 뒤지지만("<code>카ka5톡</code>"의 5는 S가 아니라 O다), "한 낱말에 한글·라틴이 섞였고 상장 종목이 아니다"는 표 없이 판정된다. 리서처는 <em>"정상 표기로 고치라"</em>는 지시를 받고, 고친 글이 전체 규칙을 다시 만난다. 실측으로 77%가 이 경로로 진짜 위반에 걸렸다.</p>
+
+  <h4>적대적 코퍼스 실측</h4>
+  <div class="stats">
+    <div class="stat"><span class="k">재설계 전</span><span class="v">28%</span><span class="n">위반 36건 중 차단</span></div>
+    <div class="stat ok"><span class="k">재설계 후</span><span class="v">92%</span><span class="n">대조군 오탐 0건 유지</span></div>
+  </div>
+
+  <h3>IRIS — 자체 증류 모델</h3>
+  <p>KoELECTRA-small 14M을 증류해 만든 분류기. 로컬 사이드카로 돌고 <strong>외부 AI API 호출이 운영 경로에 0회</strong>다. 규칙이 못 잡는 <em>패러프레이즈</em>(같은 뜻 다른 말)를 메운다 — 규칙의 탐지율이 0%인 유일한 칸이고, IRIS 단독 66.7%가 그대로 순증이다.</p>
+  <p>Claude는 <strong>교사</strong>로만 쓴다. 운영자가 질문지를 복사해 붙여 넣고 답을 기록하면 그것이 재학습 라벨이 된다. 자동 호출 경로는 코드가 막는다 — API 키를 넣어도 게시 검수에서는 돌지 않는다.</p>
+
+  <h3>운영자 판정이 곧 정답 라벨</h3>
+  <div class="tw"><table>
+    <thead><tr><th>운영자 행동</th><th>라벨</th><th>뜻</th></tr></thead>
+    <tbody>
+      <tr><td>보류 → 승인 <span class="muted">(기본)</span></td><td>오탐</td><td>막지 말았어야 했다</td></tr>
+      <tr><td>보류 → 승인 + "지적은 타당"</td><td>경미</td><td>심각도를 낮춰야 한다</td></tr>
+      <tr><td>보류 → 반려</td><td class="pos">정탐</td><td>맞게 잡았다</td></tr>
+      <tr><td>통과 → 강제 철회</td><td class="neg">미탐</td><td>놓쳤다</td></tr>
+    </tbody>
+  </table></div>
+  <p>따로 채점하는 절차가 없다. 이 라벨이 쌓이면 <code>npm run train:operator</code> 로 학습 자료가 되고, 그것이 <strong>출시 후 이 모델이 나아지는 유일한 통로</strong>다.</p>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────────────── -->
+<section id="s6">
+  <h2><span class="h2num">06</span>등급과 수수료</h2>
+  <p class="dek">등급마다 <strong>새로 열리는 것이 하나씩</strong>. 등급은 전적으로 누적 점수로 정해진다 — 건수·적중률은 표시 지표일 뿐 승급 조건이 아니다.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>등급</th><th class="num">기본 수수료</th><th>해금</th><th class="num">시즌 승급 점수</th><th class="num">목표 비율</th></tr></thead>
+    <tbody>
+      <tr><td><strong>무표기</strong></td><td class="num">20%</td><td>100% 성과 연동만</td><td class="num muted">시작 등급</td><td class="num">100%</td></tr>
+      <tr><td><strong>시니어</strong></td><td class="num">15%</td><td>수수료 인하</td><td class="num">1,200</td><td class="num">~50%</td></tr>
+      <tr><td><strong>마스터</strong></td><td class="num">15%</td><td>선결제 10% 해금</td><td class="num">2,650</td><td class="num">~25%</td></tr>
+      <tr><td><strong>펠로우</strong></td><td class="num">13%</td><td>선결제 20% · 구독 개설</td><td class="num">5,070</td><td class="num">~10%</td></tr>
+      <tr><td><strong>인투빌 펠로우</strong></td><td class="num">10%</td><td>선결제 30% · 최상위</td><td class="num muted">심사·상대평가</td><td class="num">~1%</td></tr>
+    </tbody>
+  </table></div>
+
+  <p><strong>절반 사다리</strong>다 — 각 단계가 앞 단계의 대략 절반이라 승급 감각이 학습하기 쉽다. 시니어를 50%로 넓게 잡은 이유는 콜드스타트에서 <em>승급 경험이 이탈 방지의 핵심</em>이고 특권이 수수료 인하뿐이라 비용이 낮기 때문이다. 마스터 25%가 선결제 해금 경계인 이유는 <strong>구매자 무위험 진입을 전체의 75%로 유지</strong>하기 위해서다.</p>
+
+  <h3>선결제 할증 — 확신이 값을 치른다</h3>
+  <div class="tw"><table>
+    <thead><tr><th class="num">선결제 비율</th><th class="num">수수료 할증</th><th>구매자에게 뜻하는 것</th></tr></thead>
+    <tbody>
+      <tr><td class="num">0%</td><td class="num">+0%p</td><td>완전 성과 연동 — 틀리면 전액 환불</td></tr>
+      <tr><td class="num">10%</td><td class="num">+2%p</td><td rowspan="3">리서처가 <strong>돈을 더 내고</strong> 위험을 앞당겨 받는다. 자신 없으면 못 고르는 선택이라 그 숫자가 곧 신호다</td></tr>
+      <tr><td class="num">20%</td><td class="num">+4%p</td></tr>
+      <tr><td class="num">30%</td><td class="num">+6%p</td></tr>
+    </tbody>
+  </table></div>
+  <p>선결제 비율과 수수료는 <strong>게시 시점에 고정</strong>되고 판매 중 변경할 수 없다. 리포트에 공개 표시된다.</p>
+</section>
+
+<!-- 7 ─────────────────────────────────────────────────────── -->
+<section id="s7">
+  <h2><span class="h2num">07</span>수익 구조</h2>
+  <p class="dek">주 수익원은 <strong>거래 수수료</strong>. 단계가 올라가며 구독과 데이터가 얹힌다.</p>
+
+  <h3>지금 (1단계)</h3>
+  <div class="tw"><table>
+    <thead><tr><th>수익원</th><th>구조</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td><strong>거래 수수료</strong></td><td>판매액의 10~20%</td><td>PG 수수료 포함 총액 고지 — 실수령 약 17%</td></tr>
+      <tr><td><strong>선결제 할증</strong></td><td>+2~6%p 가산</td><td>상위 등급 수수료 인하를 일부 상쇄</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>수수료 벤치마크</h4>
+  <div class="tw"><table>
+    <thead><tr><th>플랫폼</th><th class="num">수수료</th></tr></thead>
+    <tbody>
+      <tr><td>네이버 프리미엄콘텐츠 · 포스타입</td><td class="num">~10%</td></tr>
+      <tr><td>크몽</td><td class="num">16.4% + PG 3.3%</td></tr>
+      <tr><td>클래스101</td><td class="num">20%+</td></tr>
+      <tr><td>앱마켓</td><td class="num">15~30%</td></tr>
+      <tr><td><strong>인투빌</strong></td><td class="num"><strong>10~20%</strong></td></tr>
+    </tbody>
+  </table></div>
+  <p>신규 20%의 근거는 <strong>에스크로 + 자동 판정 + 평판 인프라</strong>다. 단순 유통이 아니라 판정과 정산을 대행한다. 초기 입점 프로모션으로 첫 6개월은 10%.</p>
+
+  <h3>2단계 — 구독</h3>
+  <p>펠로우 이상에게 구독 상품 개설을 해금한다. 성과 연동 없이 일반 정산이라 <strong>안정 매출</strong>로 전환된다. 상위 10%만 열리므로 구독 자체가 등급 신호가 된다.</p>
+
+  <h3>3단계 — 데이터</h3>
+  <p>예측–결과 쌍이 쌓이면 그것 자체가 상품이 된다. 리서처 컨센서스 지수, 기관 대상 API. <strong>이 데이터는 다른 곳에서 살 수 없다</strong> — 예측이 사전에 봉인되고 사후에 기계로 판정된 기록이라, 사후 편향이 구조적으로 들어갈 수 없기 때문이다.</p>
+
+  <div class="note">
+    <span class="lbl">앱스토어 대응</span>
+    <p>디지털 콘텐츠를 인앱결제로 팔면 애플·구글이 15~30%를 떼간다. 우리 수수료가 20%라 그러면 남는 게 6%도 안 된다. 그래서 <strong>결제는 웹, 소비는 앱</strong> 구조다 — 국내 콘텐츠 플랫폼의 통상 구조이나, 앱 심사 규정과 얽혀 있어 법률 확인 대상이다.</p>
+  </div>
+</section>
+
+<!-- 8 ─────────────────────────────────────────────────────── -->
+<section id="s8">
+  <h2><span class="h2num">08</span>운영 체계</h2>
+  <p class="dek">1인 운영을 전제로 설계했다. 사람이 빠져도 <strong>돈이 잘못 나가지 않는</strong> 것이 기준이다.</p>
+
+  <h3>정산 흐름</h3>
+  <div class="flow"><pre>구매자 결제(PG) → <b>에스크로 보관</b> → 검증 시한 → <b>시장 데이터 자동 판정</b>
+                                                    │
+        ┌───────────────────────────────────────────┼───────────────────────┐
+     <span class="m">적중</span>                                        <span class="m">실패</span>                    <span class="m">판정 불가</span>
+   리서처에게                              성과분 → 구매자 환불          전액 환불
+  (판매액 − 수수료)                        선결제분 → 리서처            수수료 0</pre></div>
+  <p><strong>환불은 전부 현금이다.</strong> 크레딧을 쓰지 않는 이유는 선불전자지급수단 규제 이슈를 원천 제거하기 위해서다. PG 취소가 원칙이고, 취소 기한(통상 1년)을 넘긴 건은 계좌이체로 폴백한다 — 검증 시한이 최대 365일이라 실제로 발생 가능한 경로다.</p>
+
+  <h3>돈을 지키는 관문</h3>
+  <div class="tw"><table>
+    <thead><tr><th>장치</th><th>막는 것</th></tr></thead>
+    <tbody>
+      <tr><td><strong>정산 계좌 등록·검증</strong></td><td>계좌 변경 즉시 미검증 · 낯선 기기 변경은 48시간 유예 · 예금주명 ↔ 본인 인증 실명 대조</td></tr>
+      <tr><td><strong>정산 동결</strong></td><td>거는 것은 누구나, <strong>푸는 것은 운영자만</strong>. 이 비대칭이 장치의 전부다 — 본인이 풀 수 있으면 계정을 쥔 탈취자가 푼다</td></tr>
+      <tr><td><strong>2인 승인 (Maker-Checker)</strong></td><td>고액 지급·동결 해제·판정 뒤집기. 1인 운영 중에는 <strong>실행 직전 생체 재확인</strong>이 두 번째 사람 자리를 대신한다</td></tr>
+      <tr><td><strong>일일 출금 한도</strong></td><td>지급·환불·보상·CS 무효화 <strong>다섯 경로를 합산</strong>. 80%에 닿으면 경보 — 한도를 아는 유일한 순간이 "거부당했을 때"이면 이미 늦다</td></tr>
+      <tr><td><strong>플랫폼 귀책 보상</strong></td><td>우리 사정으로 판정 못 해 환불되면 리서처에게 <em>판매액 − 수수료</em>를 자본으로 메운다. 전액이면 장애가 정상 적중보다 이득이 된다</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>인증 — 두 겹</h3>
+  <ul>
+    <li><strong>풀 로그인</strong> — 본인 인증. 가입·재설치·로그아웃 후에만. CI 해시로 1인 1계정을 강제하고 실명을 암호화 저장한다</li>
+    <li><strong>간편 로그인</strong> — 생체(패스키) 또는 6자리 비밀번호. <strong>둘 다 기기에 묶인다</strong> — 비밀번호가 유출돼도 다른 기기에서는 못 쓴다. 새 기기는 무조건 풀 로그인이고, 그것이 탈취자를 막는 뼈대다</li>
+  </ul>
+
+  <h3>스스로를 감시하는 장치</h3>
+  <p>운영자가 한 명이면 <strong>조용한 실패</strong>가 가장 위험하다. 그래서 검수가 실제로 도는지를 재는 장치를 따로 뒀다.</p>
+  <ul>
+    <li><strong>규칙 카나리아</strong> — 정답이 정해진 문항을 <em>운영과 같은 함수</em>에 5분마다 통과시킨다. 층마다 한 칸씩이라 한 층만 죽어도 잡힌다</li>
+    <li><strong>IRIS 출근 점검</strong> — 아무도 리포트를 안 올려도 5분마다 확인한다. 리포트가 없으면 IRIS가 죽어도 알림이 안 나가던 구멍을 막았다</li>
+    <li><strong>운영자 습관화 감지</strong> — 판정 소요 시간이 특정 유형만 유독 짧으면 그 소견은 읽히지 않고 승인되고 있다는 뜻이다</li>
+  </ul>
+  <div class="note">
+    <span class="lbl">이 장치들이 존재하는 이유</span>
+    <p>2026-08-20에 표기 회피 탐지가 <strong>통째로 꺼진 채로 돌았다</strong>. 차단율 92%로 측정된 기능이 운영에서는 0%였고, 예외도 경고도 없었으며 시험 820건이 전부 초록이었다. <em>관문이 없는 것은 오류가 아니라 침묵이다</em> — 그래서 사람이 기억하는 대신 기계가 확인한다.</p>
+  </div>
+</section>
+
+<!-- 9 ─────────────────────────────────────────────────────── -->
+<section id="s9">
+  <h2><span class="h2num">09</span>시장과 경쟁</h2>
+
+  <h3>참여자</h3>
+  <p><strong>타깃 공급자</strong> — 전직 애널리스트, 펀드매니저 출신, 회계사, 산업 전문가, 개인 리서처. 현직 증권사 애널리스트는 소속사 겸직 금지로 사실상 불가하다(플랫폼이 막을 필요는 없다).</p>
+
+  <h3>방어벽</h3>
+  <p>기능은 복제 가능하다. 복제 불가능한 것은 <strong>축적된 트랙레코드</strong>다. 리서처 입장에서 다른 플랫폼으로 옮기면 <em>판정된 예측 기록이 0에서 시작</em>한다 — 그것이 이적 비용이고, 시간이 갈수록 두꺼워지는 유일한 자산이다.</p>
+
+  <h3>법적 경계 (반드시 준수)</h3>
+  <div class="tw"><table>
+    <thead><tr><th>경계</th><th>지키는 방식</th></tr></thead>
+    <tbody>
+      <tr><td>미공개 중요정보 · 풍문 유포</td><td>검수 규칙이 BLOCK</td></tr>
+      <tr><td><strong>1:1 맞춤 상담 금지</strong></td><td>쌍방향 기능을 <strong>로드맵에서 영구히 뺀다</strong> — 개별 Q&amp;A · 맞춤 상담 · 1:1 채팅 · 댓글. 투자자문업 해석의 유일한 지렛대다</td></tr>
+      <tr><td>유사투자자문업</td><td>신고 대상으로 판단 — 신고 주체(플랫폼 단독 vs 리서처 개별)는 법률 확인 중</td></tr>
+      <tr><td>손실보전 금지</td><td>환불을 <strong>"콘텐츠 거래대금 반환"</strong>으로 구성 — 투자 손실 보전이 아니다</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 10 ────────────────────────────────────────────────────── -->
+<section id="s10">
+  <h2><span class="h2num">10</span>로드맵</h2>
+
+  <h3>1단계 (0~12개월) — 공급 확보와 판정 신뢰</h3>
+  <p>목표는 사용자 수가 아니라 <strong>검증된 리서처 30~50명</strong>이다. 경력자를 직접 영입하고 수수료를 면제한다. 이 시기 <strong>수익은 후순위</strong>고, 가장 중요한 산출물은 <em>판정 무분쟁 기록</em>이다.</p>
+
+  <h3>2단계 (12~24개월) — 평판 데이터 자산화</h3>
+  <p>적중률 리더보드를 마케팅 콘텐츠로 쓴다("이번 분기 최고 적중 리서처"). 구독 상품을 열어 안정 매출로 전환한다.</p>
+
+  <h3>3단계 (24개월~) — 데이터 사업</h3>
+  <p>예측–결과 데이터의 2차 상품화. 리서처 컨센서스 지수, 기관 대상 API.</p>
+</section>
+
+<!-- 11 ────────────────────────────────────────────────────── -->
+<section id="s11">
+  <h2><span class="h2num">11</span>구현 현황</h2>
+  <p class="dek">MVP는 구현이 끝났다. 아래는 <strong>2026-08-25 실측</strong>이다.</p>
+
+  <div class="stats">
+    <div class="stat"><span class="k">제품 코드</span><span class="v">65,858</span><span class="n">줄 · 413개 파일</span></div>
+    <div class="stat"><span class="k">운영 스크립트</span><span class="v">18,880</span><span class="n">줄 · 114개 파일</span></div>
+    <div class="stat ok"><span class="k">시험</span><span class="v">1,666</span><span class="n">149개 파일 · 전부 통과</span></div>
+    <div class="stat ok"><span class="k">타입 검사</span><span class="v">clean</span><span class="n">tsc --noEmit</span></div>
+  </div>
+
+  <h3>완료</h3>
+  <div class="tw"><table>
+    <thead><tr><th>영역</th><th>상태</th></tr></thead>
+    <tbody>
+      <tr><td>판정 엔진 · 파이프라인 · 시세 어댑터 4종</td><td><span class="chip done">완료</span></td></tr>
+      <tr><td>에스크로 3분기 정산 · 금액 보존 불변식</td><td><span class="chip done">완료</span></td></tr>
+      <tr><td>점수 vmax · 규율 래더 · 등급·수수료</td><td><span class="chip done">완료</span></td></tr>
+      <tr><td>검수 파이프라인 (규칙 6층 + IRIS) · 운영자 큐</td><td><span class="chip done">완료</span></td></tr>
+      <tr><td>인증 (패스키 · 간편 비밀번호 · 1인 1계정)</td><td><span class="chip done">완료</span></td></tr>
+      <tr><td>정산 계좌 · 동결 · 2인 승인 · 출금 한도</td><td><span class="chip done">완료</span></td></tr>
+      <tr><td>이용자 화면 · 관리자 화면 · PWA</td><td><span class="chip done">완료</span></td></tr>
+      <tr><td>토스페이먼츠 <strong>샌드박스</strong> 실연동</td><td><span class="chip done">완료</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>스텁으로 도는 것</h3>
+  <div class="tw"><table>
+    <thead><tr><th>영역</th><th>상태</th><th>필요한 것</th></tr></thead>
+    <tbody>
+      <tr><td>본인 인증</td><td><span class="chip todo">스텁</span></td><td>PASS/NICE 계약</td></tr>
+      <tr><td>결제 · 환불</td><td><span class="chip todo">샌드박스</span></td><td>토스 라이브 키 (가맹점 심사)</td></tr>
+      <tr><td>예금주 조회</td><td><span class="chip todo">미연동</span></td><td>은행 실명 조회 계약</td></tr>
+      <tr><td>푸시 발송</td><td><span class="chip todo">파이프라인만</span></td><td>네이티브 앱 (기기 토큰 0대)</td></tr>
+      <tr><td>이메일 · SMS</td><td><span class="chip block">코드 없음</span></td><td>앱 밖으로 닿는 유일한 길</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>코드 품질 관측</h3>
+  <ul>
+    <li><strong>TODO·FIXME 0건</strong> — 미룬 것을 주석으로 남기지 않고 문서나 시험으로 옮겼다</li>
+    <li><strong>숫자 상수 근거 래칫</strong> — 내보내는 숫자 상수에 <code>@근거</code>를 요구한다. 근거를 못 대면 <code>constants-debt.txt</code>에 이름을 올려야 하고, <strong>그 파일의 줄 수가 곧 남은 빚</strong>이다(현재 66줄). 목록에 없는 무태그 상수는 시험이 막는다</li>
+    <li><strong>규약을 시험이 강제한다</strong> — 관리자 화면 인증 관문, DB 시험의 파일 이름 갈래, 상수 근거. 셋 다 사람의 기억으로는 안 지켜져서 시험으로 옮겼다</li>
+  </ul>
+</section>
+
+<!-- 12 ────────────────────────────────────────────────────── -->
+<section id="s12">
+  <h2><span class="h2num">12</span>리스크</h2>
+
+  <h3 style="margin-top:18px">1. 콜드스타트 이중고</h3>
+  <p>리서처는 무보수 위험을 지고 들어와야 하고, 평판은 판정 시한만큼 기다려야 쌓인다. 두 지연이 겹친다.</p>
+  <p class="muted"><strong>대응</strong> — 첫 6개월 수수료 10%, 경력자 직접 영입, 시니어 승급선을 상위 50%로 넓게 잡아 첫 시즌 승급 경험을 만든다.</p>
+
+  <h3>2. 대기업 모방</h3>
+  <p>기능은 복제된다. 다만 <strong>트랙레코드는 복제되지 않는다</strong> — 뒤늦게 시작하면 그 시점부터 쌓아야 한다.</p>
+
+  <h3>3. 규제</h3>
+  <p>유사투자자문업 신고 의무, 그리고 <strong>정산 구조가 전자금융거래법 PG 영역인지</strong>가 최대 변수다.</p>
+  <div class="note risk">
+    <span class="lbl">가장 큰 단일 리스크</span>
+    <p>"플랫폼이 구매자 돈을 받아 판매자에게 나눠주는 것"은 현행법상 PG 등록 대상으로 해석될 여지가 있고, PG 등록은 자본금 요건상 1인 창업이 불가능하다. 개정 전금법(<strong>2026-12-17 시행</strong>)이 <em>"다른 업무를 영위하는 과정에서 부수적으로 정산을 대행하는 경우"</em>를 제외하며 이커머스 중개 플랫폼을 예시로 든다 — 인투빌은 면제 쪽에 설 여지가 크다.</p>
+    <p><strong>대응 결정</strong> — 2026-12-17 이후 출시로 정해 현행법 위반 구간을 통째로 피한다. 다만 "부수적"의 수치 기준이 시행령에도 없어 <strong>변호사 서면 의견이 필요</strong>하다.</p>
+  </div>
+
+  <h3>알려진 기술적 약점 — 고치지 않고 출시한다</h3>
+  <div class="tw"><table>
+    <thead><tr><th>과목</th><th class="num">실측</th><th>왜 안 고치나</th></tr></thead>
+    <tbody>
+      <tr><td>권위 차용형 주장 탐지</td><td class="num">24%</td><td rowspan="2">임계값으로 못 고친다 — 내리면 오탐이 폭발하고 올리면 탐지가 0이 된다. <strong>사람이 메우는 자리</strong>다</td></tr>
+      <tr><td>본문–카드 모순 탐지</td><td class="num">5%</td></tr>
+      <tr><td>토큰 희석 (400토큰 뒤)</td><td class="num">13%</td><td>긴 글 뒤쪽의 위반은 잔존율이 낮다</td></tr>
+    </tbody>
+  </table></div>
+  <p class="muted">이 약점은 <code>docs/screening-known-limits.md</code>에 기록돼 있고 <strong>리서처에게는 비공개</strong>다 — 알리는 순간 우회 지도가 된다.</p>
+</section>
+
+<!-- 13 ────────────────────────────────────────────────────── -->
+<section id="s13">
+  <h2><span class="h2num">13</span>출시 전 과제</h2>
+  <p class="dek">코드가 아니라 <strong>계약 · 법률 · 배포</strong>다. 이것들이 붙기 전까지 인증·정산 관문은 형태만 완성이다.</p>
+
+  <h3>계약</h3>
+  <ul>
+    <li>본인 인증 실공급자 (통신사/PG)</li>
+    <li>은행 예금주 조회 — 계좌 실명 대조의 실물</li>
+    <li>토스페이먼츠 라이브 키 (가맹점 심사)</li>
+    <li><strong>PG 수수료 환급 여부를 계약 때 확인</strong> — 실패 판정마다 전액 환불하는데 이미 낸 PG 수수료(약 3%)가 안 돌아오면 환불 건마다 순손실이다. 계약서에 사인한 뒤에는 못 바꾼다</li>
+  </ul>
+
+  <h3>법률 — 한 번에 물을 다섯 질문</h3>
+  <ol class="body">
+    <li>유사투자자문업 경계 <strong>서면 의견서</strong></li>
+    <li>앱 안에서 "웹에서 결제" 안내가 앱스토어 심사·전기통신사업법상 가능한가</li>
+    <li>인투빌 정산이 개정 전금법의 <strong>"부수적 정산 대행"</strong>에 해당하는가</li>
+    <li>시행 전 출시 시 지급대행이 필수인가</li>
+    <li>판정까지 대금을 보관하는 에스크로가 <strong>결제대금예치업</strong> 등록 대상인가</li>
+  </ol>
+  <p class="muted">+ 상표 조사·가출원 (변리사). 가출원은 <strong>MVP 공개 전</strong>이어야 한다 — 공개 시 신규성을 잃는다.</p>
+
+  <h3>돈 실무</h3>
+  <ul>
+    <li><strong>에스크로용 별도 은행 계좌</strong> — 지금 "에스크로"는 장부상 상태값일 뿐 실제 계좌 분리가 아니다. 시한이 최대 365일이라 <em>1년 가까이 묶인 남의 돈</em>이 일반 계좌에 섞인다. 어느 규제 경로로 가든 계좌 분리는 항상 옳다</li>
+    <li class="muted">⚠ 새 통장은 대개 이체 한도가 하루 30만원이라 정산 이체가 안 된다. 창구에서 금융거래목적 증빙을 내고 <strong>그 자리에서 한도 해제까지</strong> 끝낼 것</li>
+  </ul>
+
+  <h3>배포</h3>
+  <ul>
+    <li><strong>바깥 감시자</strong> — 이 목록에서 제일 중요하다. 지금 알림은 전부 우리 서버 안에서 나가므로 <strong>서버가 죽으면 알림도 같이 죽는다.</strong> 외부 핑 서비스가 신호를 못 받으면 그쪽이 연락하게 한다. 코드가 아니라 계정 하나 + URL 하나</li>
+    <li>스케줄러 자동 재시작 (pm2 / systemd) — 단순 사망만 복구하고 좀비는 못 잡는다</li>
+    <li>환경 변수 이관 (텔레그램 · 파이어베이스 · 창업자 CI 해시)</li>
+    <li>홈 우측 상단 <strong>"관리자 →" 임시 버튼 제거</strong></li>
+  </ul>
+
+  <h3>앱스토어</h3>
+  <p>계획은 앱스토어 앱이고 "결제는 웹, 소비는 앱"이 그 전제다. 다만 <strong>지금은 네이티브 프로젝트가 없다</strong> — Next.js + PWA 매니페스트뿐이다. 화면 재작성은 불필요하고 감싸는 작업이 필요하다.</p>
+</section>
+
+<footer>
+  <p><strong>인투빌 사업계획서</strong> · 2026-08-25 기준. 수치는 저장소 실측이며, 설계 근거의 정본은 <code>presenatation/CLAUDE.md</code>다 — 이 문서와 어긋나면 코드와 CLAUDE.md가 맞다.</p>
+</footer>
+
+</main>
+</div>
