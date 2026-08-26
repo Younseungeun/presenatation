@@ -27,9 +27,11 @@ export interface TeacherAnswerPending {
 /**
  * 운영자 결정은 났는데 교사 답이 아직 없는 건.
  *
- * **질문지를 뽑은 건만** 줄에 세운다. 안 뽑은 건은 애초에 물어볼 생각이 없었던 것이라
- * 여기 세우면 줄이 영원히 안 줄고, 줄어들지 않는 큐는 곧 아무도 안 보는 큐가 된다.
- * 그쪽은 큐가 아니라 **비율**로 잡는다 (`getTeacherAskCoverage`).
+ * **질문지가 저장된 건만** 줄에 세운다 (2026-08-27 창업자 지시로 기준 변경).
+ * 판정 시점에 케이스별 질문지를 만들어 저장하므로(teacherPackText), 논의가 필요한
+ * 케이스는 클릭 없이도 자동으로 여기 쌓인다. 논의 불필요(승인+표시 안 함)는 질문지가
+ * 저장되지 않아 여기 안 뜬다 — 줄이 "물어봐야 할 것"으로만 채워진다.
+ * (예전 기준: teacherAskedAt — 운영자가 복사를 눌러야 떴다. 이제는 자동 축적.)
  */
 export async function getTeacherAnswerPending(
   prisma: PrismaClient,
@@ -38,7 +40,7 @@ export async function getTeacherAnswerPending(
   const rows = await prisma.complianceReview.findMany({
     where: {
       operatorVerdict: { not: null },
-      teacherAskedAt: { not: null },
+      teacherPackText: { not: null },
       teacherAnswer: { is: null },
     },
     orderBy: { operatorReviewedAt: 'desc' },
@@ -74,14 +76,16 @@ export interface TeacherAskCoverage {
 }
 
 /**
- * 최근 N일의 교사 질의 실태.
+ * 최근 N일의 교사 질의 실태 (2026-08-27 자동 저장 흐름에 맞춰 재정의).
  *
- * **세 숫자가 서로 다른 고장을 가리킨다:**
- *   decided − asked   안 물어보고 내렸다 (큐가 밀렸거나 확인을 건너뛰었다)
- *   asked − answered  물어봤는데 답을 안 적었다 (라벨이 새고 있다)
- *   disagreed         교사가 사람과 갈린 비율 (교사 품질 · 교정 사례의 원천)
+ * 질문지가 판정 시점에 **자동 생성·저장**되므로 "안 물어보고 내렸다"는 고장은 사라졌다
+ * (논의가 필요한 케이스는 전부 저장된다). 남는 것은 **답 대기**와 **교사 갈림**이다:
+ *   decided   질문지가 저장된 건 = 논의가 필요했던 건 (teacherPackText 있음)
+ *   answered  그중 답까지 기록된 건
+ *   decided − answered  답을 아직 안 걷은 건 (일괄 처리 대기 backlog)
+ *   disagreed 교사가 사람과 갈린 비율 (교사 품질 · 교정 사례의 원천)
  *
- * 한 숫자로 접으면 어느 쪽이 아픈지 알 수 없다.
+ * `asked`(복사 눌러 뽑은 건)는 이제 자동이라 decided 와 같게 둔다 — 인터페이스 호환용.
  */
 export async function getTeacherAskCoverage(
   prisma: PrismaClient,
@@ -89,21 +93,19 @@ export async function getTeacherAskCoverage(
   now = new Date(),
 ): Promise<TeacherAskCoverage> {
   const since = new Date(now.getTime() - days * 86_400_000);
-  // 소견 없이 통과한 건은 애초에 물어볼 대상이 아니다 — 분모에 넣으면 비율이
-  // 트래픽에 희석돼 고장이 안 보인다
+  // 질문지가 저장된 건만 분모다 — 논의 불필요(승인+표시 안 함)는 애초에 물어볼 대상이 아니다
   const base = {
-    operatorVerdict: { not: null },
     operatorReviewedAt: { gte: since },
-    needsOperatorReview: true,
+    teacherPackText: { not: null },
   } as const;
 
-  const [decided, asked, answered, disagreed] = await Promise.all([
+  const [decided, answered, disagreed] = await Promise.all([
     prisma.complianceReview.count({ where: base }),
-    prisma.complianceReview.count({ where: { ...base, teacherAskedAt: { not: null } } }),
     prisma.complianceReview.count({ where: { ...base, teacherAnswer: { isNot: null } } }),
     prisma.complianceReview.count({
       where: { ...base, teacherAnswer: { is: { disagreed: true } } },
     }),
   ]);
-  return { decided, asked, answered, disagreed };
+  // asked = decided: 자동 저장이라 "물어봤다"가 곧 "판정했다"
+  return { decided, asked: decided, answered, disagreed };
 }

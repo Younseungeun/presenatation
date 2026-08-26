@@ -14,6 +14,7 @@ import { canReleaseAutoShadow, releaseAutoShadow } from '@/server/studentAutoSha
 import { createStudentClientFromEnv } from '@/infra/compliance/studentClient';
 import { approvePendingReport, rejectPendingReport } from '@/server/reportService';
 import { recordDecisionElapsed } from '@/server/decisionSpeedService';
+import { storeTeacherPackForReport } from '@/server/teacherPackStore';
 import { previewPhraseRescan, recordPhraseRescan } from '@/server/phraseRescanService';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 
@@ -191,6 +192,8 @@ export async function POST(req: NextRequest) {
         if (body.decisionElapsedMs) {
           await recordDecisionElapsed(prisma, body.reportId, body.decisionElapsedMs);
         }
+        // 판정 커밋 뒤 교사 질문지를 만들어 저장한다 (승인+표시안함이면 저장 안 함/지움)
+        await storeTeacherPackForReport(prisma, body.reportId);
         return NextResponse.json({ ok: true, status: published.status });
       }
       case 'REJECT':
@@ -205,6 +208,7 @@ export async function POST(req: NextRequest) {
         if (body.decisionElapsedMs) {
           await recordDecisionElapsed(prisma, body.reportId, body.decisionElapsedMs);
         }
+        await storeTeacherPackForReport(prisma, body.reportId);
         return NextResponse.json({
           ok: true,
           ...(await phrasePayload(
@@ -248,6 +252,7 @@ export async function POST(req: NextRequest) {
         if (body.decisionElapsedMs) {
           await recordDecisionElapsed(prisma, body.reportId, body.decisionElapsedMs);
         }
+        await storeTeacherPackForReport(prisma, body.reportId);
         return NextResponse.json({
           ok: true,
           ...summary,

@@ -41,16 +41,12 @@ import {
 } from "@/server/screeningCanaryRunner";
 import { FlaggedReport } from "./FlaggedReport";
 import { StudentValvePanel } from "./StudentValvePanel";
-import { AskTeacher } from "./AskTeacher";
 import { ManualQueueList } from "./ManualQueueList";
-import { TeacherAnswerBox } from "./TeacherAnswerBox";
+import { TeacherBatchCopy } from "./TeacherBatchCopy";
 import {
   getTeacherAnswerPending,
-  getTeacherAskCoverage,
   type TeacherAnswerPending,
-  type TeacherAskCoverage,
 } from "@/server/teacherAnswerQueue";
-import { getTeacherTag } from "@/server/appSettings";
 import { StudentShadowRelease } from "./StudentShadowRelease";
 import {
   getPendingComplianceReviews,
@@ -330,93 +326,34 @@ function UrgencyLine({ overdue, attention }: { overdue: number; attention: numbe
 /**
  * **교사 답 대기 줄과 질의 실태** (18차 V-3 · V-7).
  *
- * 순서를 뒤집으면(먼저 결정 → 그 다음 답 기록) 결정한 건이 보류 큐에서 사라져 답을
- * 적을 자리가 없어진다. 그래서 이 줄이 따로 선다.
- *
- * **위쪽 숫자 셋이 서로 다른 고장을 가리킨다.** 한 숫자로 접으면 어느 쪽이 아픈지
- * 알 수 없어서 나눠 둔다:
- *   · 안 물어보고 결정 — 큐가 밀렸거나 확인을 건너뛰었다 (라벨에 근거가 없다)
- *   · 물어보고 답 안 적음 — 라벨이 새고 있다
- *   · 교사와 갈림 — 교사를 얼마나 믿을 수 있나. 이 값이 **0에 붙으면 오히려 의심한다**
- *     (교사가 정확한 것과 운영자가 답을 그대로 누른 것이 같은 얼굴이다)
+ * **박스 하나로 줄였다** (2026-08-27 창업자 지시): 판정을 내릴 때 케이스별 질문지가
+ * 자동으로 저장되고, 여기서는 그것을 **전부 한 번에 복사**만 한다. 답을 다시 붙여넣어
+ * 기록하는 흐름은 없앴다 — 재학습·사전 표현 등록은 창업자가 그 답을 보고 **코드로 직접**
+ * 반영하기 때문. 그래서 이 패널이 하는 일은 "쌓인 질문지를 걷어 주는 것" 하나다.
  */
-function TeacherRelayPanel({
-  pending,
-  coverage,
-  teacherTag,
-  stale,
-}: {
-  pending: TeacherAnswerPending[];
-  coverage: TeacherAskCoverage;
-  teacherTag: string | null;
-  stale: boolean;
-}) {
-  // 물어볼 일이 아직 없었으면 그리지 않는다 — 0건짜리 계기판은 정보가 아니라 장식이고,
-  // 매일 보이면 곧 안 보이게 된다 (IRIS 순이익 패널과 같은 규칙)
-  if (coverage.decided === 0 && pending.length === 0) return null;
-
-  const unasked = coverage.decided - coverage.asked;
-  const unanswered = coverage.asked - coverage.answered;
-  const pct = (n: number) =>
-    coverage.decided > 0 ? `${Math.round((n / coverage.decided) * 100)}%` : "—";
+function TeacherRelayPanel({ pending }: { pending: TeacherAnswerPending[] }) {
+  // 쌓인 질문지가 없으면 그리지 않는다 — 0건짜리 계기판은 장식이다
+  if (pending.length === 0) return null;
 
   return (
     <section
       style={{
         margin: "0 16px 12px",
-        padding: "10px 12px",
+        padding: "12px 14px",
         borderRadius: 10,
-        border: `1px solid ${unasked > 0 ? "var(--neg)" : "var(--line)"}`,
-        background: unasked > 0 ? "var(--neg-weak, #fff5f5)" : "transparent",
+        border: "1px solid var(--line)",
+        background: "transparent",
         fontSize: 13,
         color: "var(--text-weak)",
       }}
     >
-      <strong style={{ color: "var(--text)" }}>수동 2차 검수</strong>{" "}
-      <span style={{ color: "var(--text-faint)" }}>· 최근 30일 {coverage.decided}건</span>
-      <br />
-      안 물어보고 결정 <b style={{ color: unasked > 0 ? "var(--neg)" : undefined }}>
-        {unasked}건 ({pct(unasked)})
-      </b>{" "}
-      · 답 안 적음 <b>{unanswered}건</b> · 교사와 갈림 <b>{coverage.disagreed}건</b>
-      {unasked > 0 && (
-        <p className={a.hint}>
-          <b>물어보지 않고 내려진 결정이 있습니다.</b> 그 판정도 학습 라벨이 되는데 근거가
-          남지 않습니다 — 큐가 밀려 확인을 건너뛰고 있는지 확인해 주세요.
-        </p>
-      )}
-
-      {pending.length > 0 && (
-        <div style={{ marginTop: 10 }}>
-          <div className={a.lbl}>교사 답을 기다리는 건 {pending.length}</div>
-          {pending.map((p) => (
-            <div
-              key={p.reviewId}
-              style={{
-                marginTop: 8,
-                paddingTop: 8,
-                borderTop: "1px solid var(--line)",
-              }}
-            >
-              <Link href={`/report/${p.reportId}`} className={a.xref}>
-                <span>{p.reportTitle}</span>
-                <span className={a.go}>›</span>
-              </Link>
-              <div className={a.hint}>
-                운영자 결정: <b>{p.verdict === "REJECTED" ? "반려" : p.verdict === "TAKEDOWN" ? "강제 철회" : "승인"}</b>
-                {" — 이 결정을 보고 답을 고치지 마세요. 두 값이 갈리는 것 자체가 자료입니다."}
-              </div>
-              {/* **여기가 재학습 논의 자료의 자리다** (2026-08-26 목적 재정의) — 운영자
-                  판정이 확정된 뒤라야 "사람 vs 자동 검수" 비교가 성립한다. 자료를 복사해
-                  교사와 논의하고, 그 결론을 아래 칸에 적는다 */}
-              <div style={{ marginTop: 8 }}>
-                <AskTeacher reviewId={p.reviewId} decided={true} />
-              </div>
-              <TeacherAnswerBox reviewId={p.reviewId} teacherTag={teacherTag} stale={stale} />
-            </div>
-          ))}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <div>
+          <strong style={{ color: "var(--text)" }}>재학습 논의 자료</strong>{" "}
+          <b style={{ color: "var(--text)" }}>{pending.length}건</b>
         </div>
-      )}
+        <TeacherBatchCopy />
+      </div>
     </section>
   );
 }
@@ -941,8 +878,6 @@ export default async function AdminCompliancePage({
     pause,
     canary,
     teacherPending,
-    teacherCoverage,
-    teacher,
     graduationWatch,
     retrain,
     regressionCases,
@@ -959,8 +894,6 @@ export default async function AdminCompliancePage({
     getPauseState(prisma),
     getCanaryScreen(prisma),
     getTeacherAnswerPending(prisma),
-    getTeacherAskCoverage(prisma),
-    getTeacherTag(prisma),
     getGraduationWatch(prisma),
     countHardNegatives(prisma),
     getRegressionCases(prisma),
@@ -1127,12 +1060,7 @@ export default async function AdminCompliancePage({
           `검수 규칙` 줄이 말한다. 층별 통과 여부를 여섯 칸으로 늘어놓던 자리인데, 전부
           통과일 때는 초록 여섯 개가 아무 말도 하지 않고 화면만 먹었다. 실패했을 때
           어느 층인지는 그 줄이 배지로 이어 붙인다 */}
-      <TeacherRelayPanel
-        pending={teacherPending}
-        coverage={teacherCoverage}
-        teacherTag={teacher.tag}
-        stale={teacher.stale}
-      />
+      <TeacherRelayPanel pending={teacherPending} />
       {/* 정확도 카드는 2026-08-23에 IRIS 상자 안(맨 위)으로 올라갔다 — 검수하는 것이
           둘이고 그 둘이 얼마나 맞히는지는 같은 물음의 뒷면이라 한자리에 둔다 */}
 

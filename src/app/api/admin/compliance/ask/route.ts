@@ -26,12 +26,48 @@ import { requireOperatorId, toErrorResponse } from '../../../_lib/http';
 export async function GET(req: NextRequest) {
   try {
     await requireOperatorId(prisma);
+
+    // **일괄 복사** (2026-08-27 창업자 지시) — 답을 아직 안 걷은 질문지를 모두 이어 붙여
+    // 한 번에 가져간다. 각 질문지는 맨 위 맥락 폐기 문구로 서로 격리되므로 붙여도 섞이지
+    // 않는다. 사이에 구분선을 둬 어디서 끊어 새 대화창에 넣을지 눈에 보이게 한다
+    if (req.nextUrl.searchParams.get('all') === '1') {
+      const rows = await prisma.complianceReview.findMany({
+        where: { teacherPackText: { not: null }, teacherAnswer: { is: null } },
+        orderBy: { operatorReviewedAt: 'desc' },
+        take: 50,
+        select: { teacherPackText: true, report: { select: { title: true } } },
+      });
+      if (rows.length === 0) {
+        return NextResponse.json({ error: '답을 기다리는 질문지가 없습니다' }, { status: 404 });
+      }
+      const sep = '\n\n' + '═'.repeat(60) + '\n※ 여기서부터 새 대화창에 넣어 주세요 (앞 건과 섞이지 않게)\n' + '═'.repeat(60) + '\n\n';
+      const text = rows.map((r) => r.teacherPackText).join(sep);
+      return NextResponse.json({ text, count: rows.length });
+    }
+
     const reviewId = req.nextUrl.searchParams.get('reviewId');
     if (!reviewId) {
       return NextResponse.json({ error: '검수 기록을 지정해 주세요' }, { status: 400 });
     }
 
     const teacher = await getTeacherTag(prisma);
+    // **저장된 질문지가 있으면 그것을 그대로 준다** (2026-08-27 창업자 지시) — 판정 시점에
+    // 만들어 박아 둔 스냅샷이라, 그때 실제로 보낸 것과 한 글자도 다르지 않다. 없을 때만
+    // 새로 만든다(옛 판정·저장 실패 대비). 무작위 경계가 매번 다른 문제를 스냅샷이 없앤다
+    const stored = await prisma.complianceReview.findUnique({
+      where: { id: reviewId },
+      select: { teacherPackText: true },
+    });
+    if (stored?.teacherPackText) {
+      await prisma.complianceReview
+        .update({ where: { id: reviewId }, data: { teacherAskedAt: new Date() } })
+        .catch((e) => console.error('교사 질의 시각 기록 실패:', e));
+      return NextResponse.json({
+        text: stored.teacherPackText,
+        teacherTag: teacher.tag,
+        teacherTagStale: teacher.stale,
+      });
+    }
     // 표식이 낡았어도 **질문지는 만들어 준다.** 막으면 운영자가 확인 창을 닫으려고
     // 아무 값이나 넣는다 — 잡으려던 것(조용한 오염)을 오히려 만든다.
     // 기록 시점(POST)에 막는 것으로 충분하다: 라벨이 남는 자리는 거기다
