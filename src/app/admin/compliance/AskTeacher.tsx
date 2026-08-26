@@ -8,20 +8,19 @@ import a from "../admin.module.css";
 // AI 검수기가 연결돼 있지 않으면 2차가 통째로 건너뛰어지고, 1차 소견이 있는 건은
 // 그대로 여기 쌓인다. 그때 운영자가 할 일은 교사에게 직접 물어보는 것인데,
 // 물어볼 재료를 손으로 조립하면 **매번 다른 기준의 답**이 나온다. 조립을 서버가 하고,
-// 화면은 나르는 일과 **순서를 지키게 하는 일**만 한다.
+// 화면은 나르는 일만 한다.
 //
-// ── 화면이 맡은 방어 하나: 새 대화 (18차 V-6) ────────────────────────
+// ── 맥락 이월 방어는 둘로 남긴다 (2026-08-26 창업자 확정: 체크박스 제거) ──
 // 자동 2차는 매 건이 독립 요청이라 맥락 이월이 원리적으로 없었다. 사람이 나르면 한
 // 창에서 연속으로 묻게 되고 앞 건의 판정이 뒤 건을 민다. 코드가 강제할 수 없는 자리라
-// 세 겹으로 나눠 막는다:
+// 나눠 막는다:
 //   ① 질문지 맨 위의 맥락 폐기 문구      (teacherPack.contextReset)
-//   ② 이 체크박스 — 심리적 마찰          (여기)
-//   ③ 답의 id 대조 — 앞 건 답 복사 차단  (domain/teacherAnswer.parseTeacherAnswer)
-// 어느 하나도 혼자서는 못 막는다.
+//   ② 답의 id 대조 — 앞 건 답 복사 차단  (domain/teacherAnswer.parseTeacherAnswer)
+// 체크박스(심리적 마찰)는 걷어냈다 — 문구와 id 대조가 이미 있어 마찰만 늘렸고,
+// 매번 눌러야 복사가 되니 정작 급할 때 방해가 됐다.
 export function AskTeacher({ reviewId, decided }: { reviewId: string; decided: boolean }) {
   const [state, setState] = useState<"idle" | "busy" | "done" | "fail">("idle");
   const [error, setError] = useState<string | null>(null);
-  const [freshChat, setFreshChat] = useState(false);
 
   async function copy() {
     setState("busy");
@@ -49,40 +48,40 @@ export function AskTeacher({ reviewId, decided }: { reviewId: string; decided: b
 
   return (
     <>
-      <label className={a.check}>
-        <input
-          type="checkbox"
-          checked={freshChat}
-          onChange={(e) => setFreshChat(e.target.checked)}
-        />
-        <span>
-          <b>새 대화창을 열었습니다</b> — 앞 건과 같은 창에서 물으면 앞의 판정이 이 건의
-          답을 밉니다. 자동 검수는 매번 새 요청이었습니다.
-        </span>
-      </label>
-
+      {/* **판정을 먼저 기록해야 열린다** (2026-08-26 창업자 확정 — 목적 재정의).
+          이 자료는 "사람은 이렇게, 자동 검수는 이렇게 판단했다"를 나란히 놓는 것이라
+          사람 판정이 없으면 비교의 절반이 빈다. 그래서 decided 전에는 잠근다 */}
       <button
         type="button"
         className={`${a.btn} ${a.btnLine}`}
         onClick={copy}
-        disabled={state === "busy" || !freshChat}
-        style={{ marginTop: 8 }}
+        disabled={state === "busy" || !decided}
       >
         {state === "busy"
           ? "만드는 중…"
           : state === "done"
             ? "복사됨 — 붙여 넣으세요"
-            : "교사에게 물어볼 질문지 복사"}
+            : "재학습 논의 자료 복사 (사람 vs 자동 검수)"}
       </button>
 
-      {/* **순서를 화면이 말한다** (18차 V-3). 서버도 막지만(recordTeacherAnswer),
-          거절만 하면 운영자는 왜 막혔는지 모른 채 답을 잃는다 */}
-      {!decided && (
+      {!decided ? (
         <p className={a.hint} style={{ marginTop: 8 }}>
-          답을 받으면 <b>먼저 승인·반려를 결정</b>한 뒤 기록합니다. 답을 보고 고르면 두
-          판단이 같은 출처가 되어, 교사가 정확한 것인지 확인을 건너뛴 것인지 나중에
-          가릴 수 없습니다.
+          먼저 위에서 <b>승인·반려를 결정</b>하면 열립니다. 이 자료는 판정을 요청하는 것이
+          아니라 <b>사람 판정과 자동 검수(RULE+IRIS) 판정을 나란히 놓고</b> IRIS 재학습·학습
+          표현 등록을 논의하기 위한 것이라, 사람 판정이 먼저 있어야 합니다.
         </p>
+      ) : (
+        <>
+          {/* **새 대화창 안내** — 강제(체크박스)는 걷었지만 안내는 남긴다. 질문지 맨 위의
+              맥락 문구가 실제 방어이고, 이 줄은 운영자가 그 이유를 알게 하는 용도다.
+              쌓인 기준(규정·교정 사례)은 질문지가 늘 싣는다 — 여기서 막는 것은 앞 건의
+              결론이 이 건에 스미는 것뿐이다 (2026-08-26) */}
+          <p className={a.hint} style={{ marginTop: 8 }}>
+            <b>매 건 새 대화창에서 논의해 주세요.</b> 규정과 과거 교정 사례는 자료에 늘
+            들어가니 기준은 그대로 이어집니다. 다만 같은 창에서 연속으로 다루면 <b>앞 건의
+            결론</b>이 이 건에 스밉니다 — 그것만 새 창이 끊어 줍니다.
+          </p>
+        </>
       )}
 
       {error && <p className={a.error}>{error}</p>}

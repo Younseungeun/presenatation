@@ -9,7 +9,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   deadlineRisk,
-  formatElapsed,
   autoScreenParticipation,
   missingScreeners,
   formatElapsedShort,
@@ -409,6 +408,12 @@ function TeacherRelayPanel({
                 운영자 결정: <b>{p.verdict === "REJECTED" ? "반려" : p.verdict === "TAKEDOWN" ? "강제 철회" : "승인"}</b>
                 {" — 이 결정을 보고 답을 고치지 마세요. 두 값이 갈리는 것 자체가 자료입니다."}
               </div>
+              {/* **여기가 재학습 논의 자료의 자리다** (2026-08-26 목적 재정의) — 운영자
+                  판정이 확정된 뒤라야 "사람 vs 자동 검수" 비교가 성립한다. 자료를 복사해
+                  교사와 논의하고, 그 결론을 아래 칸에 적는다 */}
+              <div style={{ marginTop: 8 }}>
+                <AskTeacher reviewId={p.reviewId} decided={true} />
+              </div>
               <TeacherAnswerBox reviewId={p.reviewId} teacherTag={teacherTag} stale={stale} />
             </div>
           ))}
@@ -702,7 +707,7 @@ function ReviewCard({
           <span className={a.liteName}>{review.report.title}</span>
           {/* 등급은 **표시 이름**으로 (TIER_NAME) — 줄 목록에서 옆 신고 카드가
               `무표기`라고 적는데 여기만 `BRONZE`면 다른 축의 값처럼 읽힌다.
-              `formatElapsed`가 이미 "9시간 대기"까지 만들므로 뒤에 대기를 또 붙이지 않는다 */}
+              시간은 짧은 꼴(formatElapsedShort)로 — 이 줄은 훑는 자리다 */}
           <span className={a.liteSub}>
             {researcher.penName ?? researcher.email} ·{" "}
             {TIER_NAME[review.report.researcher.tier as Tier] ?? review.report.researcher.tier} ·{" "}
@@ -768,16 +773,11 @@ function ReviewCard({
           {researcher.penName ?? researcher.email} ·{" "}
           {TIER_NAME[review.report.researcher.tier as Tier] ?? review.report.researcher.tier}
         </span>
-        {/* 원시 표식(`rule+student:IRIS.v5@t0.7/L7`)을 그대로 뿌리면 읽는 사람이 매번
-            해독해야 한다. 여기서 알아야 하는 것은 **누가 봤나** 하나다.
-            번호(1차·2차)를 쓰지 않는다 — 층이 하나 빠지자 모든 번호가 어긋났는데
-            "2차"라는 말은 여전히 말이 돼서 틀린 줄 몰랐다 (2026-08-24) */}
-        <span>
-          {autoScreenParticipation(review.reviewer).ai ? "자동 검수 규칙 + IRIS" : "자동 검수 규칙만"}
-        </span>
-        {/* `formatElapsed`가 이미 "9시간 대기"를 만든다 — 뒤에 또 붙여 `대기 대기`가
-            나오고 있었다 (2026-08-20) */}
-        <span>{formatElapsed(review.createdAt, now)}</span>
+        {/* **검수 참여자·대기 시간은 여기 다시 적지 않는다** (2026-08-26 창업자 지시).
+            위 헤더 칩이 이미 말한다 — `IRIS !`(=규칙만 돌았다)와 `101h 지연`.
+            같은 사실을 상세에서 또 적으면 칩을 지운 뜻이 없어진다.
+            원시 표식(`rule+student:...`)은 어차피 뿌리지 않는다 — 알아야 하는 건
+            "누가 봤나"뿐이고 그건 칩이 답한다 */}
         {review.report.predictionCard && (
           <span>
             시한 {new Date(review.report.predictionCard.deadline).toLocaleDateString("ko-KR")}
@@ -843,11 +843,10 @@ function ReviewCard({
           );
         })()}
       </div>
-      <div style={{ marginTop: 10 }}>
-        {/* 보류 큐의 건은 아직 결정 전이다 — 결정 뒤에는 **교사 답 대기** 줄에서
-            답을 적는다(TeacherAnswerBox). 여기서 답까지 받으면 순서가 뒤집힌다 */}
-        <AskTeacher reviewId={review.id} decided={false} />
-      </div>
+      {/* **재학습 논의 자료는 여기 없다** (2026-08-26 목적 재정의). 그 자료는 사람 판정과
+          자동 검수 판정을 나란히 놓는 것이라 **사람 판정이 먼저** 있어야 한다. 그래서
+          결정 전인 이 큐가 아니라 결정 뒤 "교사 답 대기" 줄(TeacherRelayPanel)에서 연다.
+          여기서는 판정만 내린다 (ResolveButton) */}
 
       {/* 규칙만 돈 사실은 **칩이 말한다**(제목 옆) — 예전에는 여기 문장으로 적었는데,
           카드를 펼쳐야 보이는 데다 다른 안내문과 같은 무게라 훑을 때 걸리지 않았다 */}

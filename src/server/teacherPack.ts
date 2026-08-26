@@ -78,6 +78,11 @@ export async function buildTeacherPack(
       id: true,
       findingsJson: true,
       createdAt: true,
+      // 사람 판정 — 이 자료의 절반이다. 자동 검수와 **나란히** 놓아야 "무엇이 갈렸나"가 보인다
+      operatorVerdict: true,
+      operatorReason: true,
+      operatorCategories: true,
+      aiFindingsValid: true,
       report: {
         select: {
           title: true,
@@ -140,8 +145,42 @@ export async function buildTeacherPack(
       input,
       findings: parseFindings(review.findingsJson),
       corrections: deps.corrections,
+      humanVerdict: readHumanVerdict(review),
     }),
     reportTitle: r.title,
+  };
+}
+
+/** 사람 판정 — 네 칸을 하나로 묶는다. 아직 판정 전이면 null */
+export interface HumanVerdict {
+  verdict: 'APPROVED' | 'REJECTED' | 'KEPT' | 'TAKEDOWN';
+  /** 운영자가 인정한 실제 위반 유형 — 비었으면 "검수 소견 그대로 인정" */
+  categories: RiskCategory[];
+  /** 승인 시: 지적 자체는 타당했는가 (경미 ↔ 오탐) */
+  findingsValid: boolean | null;
+  reason: string | null;
+}
+
+function readHumanVerdict(review: {
+  operatorVerdict: string | null;
+  operatorReason: string | null;
+  operatorCategories: string | null;
+  aiFindingsValid: boolean | null;
+}): HumanVerdict | null {
+  const v = review.operatorVerdict;
+  if (v !== 'APPROVED' && v !== 'REJECTED' && v !== 'KEPT' && v !== 'TAKEDOWN') return null;
+  let categories: RiskCategory[] = [];
+  try {
+    const parsed = JSON.parse(review.operatorCategories ?? '[]');
+    if (Array.isArray(parsed)) categories = parsed as RiskCategory[];
+  } catch {
+    /* 깨진 JSON 은 "유형 미지목"으로 본다 */
+  }
+  return {
+    verdict: v,
+    categories,
+    findingsValid: review.aiFindingsValid,
+    reason: review.operatorReason,
   };
 }
 
@@ -157,6 +196,8 @@ export function assembleTeacherPack(args: {
   input: ScreeningInput;
   findings: Finding[];
   corrections: CalibrationExample[];
+  /** 사람 판정 — 이 자료의 절반. 없으면(판정 전) 비교가 성립하지 않는다 */
+  humanVerdict?: HumanVerdict | null;
   /** 시험이 고정값을 넣는다. 운영에서는 비워 두어 **부를 때마다 새로** 만든다 */
   boundary?: string;
 }): { text: string; packId: string } {
@@ -168,16 +209,26 @@ export function assembleTeacherPack(args: {
   const text = [
     ...contextReset(),
     '',
-    '# 컴플라이언스 검수 판정 요청',
+    '# 검수 판정 비교 — 사람 vs 자동 검수(RULE+IRIS) · 재학습 논의',
     '',
-    '아래 <규정>에 따라 항목 1건을 판정해 주세요. 이 요청은 운영 중인 검수기의 2차 단계를',
-    '사람이 대신 나르는 것이라, **운영에 쓰이는 규정문 그대로** 싣습니다.',
+    '**이 자료는 판정을 요청하는 것이 아닙니다.** 운영자(사람)가 이미 내린 판정과',
+    '자동 검수(규칙 엔진 + IRIS)의 판정을 나란히 놓은 것입니다. 둘이 어떻게, 왜 갈렸는지',
+    '살펴보고 아래 세 가지를 함께 논의해 주세요:',
     '',
-    ...answerFormat(args.packId),
+    '  ① **IRIS 재학습** — 이 사례를 학생 모델이 다음에 맞히려면 무엇을 배워야 하나',
+    '  ② **학습 표현 등록** — 이 사유를 사전에 어떤 표현으로 남기면 재사용되나',
+    '  ③ **BLOCK 승격(코드로만)** — 학습 표현의 심각도는 **항상 WARN**입니다(사람이 입력한',
+    '     문자열에 즉시 거절 권한을 주면 오타 하나가 정상 리포트를 사람 확인 없이 죽입니다).',
+    '     즉시 거절이 필요하다면 사전 항목을 BLOCK으로 켜는 것이 아니라, **코드 레벨 규칙에',
+    '     문맥 조건을 적어 배포**해야 합니다. 그 문맥 조건을 어떻게 좁혀야 오탐 없이',
+    '     BLOCK할 수 있을지 논의해 주세요.',
+    '',
+    '판정을 다시 내려 달라는 것이 아니라 — 사람 판정은 이미 확정입니다 — **그 판정을',
+    '자동 검수가 재현하게 만드는 방법**을 찾는 것이 목적입니다.',
     '',
     '---',
     '',
-    `<규정>\n${SYSTEM_PROMPT}\n</규정>`,
+    ...humanVerdictBlock(args.humanVerdict ?? null),
     '',
     '---',
     '',
@@ -185,9 +236,17 @@ export function assembleTeacherPack(args: {
     '',
     '---',
     '',
-    `## 항목  [${args.packId}]`,
+    `<규정>\n${SYSTEM_PROMPT}\n</규정>`,
+    '',
+    '---',
+    '',
+    `## 대상 리포트  [${args.packId}]`,
     '',
     body,
+    '',
+    '---',
+    '',
+    ...discussionFormat(args.packId),
     '',
   ].join('\n');
 
@@ -196,21 +255,75 @@ export function assembleTeacherPack(args: {
 }
 
 /**
- * **이전 대화의 기준을 폐기시킨다** (18차 V-6).
+ * **사람 판정 — 이 자료의 절반이다.**
  *
- * 자동 2차는 매 건이 독립 요청이라 이 문제가 원리적으로 없었다. 사람이 나르면 한
- * 대화창에서 보류 건을 연속으로 묻게 되고, 앞 건의 판정이 뒤 건을 민다.
+ * 자동 검수 소견만 실으면 "판정해 주세요"와 다를 게 없다. 사람이 내린 결론을 나란히
+ * 놓아야 "무엇이 갈렸나 → 왜 → 어떻게 재현시킬까"의 논의가 성립한다.
  *
- * 코드가 할 수 있는 것은 이 문구뿐이다 — 운영자가 새 대화를 여는지는 코드가 모른다.
- * 그래서 화면이 체크박스로 마찰을 만들고(AskTeacher), 답 파싱은 id 를 대조해
- * **앞 건의 답을 복사한 경우**를 잡는다(teacherAnswer.parseTeacherAnswer).
- * 세 겹 중 어느 하나도 혼자서는 못 막는다.
+ * 판정 전(null)이면 비교가 성립하지 않으므로 그 사실을 명시한다 — 화면(AskTeacher)이
+ * 판정 뒤에만 복사를 허용하지만, 서버 조립기도 혼자 옳아야 한다.
+ */
+function humanVerdictBlock(v: HumanVerdict | null): string[] {
+  if (!v) {
+    return [
+      '## 사람 판정 (운영자)',
+      '',
+      '**아직 판정 전입니다.** 이 자료는 운영자가 승인·반려를 결정한 뒤에 만들어야',
+      '비교가 성립합니다. 먼저 검수 상세 화면에서 판정을 기록해 주세요.',
+    ];
+  }
+  const label: Record<HumanVerdict['verdict'], string> = {
+    APPROVED: '승인 (게시 허용)',
+    REJECTED: '반려 (초안 복귀)',
+    KEPT: '게시 유지',
+    TAKEDOWN: '강제 철회 (게시 중단·전액 환불)',
+  };
+  const out = ['## 사람 판정 (운영자)', '', `- **결론: ${label[v.verdict]}**`];
+
+  const rejectedLike = v.verdict === 'REJECTED' || v.verdict === 'TAKEDOWN';
+  if (rejectedLike) {
+    out.push(
+      v.categories.length > 0
+        ? `- 인정한 위반 유형: ${v.categories.map((c) => RISK_CATEGORY_LABEL[c] ?? c).join(' · ')}`
+        : '- 인정한 위반 유형: (검수 소견을 그대로 인정 — 별도 지목 없음)',
+    );
+  } else {
+    // 승인은 세 갈래다 — 오탐 / 경미 / (소견 없음). aiFindingsValid 가 그걸 가른다
+    out.push(
+      v.findingsValid === true
+        ? '- 소견 판단: **경미** — 지적은 타당했으나 게시를 막을 정도는 아니었다'
+        : v.findingsValid === false
+          ? '- 소견 판단: **오탐** — 애초에 잘못 잡았다 (규칙·모델을 고쳐야 하는 자리)'
+          : '- 소견 판단: (해당 없음)',
+    );
+  }
+  if (v.reason?.trim()) out.push(`- 사유: ${v.reason.trim()}`);
+  return out;
+}
+
+/**
+ * **축적된 기준은 따르되, 앞 건의 판정이 이 건에 스미는 것만 막는다** (2026-08-26 창업자 확정).
+ *
+ * 두 가지가 완전히 다르다 — 앞 문구는 이 둘을 뭉뚱그려 "앞 맥락 다 지워라"였고,
+ * 그러면 쌓인 판례까지 버리라는 것처럼 읽혔다:
+ *
+ *   A. 시스템에 쌓인 과거 판정 데이터 — **자산이다.** 규정·교정 사례로 정제돼 들어오고
+ *      (규정문·corrections), 교사는 그것을 기준으로 삼아야 한다. 판례를 보는 판사와 같다.
+ *   B. 같은 창에서 방금 물어본 앞 건의 답 — **오염이다.** 검증된 라벨이 아니라 우연히
+ *      옆에 있어 새어든 것으로, 앞 건이 위반이었으면 이 건도 위반 쪽으로 기운다.
+ *
+ * 막는 것은 B뿐이다. A는 오히려 따르라고 명시한다.
+ *
+ * 코드가 강제할 수 있는 것은 이 문구뿐이다 — 운영자가 새 대화를 여는지는 코드가 모른다.
+ * 답 파싱이 id 를 대조해 **앞 건의 답을 복사한 경우**를 잡는 것(teacherAnswer)이 나머지 겹이다.
  */
 function contextReset(): string[] {
   return [
-    '> **이전 대화의 모든 맥락과 기준을 폐기하고, 오직 아래 문서만 독립적으로 판정하세요.**',
-    '> 같은 창에서 앞서 판정한 건이 있더라도 그 판단·그때 세운 기준·그때의 엄격도를',
-    '> 이 건에 옮기지 마세요. 앞 건과의 일관성보다 **이 건 단독의 정확성**이 우선입니다.',
+    '> **과거의 판정 기준은 따르되, 직전에 판정한 건의 결론이 이 건에 스미지 않게 하세요.**',
+    '> 아래 <규정>과 교정 사례는 그동안 쌓인 판단 기준이므로 그대로 근거로 삼으세요.',
+    '> 다만 같은 창에서 방금 다른 건을 판정했다면, 그 건이 위반이었는지 아닌지가',
+    '> **이 건의 엄격도를 밀지 않도록** 주의하세요. 그건 검증된 기준이 아니라 우연한 순서일',
+    '> 뿐입니다. 앞 건과의 일관성이 아니라 **이 건을 규정에 비춘 객관적 판정**이 우선입니다.',
   ];
 }
 
@@ -252,24 +365,25 @@ function withIntegrityHeader(body: string): string {
  * 답을 유도하지 않는 이유는 그대로 지킨다: "이게 정답"이라고 적으면 독립 판정이 아니다.
  */
 function firstTierBlock(findings: Finding[]): string[] {
-  if (findings.length === 0) return ['## 1차 규칙이 이미 짚은 것', '', '(1차 소견 없음)'];
+  if (findings.length === 0)
+    return ['## 자동 검수(RULE+IRIS) 판정', '', '(소견 없음 — 자동 검수는 위반을 못 찾았다)'];
 
   const line = (f: Finding) =>
     `- [${RISK_CATEGORY_LABEL[f.category] ?? f.category}] "${f.quote}"`;
   const open = findings.filter((f) => answerable(f.category));
   const context = findings.filter((f) => !answerable(f.category));
 
-  const out = ['## 1차 규칙이 이미 짚은 것 (참고 — 정답이 아닙니다)', ''];
-  out.push(open.length > 0 ? open.map(line).join('\n') : '(답할 수 있는 유형의 소견 없음)');
+  const out = ['## 자동 검수(RULE+IRIS) 판정', ''];
+  out.push(open.length > 0 ? open.map(line).join('\n') : '(위반 유형 소견 없음 — 자동 검수는 깨끗하다고 봤다)');
 
   if (context.length > 0) {
     out.push(
       '',
-      '### 읽기 전용 문맥 — 이 소견은 **답에 쓰지 마세요**',
+      '### 읽기 전용 문맥 — 이 소견은 **재학습 라벨에 넣지 마세요**',
       '',
-      '아래는 종목 데이터로 결정되는 유형이라 규칙이 이미 확정했고, 답 형식의 라벨 공간',
-      '밖입니다. **이 문서가 왜 보류됐는지 알려 드리려고** 싣습니다 — 다른 위반을 찾지',
-      '못했다면 빈 배열로 두세요. 이것 때문에 없는 위반을 만들어 내지 마세요.',
+      '아래는 종목 데이터로 결정되는 유형이라 규칙이 이미 확정했고, 학생 라벨 공간',
+      '밖입니다. **이 문서가 왜 보류됐는지 알려 드리려고** 싣습니다 — 이것 때문에 없는',
+      '위반을 지어내지 마세요.',
       '',
       context.map(line).join('\n'),
     );
@@ -278,17 +392,31 @@ function firstTierBlock(findings: Finding[]): string[] {
 }
 
 /**
- * 답 형식 — **`지적:` 한 줄이 오탐과 경미를 가른다** (18차 V-3).
+ * 논의 + 결론 형식 — **자유 논의 뒤, 재학습에 쓸 결론을 구조화한다.**
  *
- * `labels: []` 하나로는 "애초에 잘못 잡았다(오탐 → 규칙을 고쳐야 함)"와 "지적은 맞는데
- * 게시를 막을 정도는 아니다(경미 → 심각도를 고쳐야 함)"가 접힌다. 11차 K-1이 그 둘을
- * 접었을 때 무슨 일이 나는지 실측했다 — 25건 중 6건이면 학생 모델이 영구히 꺼진다.
+ * 판정을 받는 것이 아니라 논의를 하는 것이므로 앞부분은 자유 서술이다. 다만 그 논의가
+ * IRIS 재학습으로 이어지려면 **기계가 읽을 수 있는 결론 한 줄**이 필요하다.
+ *
+ * ⚠ 결론 JSON 형식은 **`parseTeacherAnswer` 가 읽는 그대로**여야 한다 (`labels` +
+ * `지적:`). 여기서 형식을 바꾸면 답이 파싱되지 않아 재학습 라벨이 하나도 안 쌓인다 —
+ * 이 자료를 만든 목적(재학습)이 조용히 사라진다. 문구만 '판정'에서 '재학습 라벨'로 바꾼다.
  */
-function answerFormat(packId: string): string[] {
+function discussionFormat(packId: string): string[] {
   return [
-    '## 출력 형식 (반드시 이대로)',
+    '## 논의해 주세요 (자유 서술)',
     '',
-    'JSONL 한 줄. 위반이 없으면 `labels`는 빈 배열입니다.',
+    '1. **왜 갈렸나** — 사람과 자동 검수의 판정 차이가 어디서 왔는지 (본문의 어느 표현/문맥)',
+    '2. **IRIS 재학습** — 이 사례에서 학생 모델이 배워야 할 것. 비슷한 표현을 앞으로',
+    '   맞히려면 어떤 특징을 잡아야 하나',
+    '3. **학습 표현 등록** — 사전에 남긴다면 어떤 표현이 재사용 가능한가 (종목명·숫자를',
+    '   뺀, 너무 넓지 않은 형태). 등록하면 **항상 WARN** 으로 동작합니다',
+    '4. **BLOCK 승격(코드로만)** — 즉시 거절이 필요하다면, 사전 항목을 BLOCK 으로 켜는',
+    '   것이 아니라 **코드 레벨 규칙**에 어떤 문맥 조건을 적어야 오탐 없이 BLOCK 할 수',
+    '   있을까. (조건이 넓으면 정상 리포트가 사람 확인 없이 죽습니다 — 그래서 코드로만 엽니다)',
+    '',
+    '## 결론 요약 (마지막에 이 형식으로 — IRIS 재학습 라벨로 씁니다)',
+    '',
+    'JSONL 한 줄. 위반 유형이 없다고 보면 `labels`는 빈 배열입니다.',
     '```',
     `{"id":"${packId}","labels":["PROFIT_GUARANTEE"]}`,
     '```',
@@ -296,14 +424,14 @@ function answerFormat(packId: string): string[] {
     '',
     '**`labels`가 빈 배열이면 아래 한 줄을 반드시 덧붙여 주세요:**',
     '```',
-    '지적: 타당   ← 1차 지적은 옳았으나 게시를 막을 정도는 아니다',
-    '지적: 과함   ← 1차가 애초에 잘못 잡았다',
+    '지적: 타당   ← 자동 검수 지적은 옳았으나 게시를 막을 정도는 아니다 (경미)',
+    '지적: 과함   ← 자동 검수가 애초에 잘못 잡았다 (오탐)',
     '```',
-    '이 한 줄이 **규칙을 고칠 일**과 **심각도를 고칠 일**을 가릅니다. 없으면 그 답은',
-    '기록되지 않고 운영자가 손으로 다시 골라야 합니다.',
+    '이 한 줄이 **규칙을 고칠 일**과 **심각도를 고칠 일**을 가릅니다. 없으면 재학습에',
+    '기록되지 않습니다.',
     '',
-    '**심각도는 받지 않습니다** — 소견은 BLOCK이든 WARN이든 처리가 같고(보류), 유형만 씁니다.',
-    '판정 뒤에 왜 그렇게 봤는지 두세 줄로 덧붙여 주세요 — 운영자가 최종 결정에 씁니다.',
+    '위 결론은 재학습용 라벨일 뿐이고, 학습 표현 등록·BLOCK 승격(위 3·4번)은 창업자가',
+    '이 논의를 읽고 코드로 판단합니다 — JSON 에 넣지 마세요.',
   ];
 }
 

@@ -114,13 +114,15 @@ describe('규정문이 약속한 셋이 질문지에 있다 (18차 V-2)', () => 
 });
 
 describe('질문지의 나머지 약속', () => {
-  it('맥락 폐기 문구가 **맨 앞**에 있다 (18차 V-6)', async () => {
+  it('맥락 문구가 **맨 앞**에 있다 — 축적 기준은 따르되 앞 건 오염만 막는다 (2026-08-26)', async () => {
     const id = await seedReview();
     const pack = await buildTeacherPack(prisma, id, deps);
-    const at = pack!.text.indexOf('이전 대화의 모든 맥락과 기준을 폐기');
+    const at = pack!.text.indexOf('과거의 판정 기준은 따르되');
     expect(at).toBeGreaterThanOrEqual(0);
-    // 규정문보다 뒤에 있으면 앞 건의 기준이 이미 적용된 채로 읽힌다
-    expect(at).toBeLessThan(pack!.text.indexOf('컴플라이언스 검수 판정 요청'));
+    // 본문 제목보다 뒤에 있으면 앞 건의 결론이 이미 적용된 채로 읽힌다
+    expect(at).toBeLessThan(pack!.text.indexOf('검수 판정 비교'));
+    // **축적된 기준을 버리라고 말하지 않는다** — 규정·교정 사례는 따르라고 명시해야 한다
+    expect(pack!.text).toContain('그대로 근거로 삼으세요');
   });
 
   it('무결성 머리글의 마지막 낱말이 실제 끝과 맞는다 (18차 V-2)', async () => {
@@ -135,9 +137,9 @@ describe('질문지의 나머지 약속', () => {
   it('답할 수 없는 유형은 **읽기 전용 문맥**으로 갈라 싣는다 (18차 V-1)', async () => {
     const id = await seedReview();
     const pack = await buildTeacherPack(prisma, id, deps);
-    // 감추면 교사가 왜 보류됐는지 몰라 없는 위반을 지어낸다 — 싣되 답에 쓰지 말라고 한다
+    // 감추면 교사가 왜 보류됐는지 몰라 없는 위반을 지어낸다 — 싣되 재학습 라벨엔 넣지 말라고 한다
     expect(pack!.text).toContain('읽기 전용 문맥');
-    expect(pack!.text).toContain('답에 쓰지 마세요');
+    expect(pack!.text).toContain('재학습 라벨에 넣지 마세요');
     // 라벨 공간 안의 소견은 평범하게 참고로 실린다
     expect(pack!.text).toContain('반드시 오른다');
   });
@@ -162,5 +164,59 @@ describe('질문지의 나머지 약속', () => {
     });
     const boundary = pack!.text.match(/BOUNDARY-([0-9a-f]{16})/)?.[1];
     expect(pack!.text).toContain(`[오탐사례 BOUNDARY-${boundary}]`);
+  });
+});
+
+// **목적 재정의: 판정 요청 → 사람 vs 자동 검수 비교 · 재학습 논의** (2026-08-26 창업자 확정).
+describe('재학습 논의 자료 — 사람 판정을 나란히 싣는다', () => {
+  it('판정을 요청하지 않는다 — 비교·논의 자료임을 명시한다', async () => {
+    const id = await seedReview();
+    const pack = await buildTeacherPack(prisma, id, deps);
+    expect(pack!.text).toContain('판정을 요청하는 것이 아닙니다');
+    // IRIS 재학습·학습 표현·BLOCK(코드로만) 셋을 논의 대상으로 건다
+    expect(pack!.text).toContain('IRIS 재학습');
+    expect(pack!.text).toContain('BLOCK 승격');
+    // BLOCK 은 코드로만 — 사전 항목을 켜는 것이 아니라는 경계가 반드시 있어야 한다
+    expect(pack!.text).toContain('코드 레벨');
+  });
+
+  it('사람 판정이 있으면 결론·유형·사유를 나란히 싣는다', async () => {
+    const id = await seedReview();
+    await prisma.complianceReview.update({
+      where: { id },
+      data: {
+        operatorVerdict: 'REJECTED',
+        operatorCategories: JSON.stringify(['PROFIT_GUARANTEE']),
+        operatorReason: '수익 보장 표현이 반복됨',
+      },
+    });
+    const pack = await buildTeacherPack(prisma, id, deps);
+    expect(pack!.text).toContain('사람 판정 (운영자)');
+    expect(pack!.text).toContain('반려');
+    expect(pack!.text).toContain('수익 보장 표현이 반복됨');
+    // 자동 검수 판정도 나란히 — 비교의 반대쪽
+    expect(pack!.text).toContain('자동 검수(RULE+IRIS) 판정');
+  });
+
+  it('아직 판정 전이면 그 사실을 명시한다 — 비교의 절반이 비어 있다', async () => {
+    const id = await seedReview();
+    const pack = await buildTeacherPack(prisma, id, deps);
+    expect(pack!.text).toContain('아직 판정 전입니다');
+  });
+
+  it('승인+오탐이면 "오탐"으로, 승인+타당이면 "경미"로 갈라 싣는다', async () => {
+    const fp = await seedReview();
+    await prisma.complianceReview.update({
+      where: { id: fp },
+      data: { operatorVerdict: 'APPROVED', aiFindingsValid: false },
+    });
+    expect((await buildTeacherPack(prisma, fp, deps))!.text).toContain('오탐');
+
+    const minor = await seedReview();
+    await prisma.complianceReview.update({
+      where: { id: minor },
+      data: { operatorVerdict: 'APPROVED', aiFindingsValid: true },
+    });
+    expect((await buildTeacherPack(prisma, minor, deps))!.text).toContain('경미');
   });
 });
