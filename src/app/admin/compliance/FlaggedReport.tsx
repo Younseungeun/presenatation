@@ -244,13 +244,16 @@ export function FlaggedReport({
         )}
       </div>
 
-      {content?.trim() ? (
-        <p className={s.body}>
-          <Highlighted text={content} findings={findings} />
-        </p>
-      ) : (
-        <p className={`${s.body} ${s.empty}`}>본문이 없습니다</p>
-      )}
+      {/* 본문을 안쪽 박스로 한 번 더 감싼다 (시안: 박스 안의 박스) */}
+      <div className={s.bodyBox}>
+        {content?.trim() ? (
+          <p className={s.body}>
+            <Highlighted text={content} findings={findings} />
+          </p>
+        ) : (
+          <p className={`${s.body} ${s.empty}`}>본문이 없습니다</p>
+        )}
+      </div>
     </Link>
   );
 }
