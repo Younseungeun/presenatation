@@ -32,7 +32,23 @@ interface Preview {
    * 충돌 목록은 **등록 직후 한 번** 따로 보여준다.
    */
   phoneticEligible: boolean | null;
+  /**
+   * 이 표현을 켜면 **지금 팔리는 글** 몇 건이 걸리는가 (창업자 지시).
+   * 등록 후에도 같은 숫자가 나오지만 그때는 이미 사전에 올라간 뒤라 늦다.
+   * 이미 켜져 있는 항목이거나 형태가 틀렸으면 재지 않아 null 이다.
+   */
+  rescan: { scanned: number; hits: number } | null;
 }
+
+/**
+ * 여기부터 "넓다" 고 본다.
+ *
+ * @근거 설계 — 창업자 지시의 예시값(*"20건이 걸리면 그 표현은 너무 넓은 것"*).
+ *   실측으로 유도한 값이 아니라 **말을 그대로 옮긴 것**이라, 운영 데이터가 쌓이면
+ *   등록된 표현의 실제 정확도(matchCount 대비 confirmedCount)로 다시 잡아야 한다.
+ *   지금 이 값이 하는 일은 차단이 아니라 **눈에 띄게 하기**뿐이다 — 넘어도 등록은 된다.
+ */
+const BROAD_HIT_COUNT = 20;
 
 /** 타이핑 중에는 답하지 않는다 — 한 글자마다 붉은 줄이 뜨면 쓰는 것을 방해한다 */
 const DEBOUNCE_MS = 500;
@@ -159,25 +175,83 @@ function PhraseVerdict({ preview }: { preview: Preview }) {
   }
   if (off) {
     return (
-      <p className={a.hint} style={{ color: "#b45309" }}>
-        꺼 둔 항목이 있습니다 (<b>{RISK_CATEGORY_LABEL[off.category]}</b>) — 등록하면{" "}
-        <b>다시 켜집니다.</b> 같은 위반이 다시 확인된 것이라면 맞는 동작입니다.
-      </p>
+      <>
+        <p className={a.hint} style={{ color: "#b45309" }}>
+          꺼 둔 항목이 있습니다 (<b>{RISK_CATEGORY_LABEL[off.category]}</b>) — 등록하면{" "}
+          <b>다시 켜집니다.</b> 같은 위반이 다시 확인된 것이라면 맞는 동작입니다.
+        </p>
+        <RescanLine rescan={preview.rescan} />
+      </>
     );
   }
 
   return (
-    <p className={a.hint} style={{ color: "var(--text-faint)" }}>
-      ✓ 새 항목으로 등록됩니다.
-      {/* **자격은 여부만 말한다.** 무엇과 부딪혔는지는 응답에 없고, 그것이 이 문구의
-          설계다 — 상대를 알면 그것을 피해 표현을 다듬게 되고 대조 표본에 최적화된다.
-          자격이 없어도 손실은 작다(정확 표기 감시는 그대로)는 사실을 함께 적어,
-          운영자가 표현을 억지로 바꾸려 들지 않게 한다 */}
-      {preview.phoneticEligible === false && (
-        <>
-          <br />
-          근사 표기까지는 감시하지 못합니다 (정확 표기 감시는 됩니다).
-        </>
+    <>
+      <p className={a.hint} style={{ color: "var(--text-faint)" }}>
+        ✓ 새 항목으로 등록됩니다.
+        {/* **자격은 여부만 말한다.** 무엇과 부딪혔는지는 응답에 없고, 그것이 이 문구의
+            설계다 — 상대를 알면 그것을 피해 표현을 다듬게 되고 대조 표본에 최적화된다.
+            자격이 없어도 손실은 작다(정확 표기 감시는 그대로)는 사실을 함께 적어,
+            운영자가 표현을 억지로 바꾸려 들지 않게 한다 */}
+        {preview.phoneticEligible === false && (
+          <>
+            <br />
+            근사 표기까지는 감시하지 못합니다 (정확 표기 감시는 됩니다).
+          </>
+        )}
+      </p>
+      <RescanLine rescan={preview.rescan} />
+    </>
+  );
+}
+
+/**
+ * **누르기 전에 답한다** — 이 표현을 켜면 지금 팔리는 글 몇 건이 걸리는가.
+ *
+ * 등록 후에도 같은 숫자가 나오지만 그때는 이미 사전에 올라간 뒤라, 끄는 절차를 따로
+ * 밟는 동안 작성 화면은 그 표현으로 경고를 띄운다. 되돌릴 수 있는 유일한 순간이 여기다.
+ *
+ * ── 세 가지를 함께 적는다 ─────────────────────────────────────────────
+ * ① **분모** — 3건이 많은지 적은지는 전체를 알아야 정해진다
+ * ② **0건이어도 침묵하지 않는다** — 침묵은 "안 쟀다"와 구별되지 않는다. 그리고 0건은
+ *    나쁜 소식이 아니다(앞으로 올 글에는 그대로 닿는다)는 사실을 같이 적어야
+ *    운영자가 표현을 억지로 넓히지 않는다
+ * ③ **처분이 아니다** — 걸린 글은 목록에 오를 뿐 게시는 그대로다. 이 줄을 읽고
+ *    "20건이 내려간다"고 오해하면 등록 자체를 피하게 된다
+ *
+ * 못 잰 경우(null)에는 아무것도 그리지 않는다 — 미리보기 부재는 사건이 아니고,
+ * 등록 직후 사진이 같은 계산을 다시 한다.
+ */
+function RescanLine({ rescan }: { rescan: Preview["rescan"] }) {
+  if (!rescan) return null;
+  const broad = rescan.hits >= BROAD_HIT_COUNT;
+  return (
+    <p
+      className={a.hint}
+      style={{
+        color: broad ? "#b45309" : "var(--text-weak)",
+        fontWeight: broad ? 600 : 400,
+      }}
+    >
+      지금 팔리는 글 <b>{rescan.scanned}건</b> 중 <b>{rescan.hits}건</b>이 이 표현에
+      걸립니다.
+      {rescan.hits === 0 ? (
+        <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>
+          {" "}
+          지금 걸리는 글은 없지만 <b>앞으로 올라올 글에는 그대로 닿습니다</b> — 건수를
+          늘리려고 표현을 넓힐 이유는 없습니다.
+        </span>
+      ) : (
+        <span style={{ color: "var(--text-faint)", fontWeight: 400 }}>
+          {" "}
+          {broad && (
+            <>
+              <b>표현이 너무 넓지 않은지 확인해 주세요.</b>{" "}
+            </>
+          )}
+          걸린 글은 <b>목록에 오를 뿐 게시는 그대로입니다</b> — 내릴지는 운영자가 따로
+          정합니다.
+        </span>
       )}
     </p>
   );

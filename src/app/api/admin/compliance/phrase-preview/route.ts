@@ -5,6 +5,7 @@ import { RISK_CATEGORIES, type RiskCategory } from '@/domain/compliance';
 import { normalizePhrase, validatePhrase } from '@/domain/learnedPhrases';
 import { measurePhoneticEligibility } from '@/server/learnedPhraseService';
 import { getKnownInstrumentNames } from '@/server/instrumentNames';
+import { previewPhraseRescan } from '@/server/phraseRescanService';
 import { requireOperatorId, toErrorResponse } from '../../../_lib/http';
 
 /**
@@ -60,6 +61,29 @@ export interface PhrasePreview {
    * 형태가 이미 틀렸으면 재지 않으므로 null 이다 (등록될 리가 없다).
    */
   phoneticEligible: boolean | null;
+  /**
+   * **이 표현을 켜면 지금 팔리는 글 몇 건이 걸리는가** (창업자 지시 — 미리보기).
+   *
+   * ── 왜 건수가 여기 있어야 하나 ────────────────────────────────────
+   * *"20건이 걸리면 그 표현은 너무 넓은 것이고, 누르기 전에 알아야 한다."*
+   * 등록 후에도 같은 숫자가 나오지만 그때는 이미 사전에 올라간 뒤다. 되돌리려면
+   * 끄는 절차를 따로 밟아야 하고, 그 사이 작성 화면은 그 표현으로 경고를 띄운다.
+   *
+   * ── `collisions` 와 다르다 — 숨길 이유가 없다 ──────────────────────
+   * 충돌 목록을 입력 중에 안 보여주는 것은 그것이 **내부 대조 코퍼스**이기 때문이다
+   * (피해서 다듬으면 오탐률 측정이 오염된다). 이 숫자가 세는 것은 **실제 게시물**이라
+   * 그런 고리가 없다 — 오히려 보고 다듬는 것이 이 기능의 목적 그 자체다.
+   * 나중에 "일관성" 을 이유로 이것까지 가리지 않도록 여기 적어 둔다.
+   *
+   * ── 건수만이다 ───────────────────────────────────────────────────
+   * 제목·인용문은 **등록 직후 사진**(PhraseRescanHit)이 그린다. 타이핑 중에 목록까지
+   * 그리면 화면이 흔들려 정작 고쳐야 할 표현에서 눈이 떠난다. 여기서 답할 질문은
+   * "이 표현이 너무 넓은가" 하나다.
+   *
+   * 분모(`scanned`)를 함께 싣는다 — 3건이 많은지 적은지는 전체를 알아야 정해진다.
+   * 재지 않은 경우(형태 위반·이미 켜져 있는 항목)는 null 이다.
+   */
+  rescan: { scanned: number; hits: number } | null;
 }
 
 export async function POST(req: NextRequest) {
@@ -73,6 +97,7 @@ export async function POST(req: NextRequest) {
         needsCategory: false,
         matches: [],
         phoneticEligible: null,
+        rescan: null,
       } satisfies PhrasePreview);
     }
 
@@ -85,6 +110,7 @@ export async function POST(req: NextRequest) {
         needsCategory: !body.category,
         matches: [],
         phoneticEligible: null,
+        rescan: null,
       } satisfies PhrasePreview);
     }
 
@@ -102,12 +128,36 @@ export async function POST(req: NextRequest) {
       ).catch(() => ({ eligible: false })),
     ]);
 
+    /* **이 표현을 켜면 지금 팔리는 글 몇 건이 걸리나.**
+       이미 켜져 있는 항목이면 재지 않는다 — 등록해도 사전이 그대로라 걸리는 글도
+       그대로고, "N건이 새로 걸립니다" 가 거짓이 된다. 꺼 둔 항목은 등록이 곧
+       **다시 켜는 것**이라 그 N건은 진짜로 새로 걸리므로 잰다.
+       실패는 삼킨다(null) — 미리보기가 없다고 반려를 막을 이유가 없고, 등록 직후
+       사진이 같은 계산을 다시 한다. */
+    const active = matches.some((m) => m.active);
+    const rescan = active
+      ? null
+      : await previewPhraseRescan(prisma, {
+          // 아직 사전에 없으므로 id 가 없다. `rescanForPhrase` 는 자기가 넘긴 표현의
+          // 소견만 골라내려고 `learned:<id>` 를 대조할 뿐이라, 이 호출 안에서만
+          // 일관되면 된다 — 저장되지 않는 값이다
+          id: 'preview',
+          phrase,
+          normalized,
+          category: body.category ?? 'PROFIT_GUARANTEE',
+          note: null,
+          phoneticEligible: eligibility.eligible,
+        })
+          .then((r) => ({ scanned: r.scanned, hits: r.hits.length }))
+          .catch(() => null);
+
     return NextResponse.json({
       issues,
       needsCategory: !body.category,
       matches: matches.map((m) => ({ ...m, category: m.category as RiskCategory })),
       // **`collisions` 는 여기서 꺼내지 않는다** — 위 주석 참조
       phoneticEligible: eligibility.eligible,
+      rescan,
     } satisfies PhrasePreview);
   } catch (e) {
     return toErrorResponse(e);
