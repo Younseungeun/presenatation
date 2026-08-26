@@ -318,6 +318,45 @@ export function MoneyIcon() {
 }
 
 /**
+ * 복사하기 — 시트 한 장이 다른 한 장 뒤로 복제된 모양. 복사는 문서 × 2다.
+ * document(접힌 모서리 + 줄)·escrow(손잡이 케이스)와 부품이 겹치지만, 이건
+ * 민 시트 둘을 어긋나게 겹친 것이고 겹침 자체가 신호다. 접힌 모서리도 손잡이도 없다.
+ * 세트가 currentColor 단독이라 뒷장을 흰색으로 채워 가리지 않았다 — 다크 모드에서 깨진다.
+ * 대신 뒷장을 가려지지 않는 ㄱ자 브래킷으로만 그리고, 두 끝을 butt 캡으로 앞장 테두리에
+ * T자로 맞물렸다. 안쪽 덩어리는 바 셋(문서와 같은 처리) — 뒷장을 통째로 채우면 183단위²로
+ * 세트에서 쨍한다.
+ */
+export function CopyIcon() {
+  return (
+    <svg {...BOX}>
+      <path
+        d="M14.4 6.4 V5.8 A2.2 2.2 0 0 0 12.2 3.6 H5.2 A2.2 2.2 0 0 0 3 5.8
+           V15.4 A2.2 2.2 0 0 0 5.2 17.6 H9.6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        strokeLinecap="butt"
+      />
+      <path
+        d="M11.8 6.4 H18.8 A2.2 2.2 0 0 1 21 8.6 V18.2 A2.2 2.2 0 0 1 18.8 20.4
+           H11.8 A2.2 2.2 0 0 1 9.6 18.2 V8.6 A2.2 2.2 0 0 1 11.8 6.4 Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
+      <g fill="currentColor">
+        <rect x="12.2" y="9.55" width="6.4" height="1.7" rx="0.85" />
+        <rect x="12.2" y="12.95" width="6.4" height="1.7" rx="0.85" />
+        <rect x="12.2" y="16.35" width="4.4" height="1.7" rx="0.85" />
+      </g>
+    </svg>
+  );
+}
+
+/**
  * 신고 — 경광등. 윤곽 등 + 채운 받침 + 광선 셋.
  * 이름이 report가 아닌 이유: 이 앱에서 리포트는 리서치 리포트다.
  * 어려운 건 종이었다 — 종도 림 위의 돔, 경광등도 받침 위의 돔이다. 셋으로 갈랐다:
