@@ -84,8 +84,9 @@
 /* WARN(확인 필요) — 옅은 빨강 배경 + 빨간 글씨. 밑줄은 뺀다.
    글꼴 굵기는 '위반이 맞다면' 라벨(.lbl, weight 800)에 맞춘다 (창업자 지시) */
 .mark {
-  background: var(--neg-weak, #fdecec);
-  color: var(--neg, #d02f2f);
+  /* 채도를 살짝 낮춘 빨강 (창업자 지시) — #d02f2f 는 너무 찐했다 */
+  background: #f7ebeb;
+  color: #bd4242;
   border-radius: 3px;
   padding: 0 2px;
   font-weight: 800;
@@ -93,7 +94,7 @@
 
 /* BLOCK(위반) — 더 진하게. 즉시 거절 대상이라 무게가 다르다 */
 .markBlock {
-  background: var(--neg, #d02f2f);
+  background: #bd4242;
   color: #fff;
   border-radius: 3px;
   padding: 0 3px;
