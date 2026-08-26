@@ -77,6 +77,8 @@ export function ResolveButton({
   // (실측: 25건 중 6건이면 영구 격하). 클릭을 강제하지 않는다는 원칙은 그대로 두고,
   // 대신 "말하지 않았다"와 "틀렸다고 말했다"를 갈랐다.
   const [findingsValid, setFindingsValid] = useState<boolean | null>(null);
+  // '지적은 타당했지만 승인한' 사유 — findingsValid === true 일 때만 입력받는다 (2026-08-27)
+  const [approveReason, setApproveReason] = useState("");
   const [categories, setCategories] = useState<RiskCategory[]>(flaggedCategories);
   const [manual, setManual] = useState(false);
   const [phrase, setPhrase] = useState(suggestedPhrase);
@@ -277,6 +279,22 @@ export function ResolveButton({
               마지막 항목만 IRIS의 <b>오탐 표본</b>으로 셉니다. 이 신고가 쌓이면
               모델이 스스로 검수에서 내려갑니다 — 그래서 무심코 누른 승인은 세지 않습니다.
             </p>
+            {/* '지적 타당' 을 골랐을 때만 사유를 받는다 (2026-08-27 창업자 지시) —
+                지적이 타당한데도 게시를 승인한 이유를 교사 질문지가 심각도 조정 논의로 싣는다.
+                pending(게시 승인) 흐름에서만 뜻이 있다(철회·유지엔 별도 사유칸이 있다) */}
+            {pending && findingsValid === true && (
+              <div className={a.field} style={{ marginTop: 8 }}>
+                <textarea
+                  className={a.textarea}
+                  rows={2}
+                  value={approveReason}
+                  onChange={(e) => setApproveReason(e.target.value)}
+                  maxLength={500}
+                  placeholder="지적은 타당한데 왜 게시 승인했나요? — 어느 부분이 경미하다고 봤는지 (교사 질문지에 실립니다)"
+                  aria-label="지적 타당 · 승인 사유"
+                />
+              </div>
+            )}
           </>
         ) : (
           <p className={a.hint}>인정할 검수 소견이 없습니다 — 그대로 통과시킵니다.</p>
@@ -304,7 +322,16 @@ export function ResolveButton({
           disabled={!posLive}
           onClick={() =>
             pending
-              ? post({ action: "APPROVE", reportId, findingsValid }, "승인 실패")
+              ? post(
+                  {
+                    action: "APPROVE",
+                    reportId,
+                    findingsValid,
+                    // '지적 타당'일 때만 실어 보낸다 — 서버도 그 경우만 저장한다
+                    approveReason: findingsValid === true ? approveReason : undefined,
+                  },
+                  "승인 실패",
+                )
               : post({ action: "RESOLVE", reviewId }, "처리 실패")
           }
         >

@@ -66,6 +66,8 @@ const bodySchema = z.discriminatedUnion('action', [
     reportId: z.string().min(1),
     // nullish — **`?? false` 로 접지 않는다.** 접는 순간 무응답과 신고가 같아진다
     findingsValid: z.boolean().nullish(),
+    // '지적은 타당했지만 승인한' 사유 (findingsValid === true 일 때만 화면이 보낸다)
+    approveReason: z.string().trim().max(500).nullish(),
     decisionElapsedMs,
   }),
   z.object({
@@ -184,6 +186,7 @@ export async function POST(req: NextRequest) {
           operatorUserId,
           new Date(),
           body.findingsValid ?? null,
+          body.approveReason ?? null,
         );
         if (body.decisionElapsedMs) {
           await recordDecisionElapsed(prisma, body.reportId, body.decisionElapsedMs);
