@@ -219,4 +219,30 @@ describe('재학습 논의 자료 — 사람 판정을 나란히 싣는다', () 
     });
     expect((await buildTeacherPack(prisma, minor, deps))!.text).toContain('경미');
   });
+
+  it('케이스별로 논의 방향이 갈린다 (반려 / 승인+오탐 / 승인+타당)', async () => {
+    const rej = await seedReview();
+    await prisma.complianceReview.update({
+      where: { id: rej },
+      data: { operatorVerdict: 'REJECTED', operatorCategories: JSON.stringify(['RUMOR']) },
+    });
+    // 반려 → 학습 표현 등록·BLOCK 승격이 논의 항목
+    expect((await buildTeacherPack(prisma, rej, deps))!.text).toContain('학습 표현 등록');
+
+    const fp = await seedReview();
+    await prisma.complianceReview.update({
+      where: { id: fp },
+      data: { operatorVerdict: 'APPROVED', aiFindingsValid: false },
+    });
+    // 오탐 → 규칙 점검이 논의 항목
+    expect((await buildTeacherPack(prisma, fp, deps))!.text).toContain('규칙 점검');
+
+    const minor = await seedReview();
+    await prisma.complianceReview.update({
+      where: { id: minor },
+      data: { operatorVerdict: 'APPROVED', aiFindingsValid: true },
+    });
+    // 지적 타당 → 심각도 조정이 논의 항목
+    expect((await buildTeacherPack(prisma, minor, deps))!.text).toContain('심각도 조정');
+  });
 });

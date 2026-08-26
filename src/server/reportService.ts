@@ -448,9 +448,11 @@ export async function approvePendingReport(
    */
   findingsValid: boolean | null = null,
   /**
-   * '지적은 타당했지만 게시 승인한' 사유 (2026-08-27 창업자 지시).
-   * findingsValid === true 일 때만 화면이 받아 온다 — 교사 질문지가 "왜 타당한데
-   * 통과시켰나(심각도 조정 논의)"를 이 문장으로 싣는다. operatorReason 에 저장된다
+   * 승인 사유 (2026-08-27 창업자 지시). findingsValid 를 **표시한 경우만**(지적 타당·오탐)
+   * 화면이 받아 온다. 교사 질문지가 이 문장으로 논의 방향을 잡는다:
+   *   지적 타당(true) → "왜 타당한데 통과시켰나 = 심각도 조정"
+   *   오탐(false)     → "왜 오탐인가 = 재학습·규칙 점검"
+   * '표시하지 않고 승인'(null)에는 사유가 없다. operatorReason 에 저장된다
    */
   approveReason?: string | null,
 ) {
@@ -467,8 +469,9 @@ export async function approvePendingReport(
   await prisma.$transaction([
     ...(await operatorVerdictWrites(prisma, reportId, 'APPROVED', operatorUserId, now, {
       findingsValid,
-      // 사유는 '지적 타당(true)'일 때만 뜻이 있다 — null/false 승인에는 기록하지 않는다
-      reason: findingsValid === true ? (approveReason?.trim() || undefined) : undefined,
+      // 사유는 findingsValid 를 표시했을 때만(지적 타당·오탐) 뜻이 있다 —
+      // '표시하지 않고 승인'(null)에는 기록하지 않는다
+      reason: findingsValid !== null ? (approveReason?.trim() || undefined) : undefined,
     })),
     prisma.notification.create({
       data: {

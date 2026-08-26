@@ -279,10 +279,13 @@ export function ResolveButton({
               마지막 항목만 IRIS의 <b>오탐 표본</b>으로 셉니다. 이 신고가 쌓이면
               모델이 스스로 검수에서 내려갑니다 — 그래서 무심코 누른 승인은 세지 않습니다.
             </p>
-            {/* '지적 타당' 을 골랐을 때만 사유를 받는다 (2026-08-27 창업자 지시) —
-                지적이 타당한데도 게시를 승인한 이유를 교사 질문지가 심각도 조정 논의로 싣는다.
+            {/* findingsValid 를 표시했을 때(지적 타당·오탐) 사유를 받는다 (2026-08-27 창업자 지시).
+                교사 질문지가 이 문장으로 논의 방향을 잡는다:
+                  지적 타당 → 왜 타당한데 통과? = 심각도 조정
+                  오탐     → 왜 오탐인가? = 재학습·규칙 점검
+                '표시하지 않고 승인'(null)에는 사유가 없다(질문지도 안 뜬다).
                 pending(게시 승인) 흐름에서만 뜻이 있다(철회·유지엔 별도 사유칸이 있다) */}
-            {pending && findingsValid === true && (
+            {pending && findingsValid !== null && (
               <div className={a.field} style={{ marginTop: 8 }}>
                 <textarea
                   className={a.textarea}
@@ -290,8 +293,12 @@ export function ResolveButton({
                   value={approveReason}
                   onChange={(e) => setApproveReason(e.target.value)}
                   maxLength={500}
-                  placeholder="지적은 타당한데 왜 게시 승인했나요? — 어느 부분이 경미하다고 봤는지 (교사 질문지에 실립니다)"
-                  aria-label="지적 타당 · 승인 사유"
+                  placeholder={
+                    findingsValid === true
+                      ? "지적은 타당한데 왜 게시 승인했나요? — 어느 부분이 경미하다고 봤는지 (교사 질문지에 실립니다)"
+                      : "왜 오탐인가요? — 이 지적이 왜 부적절한지 (검수 규칙 점검·재학습에 실립니다)"
+                  }
+                  aria-label="승인 사유"
                 />
               </div>
             )}
@@ -327,8 +334,8 @@ export function ResolveButton({
                     action: "APPROVE",
                     reportId,
                     findingsValid,
-                    // '지적 타당'일 때만 실어 보낸다 — 서버도 그 경우만 저장한다
-                    approveReason: findingsValid === true ? approveReason : undefined,
+                    // findingsValid 를 표시했을 때만(지적 타당·오탐) 실어 보낸다 — 서버도 그 경우만 저장
+                    approveReason: findingsValid !== null ? approveReason : undefined,
                   },
                   "승인 실패",
                 )
