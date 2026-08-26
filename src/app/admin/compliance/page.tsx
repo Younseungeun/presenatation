@@ -39,7 +39,7 @@ import {
   CANARY_STALE_MS,
   getCanaryScreen,
 } from "@/server/screeningCanaryRunner";
-import { FindingRow } from "../FindingRow";
+import { FlaggedReport } from "./FlaggedReport";
 import { StudentValvePanel } from "./StudentValvePanel";
 import { AskTeacher } from "./AskTeacher";
 import { ManualQueueList } from "./ManualQueueList";
@@ -798,16 +798,10 @@ function ReviewCard({
         />
       </div>
 
-      {/* 발췌(아래 소견 인용)가 아니라 **이용자가 보게 될 화면 전체**를 여는 문 —
-          종목·목표가·별점은 카드에 있지 본문에 없다.
-          문구가 시제를 가른다: 게시 전 건은 아직 아무도 못 본 화면이다 */}
-      <Link href={`/report/${review.report.id}`} className={a.xref} style={{ marginTop: 10 }}>
-        <span>
-          {pendingPublish ? "이용자가 보게 될 화면 열기" : "이용자가 보는 화면 그대로 열기"}{" "}
-          <small>— 종목·목표가·별점까지</small>
-        </span>
-        <span className={a.go}>›</span>
-      </Link>
+      {/* **본문 열람과 소견을 하나로 합쳤다** (2026-08-26 창업자 지시) — 예전에는 여기
+          "화면 열기" 링크가, 아래에 소견 목록(FindingRow)이 따로 있었다. 이제 본문을 그
+          자리에 펼치고 문제 삼은 워딩을 빨갛게 칠한다(FlaggedReport, ResolveButton 위).
+          전체 화면 링크(종목·목표가·별점)는 그 컴포넌트 안으로 들어갔다 */}
 
       {/* 승인은 그 시점 기준으로 컷오프를 다시 검증한다 — 시한이 임박하면 승인이 실패할 수 있다 */}
       {pendingPublish && risk !== "NONE" && (
@@ -848,9 +842,17 @@ function ReviewCard({
           결정 전인 이 큐가 아니라 결정 뒤 "교사 답 대기" 줄(TeacherRelayPanel)에서 연다.
           여기서는 판정만 내린다 (ResolveButton) */}
 
-      {/* 규칙만 돈 사실은 **칩이 말한다**(제목 옆) — 예전에는 여기 문장으로 적었는데,
-          카드를 펼쳐야 보이는 데다 다른 안내문과 같은 무게라 훑을 때 걸리지 않았다 */}
-      {findings.map((f, i) => <FindingRow key={i} f={f} />)}
+      {/* **본문 + 빨간 소견** — 문제 삼은 워딩을 본문 맥락 안에서 곧장 읽는다.
+          문장을 못 짚은 소견(IRIS 전체 판정·표기 변형)은 그 아래 따로 뜨고,
+          전체 화면 링크(종목·목표가·별점)도 이 안에 있다 */}
+      <FlaggedReport
+        reportId={review.report.id}
+        title={review.report.title}
+        summary={review.report.summary}
+        content={review.report.content}
+        findings={findings}
+        pendingPublish={pendingPublish}
+      />
 
       <ResolveButton
         reviewId={review.id}

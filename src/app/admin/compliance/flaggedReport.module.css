@@ -1,0 +1,90 @@
+/* 본문 + 빨간 소견 인라인 표시 (2026-08-26 창업자 지시).
+   목표: 문제 삼은 워딩이 본문 맥락 안에서 곧장 읽힌다. */
+
+.wrap {
+  margin-top: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--card, #fff);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.headTitle {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.headNote {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.field {
+  margin-top: 10px;
+}
+
+.field:first-of-type {
+  margin-top: 0;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
+  margin-bottom: 2px;
+}
+
+.body {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap; /* 본문 줄바꿈을 그대로 — 리서처가 쓴 문단이 뭉개지지 않는다 */
+  word-break: break-word;
+}
+
+/* WARN(확인 필요) — 옅은 빨강 배경 + 빨간 글씨. 밑줄로 한 번 더(색각 이상 방어) */
+.mark {
+  background: var(--neg-weak, #fdecec);
+  color: var(--neg, #d02f2f);
+  border-radius: 3px;
+  padding: 0 2px;
+  text-decoration: underline;
+  text-decoration-color: var(--neg, #d02f2f);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* BLOCK(위반) — 더 진하게. 즉시 거절 대상이라 무게가 다르다 */
+.markBlock {
+  background: var(--neg, #d02f2f);
+  color: #fff;
+  border-radius: 3px;
+  padding: 0 3px;
+  font-weight: 600;
+}
+
+.unlocated {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+}
+
+.unlocatedRow {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-weak);
+}
+
+.unlocatedRow:first-of-type {
+  margin-top: 6px;
+}

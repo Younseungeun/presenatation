@@ -573,6 +573,12 @@ export function getPendingComplianceReviews(prisma: PrismaClient) {
         select: {
           id: true,
           title: true,
+          // 본문·요약을 싣는다 — 검수 상세가 **문제 삼은 워딩을 본문 안에서 빨갛게**
+          // 보여주려면 소견 인용문뿐 아니라 원문 전체가 있어야 한다 (2026-08-26 창업자 지시).
+          // 운영자 화면이라 마스킹 대상이 아니다(마스킹은 구매자용). 카드의 종목·목표가는
+          // 본문에 없어 여기 없다 — 그건 전체 화면 링크가 채운다
+          summary: true,
+          content: true,
           status: true,
           // 교사 질의를 강제할지 가른다 (18차 V-7) — 반려를 반복하며 문구만 고쳐 오면
           // 규칙을 이진 탐색하는 중일 수 있어 사람이 한 번 더 본다
