@@ -5,6 +5,8 @@ import {
   decide,
   findingMessages,
   formatElapsed,
+  formatElapsedShort,
+  missingScreeners,
   autoScreenParticipation,
   holdUrgency,
   mergeFindings,
@@ -449,5 +451,58 @@ describe('autoScreenParticipation', () => {
 
   it('규칙은 언제나 참여한다 — 아니면 표식 자체가 깨진 것이다', () => {
     expect(autoScreenParticipation('rule+student:IRIS.v5@t0.7/L7').rules).toBe(true);
+  });
+});
+
+// ── 빠진 검사기를 이름으로 부른다 (2026-08-25 창업자 지시) ──────────────────
+//
+// 화면은 이 값을 그대로 칩으로 그린다. **칩이 가리키는 것은 고장 난 쪽**이라,
+// `IRIS !` 는 "IRIS 가 빠졌다"이지 "IRIS 가 잡았다"가 아니다.
+// 줄 글("자동 검수 규칙만")을 걷은 이유: 큐에서 무엇부터 볼지 고르는 순간에 쓰는
+// 값인데 문장은 읽어야 하고, 곁눈질에 안 걸린다.
+describe('missingScreeners', () => {
+  it('둘 다 참여했으면 null — 잘 돈 것은 사건이 아니다', () => {
+    expect(missingScreeners('rule+student:IRIS.v5@t0.7/L7')).toBeNull();
+  });
+
+  it('규칙만 돌았으면 IRIS 가 빠진 것', () => {
+    expect(missingScreeners('rule')).toBe('IRIS');
+  });
+
+  it('IRIS 를 부르다 죽어도 IRIS 가 빠진 것 — 화면에서는 같은 고장이다', () => {
+    // 장애와 꺼짐은 사유가 다르지만(title 로 갈라 적는다) **빠졌다는 사실은 같다**
+    expect(missingScreeners('rule+student:IRIS.v5@t0.7/L7+student(장애)')).toBe('IRIS');
+  });
+
+  it('IRIS 만 돌았으면 규칙이 빠진 것', () => {
+    expect(missingScreeners('student:IRIS.v5@t0.7/L7')).toBe('RULE');
+  });
+
+  it('**둘 다 빠지면 그 사실을 함께 적는다** — 사실상 아무도 안 본 건이다', () => {
+    expect(missingScreeners('')).toBe('RULE+IRIS');
+    expect(missingScreeners('student(장애)')).toBe('RULE+IRIS');
+  });
+});
+
+// ── 훑는 자리의 대기 시간은 짧게 (2026-08-25 창업자 지시: "사족이 너무 많다") ──
+//
+// `지연 · 3일 15시간 대기` 에는 같은 말이 셋 있었다 — 급함·길이·그 길이가 무엇인지.
+// 시간으로 통일하면 카드끼리 크기 비교가 눈으로 된다(3일 15시간 vs 2일 9시간은 암산이다).
+describe('formatElapsedShort', () => {
+  const t0 = new Date('2026-08-25T00:00:00Z');
+  const after = (ms: number) => new Date(t0.getTime() + ms);
+
+  it('한 시간 미만은 분으로 — 거기서 `0h` 는 "방금"과 구별되지 않는다', () => {
+    expect(formatElapsedShort(t0, after(0))).toBe('0m');
+    expect(formatElapsedShort(t0, after(59 * 60_000))).toBe('59m');
+  });
+
+  it('한 시간부터는 **시간 하나로** — 3일 15시간이 아니라 87h', () => {
+    expect(formatElapsedShort(t0, after(60 * 60_000))).toBe('1h');
+    expect(formatElapsedShort(t0, after((3 * 24 + 15) * 60 * 60_000))).toBe('87h');
+  });
+
+  it('미래 시각도 음수로 새지 않는다', () => {
+    expect(formatElapsedShort(after(60_000), t0)).toBe('0m');
   });
 });

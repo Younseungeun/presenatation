@@ -11,6 +11,8 @@ import {
   deadlineRisk,
   formatElapsed,
   autoScreenParticipation,
+  missingScreeners,
+  formatElapsedShort,
   requiresReviewAfterRejections,
   HOLD_ATTENTION_HOURS,
   HOLD_OVERDUE_HOURS,
@@ -508,16 +510,10 @@ function QueueReasonChip({
   decision: string;
   rejectionCount: number;
 }) {
-  if (decision === "UNAVAILABLE") {
-    return (
-      <span
-        className={`${a.chip} ${a.chipWarn}`}
-        title="IRIS 를 부르다 실패해 규칙 엔진만 판정했습니다."
-      >
-        검수 실패
-      </span>
-    );
-  }
+  /* **`검수 실패` 칩은 걷었다** (2026-08-25 창업자 지적 — 겹친다).
+     `UNAVAILABLE` 은 "IRIS 를 부르다 실패해 규칙만 판정했다"는 뜻인데, 그것은
+     `AutoScreenChip` 이 `IRIS !` 로 이미 말한다. 같은 사실을 두 칩이 나눠 말하면
+     운영자가 둘을 다른 고장으로 읽는다 — 실제로 한 카드에 나란히 붙어 있었다. */
   if (decision === "BLOCK") {
     return (
       <span className={`${a.chip} ${a.chipNeg}`} title="즉시 거절 수준의 소견이 나왔습니다.">
@@ -548,21 +544,26 @@ function QueueReasonChip({
  * 정상(규칙 + IRIS)에는 아무것도 그리지 않는다 — 잘 돈 것은 사건이 아니다.
  */
 function AutoScreenChip({ reviewer }: { reviewer: string }) {
-  const { ai, aiMissing } = autoScreenParticipation(reviewer);
-  if (ai) return null;
-  // 둘은 처방이 다르다: 장애는 **다시 될 수 있는 것**이고(사이드카를 보면 된다),
-  // 꺼짐은 그 건이 애초에 규칙만 통과한 것이라 **사람이 대신 봐야 한다**
-  const outage = aiMissing === "OUTAGE";
+  const missing = missingScreeners(reviewer);
+  if (missing === null) return null; // 둘 다 참여 = 정상. 잘 돈 것은 사건이 아니다
+
+  const { aiMissing } = autoScreenParticipation(reviewer);
+  const why =
+    missing === "RULE+IRIS"
+      ? "규칙 엔진과 IRIS 가 **둘 다** 판정하지 않았습니다 — 사실상 아무도 안 본 건입니다. 본문을 처음부터 직접 읽어 주세요."
+      : missing === "IRIS"
+        ? aiMissing === "OUTAGE"
+          ? "IRIS 를 부르다 실패해 규칙 엔진만 판정했습니다. 규칙이 못 잡는 패러프레이즈(같은 뜻 다른 말)는 걸러지지 않았습니다."
+          : "IRIS 가 참여하지 않은 채 규칙 엔진만 판정했습니다. 규칙이 못 잡는 패러프레이즈는 걸러지지 않았습니다."
+        : "규칙 엔진이 판정하지 않았습니다 — 즉시 거절 권한이 있는 유일한 검사기가 빠진 상태입니다.";
+
   return (
     <span
-      className={`${a.chip} ${outage ? a.chipNeg : a.chipWarn}`}
-      title={
-        outage
-          ? "IRIS 를 부르다 실패해 규칙 엔진만 판정했습니다. 본문을 직접 확인해 주세요."
-          : "IRIS 가 참여하지 않은 채 규칙 엔진만 판정했습니다. 규칙이 못 잡는 패러프레이즈는 걸러지지 않았습니다."
-      }
+      /* 둘 다 빠진 건이 가장 무겁다 — 하나만 빠진 것과 색을 나눈다 */
+      className={`${a.chip} ${missing === "RULE+IRIS" ? a.chipNeg : a.chipWarn}`}
+      title={why.replace(/\*\*/g, "")}
     >
-      {outage ? "AI 검수 실패 · 규칙만" : "규칙만"}
+      {missing} !
     </span>
   );
 }
@@ -615,7 +616,8 @@ function ReviewCard({
           <span className={a.liteSub}>
             {researcher.penName ?? researcher.email} ·{" "}
             {TIER_NAME[review.report.researcher.tier as Tier] ?? review.report.researcher.tier} ·{" "}
-            {formatElapsed(review.createdAt, now)}
+            {/* 짧은 꼴로 — 이 줄은 훑는 자리다. 정확한 값은 펼치면 나온다 */}
+            {formatElapsedShort(review.createdAt, now)}
           </span>
           <span className={a.liteTags}>
             <QueueReasonChip
@@ -631,9 +633,13 @@ function ReviewCard({
                 {RISK_CATEGORY_LABEL[c as RiskCategory] ?? c}
               </span>
             ))}
-            {pendingPublish ? (
-              <span className={a.chip}>판매 전</span>
-            ) : (
+            {/* **`판매 전` 은 걷었다** (2026-08-25 창업자 지적 — 큐에서 언제나 참이다).
+                보류 큐가 담는 것은 `needsOperatorReview` 인 건이고, 그 표식은 게시
+                관문에서만 붙으므로 리포트 상태가 언제나 `PENDING_REVIEW` 다(실측 15/15).
+                판매 중 리포트는 다른 탭·다른 부품이 그린다.
+                **다만 돈이 걸려 있으면 그린다** — 그때는 처분의 무게가 달라지고, 그건
+                평소와 다른 사실이다. 구조상 오지 않을 자리지만, 오면 반드시 보여야 한다 */}
+            {held.length > 0 && (
               <span className={`${a.chip} ${a.chipNeg}`}>에스크로 {held.length}건</span>
             )}
           </span>
@@ -656,9 +662,12 @@ function ReviewCard({
         <span className={a.ttl}>{review.report.title}</span>
         <span className={a.liteRight}>
           <AutoScreenChip reviewer={review.reviewer} />
+          {/* `지연 · 3일 15시간 대기` → `87h 지연` (2026-08-25 창업자 지시).
+              한 조각에 같은 말이 셋이었다 — 급함·길이·그 길이가 무엇인지.
+              시간 단위로 통일하면 카드끼리 크기 비교가 눈으로 된다 */}
           {urgencyLabel && (
             <span className={`${a.chip} ${urgency === "OVERDUE" ? a.chipNeg : a.chipWarn}`}>
-              {urgencyLabel} · {formatElapsed(review.createdAt, now)}
+              {formatElapsedShort(review.createdAt, now)} {urgencyLabel}
             </span>
           )}
         </span>
