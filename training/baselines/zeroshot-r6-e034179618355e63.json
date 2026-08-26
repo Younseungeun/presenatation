@@ -1,0 +1,4068 @@
+{
+  "capturedAt": "2026-08-26T00:50:23.464Z",
+  "modelSha": "e034179618355e63",
+  "source": "training/rejected/generated.r6-hardmargin.jsonl",
+  "sourceSha": "26f44d93b2f0",
+  "n": 264,
+  "violation": {
+    "PROFIT_GUARANTEE": {
+      "n": 58,
+      "min": 0.12207532674074173,
+      "q1": 0.4923238754272461,
+      "median": 0.709772527217865,
+      "q3": 0.8422186374664307,
+      "max": 0.9106920957565308,
+      "recall": {
+        "0.3": 0.9310344827586207,
+        "0.5": 0.7413793103448276,
+        "0.7": 0.5,
+        "0.8": 0.3620689655172414
+      }
+    },
+    "PRIVATE_INFO": {
+      "n": 38,
+      "min": 0.096817746758461,
+      "q1": 0.23418834805488586,
+      "median": 0.5941842794418335,
+      "q3": 0.8357418775558472,
+      "max": 0.9225127100944519,
+      "recall": {
+        "0.3": 0.7105263157894737,
+        "0.5": 0.6052631578947368,
+        "0.7": 0.4473684210526316,
+        "0.8": 0.3157894736842105
+      }
+    },
+    "SOLICIT_CONTACT": {
+      "n": 38,
+      "min": 0.06766292452812195,
+      "q1": 0.5346592664718628,
+      "median": 0.7694104313850403,
+      "q3": 0.862479031085968,
+      "max": 0.9266767501831055,
+      "recall": {
+        "0.3": 0.868421052631579,
+        "0.5": 0.8157894736842105,
+        "0.7": 0.631578947368421,
+        "0.8": 0.4473684210526316
+      }
+    }
+  },
+  "normal": {
+    "n": 130,
+    "min": 0.07561998069286346,
+    "q1": 0.09254284203052521,
+    "median": 0.12057390064001083,
+    "q3": 0.251625120639801,
+    "max": 0.7882822751998901,
+    "falsePositives": {
+      "0.3": 25,
+      "0.5": 12,
+      "0.7": 2,
+      "0.8": 0
+    },
+    "worst": [
+      {
+        "id": "gen:conversation-claude-r6:2",
+        "label": [
+          "PROFIT_GUARANTEE",
+          0.7882822751998901
+        ]
+      },
+      {
+        "id": "gen:conversation-claude-r6:186",
+        "label": [
+          "SOLICIT_CONTACT",
+          0.725695788860321
+        ]
+      },
+      {
+        "id": "gen:conversation-claude-r6:80",
+        "label": [
+          "SOLICIT_CONTACT",
+          0.6793884038925171
+        ]
+      },
+      {
+        "id": "gen:conversation-claude-r6:88",
+        "label": [
+          "SOLICIT_CONTACT",
+          0.6668358445167542
+        ]
+      },
+      {
+        "id": "gen:conversation-claude-r6:126",
+        "label": [
+          "PROFIT_GUARANTEE",
+          0.653269350528717
+        ]
+      }
+    ]
+  },
+  "rows": [
+    {
+      "id": "gen:conversation-claude-r6:1",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8545193672180176,
+        "PRIVATE_INFO": 0.14865773916244507,
+        "RUMOR": 0.08449504524469376,
+        "SOLICIT_CONTACT": 0.1722075343132019,
+        "UNSUPPORTED_CLAIM": 0.18691182136535645,
+        "RISK_INDUCEMENT": 0.19544395804405212,
+        "SCREENING_EVASION": 0.22207820415496826,
+        "CARD_MISMATCH": 0.11365847289562225
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:2",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.7882822751998901,
+        "PRIVATE_INFO": 0.12212070822715759,
+        "RUMOR": 0.0611598864197731,
+        "SOLICIT_CONTACT": 0.1289910227060318,
+        "UNSUPPORTED_CLAIM": 0.153671532869339,
+        "RISK_INDUCEMENT": 0.1288781613111496,
+        "SCREENING_EVASION": 0.2639468312263489,
+        "CARD_MISMATCH": 0.12631887197494507
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:3",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6384713649749756,
+        "PRIVATE_INFO": 0.09124755859375,
+        "RUMOR": 0.04981113597750664,
+        "SOLICIT_CONTACT": 0.09336122870445251,
+        "UNSUPPORTED_CLAIM": 0.1299668252468109,
+        "RISK_INDUCEMENT": 0.1163056343793869,
+        "SCREENING_EVASION": 0.14649155735969543,
+        "CARD_MISMATCH": 0.10091221332550049
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:4",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.12209895998239517,
+        "PRIVATE_INFO": 0.05698759853839874,
+        "RUMOR": 0.05774664878845215,
+        "SOLICIT_CONTACT": 0.07596161961555481,
+        "UNSUPPORTED_CLAIM": 0.08715211600065231,
+        "RISK_INDUCEMENT": 0.07456643879413605,
+        "SCREENING_EVASION": 0.06424691528081894,
+        "CARD_MISMATCH": 0.06658456474542618
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:5",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.22843855619430542,
+        "PRIVATE_INFO": 0.07391590625047684,
+        "RUMOR": 0.0441119521856308,
+        "SOLICIT_CONTACT": 0.1429748386144638,
+        "UNSUPPORTED_CLAIM": 0.07480086386203766,
+        "RISK_INDUCEMENT": 0.05046582221984863,
+        "SCREENING_EVASION": 0.19450326263904572,
+        "CARD_MISMATCH": 0.077581487596035
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:6",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.13698071241378784,
+        "PRIVATE_INFO": 0.06919503957033157,
+        "RUMOR": 0.044067900627851486,
+        "SOLICIT_CONTACT": 0.09145283699035645,
+        "UNSUPPORTED_CLAIM": 0.07300572842359543,
+        "RISK_INDUCEMENT": 0.05185016617178917,
+        "SCREENING_EVASION": 0.13333797454833984,
+        "CARD_MISMATCH": 0.09455007314682007
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:7",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8814093470573425,
+        "PRIVATE_INFO": 0.13871130347251892,
+        "RUMOR": 0.0947357565164566,
+        "SOLICIT_CONTACT": 0.12857206165790558,
+        "UNSUPPORTED_CLAIM": 0.23214562237262726,
+        "RISK_INDUCEMENT": 0.43625736236572266,
+        "SCREENING_EVASION": 0.1333724558353424,
+        "CARD_MISMATCH": 0.11594139039516449
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:8",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.5949018001556396,
+        "PRIVATE_INFO": 0.082431860268116,
+        "RUMOR": 0.05445725470781326,
+        "SOLICIT_CONTACT": 0.07164786010980606,
+        "UNSUPPORTED_CLAIM": 0.16059836745262146,
+        "RISK_INDUCEMENT": 0.22488722205162048,
+        "SCREENING_EVASION": 0.09397412091493607,
+        "CARD_MISMATCH": 0.06973050534725189
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:9",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6779666543006897,
+        "PRIVATE_INFO": 0.09623764455318451,
+        "RUMOR": 0.055239588022232056,
+        "SOLICIT_CONTACT": 0.06928762793540955,
+        "UNSUPPORTED_CLAIM": 0.2564973533153534,
+        "RISK_INDUCEMENT": 0.12792572379112244,
+        "SCREENING_EVASION": 0.12349877506494522,
+        "CARD_MISMATCH": 0.08099060505628586
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:10",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.16721110045909882,
+        "PRIVATE_INFO": 0.05774505063891411,
+        "RUMOR": 0.04757232964038849,
+        "SOLICIT_CONTACT": 0.05961517617106438,
+        "UNSUPPORTED_CLAIM": 0.12931036949157715,
+        "RISK_INDUCEMENT": 0.06701716035604477,
+        "SCREENING_EVASION": 0.08059558272361755,
+        "CARD_MISMATCH": 0.07921662926673889
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:11",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6873561143875122,
+        "PRIVATE_INFO": 0.10452593863010406,
+        "RUMOR": 0.06327531486749649,
+        "SOLICIT_CONTACT": 0.15678171813488007,
+        "UNSUPPORTED_CLAIM": 0.11330495774745941,
+        "RISK_INDUCEMENT": 0.1076788380742073,
+        "SCREENING_EVASION": 0.36160147190093994,
+        "CARD_MISMATCH": 0.11416954547166824
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:12",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.37198054790496826,
+        "PRIVATE_INFO": 0.06994783133268356,
+        "RUMOR": 0.04330548271536827,
+        "SOLICIT_CONTACT": 0.09415841102600098,
+        "UNSUPPORTED_CLAIM": 0.08158483356237411,
+        "RISK_INDUCEMENT": 0.07850819826126099,
+        "SCREENING_EVASION": 0.21112632751464844,
+        "CARD_MISMATCH": 0.10940531641244888
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:13",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.5596668720245361,
+        "PRIVATE_INFO": 0.1131184846162796,
+        "RUMOR": 0.05043359100818634,
+        "SOLICIT_CONTACT": 0.07955332845449448,
+        "UNSUPPORTED_CLAIM": 0.2017804980278015,
+        "RISK_INDUCEMENT": 0.11292363703250885,
+        "SCREENING_EVASION": 0.09358323365449905,
+        "CARD_MISMATCH": 0.05648816376924515
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:14",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08813055604696274,
+        "PRIVATE_INFO": 0.07063895463943481,
+        "RUMOR": 0.06453779339790344,
+        "SOLICIT_CONTACT": 0.07387784123420715,
+        "UNSUPPORTED_CLAIM": 0.09486870467662811,
+        "RISK_INDUCEMENT": 0.0650554671883583,
+        "SCREENING_EVASION": 0.06206382438540459,
+        "CARD_MISMATCH": 0.06759261339902878
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:15",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.4919532537460327,
+        "PRIVATE_INFO": 0.07885020971298218,
+        "RUMOR": 0.04603884369134903,
+        "SOLICIT_CONTACT": 0.08145351707935333,
+        "UNSUPPORTED_CLAIM": 0.11861182749271393,
+        "RISK_INDUCEMENT": 0.08844982087612152,
+        "SCREENING_EVASION": 0.13294245302677155,
+        "CARD_MISMATCH": 0.09266644716262817
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:16",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1243899017572403,
+        "PRIVATE_INFO": 0.05349962040781975,
+        "RUMOR": 0.05004025995731354,
+        "SOLICIT_CONTACT": 0.07527866214513779,
+        "UNSUPPORTED_CLAIM": 0.08303269743919373,
+        "RISK_INDUCEMENT": 0.07063047587871552,
+        "SCREENING_EVASION": 0.07146850973367691,
+        "CARD_MISMATCH": 0.08565136790275574
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:17",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6597384214401245,
+        "PRIVATE_INFO": 0.11660875380039215,
+        "RUMOR": 0.06575231999158859,
+        "SOLICIT_CONTACT": 0.07540260255336761,
+        "UNSUPPORTED_CLAIM": 0.23741808533668518,
+        "RISK_INDUCEMENT": 0.1022123470902443,
+        "SCREENING_EVASION": 0.13750624656677246,
+        "CARD_MISMATCH": 0.07259947061538696
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:18",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1690986156463623,
+        "PRIVATE_INFO": 0.06343758851289749,
+        "RUMOR": 0.05134959518909454,
+        "SOLICIT_CONTACT": 0.05264318361878395,
+        "UNSUPPORTED_CLAIM": 0.12477745860815048,
+        "RISK_INDUCEMENT": 0.06349896639585495,
+        "SCREENING_EVASION": 0.07117269188165665,
+        "CARD_MISMATCH": 0.10083481669425964
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:19",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8533065915107727,
+        "PRIVATE_INFO": 0.1285163313150406,
+        "RUMOR": 0.07909217476844788,
+        "SOLICIT_CONTACT": 0.10919157415628433,
+        "UNSUPPORTED_CLAIM": 0.31551676988601685,
+        "RISK_INDUCEMENT": 0.36610567569732666,
+        "SCREENING_EVASION": 0.10546445101499557,
+        "CARD_MISMATCH": 0.08820703625679016
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:20",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.4531431198120117,
+        "PRIVATE_INFO": 0.07872285693883896,
+        "RUMOR": 0.05491647124290466,
+        "SOLICIT_CONTACT": 0.06778304278850555,
+        "UNSUPPORTED_CLAIM": 0.2706342339515686,
+        "RISK_INDUCEMENT": 0.3107854425907135,
+        "SCREENING_EVASION": 0.07589282095432281,
+        "CARD_MISMATCH": 0.04647861421108246
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:21",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.846936821937561,
+        "PRIVATE_INFO": 0.12504789233207703,
+        "RUMOR": 0.08368213474750519,
+        "SOLICIT_CONTACT": 0.10845547914505005,
+        "UNSUPPORTED_CLAIM": 0.28837892413139343,
+        "RISK_INDUCEMENT": 0.4985281825065613,
+        "SCREENING_EVASION": 0.09483782947063446,
+        "CARD_MISMATCH": 0.086400605738163
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:22",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.33315134048461914,
+        "PRIVATE_INFO": 0.0588747076690197,
+        "RUMOR": 0.05012637376785278,
+        "SOLICIT_CONTACT": 0.05668133869767189,
+        "UNSUPPORTED_CLAIM": 0.19898422062397003,
+        "RISK_INDUCEMENT": 0.18076562881469727,
+        "SCREENING_EVASION": 0.05937623605132103,
+        "CARD_MISMATCH": 0.04553830996155739
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:23",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6233868598937988,
+        "PRIVATE_INFO": 0.09401030838489532,
+        "RUMOR": 0.05388123169541359,
+        "SOLICIT_CONTACT": 0.16446156799793243,
+        "UNSUPPORTED_CLAIM": 0.10927875339984894,
+        "RISK_INDUCEMENT": 0.10202617943286896,
+        "SCREENING_EVASION": 0.3578469753265381,
+        "CARD_MISMATCH": 0.09571173787117004
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:24",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.3757718801498413,
+        "PRIVATE_INFO": 0.0675487145781517,
+        "RUMOR": 0.03925323858857155,
+        "SOLICIT_CONTACT": 0.09349454939365387,
+        "UNSUPPORTED_CLAIM": 0.0986325666308403,
+        "RISK_INDUCEMENT": 0.08372028172016144,
+        "SCREENING_EVASION": 0.2255413681268692,
+        "CARD_MISMATCH": 0.12232335656881332
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:25",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.16461104154586792,
+        "PRIVATE_INFO": 0.051272813230752945,
+        "RUMOR": 0.04713664948940277,
+        "SOLICIT_CONTACT": 0.05149277299642563,
+        "UNSUPPORTED_CLAIM": 0.18131370842456818,
+        "RISK_INDUCEMENT": 0.08692557364702225,
+        "SCREENING_EVASION": 0.051897529512643814,
+        "CARD_MISMATCH": 0.07525486499071121
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:26",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06707344204187393,
+        "PRIVATE_INFO": 0.05418456345796585,
+        "RUMOR": 0.08126092702150345,
+        "SOLICIT_CONTACT": 0.07891497015953064,
+        "UNSUPPORTED_CLAIM": 0.10647733509540558,
+        "RISK_INDUCEMENT": 0.06543658673763275,
+        "SCREENING_EVASION": 0.047299355268478394,
+        "CARD_MISMATCH": 0.07347865402698517
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:27",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.7993977069854736,
+        "PRIVATE_INFO": 0.11277090013027191,
+        "RUMOR": 0.0769224688410759,
+        "SOLICIT_CONTACT": 0.10311421751976013,
+        "UNSUPPORTED_CLAIM": 0.29836827516555786,
+        "RISK_INDUCEMENT": 0.452589213848114,
+        "SCREENING_EVASION": 0.09681368619203568,
+        "CARD_MISMATCH": 0.07649771869182587
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:28",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.33753475546836853,
+        "PRIVATE_INFO": 0.06617938727140427,
+        "RUMOR": 0.047219451516866684,
+        "SOLICIT_CONTACT": 0.06315266340970993,
+        "UNSUPPORTED_CLAIM": 0.17754605412483215,
+        "RISK_INDUCEMENT": 0.12562678754329681,
+        "SCREENING_EVASION": 0.08452815562486649,
+        "CARD_MISMATCH": 0.0545194111764431
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:29",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.7595224380493164,
+        "PRIVATE_INFO": 0.11823323369026184,
+        "RUMOR": 0.0681510791182518,
+        "SOLICIT_CONTACT": 0.10637812316417694,
+        "UNSUPPORTED_CLAIM": 0.17431968450546265,
+        "RISK_INDUCEMENT": 0.12982019782066345,
+        "SCREENING_EVASION": 0.16647040843963623,
+        "CARD_MISMATCH": 0.09774316847324371
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:30",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1243576779961586,
+        "PRIVATE_INFO": 0.060532085597515106,
+        "RUMOR": 0.05655210465192795,
+        "SOLICIT_CONTACT": 0.07551172375679016,
+        "UNSUPPORTED_CLAIM": 0.08217766880989075,
+        "RISK_INDUCEMENT": 0.061422158032655716,
+        "SCREENING_EVASION": 0.07008159905672073,
+        "CARD_MISMATCH": 0.07216614484786987
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:31",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6498716473579407,
+        "PRIVATE_INFO": 0.08510544896125793,
+        "RUMOR": 0.049923546612262726,
+        "SOLICIT_CONTACT": 0.06993351131677628,
+        "UNSUPPORTED_CLAIM": 0.20593836903572083,
+        "RISK_INDUCEMENT": 0.14929528534412384,
+        "SCREENING_EVASION": 0.13455845415592194,
+        "CARD_MISMATCH": 0.07075206190347672
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:32",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.11121047288179398,
+        "PRIVATE_INFO": 0.05729249119758606,
+        "RUMOR": 0.049745578318834305,
+        "SOLICIT_CONTACT": 0.06637373566627502,
+        "UNSUPPORTED_CLAIM": 0.1184631958603859,
+        "RISK_INDUCEMENT": 0.07084100693464279,
+        "SCREENING_EVASION": 0.0811477079987526,
+        "CARD_MISMATCH": 0.07315344363451004
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:33",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.7830622792243958,
+        "PRIVATE_INFO": 0.10534951090812683,
+        "RUMOR": 0.0597202330827713,
+        "SOLICIT_CONTACT": 0.08421864360570908,
+        "UNSUPPORTED_CLAIM": 0.2805293798446655,
+        "RISK_INDUCEMENT": 0.31828203797340393,
+        "SCREENING_EVASION": 0.08551524579524994,
+        "CARD_MISMATCH": 0.07601504772901535
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:34",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.18514715135097504,
+        "PRIVATE_INFO": 0.05741395056247711,
+        "RUMOR": 0.04610850289463997,
+        "SOLICIT_CONTACT": 0.06522413343191147,
+        "UNSUPPORTED_CLAIM": 0.11505694687366486,
+        "RISK_INDUCEMENT": 0.09525671601295471,
+        "SCREENING_EVASION": 0.07721360772848129,
+        "CARD_MISMATCH": 0.07154519110918045
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:35",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.7115392684936523,
+        "PRIVATE_INFO": 0.10490003228187561,
+        "RUMOR": 0.06205219030380249,
+        "SOLICIT_CONTACT": 0.07173233479261398,
+        "UNSUPPORTED_CLAIM": 0.343198299407959,
+        "RISK_INDUCEMENT": 0.20708632469177246,
+        "SCREENING_EVASION": 0.07181249558925629,
+        "CARD_MISMATCH": 0.06574127078056335
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:36",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.11473944038152695,
+        "PRIVATE_INFO": 0.06074126809835434,
+        "RUMOR": 0.06127956137061119,
+        "SOLICIT_CONTACT": 0.06749770045280457,
+        "UNSUPPORTED_CLAIM": 0.10088831186294556,
+        "RISK_INDUCEMENT": 0.07118116319179535,
+        "SCREENING_EVASION": 0.0671863928437233,
+        "CARD_MISMATCH": 0.07852005958557129
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:37",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.5704965591430664,
+        "PRIVATE_INFO": 0.08646659553050995,
+        "RUMOR": 0.046039871871471405,
+        "SOLICIT_CONTACT": 0.09120400995016098,
+        "UNSUPPORTED_CLAIM": 0.11052647978067398,
+        "RISK_INDUCEMENT": 0.09415166825056076,
+        "SCREENING_EVASION": 0.16605420410633087,
+        "CARD_MISMATCH": 0.09775245934724808
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:38",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.17383332550525665,
+        "PRIVATE_INFO": 0.06341292709112167,
+        "RUMOR": 0.047087930142879486,
+        "SOLICIT_CONTACT": 0.07932038605213165,
+        "UNSUPPORTED_CLAIM": 0.08292029052972794,
+        "RISK_INDUCEMENT": 0.06759487092494965,
+        "SCREENING_EVASION": 0.09844847768545151,
+        "CARD_MISMATCH": 0.07134514302015305
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:39",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8525375723838806,
+        "PRIVATE_INFO": 0.14843954145908356,
+        "RUMOR": 0.08509431779384613,
+        "SOLICIT_CONTACT": 0.10956957191228867,
+        "UNSUPPORTED_CLAIM": 0.22092683613300323,
+        "RISK_INDUCEMENT": 0.21574856340885162,
+        "SCREENING_EVASION": 0.16742625832557678,
+        "CARD_MISMATCH": 0.1037367433309555
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:40",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.3062853515148163,
+        "PRIVATE_INFO": 0.07596465945243835,
+        "RUMOR": 0.05055685341358185,
+        "SOLICIT_CONTACT": 0.07245005667209625,
+        "UNSUPPORTED_CLAIM": 0.09784093499183655,
+        "RISK_INDUCEMENT": 0.09338557720184326,
+        "SCREENING_EVASION": 0.1338643580675125,
+        "CARD_MISMATCH": 0.06341689079999924
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:41",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08940766006708145,
+        "PRIVATE_INFO": 0.5502796173095703,
+        "RUMOR": 0.13800904154777527,
+        "SOLICIT_CONTACT": 0.07788871973752975,
+        "UNSUPPORTED_CLAIM": 0.11364416778087616,
+        "RISK_INDUCEMENT": 0.057928912341594696,
+        "SCREENING_EVASION": 0.08866462856531143,
+        "CARD_MISMATCH": 0.06599389761686325
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:42",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07311329245567322,
+        "PRIVATE_INFO": 0.09183207154273987,
+        "RUMOR": 0.0890006422996521,
+        "SOLICIT_CONTACT": 0.07083341479301453,
+        "UNSUPPORTED_CLAIM": 0.08792984485626221,
+        "RISK_INDUCEMENT": 0.0506160631775856,
+        "SCREENING_EVASION": 0.059340886771678925,
+        "CARD_MISMATCH": 0.07222549617290497
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:43",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08691447973251343,
+        "PRIVATE_INFO": 0.7257551550865173,
+        "RUMOR": 0.4330165684223175,
+        "SOLICIT_CONTACT": 0.0665658563375473,
+        "UNSUPPORTED_CLAIM": 0.1926627904176712,
+        "RISK_INDUCEMENT": 0.09919396787881851,
+        "SCREENING_EVASION": 0.08012336492538452,
+        "CARD_MISMATCH": 0.05345035344362259
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:44",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06533941626548767,
+        "PRIVATE_INFO": 0.46468237042427063,
+        "RUMOR": 0.3374471366405487,
+        "SOLICIT_CONTACT": 0.05618229880928993,
+        "UNSUPPORTED_CLAIM": 0.13615180552005768,
+        "RISK_INDUCEMENT": 0.07194291055202484,
+        "SCREENING_EVASION": 0.05686836689710617,
+        "CARD_MISMATCH": 0.04580092057585716
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:45",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.2209312617778778,
+        "PRIVATE_INFO": 0.9225127100944519,
+        "RUMOR": 0.22146226465702057,
+        "SOLICIT_CONTACT": 0.21133510768413544,
+        "UNSUPPORTED_CLAIM": 0.14827068150043488,
+        "RISK_INDUCEMENT": 0.15968430042266846,
+        "SCREENING_EVASION": 0.22025085985660553,
+        "CARD_MISMATCH": 0.14256882667541504
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:46",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06707233935594559,
+        "PRIVATE_INFO": 0.1517365425825119,
+        "RUMOR": 0.09917585551738739,
+        "SOLICIT_CONTACT": 0.08202174305915833,
+        "UNSUPPORTED_CLAIM": 0.06474337726831436,
+        "RISK_INDUCEMENT": 0.048975467681884766,
+        "SCREENING_EVASION": 0.07701627910137177,
+        "CARD_MISMATCH": 0.051987484097480774
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:47",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08822418004274368,
+        "PRIVATE_INFO": 0.62484210729599,
+        "RUMOR": 0.20019902288913727,
+        "SOLICIT_CONTACT": 0.07624111324548721,
+        "UNSUPPORTED_CLAIM": 0.11101241409778595,
+        "RISK_INDUCEMENT": 0.07356397807598114,
+        "SCREENING_EVASION": 0.08429936319589615,
+        "CARD_MISMATCH": 0.05247936025261879
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:48",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07050986588001251,
+        "PRIVATE_INFO": 0.09595760703086853,
+        "RUMOR": 0.10349050909280777,
+        "SOLICIT_CONTACT": 0.06403827667236328,
+        "UNSUPPORTED_CLAIM": 0.10206656157970428,
+        "RISK_INDUCEMENT": 0.052601274102926254,
+        "SCREENING_EVASION": 0.055386170744895935,
+        "CARD_MISMATCH": 0.05598011240363121
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:49",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06436546891927719,
+        "PRIVATE_INFO": 0.3946341276168823,
+        "RUMOR": 0.691453218460083,
+        "SOLICIT_CONTACT": 0.08695286512374878,
+        "UNSUPPORTED_CLAIM": 0.14986950159072876,
+        "RISK_INDUCEMENT": 0.07935701310634613,
+        "SCREENING_EVASION": 0.05154326558113098,
+        "CARD_MISMATCH": 0.05243499204516411
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:50",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05993306636810303,
+        "PRIVATE_INFO": 0.12279099225997925,
+        "RUMOR": 0.1634126454591751,
+        "SOLICIT_CONTACT": 0.05811654403805733,
+        "UNSUPPORTED_CLAIM": 0.15678083896636963,
+        "RISK_INDUCEMENT": 0.055040717124938965,
+        "SCREENING_EVASION": 0.04230014979839325,
+        "CARD_MISMATCH": 0.04973430186510086
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:51",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1614684909582138,
+        "PRIVATE_INFO": 0.8663985133171082,
+        "RUMOR": 0.22809375822544098,
+        "SOLICIT_CONTACT": 0.13902923464775085,
+        "UNSUPPORTED_CLAIM": 0.15029069781303406,
+        "RISK_INDUCEMENT": 0.11514201760292053,
+        "SCREENING_EVASION": 0.1385214626789093,
+        "CARD_MISMATCH": 0.10973607003688812
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:52",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08028628677129745,
+        "PRIVATE_INFO": 0.09413384646177292,
+        "RUMOR": 0.07111895084381104,
+        "SOLICIT_CONTACT": 0.07318361103534698,
+        "UNSUPPORTED_CLAIM": 0.08910024166107178,
+        "RISK_INDUCEMENT": 0.04634507745504379,
+        "SCREENING_EVASION": 0.07451267540454865,
+        "CARD_MISMATCH": 0.07367869466543198
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:53",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.137443408370018,
+        "PRIVATE_INFO": 0.8065600991249084,
+        "RUMOR": 0.16092433035373688,
+        "SOLICIT_CONTACT": 0.1284022033214569,
+        "UNSUPPORTED_CLAIM": 0.12747003138065338,
+        "RISK_INDUCEMENT": 0.0864204466342926,
+        "SCREENING_EVASION": 0.14460636675357819,
+        "CARD_MISMATCH": 0.0830017700791359
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:54",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06853435933589935,
+        "PRIVATE_INFO": 0.13383202254772186,
+        "RUMOR": 0.09956280887126923,
+        "SOLICIT_CONTACT": 0.079879529774189,
+        "UNSUPPORTED_CLAIM": 0.08083260804414749,
+        "RISK_INDUCEMENT": 0.044681012630462646,
+        "SCREENING_EVASION": 0.0662178322672844,
+        "CARD_MISMATCH": 0.059273816645145416
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:55",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.11507675796747208,
+        "PRIVATE_INFO": 0.8230687975883484,
+        "RUMOR": 0.24719902873039246,
+        "SOLICIT_CONTACT": 0.12738807499408722,
+        "UNSUPPORTED_CLAIM": 0.1032567098736763,
+        "RISK_INDUCEMENT": 0.10066809505224228,
+        "SCREENING_EVASION": 0.11957143992185593,
+        "CARD_MISMATCH": 0.08359277248382568
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:56",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06517364084720612,
+        "PRIVATE_INFO": 0.08526893705129623,
+        "RUMOR": 0.0833197757601738,
+        "SOLICIT_CONTACT": 0.07571747153997421,
+        "UNSUPPORTED_CLAIM": 0.07258922606706619,
+        "RISK_INDUCEMENT": 0.053352609276771545,
+        "SCREENING_EVASION": 0.0662473663687706,
+        "CARD_MISMATCH": 0.07950383424758911
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:57",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1094672679901123,
+        "PRIVATE_INFO": 0.8357418775558472,
+        "RUMOR": 0.388820081949234,
+        "SOLICIT_CONTACT": 0.14696893095970154,
+        "UNSUPPORTED_CLAIM": 0.10504142194986343,
+        "RISK_INDUCEMENT": 0.10726730525493622,
+        "SCREENING_EVASION": 0.10179403424263,
+        "CARD_MISMATCH": 0.07569364458322525
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:58",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05107387155294418,
+        "PRIVATE_INFO": 0.21000084280967712,
+        "RUMOR": 0.27208855748176575,
+        "SOLICIT_CONTACT": 0.09243703633546829,
+        "UNSUPPORTED_CLAIM": 0.07160579413175583,
+        "RISK_INDUCEMENT": 0.056052565574645996,
+        "SCREENING_EVASION": 0.05037025734782219,
+        "CARD_MISMATCH": 0.04309099540114403
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:59",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07123357057571411,
+        "PRIVATE_INFO": 0.5857175588607788,
+        "RUMOR": 0.4194786548614502,
+        "SOLICIT_CONTACT": 0.09407821297645569,
+        "UNSUPPORTED_CLAIM": 0.13983502984046936,
+        "RISK_INDUCEMENT": 0.09150254726409912,
+        "SCREENING_EVASION": 0.06559881567955017,
+        "CARD_MISMATCH": 0.03764092177152634
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:60",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.047219958156347275,
+        "PRIVATE_INFO": 0.18003535270690918,
+        "RUMOR": 0.28031691908836365,
+        "SOLICIT_CONTACT": 0.07463398575782776,
+        "UNSUPPORTED_CLAIM": 0.13737966120243073,
+        "RISK_INDUCEMENT": 0.06674419343471527,
+        "SCREENING_EVASION": 0.04263878986239433,
+        "CARD_MISMATCH": 0.03718731179833412
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:61",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06727217882871628,
+        "PRIVATE_INFO": 0.13263501226902008,
+        "RUMOR": 0.09767786413431168,
+        "SOLICIT_CONTACT": 0.040856365114450455,
+        "UNSUPPORTED_CLAIM": 0.1274711638689041,
+        "RISK_INDUCEMENT": 0.053903043270111084,
+        "SCREENING_EVASION": 0.06939806789159775,
+        "CARD_MISMATCH": 0.07092645764350891
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:62",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06917066127061844,
+        "PRIVATE_INFO": 0.07304763793945312,
+        "RUMOR": 0.08129838854074478,
+        "SOLICIT_CONTACT": 0.06988520920276642,
+        "UNSUPPORTED_CLAIM": 0.07432055473327637,
+        "RISK_INDUCEMENT": 0.05059156194329262,
+        "SCREENING_EVASION": 0.07339148968458176,
+        "CARD_MISMATCH": 0.07759516686201096
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:63",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1694643348455429,
+        "PRIVATE_INFO": 0.9085524082183838,
+        "RUMOR": 0.383107453584671,
+        "SOLICIT_CONTACT": 0.1379362791776657,
+        "UNSUPPORTED_CLAIM": 0.17444927990436554,
+        "RISK_INDUCEMENT": 0.1491706520318985,
+        "SCREENING_EVASION": 0.1540004014968872,
+        "CARD_MISMATCH": 0.11152119189500809
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:64",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07263606786727905,
+        "PRIVATE_INFO": 0.2852136194705963,
+        "RUMOR": 0.16930831968784332,
+        "SOLICIT_CONTACT": 0.0713997557759285,
+        "UNSUPPORTED_CLAIM": 0.11141703277826309,
+        "RISK_INDUCEMENT": 0.04739352688193321,
+        "SCREENING_EVASION": 0.06521569192409515,
+        "CARD_MISMATCH": 0.0475749745965004
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:65",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08769761770963669,
+        "PRIVATE_INFO": 0.7281264066696167,
+        "RUMOR": 0.48118579387664795,
+        "SOLICIT_CONTACT": 0.07637382298707962,
+        "UNSUPPORTED_CLAIM": 0.1611972451210022,
+        "RISK_INDUCEMENT": 0.09212853759527206,
+        "SCREENING_EVASION": 0.08458397537469864,
+        "CARD_MISMATCH": 0.050153736025094986
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:66",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.04866858571767807,
+        "PRIVATE_INFO": 0.1677808314561844,
+        "RUMOR": 0.251625120639801,
+        "SOLICIT_CONTACT": 0.053967904299497604,
+        "UNSUPPORTED_CLAIM": 0.19772151112556458,
+        "RISK_INDUCEMENT": 0.05517738312482834,
+        "SCREENING_EVASION": 0.04935930669307709,
+        "CARD_MISMATCH": 0.03943554684519768
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:67",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1174619197845459,
+        "PRIVATE_INFO": 0.8417953848838806,
+        "RUMOR": 0.6041163206100464,
+        "SOLICIT_CONTACT": 0.11565843224525452,
+        "UNSUPPORTED_CLAIM": 0.17681457102298737,
+        "RISK_INDUCEMENT": 0.14208582043647766,
+        "SCREENING_EVASION": 0.10841584950685501,
+        "CARD_MISMATCH": 0.06476664543151855
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:68",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08218786120414734,
+        "PRIVATE_INFO": 0.07210960984230042,
+        "RUMOR": 0.0698709636926651,
+        "SOLICIT_CONTACT": 0.0672498345375061,
+        "UNSUPPORTED_CLAIM": 0.08132462203502655,
+        "RISK_INDUCEMENT": 0.05662811920046806,
+        "SCREENING_EVASION": 0.057129375636577606,
+        "CARD_MISMATCH": 0.08618291467428207
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:69",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.12191569060087204,
+        "PRIVATE_INFO": 0.8604956269264221,
+        "RUMOR": 0.3857088088989258,
+        "SOLICIT_CONTACT": 0.1636258363723755,
+        "UNSUPPORTED_CLAIM": 0.1010354682803154,
+        "RISK_INDUCEMENT": 0.10583073645830154,
+        "SCREENING_EVASION": 0.11233098059892654,
+        "CARD_MISMATCH": 0.07644521445035934
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:70",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.0561010017991066,
+        "PRIVATE_INFO": 0.17849530279636383,
+        "RUMOR": 0.25962603092193604,
+        "SOLICIT_CONTACT": 0.0684342160820961,
+        "UNSUPPORTED_CLAIM": 0.10001607239246368,
+        "RISK_INDUCEMENT": 0.05189952254295349,
+        "SCREENING_EVASION": 0.05865839123725891,
+        "CARD_MISMATCH": 0.034969910979270935
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:71",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06460373848676682,
+        "PRIVATE_INFO": 0.06921360641717911,
+        "RUMOR": 0.09719488769769669,
+        "SOLICIT_CONTACT": 0.7225603461265564,
+        "UNSUPPORTED_CLAIM": 0.0775289461016655,
+        "RISK_INDUCEMENT": 0.06596244126558304,
+        "SCREENING_EVASION": 0.08904027193784714,
+        "CARD_MISMATCH": 0.0886661633849144
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:72",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.050346292555332184,
+        "PRIVATE_INFO": 0.08911994099617004,
+        "RUMOR": 0.09098385274410248,
+        "SOLICIT_CONTACT": 0.10416258871555328,
+        "UNSUPPORTED_CLAIM": 0.07117661833763123,
+        "RISK_INDUCEMENT": 0.04986278712749481,
+        "SCREENING_EVASION": 0.08657944202423096,
+        "CARD_MISMATCH": 0.05313023552298546
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:73",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07042127102613449,
+        "PRIVATE_INFO": 0.059714097529649734,
+        "RUMOR": 0.06330341845750809,
+        "SOLICIT_CONTACT": 0.5254448056221008,
+        "UNSUPPORTED_CLAIM": 0.06480889767408371,
+        "RISK_INDUCEMENT": 0.0502643957734108,
+        "SCREENING_EVASION": 0.14162468910217285,
+        "CARD_MISMATCH": 0.06488452851772308
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:74",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07432617992162704,
+        "PRIVATE_INFO": 0.06407074630260468,
+        "RUMOR": 0.07290592044591904,
+        "SOLICIT_CONTACT": 0.0862143263220787,
+        "UNSUPPORTED_CLAIM": 0.062099941074848175,
+        "RISK_INDUCEMENT": 0.05972602963447571,
+        "SCREENING_EVASION": 0.082852803170681,
+        "CARD_MISMATCH": 0.06906680017709732
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:75",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05451836809515953,
+        "PRIVATE_INFO": 0.10452167689800262,
+        "RUMOR": 0.12073105573654175,
+        "SOLICIT_CONTACT": 0.37184983491897583,
+        "UNSUPPORTED_CLAIM": 0.07876841723918915,
+        "RISK_INDUCEMENT": 0.04906748607754707,
+        "SCREENING_EVASION": 0.07671841233968735,
+        "CARD_MISMATCH": 0.04531031847000122
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:76",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.04850843548774719,
+        "PRIVATE_INFO": 0.16272129118442535,
+        "RUMOR": 0.1946539431810379,
+        "SOLICIT_CONTACT": 0.08775520324707031,
+        "UNSUPPORTED_CLAIM": 0.09548777341842651,
+        "RISK_INDUCEMENT": 0.049076493829488754,
+        "SCREENING_EVASION": 0.05699510499835014,
+        "CARD_MISMATCH": 0.037458401173353195
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:77",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.09059537947177887,
+        "PRIVATE_INFO": 0.09726642072200775,
+        "RUMOR": 0.11993137747049332,
+        "SOLICIT_CONTACT": 0.87668776512146,
+        "UNSUPPORTED_CLAIM": 0.10412254929542542,
+        "RISK_INDUCEMENT": 0.08458041399717331,
+        "SCREENING_EVASION": 0.09123532474040985,
+        "CARD_MISMATCH": 0.11398196965456009
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:78",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06254678219556808,
+        "PRIVATE_INFO": 0.06523758172988892,
+        "RUMOR": 0.07331643253564835,
+        "SOLICIT_CONTACT": 0.5190554857254028,
+        "UNSUPPORTED_CLAIM": 0.06960621476173401,
+        "RISK_INDUCEMENT": 0.049777936190366745,
+        "SCREENING_EVASION": 0.07305402308702469,
+        "CARD_MISMATCH": 0.1004101112484932
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:79",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1025429219007492,
+        "PRIVATE_INFO": 0.09820576757192612,
+        "RUMOR": 0.11667662858963013,
+        "SOLICIT_CONTACT": 0.9156914353370667,
+        "UNSUPPORTED_CLAIM": 0.11083187907934189,
+        "RISK_INDUCEMENT": 0.10171263664960861,
+        "SCREENING_EVASION": 0.11478478461503983,
+        "CARD_MISMATCH": 0.1378001570701599
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:80",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.0632929727435112,
+        "PRIVATE_INFO": 0.08472239226102829,
+        "RUMOR": 0.07938430458307266,
+        "SOLICIT_CONTACT": 0.6793884038925171,
+        "UNSUPPORTED_CLAIM": 0.07064959406852722,
+        "RISK_INDUCEMENT": 0.05082734301686287,
+        "SCREENING_EVASION": 0.13127493858337402,
+        "CARD_MISMATCH": 0.0886666476726532
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:81",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08066663891077042,
+        "PRIVATE_INFO": 0.08750735968351364,
+        "RUMOR": 0.11793973296880722,
+        "SOLICIT_CONTACT": 0.862479031085968,
+        "UNSUPPORTED_CLAIM": 0.09741156548261642,
+        "RISK_INDUCEMENT": 0.0835469588637352,
+        "SCREENING_EVASION": 0.09222803264856339,
+        "CARD_MISMATCH": 0.11643651127815247
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:82",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.055576227605342865,
+        "PRIVATE_INFO": 0.07098226249217987,
+        "RUMOR": 0.09707899391651154,
+        "SOLICIT_CONTACT": 0.48629656434059143,
+        "UNSUPPORTED_CLAIM": 0.06816419959068298,
+        "RISK_INDUCEMENT": 0.054646577686071396,
+        "SCREENING_EVASION": 0.07044453918933868,
+        "CARD_MISMATCH": 0.07683965563774109
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:83",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.09146247059106827,
+        "PRIVATE_INFO": 0.09110959619283676,
+        "RUMOR": 0.10915939509868622,
+        "SOLICIT_CONTACT": 0.8893905282020569,
+        "UNSUPPORTED_CLAIM": 0.09205039590597153,
+        "RISK_INDUCEMENT": 0.08492592722177505,
+        "SCREENING_EVASION": 0.11053841561079025,
+        "CARD_MISMATCH": 0.11170906573534012
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:84",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06983563303947449,
+        "PRIVATE_INFO": 0.06846132129430771,
+        "RUMOR": 0.07111481577157974,
+        "SOLICIT_CONTACT": 0.17814691364765167,
+        "UNSUPPORTED_CLAIM": 0.05510898679494858,
+        "RISK_INDUCEMENT": 0.0518663190305233,
+        "SCREENING_EVASION": 0.08298660069704056,
+        "CARD_MISMATCH": 0.06488169729709625
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:85",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.04368015378713608,
+        "PRIVATE_INFO": 0.1641855537891388,
+        "RUMOR": 0.35244810581207275,
+        "SOLICIT_CONTACT": 0.09242938458919525,
+        "UNSUPPORTED_CLAIM": 0.13801148533821106,
+        "RISK_INDUCEMENT": 0.057715367525815964,
+        "SCREENING_EVASION": 0.0496542826294899,
+        "CARD_MISMATCH": 0.03385861590504646
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:86",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.0721987634897232,
+        "PRIVATE_INFO": 0.05953102931380272,
+        "RUMOR": 0.08156196027994156,
+        "SOLICIT_CONTACT": 0.07515616714954376,
+        "UNSUPPORTED_CLAIM": 0.06730294972658157,
+        "RISK_INDUCEMENT": 0.06806594878435135,
+        "SCREENING_EVASION": 0.06827044486999512,
+        "CARD_MISMATCH": 0.07897055149078369
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:87",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07763978838920593,
+        "PRIVATE_INFO": 0.07238620519638062,
+        "RUMOR": 0.08297830075025558,
+        "SOLICIT_CONTACT": 0.782726526260376,
+        "UNSUPPORTED_CLAIM": 0.07618234306573868,
+        "RISK_INDUCEMENT": 0.06830273568630219,
+        "SCREENING_EVASION": 0.09980153292417526,
+        "CARD_MISMATCH": 0.09989408403635025
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:88",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.0652540996670723,
+        "PRIVATE_INFO": 0.07192787528038025,
+        "RUMOR": 0.07779987901449203,
+        "SOLICIT_CONTACT": 0.6668358445167542,
+        "UNSUPPORTED_CLAIM": 0.06256739050149918,
+        "RISK_INDUCEMENT": 0.05040433630347252,
+        "SCREENING_EVASION": 0.12164576351642609,
+        "CARD_MISMATCH": 0.09769226610660553
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:89",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.10148104280233383,
+        "PRIVATE_INFO": 0.133573517203331,
+        "RUMOR": 0.13728122413158417,
+        "SOLICIT_CONTACT": 0.9145116806030273,
+        "UNSUPPORTED_CLAIM": 0.1097186729311943,
+        "RISK_INDUCEMENT": 0.08422737568616867,
+        "SCREENING_EVASION": 0.24830296635627747,
+        "CARD_MISMATCH": 0.10693288594484329
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:90",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.045227985829114914,
+        "PRIVATE_INFO": 0.1195044070482254,
+        "RUMOR": 0.22775717079639435,
+        "SOLICIT_CONTACT": 0.1077524796128273,
+        "UNSUPPORTED_CLAIM": 0.06637614965438843,
+        "RISK_INDUCEMENT": 0.055595725774765015,
+        "SCREENING_EVASION": 0.06718715280294418,
+        "CARD_MISMATCH": 0.03933989256620407
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:91",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.056036196649074554,
+        "PRIVATE_INFO": 0.12004900723695755,
+        "RUMOR": 0.11350966989994049,
+        "SOLICIT_CONTACT": 0.5346592664718628,
+        "UNSUPPORTED_CLAIM": 0.06817466765642166,
+        "RISK_INDUCEMENT": 0.049159687012434006,
+        "SCREENING_EVASION": 0.06689145416021347,
+        "CARD_MISMATCH": 0.06788759678602219
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:92",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06349477916955948,
+        "PRIVATE_INFO": 0.10392900556325912,
+        "RUMOR": 0.07625042647123337,
+        "SOLICIT_CONTACT": 0.22949422895908356,
+        "UNSUPPORTED_CLAIM": 0.05949260666966438,
+        "RISK_INDUCEMENT": 0.04357098415493965,
+        "SCREENING_EVASION": 0.07302630692720413,
+        "CARD_MISMATCH": 0.07080286741256714
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:93",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.11879899352788925,
+        "PRIVATE_INFO": 0.1037573590874672,
+        "RUMOR": 0.10346555709838867,
+        "SOLICIT_CONTACT": 0.9212490320205688,
+        "UNSUPPORTED_CLAIM": 0.10572492331266403,
+        "RISK_INDUCEMENT": 0.09323501586914062,
+        "SCREENING_EVASION": 0.13581238687038422,
+        "CARD_MISMATCH": 0.14055444300174713
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:94",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.062464095652103424,
+        "PRIVATE_INFO": 0.08150511980056763,
+        "RUMOR": 0.06047157943248749,
+        "SOLICIT_CONTACT": 0.2212175875902176,
+        "UNSUPPORTED_CLAIM": 0.06613330543041229,
+        "RISK_INDUCEMENT": 0.03837785869836807,
+        "SCREENING_EVASION": 0.13216659426689148,
+        "CARD_MISMATCH": 0.07197732478380203
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:95",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05610259249806404,
+        "PRIVATE_INFO": 0.07673812657594681,
+        "RUMOR": 0.10833500325679779,
+        "SOLICIT_CONTACT": 0.38935816287994385,
+        "UNSUPPORTED_CLAIM": 0.0713747888803482,
+        "RISK_INDUCEMENT": 0.050224848091602325,
+        "SCREENING_EVASION": 0.08441396057605743,
+        "CARD_MISMATCH": 0.05248541757464409
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:96",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.058936476707458496,
+        "PRIVATE_INFO": 0.06040006875991821,
+        "RUMOR": 0.09800749272108078,
+        "SOLICIT_CONTACT": 0.08153122663497925,
+        "UNSUPPORTED_CLAIM": 0.09909988939762115,
+        "RISK_INDUCEMENT": 0.06410375982522964,
+        "SCREENING_EVASION": 0.04983125999569893,
+        "CARD_MISMATCH": 0.06869315356016159
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:97",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.0699523389339447,
+        "PRIVATE_INFO": 0.08209200948476791,
+        "RUMOR": 0.10598619282245636,
+        "SOLICIT_CONTACT": 0.8242964744567871,
+        "UNSUPPORTED_CLAIM": 0.08605684340000153,
+        "RISK_INDUCEMENT": 0.06846725195646286,
+        "SCREENING_EVASION": 0.10552466660737991,
+        "CARD_MISMATCH": 0.10976740717887878
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:98",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07384655624628067,
+        "PRIVATE_INFO": 0.06126726418733597,
+        "RUMOR": 0.07047142088413239,
+        "SOLICIT_CONTACT": 0.08774694055318832,
+        "UNSUPPORTED_CLAIM": 0.08089139312505722,
+        "RISK_INDUCEMENT": 0.05579027533531189,
+        "SCREENING_EVASION": 0.06728215515613556,
+        "CARD_MISMATCH": 0.0691210925579071
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:99",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07247955352067947,
+        "PRIVATE_INFO": 0.06996758282184601,
+        "RUMOR": 0.08128724247217178,
+        "SOLICIT_CONTACT": 0.7326473593711853,
+        "UNSUPPORTED_CLAIM": 0.08076338469982147,
+        "RISK_INDUCEMENT": 0.05974985286593437,
+        "SCREENING_EVASION": 0.08634732663631439,
+        "CARD_MISMATCH": 0.10967569798231125
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:100",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05135286971926689,
+        "PRIVATE_INFO": 0.06982546299695969,
+        "RUMOR": 0.101302370429039,
+        "SOLICIT_CONTACT": 0.08909600973129272,
+        "UNSUPPORTED_CLAIM": 0.0694655254483223,
+        "RISK_INDUCEMENT": 0.05738867446780205,
+        "SCREENING_EVASION": 0.0639641284942627,
+        "CARD_MISMATCH": 0.06662607192993164
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:101",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.3901657164096832,
+        "PRIVATE_INFO": 0.07141505926847458,
+        "RUMOR": 0.037797387689352036,
+        "SOLICIT_CONTACT": 0.09563489258289337,
+        "UNSUPPORTED_CLAIM": 0.09355401247739792,
+        "RISK_INDUCEMENT": 0.08034534752368927,
+        "SCREENING_EVASION": 0.1519184708595276,
+        "CARD_MISMATCH": 0.09936419874429703
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:102",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.21071559190750122,
+        "PRIVATE_INFO": 0.06338314712047577,
+        "RUMOR": 0.03888700157403946,
+        "SOLICIT_CONTACT": 0.08106181770563126,
+        "UNSUPPORTED_CLAIM": 0.07584439218044281,
+        "RISK_INDUCEMENT": 0.06669430434703827,
+        "SCREENING_EVASION": 0.14863130450248718,
+        "CARD_MISMATCH": 0.08391175419092178
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:103",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6655688881874084,
+        "PRIVATE_INFO": 0.10427949577569962,
+        "RUMOR": 0.06447406858205795,
+        "SOLICIT_CONTACT": 0.1808215081691742,
+        "UNSUPPORTED_CLAIM": 0.13858211040496826,
+        "RISK_INDUCEMENT": 0.09980606287717819,
+        "SCREENING_EVASION": 0.21847011148929596,
+        "CARD_MISMATCH": 0.07762836664915085
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:104",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08527407050132751,
+        "PRIVATE_INFO": 0.05553529039025307,
+        "RUMOR": 0.06639060378074646,
+        "SOLICIT_CONTACT": 0.10454350709915161,
+        "UNSUPPORTED_CLAIM": 0.07428744435310364,
+        "RISK_INDUCEMENT": 0.061138078570365906,
+        "SCREENING_EVASION": 0.07298659533262253,
+        "CARD_MISMATCH": 0.06809298694133759
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:105",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8031095266342163,
+        "PRIVATE_INFO": 0.10659974068403244,
+        "RUMOR": 0.07014229893684387,
+        "SOLICIT_CONTACT": 0.09438250958919525,
+        "UNSUPPORTED_CLAIM": 0.22399525344371796,
+        "RISK_INDUCEMENT": 0.17724478244781494,
+        "SCREENING_EVASION": 0.16062937676906586,
+        "CARD_MISMATCH": 0.08745766431093216
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:106",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1296311318874359,
+        "PRIVATE_INFO": 0.049156054854393005,
+        "RUMOR": 0.07284083962440491,
+        "SOLICIT_CONTACT": 0.07301374524831772,
+        "UNSUPPORTED_CLAIM": 0.16769133508205414,
+        "RISK_INDUCEMENT": 0.0734802708029747,
+        "SCREENING_EVASION": 0.05919787660241127,
+        "CARD_MISMATCH": 0.04522915929555893
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:107",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.384229451417923,
+        "PRIVATE_INFO": 0.06860781461000443,
+        "RUMOR": 0.04431780427694321,
+        "SOLICIT_CONTACT": 0.07810351997613907,
+        "UNSUPPORTED_CLAIM": 0.09563769400119781,
+        "RISK_INDUCEMENT": 0.09713278710842133,
+        "SCREENING_EVASION": 0.15545234084129333,
+        "CARD_MISMATCH": 0.06451763212680817
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:108",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.13059228658676147,
+        "PRIVATE_INFO": 0.05985352024435997,
+        "RUMOR": 0.05016046762466431,
+        "SOLICIT_CONTACT": 0.06406864523887634,
+        "UNSUPPORTED_CLAIM": 0.11063006520271301,
+        "RISK_INDUCEMENT": 0.06758610159158707,
+        "SCREENING_EVASION": 0.10105424374341965,
+        "CARD_MISMATCH": 0.058866068720817566
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:109",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6394772529602051,
+        "PRIVATE_INFO": 0.11848729103803635,
+        "RUMOR": 0.048339664936065674,
+        "SOLICIT_CONTACT": 0.15289582312107086,
+        "UNSUPPORTED_CLAIM": 0.12591367959976196,
+        "RISK_INDUCEMENT": 0.09008237719535828,
+        "SCREENING_EVASION": 0.24261918663978577,
+        "CARD_MISMATCH": 0.08788593113422394
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:110",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.19559480249881744,
+        "PRIVATE_INFO": 0.05376416817307472,
+        "RUMOR": 0.04735356941819191,
+        "SOLICIT_CONTACT": 0.0710117518901825,
+        "UNSUPPORTED_CLAIM": 0.11487575620412827,
+        "RISK_INDUCEMENT": 0.08266887813806534,
+        "SCREENING_EVASION": 0.060125887393951416,
+        "CARD_MISMATCH": 0.07123250514268875
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:111",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.7282542586326599,
+        "PRIVATE_INFO": 0.10611637681722641,
+        "RUMOR": 0.08675426244735718,
+        "SOLICIT_CONTACT": 0.07024987041950226,
+        "UNSUPPORTED_CLAIM": 0.32560309767723083,
+        "RISK_INDUCEMENT": 0.25122562050819397,
+        "SCREENING_EVASION": 0.08572732657194138,
+        "CARD_MISMATCH": 0.051845911890268326
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:112",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.2601411044597626,
+        "PRIVATE_INFO": 0.06788027286529541,
+        "RUMOR": 0.1134621873497963,
+        "SOLICIT_CONTACT": 0.06404381990432739,
+        "UNSUPPORTED_CLAIM": 0.5055662393569946,
+        "RISK_INDUCEMENT": 0.5832695960998535,
+        "SCREENING_EVASION": 0.05347573757171631,
+        "CARD_MISMATCH": 0.04752301424741745
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:113",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.4689358174800873,
+        "PRIVATE_INFO": 0.07690016180276871,
+        "RUMOR": 0.039425384253263474,
+        "SOLICIT_CONTACT": 0.14678196609020233,
+        "UNSUPPORTED_CLAIM": 0.09456634521484375,
+        "RISK_INDUCEMENT": 0.0826767086982727,
+        "SCREENING_EVASION": 0.20958547294139862,
+        "CARD_MISMATCH": 0.08576429635286331
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:114",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.16119731962680817,
+        "PRIVATE_INFO": 0.06390924006700516,
+        "RUMOR": 0.04615006968379021,
+        "SOLICIT_CONTACT": 0.09589109569787979,
+        "UNSUPPORTED_CLAIM": 0.06594619899988174,
+        "RISK_INDUCEMENT": 0.06493587791919708,
+        "SCREENING_EVASION": 0.10323511809110641,
+        "CARD_MISMATCH": 0.07707364112138748
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:115",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.7576808929443359,
+        "PRIVATE_INFO": 0.12016856670379639,
+        "RUMOR": 0.0757526382803917,
+        "SOLICIT_CONTACT": 0.15372787415981293,
+        "UNSUPPORTED_CLAIM": 0.12691152095794678,
+        "RISK_INDUCEMENT": 0.13190487027168274,
+        "SCREENING_EVASION": 0.3885670006275177,
+        "CARD_MISMATCH": 0.1034129336476326
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:116",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.5720323324203491,
+        "PRIVATE_INFO": 0.08227977156639099,
+        "RUMOR": 0.05270738899707794,
+        "SOLICIT_CONTACT": 0.08813835680484772,
+        "UNSUPPORTED_CLAIM": 0.11353368312120438,
+        "RISK_INDUCEMENT": 0.10769244283437729,
+        "SCREENING_EVASION": 0.2323405146598816,
+        "CARD_MISMATCH": 0.08186595886945724
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:117",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.25472256541252136,
+        "PRIVATE_INFO": 0.06180236488580704,
+        "RUMOR": 0.05160590633749962,
+        "SOLICIT_CONTACT": 0.0665576234459877,
+        "UNSUPPORTED_CLAIM": 0.1512654721736908,
+        "RISK_INDUCEMENT": 0.0667199119925499,
+        "SCREENING_EVASION": 0.07493379712104797,
+        "CARD_MISMATCH": 0.06745060533285141
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:118",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.10549536347389221,
+        "PRIVATE_INFO": 0.061488647013902664,
+        "RUMOR": 0.07129647582769394,
+        "SOLICIT_CONTACT": 0.0743720680475235,
+        "UNSUPPORTED_CLAIM": 0.08724795281887054,
+        "RISK_INDUCEMENT": 0.06544982641935349,
+        "SCREENING_EVASION": 0.07708103209733963,
+        "CARD_MISMATCH": 0.052155960351228714
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:119",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.4464772939682007,
+        "PRIVATE_INFO": 0.08091465383768082,
+        "RUMOR": 0.1052686870098114,
+        "SOLICIT_CONTACT": 0.07089649140834808,
+        "UNSUPPORTED_CLAIM": 0.6260170936584473,
+        "RISK_INDUCEMENT": 0.5118449926376343,
+        "SCREENING_EVASION": 0.04802604019641876,
+        "CARD_MISMATCH": 0.05180975794792175
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:120",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.24967986345291138,
+        "PRIVATE_INFO": 0.06392092257738113,
+        "RUMOR": 0.08388520032167435,
+        "SOLICIT_CONTACT": 0.06403131783008575,
+        "UNSUPPORTED_CLAIM": 0.3297225534915924,
+        "RISK_INDUCEMENT": 0.1368882656097412,
+        "SCREENING_EVASION": 0.06766126304864883,
+        "CARD_MISMATCH": 0.031671181321144104
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:121",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.33205345273017883,
+        "PRIVATE_INFO": 0.07047530263662338,
+        "RUMOR": 0.0452725775539875,
+        "SOLICIT_CONTACT": 0.154466912150383,
+        "UNSUPPORTED_CLAIM": 0.08557828515768051,
+        "RISK_INDUCEMENT": 0.06619972735643387,
+        "SCREENING_EVASION": 0.23663818836212158,
+        "CARD_MISMATCH": 0.07656534016132355
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:122",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.24843569099903107,
+        "PRIVATE_INFO": 0.066705122590065,
+        "RUMOR": 0.04099804908037186,
+        "SOLICIT_CONTACT": 0.08332226425409317,
+        "UNSUPPORTED_CLAIM": 0.09748518466949463,
+        "RISK_INDUCEMENT": 0.06894733011722565,
+        "SCREENING_EVASION": 0.1803966611623764,
+        "CARD_MISMATCH": 0.07878085225820541
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:123",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.7791906595230103,
+        "PRIVATE_INFO": 0.10233856737613678,
+        "RUMOR": 0.07666594535112381,
+        "SOLICIT_CONTACT": 0.08197101205587387,
+        "UNSUPPORTED_CLAIM": 0.3184582591056824,
+        "RISK_INDUCEMENT": 0.28631913661956787,
+        "SCREENING_EVASION": 0.09603872895240784,
+        "CARD_MISMATCH": 0.06433604657649994
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:124",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.2212216705083847,
+        "PRIVATE_INFO": 0.05945063382387161,
+        "RUMOR": 0.10366323590278625,
+        "SOLICIT_CONTACT": 0.06718437373638153,
+        "UNSUPPORTED_CLAIM": 0.6096139550209045,
+        "RISK_INDUCEMENT": 0.4168902337551117,
+        "SCREENING_EVASION": 0.052654240280389786,
+        "CARD_MISMATCH": 0.09071993827819824
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:125",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8556690216064453,
+        "PRIVATE_INFO": 0.14219234883785248,
+        "RUMOR": 0.0911777913570404,
+        "SOLICIT_CONTACT": 0.1290854513645172,
+        "UNSUPPORTED_CLAIM": 0.2095695436000824,
+        "RISK_INDUCEMENT": 0.26065266132354736,
+        "SCREENING_EVASION": 0.15097185969352722,
+        "CARD_MISMATCH": 0.08127199858427048
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:126",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.653269350528717,
+        "PRIVATE_INFO": 0.08661037683486938,
+        "RUMOR": 0.05074496939778328,
+        "SOLICIT_CONTACT": 0.0783059373497963,
+        "UNSUPPORTED_CLAIM": 0.20083065330982208,
+        "RISK_INDUCEMENT": 0.18476568162441254,
+        "SCREENING_EVASION": 0.08277105540037155,
+        "CARD_MISMATCH": 0.07481498271226883
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:127",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6627284288406372,
+        "PRIVATE_INFO": 0.09564226865768433,
+        "RUMOR": 0.057591065764427185,
+        "SOLICIT_CONTACT": 0.09428054839372635,
+        "UNSUPPORTED_CLAIM": 0.15177130699157715,
+        "RISK_INDUCEMENT": 0.12398489564657211,
+        "SCREENING_EVASION": 0.12656396627426147,
+        "CARD_MISMATCH": 0.07978375256061554
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:128",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.5023420453071594,
+        "PRIVATE_INFO": 0.08322375267744064,
+        "RUMOR": 0.046268194913864136,
+        "SOLICIT_CONTACT": 0.07934904843568802,
+        "UNSUPPORTED_CLAIM": 0.10421466827392578,
+        "RISK_INDUCEMENT": 0.09311440587043762,
+        "SCREENING_EVASION": 0.19539974629878998,
+        "CARD_MISMATCH": 0.09015438705682755
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:129",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.12207532674074173,
+        "PRIVATE_INFO": 0.08280378580093384,
+        "RUMOR": 0.06342440843582153,
+        "SOLICIT_CONTACT": 0.0856025442481041,
+        "UNSUPPORTED_CLAIM": 0.13157115876674652,
+        "RISK_INDUCEMENT": 0.06098760664463043,
+        "SCREENING_EVASION": 0.06389077752828598,
+        "CARD_MISMATCH": 0.0461340993642807
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:130",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08413297683000565,
+        "PRIVATE_INFO": 0.05816829949617386,
+        "RUMOR": 0.06758005172014236,
+        "SOLICIT_CONTACT": 0.06459758430719376,
+        "UNSUPPORTED_CLAIM": 0.0982772707939148,
+        "RISK_INDUCEMENT": 0.0600128099322319,
+        "SCREENING_EVASION": 0.06689606606960297,
+        "CARD_MISMATCH": 0.0745161697268486
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:131",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6407257318496704,
+        "PRIVATE_INFO": 0.08058701455593109,
+        "RUMOR": 0.05615001916885376,
+        "SOLICIT_CONTACT": 0.07458954304456711,
+        "UNSUPPORTED_CLAIM": 0.22612670063972473,
+        "RISK_INDUCEMENT": 0.15294337272644043,
+        "SCREENING_EVASION": 0.11548323929309845,
+        "CARD_MISMATCH": 0.07061082869768143
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:132",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06620578467845917,
+        "PRIVATE_INFO": 0.06387798488140106,
+        "RUMOR": 0.08989903330802917,
+        "SOLICIT_CONTACT": 0.07412299513816833,
+        "UNSUPPORTED_CLAIM": 0.11824293434619904,
+        "RISK_INDUCEMENT": 0.06042056903243065,
+        "SCREENING_EVASION": 0.05802576243877411,
+        "CARD_MISMATCH": 0.06215766817331314
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:133",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.6249904632568359,
+        "PRIVATE_INFO": 0.07817849516868591,
+        "RUMOR": 0.07733248919248581,
+        "SOLICIT_CONTACT": 0.06572967767715454,
+        "UNSUPPORTED_CLAIM": 0.5331736207008362,
+        "RISK_INDUCEMENT": 0.5050772428512573,
+        "SCREENING_EVASION": 0.05658668652176857,
+        "CARD_MISMATCH": 0.09400137513875961
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:134",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08044224232435226,
+        "PRIVATE_INFO": 0.042953573167324066,
+        "RUMOR": 0.09956943988800049,
+        "SOLICIT_CONTACT": 0.06006395071744919,
+        "UNSUPPORTED_CLAIM": 0.2847197949886322,
+        "RISK_INDUCEMENT": 0.13881047070026398,
+        "SCREENING_EVASION": 0.03137440234422684,
+        "CARD_MISMATCH": 0.10838712751865387
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:135",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.3232928514480591,
+        "PRIVATE_INFO": 0.05269244685769081,
+        "RUMOR": 0.06743485480546951,
+        "SOLICIT_CONTACT": 0.04890522360801697,
+        "UNSUPPORTED_CLAIM": 0.41895943880081177,
+        "RISK_INDUCEMENT": 0.1658686399459839,
+        "SCREENING_EVASION": 0.04760531336069107,
+        "CARD_MISMATCH": 0.07634558528661728
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:136",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.2963539958000183,
+        "PRIVATE_INFO": 0.061538636684417725,
+        "RUMOR": 0.05241760239005089,
+        "SOLICIT_CONTACT": 0.06840143352746964,
+        "UNSUPPORTED_CLAIM": 0.1546250581741333,
+        "RISK_INDUCEMENT": 0.08234978467226028,
+        "SCREENING_EVASION": 0.0955389142036438,
+        "CARD_MISMATCH": 0.05066103860735893
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:137",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8290285468101501,
+        "PRIVATE_INFO": 0.14896275103092194,
+        "RUMOR": 0.08558943122625351,
+        "SOLICIT_CONTACT": 0.14496050775051117,
+        "UNSUPPORTED_CLAIM": 0.26587679982185364,
+        "RISK_INDUCEMENT": 0.1999306082725525,
+        "SCREENING_EVASION": 0.14027082920074463,
+        "CARD_MISMATCH": 0.07364647835493088
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:138",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1188974678516388,
+        "PRIVATE_INFO": 0.061961881816387177,
+        "RUMOR": 0.054935384541749954,
+        "SOLICIT_CONTACT": 0.06318571418523788,
+        "UNSUPPORTED_CLAIM": 0.09196801483631134,
+        "RISK_INDUCEMENT": 0.06489555537700653,
+        "SCREENING_EVASION": 0.07868644595146179,
+        "CARD_MISMATCH": 0.06367498636245728
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:139",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8631250858306885,
+        "PRIVATE_INFO": 0.12747882306575775,
+        "RUMOR": 0.07847023755311966,
+        "SOLICIT_CONTACT": 0.11612467467784882,
+        "UNSUPPORTED_CLAIM": 0.22910286486148834,
+        "RISK_INDUCEMENT": 0.2556479871273041,
+        "SCREENING_EVASION": 0.13759355247020721,
+        "CARD_MISMATCH": 0.1239154040813446
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:140",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.11231379956007004,
+        "PRIVATE_INFO": 0.052213914692401886,
+        "RUMOR": 0.06917999684810638,
+        "SOLICIT_CONTACT": 0.08403516560792923,
+        "UNSUPPORTED_CLAIM": 0.1104358360171318,
+        "RISK_INDUCEMENT": 0.0646335631608963,
+        "SCREENING_EVASION": 0.06440447270870209,
+        "CARD_MISMATCH": 0.053250301629304886
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:141",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07237987220287323,
+        "PRIVATE_INFO": 0.14508916437625885,
+        "RUMOR": 0.0896187573671341,
+        "SOLICIT_CONTACT": 0.06519202888011932,
+        "UNSUPPORTED_CLAIM": 0.09702354669570923,
+        "RISK_INDUCEMENT": 0.05100378021597862,
+        "SCREENING_EVASION": 0.05926167219877243,
+        "CARD_MISMATCH": 0.06902652978897095
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:142",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07202610373497009,
+        "PRIVATE_INFO": 0.07014938443899155,
+        "RUMOR": 0.07337330281734467,
+        "SOLICIT_CONTACT": 0.07211697846651077,
+        "UNSUPPORTED_CLAIM": 0.07832423597574234,
+        "RISK_INDUCEMENT": 0.05795792117714882,
+        "SCREENING_EVASION": 0.06150444597005844,
+        "CARD_MISMATCH": 0.08487675338983536
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:143",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.10269208252429962,
+        "PRIVATE_INFO": 0.8566844463348389,
+        "RUMOR": 0.35980719327926636,
+        "SOLICIT_CONTACT": 0.14571750164031982,
+        "UNSUPPORTED_CLAIM": 0.15728268027305603,
+        "RISK_INDUCEMENT": 0.10123054683208466,
+        "SCREENING_EVASION": 0.13082918524742126,
+        "CARD_MISMATCH": 0.06756110489368439
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:144",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06706762313842773,
+        "PRIVATE_INFO": 0.07669687271118164,
+        "RUMOR": 0.08310341089963913,
+        "SOLICIT_CONTACT": 0.07088889181613922,
+        "UNSUPPORTED_CLAIM": 0.07979932427406311,
+        "RISK_INDUCEMENT": 0.0618898831307888,
+        "SCREENING_EVASION": 0.06184454634785652,
+        "CARD_MISMATCH": 0.06712941080331802
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:145",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1038350835442543,
+        "PRIVATE_INFO": 0.7987855672836304,
+        "RUMOR": 0.3595544993877411,
+        "SOLICIT_CONTACT": 0.09935952723026276,
+        "UNSUPPORTED_CLAIM": 0.14122825860977173,
+        "RISK_INDUCEMENT": 0.09747988730669022,
+        "SCREENING_EVASION": 0.08660697937011719,
+        "CARD_MISMATCH": 0.07192616164684296
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:146",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06814473122358322,
+        "PRIVATE_INFO": 0.09487397968769073,
+        "RUMOR": 0.08705126494169235,
+        "SOLICIT_CONTACT": 0.0667942687869072,
+        "UNSUPPORTED_CLAIM": 0.08665202558040619,
+        "RISK_INDUCEMENT": 0.04975937679409981,
+        "SCREENING_EVASION": 0.059731073677539825,
+        "CARD_MISMATCH": 0.07004116475582123
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:147",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05933590978384018,
+        "PRIVATE_INFO": 0.4806239604949951,
+        "RUMOR": 0.4139873683452606,
+        "SOLICIT_CONTACT": 0.06668085604906082,
+        "UNSUPPORTED_CLAIM": 0.1453317403793335,
+        "RISK_INDUCEMENT": 0.06137172877788544,
+        "SCREENING_EVASION": 0.0641140565276146,
+        "CARD_MISMATCH": 0.0400308296084404
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:148",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.062201958149671555,
+        "PRIVATE_INFO": 0.07262614369392395,
+        "RUMOR": 0.08660566061735153,
+        "SOLICIT_CONTACT": 0.08075162768363953,
+        "UNSUPPORTED_CLAIM": 0.0749814435839653,
+        "RISK_INDUCEMENT": 0.05642183497548103,
+        "SCREENING_EVASION": 0.05322089046239853,
+        "CARD_MISMATCH": 0.07289398461580276
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:149",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07436512410640717,
+        "PRIVATE_INFO": 0.39316412806510925,
+        "RUMOR": 0.8697330355644226,
+        "SOLICIT_CONTACT": 0.11180832237005234,
+        "UNSUPPORTED_CLAIM": 0.2120850384235382,
+        "RISK_INDUCEMENT": 0.13357801735401154,
+        "SCREENING_EVASION": 0.0853901132941246,
+        "CARD_MISMATCH": 0.061217617243528366
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:150",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.062107738107442856,
+        "PRIVATE_INFO": 0.07559864968061447,
+        "RUMOR": 0.08495695888996124,
+        "SOLICIT_CONTACT": 0.0738140344619751,
+        "UNSUPPORTED_CLAIM": 0.07614975422620773,
+        "RISK_INDUCEMENT": 0.06006985902786255,
+        "SCREENING_EVASION": 0.05925624445080757,
+        "CARD_MISMATCH": 0.07435605674982071
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:151",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06381186097860336,
+        "PRIVATE_INFO": 0.13440491259098053,
+        "RUMOR": 0.098321832716465,
+        "SOLICIT_CONTACT": 0.6661171317100525,
+        "UNSUPPORTED_CLAIM": 0.08030498772859573,
+        "RISK_INDUCEMENT": 0.04706544801592827,
+        "SCREENING_EVASION": 0.08741167932748795,
+        "CARD_MISMATCH": 0.08241433650255203
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:152",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.062355369329452515,
+        "PRIVATE_INFO": 0.08542091399431229,
+        "RUMOR": 0.09229669719934464,
+        "SOLICIT_CONTACT": 0.07496556639671326,
+        "UNSUPPORTED_CLAIM": 0.08323485404253006,
+        "RISK_INDUCEMENT": 0.0612403079867363,
+        "SCREENING_EVASION": 0.05345708504319191,
+        "CARD_MISMATCH": 0.0656978189945221
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:153",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07222328335046768,
+        "PRIVATE_INFO": 0.5053693652153015,
+        "RUMOR": 0.5236800312995911,
+        "SOLICIT_CONTACT": 0.06110300123691559,
+        "UNSUPPORTED_CLAIM": 0.28684568405151367,
+        "RISK_INDUCEMENT": 0.08165565133094788,
+        "SCREENING_EVASION": 0.059897132217884064,
+        "CARD_MISMATCH": 0.054234571754932404
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:154",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06557541340589523,
+        "PRIVATE_INFO": 0.0744575634598732,
+        "RUMOR": 0.08200132846832275,
+        "SOLICIT_CONTACT": 0.06513576209545135,
+        "UNSUPPORTED_CLAIM": 0.08890285342931747,
+        "RISK_INDUCEMENT": 0.06421783566474915,
+        "SCREENING_EVASION": 0.056012436747550964,
+        "CARD_MISMATCH": 0.07859358191490173
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:155",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.09709154814481735,
+        "PRIVATE_INFO": 0.5941842794418335,
+        "RUMOR": 0.08155282586812973,
+        "SOLICIT_CONTACT": 0.2627299427986145,
+        "UNSUPPORTED_CLAIM": 0.07735545933246613,
+        "RISK_INDUCEMENT": 0.051906418055295944,
+        "SCREENING_EVASION": 0.22150371968746185,
+        "CARD_MISMATCH": 0.07476555556058884
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:156",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06849473714828491,
+        "PRIVATE_INFO": 0.09254284203052521,
+        "RUMOR": 0.08046949654817581,
+        "SOLICIT_CONTACT": 0.0643300861120224,
+        "UNSUPPORTED_CLAIM": 0.07610583305358887,
+        "RISK_INDUCEMENT": 0.05470343306660652,
+        "SCREENING_EVASION": 0.0671725869178772,
+        "CARD_MISMATCH": 0.07479122281074524
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:157",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05853864178061485,
+        "PRIVATE_INFO": 0.1461310237646103,
+        "RUMOR": 0.5791577696800232,
+        "SOLICIT_CONTACT": 0.0843198299407959,
+        "UNSUPPORTED_CLAIM": 0.2567940056324005,
+        "RISK_INDUCEMENT": 0.07966335117816925,
+        "SCREENING_EVASION": 0.06013449281454086,
+        "CARD_MISMATCH": 0.05666534975171089
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:158",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06640151888132095,
+        "PRIVATE_INFO": 0.069672591984272,
+        "RUMOR": 0.08144786208868027,
+        "SOLICIT_CONTACT": 0.0699007585644722,
+        "UNSUPPORTED_CLAIM": 0.07576102763414383,
+        "RISK_INDUCEMENT": 0.06205347925424576,
+        "SCREENING_EVASION": 0.060431838035583496,
+        "CARD_MISMATCH": 0.07646535336971283
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:159",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07714460045099258,
+        "PRIVATE_INFO": 0.5573181509971619,
+        "RUMOR": 0.27682167291641235,
+        "SOLICIT_CONTACT": 0.06945011764764786,
+        "UNSUPPORTED_CLAIM": 0.15800009667873383,
+        "RISK_INDUCEMENT": 0.06096706539392471,
+        "SCREENING_EVASION": 0.07142152637243271,
+        "CARD_MISMATCH": 0.04408998787403107
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:160",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06719266623258591,
+        "PRIVATE_INFO": 0.08143819123506546,
+        "RUMOR": 0.08870845288038254,
+        "SOLICIT_CONTACT": 0.07109607011079788,
+        "UNSUPPORTED_CLAIM": 0.07744628936052322,
+        "RISK_INDUCEMENT": 0.05839267745614052,
+        "SCREENING_EVASION": 0.06449898332357407,
+        "CARD_MISMATCH": 0.060772959142923355
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:161",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.0541098527610302,
+        "PRIVATE_INFO": 0.23418834805488586,
+        "RUMOR": 0.49008211493492126,
+        "SOLICIT_CONTACT": 0.056127920746803284,
+        "UNSUPPORTED_CLAIM": 0.22099658846855164,
+        "RISK_INDUCEMENT": 0.05768550559878349,
+        "SCREENING_EVASION": 0.0463930144906044,
+        "CARD_MISMATCH": 0.047100331634283066
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:162",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06452091038227081,
+        "PRIVATE_INFO": 0.07752986997365952,
+        "RUMOR": 0.10788196325302124,
+        "SOLICIT_CONTACT": 0.06820773333311081,
+        "UNSUPPORTED_CLAIM": 0.07971584796905518,
+        "RISK_INDUCEMENT": 0.05751730874180794,
+        "SCREENING_EVASION": 0.05550926551222801,
+        "CARD_MISMATCH": 0.06908995658159256
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:163",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05037397891283035,
+        "PRIVATE_INFO": 0.17994044721126556,
+        "RUMOR": 0.24600733816623688,
+        "SOLICIT_CONTACT": 0.08357105404138565,
+        "UNSUPPORTED_CLAIM": 0.090006522834301,
+        "RISK_INDUCEMENT": 0.057222675532102585,
+        "SCREENING_EVASION": 0.043721310794353485,
+        "CARD_MISMATCH": 0.056402090936899185
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:164",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06042575091123581,
+        "PRIVATE_INFO": 0.06740743666887283,
+        "RUMOR": 0.09054883569478989,
+        "SOLICIT_CONTACT": 0.08859442919492722,
+        "UNSUPPORTED_CLAIM": 0.06715096533298492,
+        "RISK_INDUCEMENT": 0.06288499385118484,
+        "SCREENING_EVASION": 0.05652402341365814,
+        "CARD_MISMATCH": 0.07755111902952194
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:165",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.052251655608415604,
+        "PRIVATE_INFO": 0.2766498923301697,
+        "RUMOR": 0.21028541028499603,
+        "SOLICIT_CONTACT": 0.05724465101957321,
+        "UNSUPPORTED_CLAIM": 0.14953410625457764,
+        "RISK_INDUCEMENT": 0.05331442877650261,
+        "SCREENING_EVASION": 0.050702840089797974,
+        "CARD_MISMATCH": 0.05343218520283699
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:166",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.051333945244550705,
+        "PRIVATE_INFO": 0.09675804525613785,
+        "RUMOR": 0.12160937488079071,
+        "SOLICIT_CONTACT": 0.05653800442814827,
+        "UNSUPPORTED_CLAIM": 0.09393835812807083,
+        "RISK_INDUCEMENT": 0.05226173996925354,
+        "SCREENING_EVASION": 0.05365300178527832,
+        "CARD_MISMATCH": 0.06740202754735947
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:167",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.14968346059322357,
+        "PRIVATE_INFO": 0.8488465547561646,
+        "RUMOR": 0.17662081122398376,
+        "SOLICIT_CONTACT": 0.18804886937141418,
+        "UNSUPPORTED_CLAIM": 0.11653333157300949,
+        "RISK_INDUCEMENT": 0.0921047106385231,
+        "SCREENING_EVASION": 0.1409437507390976,
+        "CARD_MISMATCH": 0.1006237342953682
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:168",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.061788614839315414,
+        "PRIVATE_INFO": 0.09473254531621933,
+        "RUMOR": 0.07917123287916183,
+        "SOLICIT_CONTACT": 0.10972093790769577,
+        "UNSUPPORTED_CLAIM": 0.06669691205024719,
+        "RISK_INDUCEMENT": 0.050992850214242935,
+        "SCREENING_EVASION": 0.06713998317718506,
+        "CARD_MISMATCH": 0.057147011160850525
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:169",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1855212152004242,
+        "PRIVATE_INFO": 0.8780058026313782,
+        "RUMOR": 0.16876953840255737,
+        "SOLICIT_CONTACT": 0.16443082690238953,
+        "UNSUPPORTED_CLAIM": 0.14936615526676178,
+        "RISK_INDUCEMENT": 0.12068527936935425,
+        "SCREENING_EVASION": 0.18935298919677734,
+        "CARD_MISMATCH": 0.1204836294054985
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:170",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.062052011489868164,
+        "PRIVATE_INFO": 0.07911244034767151,
+        "RUMOR": 0.08245296776294708,
+        "SOLICIT_CONTACT": 0.07622993737459183,
+        "UNSUPPORTED_CLAIM": 0.08363469690084457,
+        "RISK_INDUCEMENT": 0.05355741083621979,
+        "SCREENING_EVASION": 0.0550776943564415,
+        "CARD_MISMATCH": 0.07808857411146164
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:171",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.046103328466415405,
+        "PRIVATE_INFO": 0.09988629072904587,
+        "RUMOR": 0.17446549236774445,
+        "SOLICIT_CONTACT": 0.23110322654247284,
+        "UNSUPPORTED_CLAIM": 0.07982801645994186,
+        "RISK_INDUCEMENT": 0.05184698849916458,
+        "SCREENING_EVASION": 0.06054118648171425,
+        "CARD_MISMATCH": 0.04336649179458618
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:172",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1111854538321495,
+        "PRIVATE_INFO": 0.0949903354048729,
+        "RUMOR": 0.048701416701078415,
+        "SOLICIT_CONTACT": 0.16613249480724335,
+        "UNSUPPORTED_CLAIM": 0.06835895776748657,
+        "RISK_INDUCEMENT": 0.04383842647075653,
+        "SCREENING_EVASION": 0.20897455513477325,
+        "CARD_MISMATCH": 0.06328997015953064
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:173",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06446801871061325,
+        "PRIVATE_INFO": 0.07166613638401031,
+        "RUMOR": 0.09571651369333267,
+        "SOLICIT_CONTACT": 0.6603459715843201,
+        "UNSUPPORTED_CLAIM": 0.0761004164814949,
+        "RISK_INDUCEMENT": 0.05782368779182434,
+        "SCREENING_EVASION": 0.0897640511393547,
+        "CARD_MISMATCH": 0.06886879354715347
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:174",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06665544211864471,
+        "PRIVATE_INFO": 0.05423489212989807,
+        "RUMOR": 0.07833393663167953,
+        "SOLICIT_CONTACT": 0.11500540375709534,
+        "UNSUPPORTED_CLAIM": 0.06764174997806549,
+        "RISK_INDUCEMENT": 0.062329668551683426,
+        "SCREENING_EVASION": 0.056961771100759506,
+        "CARD_MISMATCH": 0.0906112864613533
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:175",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05904774367809296,
+        "PRIVATE_INFO": 0.1052330732345581,
+        "RUMOR": 0.07932406663894653,
+        "SOLICIT_CONTACT": 0.14804138243198395,
+        "UNSUPPORTED_CLAIM": 0.07355795055627823,
+        "RISK_INDUCEMENT": 0.03996765986084938,
+        "SCREENING_EVASION": 0.0964963287115097,
+        "CARD_MISMATCH": 0.05148576572537422
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:176",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06495564430952072,
+        "PRIVATE_INFO": 0.09665467590093613,
+        "RUMOR": 0.08677200227975845,
+        "SOLICIT_CONTACT": 0.07152485847473145,
+        "UNSUPPORTED_CLAIM": 0.08353856205940247,
+        "RISK_INDUCEMENT": 0.05094129964709282,
+        "SCREENING_EVASION": 0.10911799222230911,
+        "CARD_MISMATCH": 0.06094859540462494
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:177",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06563737988471985,
+        "PRIVATE_INFO": 0.07588345557451248,
+        "RUMOR": 0.10545782744884491,
+        "SOLICIT_CONTACT": 0.7694104313850403,
+        "UNSUPPORTED_CLAIM": 0.08238576352596283,
+        "RISK_INDUCEMENT": 0.06682160496711731,
+        "SCREENING_EVASION": 0.09175340831279755,
+        "CARD_MISMATCH": 0.10735293477773666
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:178",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08017656952142715,
+        "PRIVATE_INFO": 0.06836201995611191,
+        "RUMOR": 0.05989348143339157,
+        "SOLICIT_CONTACT": 0.11047428101301193,
+        "UNSUPPORTED_CLAIM": 0.06382351368665695,
+        "RISK_INDUCEMENT": 0.04960167780518532,
+        "SCREENING_EVASION": 0.11709661036729813,
+        "CARD_MISMATCH": 0.07251763343811035
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:179",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.09220428764820099,
+        "PRIVATE_INFO": 0.07309794425964355,
+        "RUMOR": 0.08913223445415497,
+        "SOLICIT_CONTACT": 0.7256271243095398,
+        "UNSUPPORTED_CLAIM": 0.08163642138242722,
+        "RISK_INDUCEMENT": 0.05498950183391571,
+        "SCREENING_EVASION": 0.1711653470993042,
+        "CARD_MISMATCH": 0.07075609266757965
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:180",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07939203083515167,
+        "PRIVATE_INFO": 0.077574722468853,
+        "RUMOR": 0.07193773239850998,
+        "SOLICIT_CONTACT": 0.0798158049583435,
+        "UNSUPPORTED_CLAIM": 0.07937369495630264,
+        "RISK_INDUCEMENT": 0.05266423150897026,
+        "SCREENING_EVASION": 0.09955323487520218,
+        "CARD_MISMATCH": 0.0503816120326519
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:181",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.11874407529830933,
+        "PRIVATE_INFO": 0.10600056499242783,
+        "RUMOR": 0.1295507252216339,
+        "SOLICIT_CONTACT": 0.9230964183807373,
+        "UNSUPPORTED_CLAIM": 0.10501130670309067,
+        "RISK_INDUCEMENT": 0.09481765329837799,
+        "SCREENING_EVASION": 0.12779511511325836,
+        "CARD_MISMATCH": 0.12395227700471878
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:182",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07316621392965317,
+        "PRIVATE_INFO": 0.07699351757764816,
+        "RUMOR": 0.06306339800357819,
+        "SOLICIT_CONTACT": 0.11067648231983185,
+        "UNSUPPORTED_CLAIM": 0.05909591168165207,
+        "RISK_INDUCEMENT": 0.049899622797966,
+        "SCREENING_EVASION": 0.12057390064001083,
+        "CARD_MISMATCH": 0.0711318701505661
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:183",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.061543360352516174,
+        "PRIVATE_INFO": 0.06300606578588486,
+        "RUMOR": 0.10056773573160172,
+        "SOLICIT_CONTACT": 0.6923127174377441,
+        "UNSUPPORTED_CLAIM": 0.07724067568778992,
+        "RISK_INDUCEMENT": 0.06357282400131226,
+        "SCREENING_EVASION": 0.09397140890359879,
+        "CARD_MISMATCH": 0.08123668283224106
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:184",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.095253124833107,
+        "PRIVATE_INFO": 0.056746706366539,
+        "RUMOR": 0.057573623955249786,
+        "SOLICIT_CONTACT": 0.08680636435747147,
+        "UNSUPPORTED_CLAIM": 0.07548446208238602,
+        "RISK_INDUCEMENT": 0.05847834423184395,
+        "SCREENING_EVASION": 0.07559834420681,
+        "CARD_MISMATCH": 0.07579978555440903
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:185",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.13157238066196442,
+        "PRIVATE_INFO": 0.10428590327501297,
+        "RUMOR": 0.10460663586854935,
+        "SOLICIT_CONTACT": 0.9266767501831055,
+        "UNSUPPORTED_CLAIM": 0.10236309468746185,
+        "RISK_INDUCEMENT": 0.10580787062644958,
+        "SCREENING_EVASION": 0.14583443105220795,
+        "CARD_MISMATCH": 0.12266973406076431
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:186",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08935277909040451,
+        "PRIVATE_INFO": 0.07036861777305603,
+        "RUMOR": 0.07001940160989761,
+        "SOLICIT_CONTACT": 0.725695788860321,
+        "UNSUPPORTED_CLAIM": 0.06360231339931488,
+        "RISK_INDUCEMENT": 0.05647594481706619,
+        "SCREENING_EVASION": 0.12353198230266571,
+        "CARD_MISMATCH": 0.09967125952243805
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:187",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07655587047338486,
+        "PRIVATE_INFO": 0.06220513954758644,
+        "RUMOR": 0.08362818509340286,
+        "SOLICIT_CONTACT": 0.6703205108642578,
+        "UNSUPPORTED_CLAIM": 0.0733310654759407,
+        "RISK_INDUCEMENT": 0.05948641151189804,
+        "SCREENING_EVASION": 0.16324889659881592,
+        "CARD_MISMATCH": 0.06787174940109253
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:188",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08461056649684906,
+        "PRIVATE_INFO": 0.07000771164894104,
+        "RUMOR": 0.07175437361001968,
+        "SOLICIT_CONTACT": 0.09090869873762131,
+        "UNSUPPORTED_CLAIM": 0.07919124513864517,
+        "RISK_INDUCEMENT": 0.057481881231069565,
+        "SCREENING_EVASION": 0.10424483567476273,
+        "CARD_MISMATCH": 0.05661660432815552
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:189",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07558500021696091,
+        "PRIVATE_INFO": 0.08482047915458679,
+        "RUMOR": 0.12768983840942383,
+        "SOLICIT_CONTACT": 0.8367169499397278,
+        "UNSUPPORTED_CLAIM": 0.088711678981781,
+        "RISK_INDUCEMENT": 0.07811066508293152,
+        "SCREENING_EVASION": 0.09302634000778198,
+        "CARD_MISMATCH": 0.08487024158239365
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:190",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.09951308369636536,
+        "PRIVATE_INFO": 0.06668804585933685,
+        "RUMOR": 0.05183858796954155,
+        "SOLICIT_CONTACT": 0.19165341556072235,
+        "UNSUPPORTED_CLAIM": 0.0546136237680912,
+        "RISK_INDUCEMENT": 0.043732061982154846,
+        "SCREENING_EVASION": 0.19893118739128113,
+        "CARD_MISMATCH": 0.06703180074691772
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:191",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.053467366844415665,
+        "PRIVATE_INFO": 0.2870997190475464,
+        "RUMOR": 0.5807411074638367,
+        "SOLICIT_CONTACT": 0.06766292452812195,
+        "UNSUPPORTED_CLAIM": 0.14048463106155396,
+        "RISK_INDUCEMENT": 0.08552347123622894,
+        "SCREENING_EVASION": 0.0746295228600502,
+        "CARD_MISMATCH": 0.031415265053510666
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:192",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.11771182715892792,
+        "PRIVATE_INFO": 0.06574209779500961,
+        "RUMOR": 0.09071642905473709,
+        "SOLICIT_CONTACT": 0.05080148205161095,
+        "UNSUPPORTED_CLAIM": 0.20561714470386505,
+        "RISK_INDUCEMENT": 0.06263639032840729,
+        "SCREENING_EVASION": 0.0536128506064415,
+        "CARD_MISMATCH": 0.04519569128751755
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:193",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.09709630161523819,
+        "PRIVATE_INFO": 0.08350194990634918,
+        "RUMOR": 0.09599180519580841,
+        "SOLICIT_CONTACT": 0.8744074702262878,
+        "UNSUPPORTED_CLAIM": 0.10463462024927139,
+        "RISK_INDUCEMENT": 0.09120836853981018,
+        "SCREENING_EVASION": 0.09932493418455124,
+        "CARD_MISMATCH": 0.13416866958141327
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:194",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07027784734964371,
+        "PRIVATE_INFO": 0.06229965016245842,
+        "RUMOR": 0.06570716202259064,
+        "SOLICIT_CONTACT": 0.11102679371833801,
+        "UNSUPPORTED_CLAIM": 0.06487204879522324,
+        "RISK_INDUCEMENT": 0.05214018374681473,
+        "SCREENING_EVASION": 0.08718778938055038,
+        "CARD_MISMATCH": 0.07925941050052643
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:195",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.060818303376436234,
+        "PRIVATE_INFO": 0.08872976899147034,
+        "RUMOR": 0.09708928316831589,
+        "SOLICIT_CONTACT": 0.5280832648277283,
+        "UNSUPPORTED_CLAIM": 0.07547575980424881,
+        "RISK_INDUCEMENT": 0.04528586193919182,
+        "SCREENING_EVASION": 0.08226276934146881,
+        "CARD_MISMATCH": 0.07032199203968048
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:196",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05803088843822479,
+        "PRIVATE_INFO": 0.05938120558857918,
+        "RUMOR": 0.06334184110164642,
+        "SOLICIT_CONTACT": 0.22923116385936737,
+        "UNSUPPORTED_CLAIM": 0.06677116453647614,
+        "RISK_INDUCEMENT": 0.04752504080533981,
+        "SCREENING_EVASION": 0.09021126478910446,
+        "CARD_MISMATCH": 0.08197149634361267
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:197",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08416483551263809,
+        "PRIVATE_INFO": 0.07315067201852798,
+        "RUMOR": 0.11746332049369812,
+        "SOLICIT_CONTACT": 0.84254390001297,
+        "UNSUPPORTED_CLAIM": 0.09529314935207367,
+        "RISK_INDUCEMENT": 0.08306436240673065,
+        "SCREENING_EVASION": 0.0944153442978859,
+        "CARD_MISMATCH": 0.10554613918066025
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:198",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.0794370248913765,
+        "PRIVATE_INFO": 0.0627405047416687,
+        "RUMOR": 0.06867146492004395,
+        "SOLICIT_CONTACT": 0.09634866565465927,
+        "UNSUPPORTED_CLAIM": 0.06855478882789612,
+        "RISK_INDUCEMENT": 0.054474327713251114,
+        "SCREENING_EVASION": 0.08829204738140106,
+        "CARD_MISMATCH": 0.06188121810555458
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:199",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06456640362739563,
+        "PRIVATE_INFO": 0.10004495829343796,
+        "RUMOR": 0.12222236394882202,
+        "SOLICIT_CONTACT": 0.7402823567390442,
+        "UNSUPPORTED_CLAIM": 0.08097400516271591,
+        "RISK_INDUCEMENT": 0.05190899968147278,
+        "SCREENING_EVASION": 0.10229529440402985,
+        "CARD_MISMATCH": 0.07292469590902328
+      }
+    },
+    {
+      "id": "gen:conversation-claude-r6:200",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07492315024137497,
+        "PRIVATE_INFO": 0.19939692318439484,
+        "RUMOR": 0.0718427449464798,
+        "SOLICIT_CONTACT": 0.318800687789917,
+        "UNSUPPORTED_CLAIM": 0.060929641127586365,
+        "RISK_INDUCEMENT": 0.04034719616174698,
+        "SCREENING_EVASION": 0.13070343434810638,
+        "CARD_MISMATCH": 0.05849402770400047
+      }
+    },
+    {
+      "id": "gen:claude-mixup:1",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8874975442886353,
+        "PRIVATE_INFO": 0.1619407832622528,
+        "RUMOR": 0.09396082162857056,
+        "SOLICIT_CONTACT": 0.161177396774292,
+        "UNSUPPORTED_CLAIM": 0.22246292233467102,
+        "RISK_INDUCEMENT": 0.22815492749214172,
+        "SCREENING_EVASION": 0.17167578637599945,
+        "CARD_MISMATCH": 0.11901544034481049
+      }
+    },
+    {
+      "id": "gen:claude-mixup:2",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8087016344070435,
+        "PRIVATE_INFO": 0.13287752866744995,
+        "RUMOR": 0.07153422385454178,
+        "SOLICIT_CONTACT": 0.12353180348873138,
+        "UNSUPPORTED_CLAIM": 0.17814405262470245,
+        "RISK_INDUCEMENT": 0.15194037556648254,
+        "SCREENING_EVASION": 0.16204707324504852,
+        "CARD_MISMATCH": 0.11473780125379562
+      }
+    },
+    {
+      "id": "gen:claude-mixup:3",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8422186374664307,
+        "PRIVATE_INFO": 0.1721641570329666,
+        "RUMOR": 0.07608059048652649,
+        "SOLICIT_CONTACT": 0.15555307269096375,
+        "UNSUPPORTED_CLAIM": 0.20852366089820862,
+        "RISK_INDUCEMENT": 0.13065335154533386,
+        "SCREENING_EVASION": 0.33403486013412476,
+        "CARD_MISMATCH": 0.13233458995819092
+      }
+    },
+    {
+      "id": "gen:claude-mixup:4",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8656555414199829,
+        "PRIVATE_INFO": 0.1568746119737625,
+        "RUMOR": 0.09453907608985901,
+        "SOLICIT_CONTACT": 0.16830134391784668,
+        "UNSUPPORTED_CLAIM": 0.1795070618391037,
+        "RISK_INDUCEMENT": 0.1791970580816269,
+        "SCREENING_EVASION": 0.23708660900592804,
+        "CARD_MISMATCH": 0.14453136920928955
+      }
+    },
+    {
+      "id": "gen:claude-mixup:5",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8228569030761719,
+        "PRIVATE_INFO": 0.11316144466400146,
+        "RUMOR": 0.06478574126958847,
+        "SOLICIT_CONTACT": 0.08896365016698837,
+        "UNSUPPORTED_CLAIM": 0.33282679319381714,
+        "RISK_INDUCEMENT": 0.20314578711986542,
+        "SCREENING_EVASION": 0.0882120206952095,
+        "CARD_MISMATCH": 0.1481018215417862
+      }
+    },
+    {
+      "id": "gen:claude-mixup:6",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8588793873786926,
+        "PRIVATE_INFO": 0.1584458351135254,
+        "RUMOR": 0.08644483983516693,
+        "SOLICIT_CONTACT": 0.1275951862335205,
+        "UNSUPPORTED_CLAIM": 0.2575390636920929,
+        "RISK_INDUCEMENT": 0.19514665007591248,
+        "SCREENING_EVASION": 0.14622588455677032,
+        "CARD_MISMATCH": 0.10943955928087234
+      }
+    },
+    {
+      "id": "gen:claude-mixup:7",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8226199150085449,
+        "PRIVATE_INFO": 0.1243424341082573,
+        "RUMOR": 0.06757787615060806,
+        "SOLICIT_CONTACT": 0.12686845660209656,
+        "UNSUPPORTED_CLAIM": 0.20305299758911133,
+        "RISK_INDUCEMENT": 0.1792953759431839,
+        "SCREENING_EVASION": 0.12155643850564957,
+        "CARD_MISMATCH": 0.13563470542430878
+      }
+    },
+    {
+      "id": "gen:claude-mixup:8",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.4923238754272461,
+        "PRIVATE_INFO": 0.07871434837579727,
+        "RUMOR": 0.043555859476327896,
+        "SOLICIT_CONTACT": 0.1189238652586937,
+        "UNSUPPORTED_CLAIM": 0.08408088237047195,
+        "RISK_INDUCEMENT": 0.08237392455339432,
+        "SCREENING_EVASION": 0.27256128191947937,
+        "CARD_MISMATCH": 0.10228528827428818
+      }
+    },
+    {
+      "id": "gen:claude-mixup:9",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.709772527217865,
+        "PRIVATE_INFO": 0.1502002328634262,
+        "RUMOR": 0.06258223205804825,
+        "SOLICIT_CONTACT": 0.1327231526374817,
+        "UNSUPPORTED_CLAIM": 0.2125653624534607,
+        "RISK_INDUCEMENT": 0.08589674532413483,
+        "SCREENING_EVASION": 0.24231575429439545,
+        "CARD_MISMATCH": 0.08617395162582397
+      }
+    },
+    {
+      "id": "gen:claude-mixup:10",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.4668530523777008,
+        "PRIVATE_INFO": 0.08050457388162613,
+        "RUMOR": 0.04115026444196701,
+        "SOLICIT_CONTACT": 0.08490289002656937,
+        "UNSUPPORTED_CLAIM": 0.09897397458553314,
+        "RISK_INDUCEMENT": 0.0947083830833435,
+        "SCREENING_EVASION": 0.10138028860092163,
+        "CARD_MISMATCH": 0.11930429935455322
+      }
+    },
+    {
+      "id": "gen:claude-mixup:11",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8722538948059082,
+        "PRIVATE_INFO": 0.1268228441476822,
+        "RUMOR": 0.07931528240442276,
+        "SOLICIT_CONTACT": 0.11585809290409088,
+        "UNSUPPORTED_CLAIM": 0.2416883111000061,
+        "RISK_INDUCEMENT": 0.35641229152679443,
+        "SCREENING_EVASION": 0.12302029132843018,
+        "CARD_MISMATCH": 0.15139277279376984
+      }
+    },
+    {
+      "id": "gen:claude-mixup:12",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8249411582946777,
+        "PRIVATE_INFO": 0.13127517700195312,
+        "RUMOR": 0.07810662686824799,
+        "SOLICIT_CONTACT": 0.12532588839530945,
+        "UNSUPPORTED_CLAIM": 0.17543341219425201,
+        "RISK_INDUCEMENT": 0.19408327341079712,
+        "SCREENING_EVASION": 0.151770681142807,
+        "CARD_MISMATCH": 0.12231677770614624
+      }
+    },
+    {
+      "id": "gen:claude-mixup:13",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.9106920957565308,
+        "PRIVATE_INFO": 0.1844998598098755,
+        "RUMOR": 0.09803757816553116,
+        "SOLICIT_CONTACT": 0.1938958615064621,
+        "UNSUPPORTED_CLAIM": 0.23683176934719086,
+        "RISK_INDUCEMENT": 0.31937548518180847,
+        "SCREENING_EVASION": 0.20155251026153564,
+        "CARD_MISMATCH": 0.17257258296012878
+      }
+    },
+    {
+      "id": "gen:claude-mixup:14",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.4465554654598236,
+        "PRIVATE_INFO": 0.0784861147403717,
+        "RUMOR": 0.04242844134569168,
+        "SOLICIT_CONTACT": 0.08092161267995834,
+        "UNSUPPORTED_CLAIM": 0.1458781659603119,
+        "RISK_INDUCEMENT": 0.07404699921607971,
+        "SCREENING_EVASION": 0.1428108513355255,
+        "CARD_MISMATCH": 0.13044136762619019
+      }
+    },
+    {
+      "id": "gen:claude-mixup:15",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8470008373260498,
+        "PRIVATE_INFO": 0.1326390504837036,
+        "RUMOR": 0.07900799065828323,
+        "SOLICIT_CONTACT": 0.10748495161533356,
+        "UNSUPPORTED_CLAIM": 0.368815541267395,
+        "RISK_INDUCEMENT": 0.17519493401050568,
+        "SCREENING_EVASION": 0.11206290870904922,
+        "CARD_MISMATCH": 0.13737967610359192
+      }
+    },
+    {
+      "id": "gen:claude-mixup:16",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.8554148077964783,
+        "PRIVATE_INFO": 0.2812749743461609,
+        "RUMOR": 0.1148267313838005,
+        "SOLICIT_CONTACT": 0.19567909836769104,
+        "UNSUPPORTED_CLAIM": 0.21807873249053955,
+        "RISK_INDUCEMENT": 0.1529434770345688,
+        "SCREENING_EVASION": 0.45506587624549866,
+        "CARD_MISMATCH": 0.12506777048110962
+      }
+    },
+    {
+      "id": "gen:claude-mixup:17",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.69682776927948,
+        "PRIVATE_INFO": 0.08791439980268478,
+        "RUMOR": 0.05632965266704559,
+        "SOLICIT_CONTACT": 0.20994044840335846,
+        "UNSUPPORTED_CLAIM": 0.1078551858663559,
+        "RISK_INDUCEMENT": 0.11911794543266296,
+        "SCREENING_EVASION": 0.211370587348938,
+        "CARD_MISMATCH": 0.0896739736199379
+      }
+    },
+    {
+      "id": "gen:claude-mixup:18",
+      "labels": [
+        "PROFIT_GUARANTEE"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.4855201244354248,
+        "PRIVATE_INFO": 0.08896549791097641,
+        "RUMOR": 0.052969738841056824,
+        "SOLICIT_CONTACT": 0.059071749448776245,
+        "UNSUPPORTED_CLAIM": 0.3430785536766052,
+        "RISK_INDUCEMENT": 0.09195202589035034,
+        "SCREENING_EVASION": 0.06418392062187195,
+        "CARD_MISMATCH": 0.08600620180368423
+      }
+    },
+    {
+      "id": "gen:claude-mixup:19",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08441315591335297,
+        "PRIVATE_INFO": 0.7469769716262817,
+        "RUMOR": 0.5495293736457825,
+        "SOLICIT_CONTACT": 0.09171506017446518,
+        "UNSUPPORTED_CLAIM": 0.1620539426803589,
+        "RISK_INDUCEMENT": 0.08556578308343887,
+        "SCREENING_EVASION": 0.07915480434894562,
+        "CARD_MISMATCH": 0.05222368985414505
+      }
+    },
+    {
+      "id": "gen:claude-mixup:20",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.09846848994493484,
+        "PRIVATE_INFO": 0.1020183116197586,
+        "RUMOR": 0.31460240483283997,
+        "SOLICIT_CONTACT": 0.0653730258345604,
+        "UNSUPPORTED_CLAIM": 0.7207524180412292,
+        "RISK_INDUCEMENT": 0.11006678640842438,
+        "SCREENING_EVASION": 0.04960737004876137,
+        "CARD_MISMATCH": 0.07033639401197433
+      }
+    },
+    {
+      "id": "gen:claude-mixup:21",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.2530708611011505,
+        "PRIVATE_INFO": 0.7014346718788147,
+        "RUMOR": 0.0919623151421547,
+        "SOLICIT_CONTACT": 0.12608033418655396,
+        "UNSUPPORTED_CLAIM": 0.11132901906967163,
+        "RISK_INDUCEMENT": 0.08090993762016296,
+        "SCREENING_EVASION": 0.3512832820415497,
+        "CARD_MISMATCH": 0.11469022184610367
+      }
+    },
+    {
+      "id": "gen:claude-mixup:22",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05993260070681572,
+        "PRIVATE_INFO": 0.13977232575416565,
+        "RUMOR": 0.10531461238861084,
+        "SOLICIT_CONTACT": 0.11942946165800095,
+        "UNSUPPORTED_CLAIM": 0.08202178031206131,
+        "RISK_INDUCEMENT": 0.048287443816661835,
+        "SCREENING_EVASION": 0.04982170835137367,
+        "CARD_MISMATCH": 0.070946604013443
+      }
+    },
+    {
+      "id": "gen:claude-mixup:23",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.16742511093616486,
+        "PRIVATE_INFO": 0.8997639417648315,
+        "RUMOR": 0.30804020166397095,
+        "SOLICIT_CONTACT": 0.15031740069389343,
+        "UNSUPPORTED_CLAIM": 0.1599232256412506,
+        "RISK_INDUCEMENT": 0.13336825370788574,
+        "SCREENING_EVASION": 0.14599096775054932,
+        "CARD_MISMATCH": 0.10209733992815018
+      }
+    },
+    {
+      "id": "gen:claude-mixup:24",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05919220671057701,
+        "PRIVATE_INFO": 0.21113300323486328,
+        "RUMOR": 0.7475289702415466,
+        "SOLICIT_CONTACT": 0.09393816441297531,
+        "UNSUPPORTED_CLAIM": 0.21370193362236023,
+        "RISK_INDUCEMENT": 0.08394107967615128,
+        "SCREENING_EVASION": 0.0721650943160057,
+        "CARD_MISMATCH": 0.05071237310767174
+      }
+    },
+    {
+      "id": "gen:claude-mixup:25",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.05979325994849205,
+        "PRIVATE_INFO": 0.35711073875427246,
+        "RUMOR": 0.1862426996231079,
+        "SOLICIT_CONTACT": 0.04443681612610817,
+        "UNSUPPORTED_CLAIM": 0.15813028812408447,
+        "RISK_INDUCEMENT": 0.06235486641526222,
+        "SCREENING_EVASION": 0.09395536035299301,
+        "CARD_MISMATCH": 0.05088633671402931
+      }
+    },
+    {
+      "id": "gen:claude-mixup:26",
+      "labels": [
+        "PRIVATE_INFO"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06482719630002975,
+        "PRIVATE_INFO": 0.096817746758461,
+        "RUMOR": 0.11119962483644485,
+        "SOLICIT_CONTACT": 0.04723034426569939,
+        "UNSUPPORTED_CLAIM": 0.20240448415279388,
+        "RISK_INDUCEMENT": 0.06062524765729904,
+        "SCREENING_EVASION": 0.046022240072488785,
+        "CARD_MISMATCH": 0.05829650163650513
+      }
+    },
+    {
+      "id": "gen:claude-mixup:27",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.1773679554462433,
+        "PRIVATE_INFO": 0.23811331391334534,
+        "RUMOR": 0.058760449290275574,
+        "SOLICIT_CONTACT": 0.5627687573432922,
+        "UNSUPPORTED_CLAIM": 0.05514678731560707,
+        "RISK_INDUCEMENT": 0.05219043418765068,
+        "SCREENING_EVASION": 0.513584554195404,
+        "CARD_MISMATCH": 0.0773429200053215
+      }
+    },
+    {
+      "id": "gen:claude-mixup:28",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.23482409119606018,
+        "PRIVATE_INFO": 0.0923159196972847,
+        "RUMOR": 0.06623414903879166,
+        "SOLICIT_CONTACT": 0.713051438331604,
+        "UNSUPPORTED_CLAIM": 0.07423035800457001,
+        "RISK_INDUCEMENT": 0.06576315313577652,
+        "SCREENING_EVASION": 0.6553070545196533,
+        "CARD_MISMATCH": 0.09095466136932373
+      }
+    },
+    {
+      "id": "gen:claude-mixup:29",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07656683027744293,
+        "PRIVATE_INFO": 0.12719696760177612,
+        "RUMOR": 0.10034545511007309,
+        "SOLICIT_CONTACT": 0.8280022144317627,
+        "UNSUPPORTED_CLAIM": 0.07592032849788666,
+        "RISK_INDUCEMENT": 0.05659125745296478,
+        "SCREENING_EVASION": 0.1549863964319229,
+        "CARD_MISMATCH": 0.10097082704305649
+      }
+    },
+    {
+      "id": "gen:claude-mixup:30",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.11223232001066208,
+        "PRIVATE_INFO": 0.08780539035797119,
+        "RUMOR": 0.09784562140703201,
+        "SOLICIT_CONTACT": 0.9058254957199097,
+        "UNSUPPORTED_CLAIM": 0.11212920397520065,
+        "RISK_INDUCEMENT": 0.08471532166004181,
+        "SCREENING_EVASION": 0.11825792491436005,
+        "CARD_MISMATCH": 0.1390933096408844
+      }
+    },
+    {
+      "id": "gen:claude-mixup:31",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.10354121774435043,
+        "PRIVATE_INFO": 0.09918184578418732,
+        "RUMOR": 0.09557881206274033,
+        "SOLICIT_CONTACT": 0.8599948287010193,
+        "UNSUPPORTED_CLAIM": 0.08942221105098724,
+        "RISK_INDUCEMENT": 0.07163900882005692,
+        "SCREENING_EVASION": 0.11900239437818527,
+        "CARD_MISMATCH": 0.09897694736719131
+      }
+    },
+    {
+      "id": "gen:claude-mixup:32",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.5601195693016052,
+        "PRIVATE_INFO": 0.10086221247911453,
+        "RUMOR": 0.08150218427181244,
+        "SOLICIT_CONTACT": 0.08455641567707062,
+        "UNSUPPORTED_CLAIM": 0.4013557434082031,
+        "RISK_INDUCEMENT": 0.7373969554901123,
+        "SCREENING_EVASION": 0.07737147063016891,
+        "CARD_MISMATCH": 0.058076564222574234
+      }
+    },
+    {
+      "id": "gen:claude-mixup:33",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.16305887699127197,
+        "PRIVATE_INFO": 0.2198152244091034,
+        "RUMOR": 0.0802396833896637,
+        "SOLICIT_CONTACT": 0.8242865800857544,
+        "UNSUPPORTED_CLAIM": 0.07173465192317963,
+        "RISK_INDUCEMENT": 0.05849320441484451,
+        "SCREENING_EVASION": 0.33670279383659363,
+        "CARD_MISMATCH": 0.09322240948677063
+      }
+    },
+    {
+      "id": "gen:claude-mixup:34",
+      "labels": [
+        "SOLICIT_CONTACT"
+      ],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.12380095571279526,
+        "PRIVATE_INFO": 0.06842263787984848,
+        "RUMOR": 0.059613704681396484,
+        "SOLICIT_CONTACT": 0.8092020750045776,
+        "UNSUPPORTED_CLAIM": 0.07233238965272903,
+        "RISK_INDUCEMENT": 0.06190880760550499,
+        "SCREENING_EVASION": 0.22328630089759827,
+        "CARD_MISMATCH": 0.12814828753471375
+      }
+    },
+    {
+      "id": "gen:claude-mixup:35",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.08300361782312393,
+        "PRIVATE_INFO": 0.06780018657445908,
+        "RUMOR": 0.0707419365644455,
+        "SOLICIT_CONTACT": 0.09053584933280945,
+        "UNSUPPORTED_CLAIM": 0.07535060495138168,
+        "RISK_INDUCEMENT": 0.06084848940372467,
+        "SCREENING_EVASION": 0.05899525433778763,
+        "CARD_MISMATCH": 0.06292591243982315
+      }
+    },
+    {
+      "id": "gen:claude-mixup:36",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.0654103234410286,
+        "PRIVATE_INFO": 0.07265530526638031,
+        "RUMOR": 0.09071265161037445,
+        "SOLICIT_CONTACT": 0.07793022692203522,
+        "UNSUPPORTED_CLAIM": 0.09799155592918396,
+        "RISK_INDUCEMENT": 0.05682747811079025,
+        "SCREENING_EVASION": 0.04701603204011917,
+        "CARD_MISMATCH": 0.06345607340335846
+      }
+    },
+    {
+      "id": "gen:claude-mixup:37",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06806095689535141,
+        "PRIVATE_INFO": 0.0570715107023716,
+        "RUMOR": 0.08475832641124725,
+        "SOLICIT_CONTACT": 0.08178076893091202,
+        "UNSUPPORTED_CLAIM": 0.07642430812120438,
+        "RISK_INDUCEMENT": 0.07459484040737152,
+        "SCREENING_EVASION": 0.0459199957549572,
+        "CARD_MISMATCH": 0.0754329115152359
+      }
+    },
+    {
+      "id": "gen:claude-mixup:38",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06013220548629761,
+        "PRIVATE_INFO": 0.06289646029472351,
+        "RUMOR": 0.08552363514900208,
+        "SOLICIT_CONTACT": 0.06656883656978607,
+        "UNSUPPORTED_CLAIM": 0.07331515848636627,
+        "RISK_INDUCEMENT": 0.059871841222047806,
+        "SCREENING_EVASION": 0.054748762398958206,
+        "CARD_MISMATCH": 0.10986235737800598
+      }
+    },
+    {
+      "id": "gen:claude-mixup:39",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.056916382163763046,
+        "PRIVATE_INFO": 0.09188133478164673,
+        "RUMOR": 0.09604063630104065,
+        "SOLICIT_CONTACT": 0.09823740273714066,
+        "UNSUPPORTED_CLAIM": 0.07953356206417084,
+        "RISK_INDUCEMENT": 0.057019609957933426,
+        "SCREENING_EVASION": 0.05813433602452278,
+        "CARD_MISMATCH": 0.04951363429427147
+      }
+    },
+    {
+      "id": "gen:claude-mixup:40",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07729779183864594,
+        "PRIVATE_INFO": 0.06692148745059967,
+        "RUMOR": 0.06726738065481186,
+        "SOLICIT_CONTACT": 0.0689200758934021,
+        "UNSUPPORTED_CLAIM": 0.07928360253572464,
+        "RISK_INDUCEMENT": 0.06168019399046898,
+        "SCREENING_EVASION": 0.061409998685121536,
+        "CARD_MISMATCH": 0.0787222683429718
+      }
+    },
+    {
+      "id": "gen:claude-mixup:41",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07941573113203049,
+        "PRIVATE_INFO": 0.07416144013404846,
+        "RUMOR": 0.06054610759019852,
+        "SOLICIT_CONTACT": 0.07968298345804214,
+        "UNSUPPORTED_CLAIM": 0.08289246261119843,
+        "RISK_INDUCEMENT": 0.05393150448799133,
+        "SCREENING_EVASION": 0.10841648280620575,
+        "CARD_MISMATCH": 0.06141502037644386
+      }
+    },
+    {
+      "id": "gen:claude-mixup:42",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07617008686065674,
+        "PRIVATE_INFO": 0.05917662754654884,
+        "RUMOR": 0.07272010296583176,
+        "SOLICIT_CONTACT": 0.0751255676150322,
+        "UNSUPPORTED_CLAIM": 0.0652957633137703,
+        "RISK_INDUCEMENT": 0.06682475656270981,
+        "SCREENING_EVASION": 0.058662742376327515,
+        "CARD_MISMATCH": 0.09702913463115692
+      }
+    },
+    {
+      "id": "gen:claude-mixup:43",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06515194475650787,
+        "PRIVATE_INFO": 0.07119399309158325,
+        "RUMOR": 0.09224087744951248,
+        "SOLICIT_CONTACT": 0.06848599761724472,
+        "UNSUPPORTED_CLAIM": 0.07372193783521652,
+        "RISK_INDUCEMENT": 0.06359812617301941,
+        "SCREENING_EVASION": 0.056039292365312576,
+        "CARD_MISMATCH": 0.06844926625490189
+      }
+    },
+    {
+      "id": "gen:claude-mixup:44",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.0865328386425972,
+        "PRIVATE_INFO": 0.06006311625242233,
+        "RUMOR": 0.06469812989234924,
+        "SOLICIT_CONTACT": 0.07182414829730988,
+        "UNSUPPORTED_CLAIM": 0.07535891234874725,
+        "RISK_INDUCEMENT": 0.06940891593694687,
+        "SCREENING_EVASION": 0.059789761900901794,
+        "CARD_MISMATCH": 0.07560291886329651
+      }
+    },
+    {
+      "id": "gen:claude-mixup:45",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07257411628961563,
+        "PRIVATE_INFO": 0.07550410181283951,
+        "RUMOR": 0.07219738513231277,
+        "SOLICIT_CONTACT": 0.0705922469496727,
+        "UNSUPPORTED_CLAIM": 0.07955650985240936,
+        "RISK_INDUCEMENT": 0.06181451305747032,
+        "SCREENING_EVASION": 0.05913729965686798,
+        "CARD_MISMATCH": 0.08381500840187073
+      }
+    },
+    {
+      "id": "gen:claude-mixup:46",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06884758919477463,
+        "PRIVATE_INFO": 0.0725388303399086,
+        "RUMOR": 0.08600688725709915,
+        "SOLICIT_CONTACT": 0.08350954204797745,
+        "UNSUPPORTED_CLAIM": 0.07470867782831192,
+        "RISK_INDUCEMENT": 0.062258973717689514,
+        "SCREENING_EVASION": 0.05245349556207657,
+        "CARD_MISMATCH": 0.07744018733501434
+      }
+    },
+    {
+      "id": "gen:claude-mixup:47",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07190488278865814,
+        "PRIVATE_INFO": 0.06892690062522888,
+        "RUMOR": 0.07168564200401306,
+        "SOLICIT_CONTACT": 0.08148317039012909,
+        "UNSUPPORTED_CLAIM": 0.07686067372560501,
+        "RISK_INDUCEMENT": 0.061114076524972916,
+        "SCREENING_EVASION": 0.05923905223608017,
+        "CARD_MISMATCH": 0.07863106578588486
+      }
+    },
+    {
+      "id": "gen:claude-mixup:48",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07127001881599426,
+        "PRIVATE_INFO": 0.07492665946483612,
+        "RUMOR": 0.07275781035423279,
+        "SOLICIT_CONTACT": 0.07525509595870972,
+        "UNSUPPORTED_CLAIM": 0.07561998069286346,
+        "RISK_INDUCEMENT": 0.06155502051115036,
+        "SCREENING_EVASION": 0.06262893974781036,
+        "CARD_MISMATCH": 0.07029550522565842
+      }
+    },
+    {
+      "id": "gen:claude-mixup:49",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07104376703500748,
+        "PRIVATE_INFO": 0.0690697431564331,
+        "RUMOR": 0.07553911954164505,
+        "SOLICIT_CONTACT": 0.08097737282514572,
+        "UNSUPPORTED_CLAIM": 0.07491183280944824,
+        "RISK_INDUCEMENT": 0.06822744756937027,
+        "SCREENING_EVASION": 0.06162312254309654,
+        "CARD_MISMATCH": 0.07346302270889282
+      }
+    },
+    {
+      "id": "gen:claude-mixup:50",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06373798102140427,
+        "PRIVATE_INFO": 0.13891708850860596,
+        "RUMOR": 0.10278470069169998,
+        "SOLICIT_CONTACT": 0.0867358073592186,
+        "UNSUPPORTED_CLAIM": 0.07343894988298416,
+        "RISK_INDUCEMENT": 0.05367766320705414,
+        "SCREENING_EVASION": 0.052250295877456665,
+        "CARD_MISMATCH": 0.06171981617808342
+      }
+    },
+    {
+      "id": "gen:claude-mixup:51",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07296449691057205,
+        "PRIVATE_INFO": 0.06972213089466095,
+        "RUMOR": 0.07749200612306595,
+        "SOLICIT_CONTACT": 0.07175351679325104,
+        "UNSUPPORTED_CLAIM": 0.07383497059345245,
+        "RISK_INDUCEMENT": 0.06616467237472534,
+        "SCREENING_EVASION": 0.06099596247076988,
+        "CARD_MISMATCH": 0.06729450076818466
+      }
+    },
+    {
+      "id": "gen:claude-mixup:52",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07520979642868042,
+        "PRIVATE_INFO": 0.06756343692541122,
+        "RUMOR": 0.06681539118289948,
+        "SOLICIT_CONTACT": 0.08353656530380249,
+        "UNSUPPORTED_CLAIM": 0.0743127092719078,
+        "RISK_INDUCEMENT": 0.06634217500686646,
+        "SCREENING_EVASION": 0.061766162514686584,
+        "CARD_MISMATCH": 0.08404073119163513
+      }
+    },
+    {
+      "id": "gen:claude-mixup:53",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07038895040750504,
+        "PRIVATE_INFO": 0.07726196944713593,
+        "RUMOR": 0.08258292824029922,
+        "SOLICIT_CONTACT": 0.07289913296699524,
+        "UNSUPPORTED_CLAIM": 0.07855309545993805,
+        "RISK_INDUCEMENT": 0.06048711761832237,
+        "SCREENING_EVASION": 0.05897524580359459,
+        "CARD_MISMATCH": 0.06771765649318695
+      }
+    },
+    {
+      "id": "gen:claude-mixup:54",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06325116753578186,
+        "PRIVATE_INFO": 0.07303109765052795,
+        "RUMOR": 0.08285095542669296,
+        "SOLICIT_CONTACT": 0.08727225661277771,
+        "UNSUPPORTED_CLAIM": 0.07754125446081161,
+        "RISK_INDUCEMENT": 0.059496089816093445,
+        "SCREENING_EVASION": 0.05263591557741165,
+        "CARD_MISMATCH": 0.0780184343457222
+      }
+    },
+    {
+      "id": "gen:claude-mixup:55",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.059897515922784805,
+        "PRIVATE_INFO": 0.06367060542106628,
+        "RUMOR": 0.06552613526582718,
+        "SOLICIT_CONTACT": 0.3549446165561676,
+        "UNSUPPORTED_CLAIM": 0.06873153895139694,
+        "RISK_INDUCEMENT": 0.049244701862335205,
+        "SCREENING_EVASION": 0.08624827116727829,
+        "CARD_MISMATCH": 0.07730243355035782
+      }
+    },
+    {
+      "id": "gen:claude-mixup:56",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06987657397985458,
+        "PRIVATE_INFO": 0.07790528237819672,
+        "RUMOR": 0.057437725365161896,
+        "SOLICIT_CONTACT": 0.21772848069667816,
+        "UNSUPPORTED_CLAIM": 0.06426095962524414,
+        "RISK_INDUCEMENT": 0.04308060184121132,
+        "SCREENING_EVASION": 0.11029078811407089,
+        "CARD_MISMATCH": 0.0691087543964386
+      }
+    },
+    {
+      "id": "gen:claude-mixup:57",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.07967238873243332,
+        "PRIVATE_INFO": 0.06004231050610542,
+        "RUMOR": 0.0512680821120739,
+        "SOLICIT_CONTACT": 0.29513102769851685,
+        "UNSUPPORTED_CLAIM": 0.05790925770998001,
+        "RISK_INDUCEMENT": 0.04521289840340614,
+        "SCREENING_EVASION": 0.1854657679796219,
+        "CARD_MISMATCH": 0.07254265248775482
+      }
+    },
+    {
+      "id": "gen:claude-mixup:58",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06956371665000916,
+        "PRIVATE_INFO": 0.08308428525924683,
+        "RUMOR": 0.07724308222532272,
+        "SOLICIT_CONTACT": 0.07804151624441147,
+        "UNSUPPORTED_CLAIM": 0.07765447348356247,
+        "RISK_INDUCEMENT": 0.060809504240751266,
+        "SCREENING_EVASION": 0.06301014870405197,
+        "CARD_MISMATCH": 0.061189111322164536
+      }
+    },
+    {
+      "id": "gen:claude-mixup:59",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06583217531442642,
+        "PRIVATE_INFO": 0.07686648517847061,
+        "RUMOR": 0.07542728632688522,
+        "SOLICIT_CONTACT": 0.114523746073246,
+        "UNSUPPORTED_CLAIM": 0.07411506026983261,
+        "RISK_INDUCEMENT": 0.05662237107753754,
+        "SCREENING_EVASION": 0.059321992099285126,
+        "CARD_MISMATCH": 0.06973201781511307
+      }
+    },
+    {
+      "id": "gen:claude-mixup:60",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06262491643428802,
+        "PRIVATE_INFO": 0.06905282288789749,
+        "RUMOR": 0.07886827737092972,
+        "SOLICIT_CONTACT": 0.1347016841173172,
+        "UNSUPPORTED_CLAIM": 0.07954509556293488,
+        "RISK_INDUCEMENT": 0.05485393479466438,
+        "SCREENING_EVASION": 0.05736303701996803,
+        "CARD_MISMATCH": 0.05604631081223488
+      }
+    },
+    {
+      "id": "gen:claude-mixup:61",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.14594164490699768,
+        "PRIVATE_INFO": 0.09355783462524414,
+        "RUMOR": 0.04716966673731804,
+        "SOLICIT_CONTACT": 0.303951621055603,
+        "UNSUPPORTED_CLAIM": 0.06371080875396729,
+        "RISK_INDUCEMENT": 0.048203177750110626,
+        "SCREENING_EVASION": 0.5114591121673584,
+        "CARD_MISMATCH": 0.09901432693004608
+      }
+    },
+    {
+      "id": "gen:claude-mixup:62",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06573480367660522,
+        "PRIVATE_INFO": 0.05936320498585701,
+        "RUMOR": 0.05758098512887955,
+        "SOLICIT_CONTACT": 0.379572331905365,
+        "UNSUPPORTED_CLAIM": 0.0671645849943161,
+        "RISK_INDUCEMENT": 0.04328342527151108,
+        "SCREENING_EVASION": 0.11645197868347168,
+        "CARD_MISMATCH": 0.08065376430749893
+      }
+    },
+    {
+      "id": "gen:claude-mixup:63",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.06861298531293869,
+        "PRIVATE_INFO": 0.06262005120515823,
+        "RUMOR": 0.06998354196548462,
+        "SOLICIT_CONTACT": 0.1641862839460373,
+        "UNSUPPORTED_CLAIM": 0.06647121161222458,
+        "RISK_INDUCEMENT": 0.054573386907577515,
+        "SCREENING_EVASION": 0.07527218759059906,
+        "CARD_MISMATCH": 0.060616299510002136
+      }
+    },
+    {
+      "id": "gen:claude-mixup:64",
+      "labels": [],
+      "scores": {
+        "PROFIT_GUARANTEE": 0.058856625109910965,
+        "PRIVATE_INFO": 0.08317094296216965,
+        "RUMOR": 0.09023015201091766,
+        "SOLICIT_CONTACT": 0.4991985261440277,
+        "UNSUPPORTED_CLAIM": 0.07173196226358414,
+        "RISK_INDUCEMENT": 0.050394006073474884,
+        "SCREENING_EVASION": 0.07203631848096848,
+        "CARD_MISMATCH": 0.07124806195497513
+      }
+    }
+  ]
+}

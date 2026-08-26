@@ -100,6 +100,8 @@
     "check:overlap": "tsx scripts/checkSynthOverlap.ts",
     "student:promote": "tsx scripts/promoteStudent.ts",
     "probe:zeroshot-r8": "tsx scripts/probeZeroShotR8.ts",
+    "probe:zeroshot-r6": "tsx scripts/probeZeroShotR6.ts",
+    "bench:latency": "tsx scripts/benchStudentLatency.ts",
     "probe:window-cap": "tsx scripts/probeWindowCap.ts",
     "probe:score-median": "tsx scripts/probeScoreMedian.ts",
     "reset:demo": "tsx scripts/resetDemoData.ts",

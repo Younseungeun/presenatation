@@ -176,7 +176,7 @@ export function studentMode(env = process.env): StudentMode {
  * 필요하다(compliance-screening 로드맵). **여기에 이름을 다시 넣지 마십시오** —
  * 넣으면 성실하게 리스크를 쓴 리서처가 가장 많이 막힌다.
  */
-const DEFAULT_ENABLED_LABELS: readonly RiskCategory[] = [
+export const DEFAULT_ENABLED_LABELS: readonly RiskCategory[] = [
   'PROFIT_GUARANTEE',
   'PRIVATE_INFO',
   'RUMOR',
@@ -350,11 +350,16 @@ function pingInput(content: string): ScreeningInput {
  * 핑에 쓰면 정상적인 경계 재조정 학습에도 오경보가 난다 — 경계 감시는 핑이 아니라
  * 회귀셋의 몫이다.
  *
- * 실측 (2026-08-22 저녁 재측정, r5 a0eaa12a, buildStudentText 경로 = usable 과 동일):
- * 위반 0.839 / 0.834 / 0.862 / 0.865 · 정상 최대 라벨 0.242 / 0.231 / 0.249 / 0.171.
- * ⚠ PG·PRIVATE 가 선정선 0.85 에 0.011~0.016 미달 — 이전 기록(0.856/0.855)은 재현되지 않았다
- *   (30차 부록). 문장을 모델에 맞춰 바꾸지 않는다(gap 17); 다음 모델 채택 때 재선정 안건.
- *   라이브 usable() 은 정상 상한만 집행하므로 영향 없음.
+ * 실측 (2026-08-25 재선정, 32차 II-3 판정 — scripts/selectPings.ts, buildStudentText 경로 = usable 과 동일):
+ * 선정 기준은 **교집합** — r5(a0eaa12a)와 다음 후보 P1-A(a0e3d04a)가 **모두** 위반 0.85 이상.
+ *   위반  r5 0.839 / 0.859 / 0.862 / 0.865 · P1-A 0.903 / 0.947 / 0.966 / 0.940
+ *   정상 최대 라벨  r5 0.242 / 0.231 / 0.249 / 0.171 · P1-A 0.282 / 0.116 / 0.084 / 0.071
+ * PRIVATE 위반 문장은 이때 교체됐다(구: "제 지인이 그 회사 IR팀에…" r5 0.834 — 미달 자격 박탈).
+ * ⚠ **PG 는 교집합이 비어 있다** — 명백한 위반 9문장 실측에서 r5 의 PG 최고점이 정확히
+ *   현행 문장(0.839)이고 나머지는 0.50~0.83. 문장의 자격 문제가 아니라 **r5 PG 헤드의
+ *   상한**이다(110M 은 전부 0.90+). 현행 문장 유지 — r5 대에는 선정선 0.85 가 PG 에서
+ *   달성 불가능하다는 사실 자체를 기록한다(33차 보고). 라이브 usable() 의 위반 핑 집행은
+ *   t=0.7 이라 여유 0.14 로 영향 없음.
  * ⚠ 이 문장들을 학습셋에 넣지 말 것 (check:ping 이 감시) — 핑만 외운 모델이 통과한다.
  */
 export const SEMANTIC_PINGS: readonly SemanticPing[] = [
@@ -373,7 +378,7 @@ export const SEMANTIC_PINGS: readonly SemanticPing[] = [
   {
     label: 'PRIVATE_INFO',
     kind: 'violation',
-    input: pingInput('제 지인이 그 회사 IR팀에 있는데, 아직 공시 안 된 3분기 실적을 미리 들었습니다.'),
+    input: pingInput('어제 그 회사 재무팀 친구한테 아직 공시 전인 수주 계약 내용을 직접 들었습니다.'),
   },
   {
     label: 'PRIVATE_INFO',
@@ -764,16 +769,48 @@ class HttpStudentClient implements StudentClient {
       // 창 전용 임계값 — 창을 N번 이동하며 N번 판정하므로 문장 임계값을 그대로 쓰면
       // 문서 오탐이 부푼다(다중 비교). 실측(WINDOW_THRESHOLD 주석)으로 0.8 에서 0%.
       const wt = Math.max(this.threshold, WINDOW_THRESHOLD);
-      for (const w of windows) {
-        const wr = await this.call<{ findings: unknown; latency_ms: number }>('/screen', {
-          text: buildStudentText({ ...input, title: '', summary: '', content: w }),
-          threshold: wt,
-        });
-        if (!wr) continue; // 창 하나의 실패는 결측 — 문서 전체를 죽이지 않는다
-        latency += wr.latency_ms;
-        for (const f of toFindings(wr, this.enabled)) {
+      const merge = (raw: unknown) => {
+        for (const f of toFindings(raw, this.enabled)) {
           const prev = best.get(f.category);
           if (!prev || (f.confidence ?? 0) > (prev.confidence ?? 0)) best.set(f.category, f);
+        }
+      };
+      // ── 창 묶음 전송 (32차 II-4 (a)) — 창들을 /screen_batch 로 묶어 보낸다 ──
+      // 낱개 HTTP 순차 호출은 110M fp32 에서 문서당 1.3~1.5초(예산 1,500ms 경계)였고
+      // 그중 창당 ~45ms 가 순수 왕복·파싱이다. 서버는 안에서 낱개로 돌므로(/screen 과
+      // 같은 계산) 판정이 갈라질 자리가 없다 — 빨라지는 것은 왕복 횟수뿐이다.
+      // STUDENT_WINDOW_BATCH=0 은 측정용 강제 우회.
+      // **한 번에 8창까지만** — 서버 낱개 실행은 창 수에 선형(창당 ~80ms·110M)이라 창 40개를
+      // 한 요청에 담으면 그 요청 하나가 TIMEOUT_MS(2s)를 넘고, 타임아웃 → 낱개 폴백이
+      // 서버에 버려진 계산과 겹쳐 지연이 오히려 배가 된다 (2026-08-25 실측).
+      let batched = false;
+      if ((process.env.STUDENT_WINDOW_BATCH ?? '1') !== '0') {
+        batched = true;
+        for (let at = 0; at < windows.length && batched; at += WINDOW_BATCH_SIZE) {
+          const chunk = windows.slice(at, at + WINDOW_BATCH_SIZE);
+          const br = await this.call<{ results: { findings: unknown }[]; latency_ms: number }>('/screen_batch', {
+            texts: chunk.map((w) => buildStudentText({ ...input, title: '', summary: '', content: w })),
+            threshold: wt,
+          });
+          if (!br || !Array.isArray(br.results)) {
+            batched = false; // 첫 조각부터 실패(옛 사이드카 404 포함)면 낱개 경로가 전체를 다시 맡는다
+            break;
+          }
+          latency += br.latency_ms;
+          for (const one of br.results) merge(one);
+        }
+      }
+      if (!batched) {
+        // 배치 실패(엔드포인트 없는 옛 사이드카 404 포함)는 낱개 경로로 되돌아간다 —
+        // 조용히 창 방어를 끄는 것이 최악이다. 배치·낱개가 함께 죽으면 그때가 결측이다.
+        for (const w of windows) {
+          const wr = await this.call<{ findings: unknown; latency_ms: number }>('/screen', {
+            text: buildStudentText({ ...input, title: '', summary: '', content: w }),
+            threshold: wt,
+          });
+          if (!wr) continue; // 창 하나의 실패는 결측 — 문서 전체를 죽이지 않는다
+          latency += wr.latency_ms;
+          merge(wr);
         }
       }
       return { ...whole, latencyMs: latency, findings: [...best.values()] };
@@ -790,6 +827,13 @@ class HttpStudentClient implements StudentClient {
  */
 const WINDOW_TRIGGER_SENTENCES = 3;
 const MAX_WINDOWS = 40;
+/**
+ * @근거 실측 (2026-08-25, P1-A 110M · i7-9700F) — 묶음의 이득은 HTTP 왕복 제거뿐이다
+ *   (요청당 ~45ms — ONNX 패딩 배치는 오히려 창당 20~40ms 손해라 서버도 낱개로 돈다).
+ *   8창 조각 ≈ 최악 ~1s 로 TIMEOUT_MS(2s) 안에 들어온다. 조각이 크면 요청 하나가
+ *   타임아웃을 넘어, 낱개 폴백과 서버에 버려진 계산이 겹치는 최악 경로가 열린다.
+ */
+const WINDOW_BATCH_SIZE = 8;
 
 /**
  * @근거 시뮬 — 구두점이 없는 글(공시체 "…있습니다 …합니다")은 1단계에서 통째로 한 조각이

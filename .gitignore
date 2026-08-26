@@ -71,3 +71,9 @@ shadow-abuse.db
 
 # 파이썬 바이트코드
 __pycache__/
+
+# GPU 학습 가상환경 (torch cu126, 수 GB) — requirements 로 다시 만든다
+/training/.venv-gpu
+
+# 절전 억제 프로세스 로그 — 일회성
+training/keep-awake.log

@@ -177,6 +177,19 @@ def _run_canary() -> None:
         _ready, _ready_detail = False, f"카나리아 실행 실패: {type(e).__name__}: {e}"
 
 
+class ScreenBatchRequest(BaseModel):
+    """창 분할 채점용 — 같은 문서의 창 여러 개를 **한 요청**으로 받아 채점한다.
+
+    32차 II-4 (a). 여기서 아끼는 것은 **HTTP 왕복**이지 ONNX 배치가 아니다 — 실측
+    (2026-08-25, 110M·i7-9700F): 패딩 배치는 창당 82~123ms 로 낱개 실행(65~83ms)보다
+    느렸다(메모리 대역폭 병목 + 패딩 헛계산 — 검토자의 gap 17 경고 그대로). 반면 요청
+    하나의 왕복·파싱 비용이 창당 ~45ms 라, 이것을 없애는 것이 실제 이득의 전부다.
+    그래서 서버 안에서는 **낱개로 순차 실행**한다(각 창이 제 길이로 돈다).
+    """
+    texts: list[str]
+    threshold: float = 0.5
+
+
 class ScreenRequest(BaseModel):
     """입력은 **이미 조립된 문자열 하나**다.
 
@@ -278,5 +291,40 @@ def screen(req: ScreenRequest):
             for i, p in enumerate(probs)
             if p >= req.threshold and i < len(labels)
         ]
+    out["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
+    return out
+
+
+@app.post("/screen_batch")
+def screen_batch(req: ScreenBatchRequest):
+    """창 묶음 채점. 결과 순서 = 입력 순서. 준비 안 됐으면 소견 없이 사실만 말한다.
+
+    각 창은 **제 길이 그대로 낱개 실행**한다 — /screen 과 완전히 같은 계산이라 판정이
+    갈라질 자리가 없다. 상한 256 은 폭주 방어(운영 창 상한 40 + 여유) — localhost 전용
+    서비스라 공격면은 아니고, 버그로 폭주한 호출자가 프로세스를 몇 분씩 잡는 것만 막는다.
+    """
+    _load()
+    started = time.perf_counter()
+    out = {"results": [], "stub": _session is None, "ready": _ready}
+    if _session is not None and _ready and req.texts:
+        import numpy as np
+        labels = _config.get("labels", [])
+        for text in req.texts[:256]:
+            ids = _tokenizer(text, truncation=True, max_length=MAX_LEN)["input_ids"]
+            logits = _session.run(None, {
+                "input_ids": np.array([ids], dtype=np.int64),
+                "attention_mask": np.array([[1] * len(ids)], dtype=np.int64),
+            })[0][0]
+            probs = 1 / (1 + np.exp(-logits))
+            out["results"].append({
+                "token_count": len(ids),
+                "findings": [
+                    {"category": labels[i], "score": float(p)}
+                    for i, p in enumerate(probs)
+                    if p >= req.threshold and i < len(labels)
+                ],
+            })
+    else:
+        out["results"] = [{"token_count": 0, "findings": []} for _ in req.texts]
     out["latency_ms"] = round((time.perf_counter() - started) * 1000, 2)
     return out
