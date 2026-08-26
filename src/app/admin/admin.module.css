@@ -1919,3 +1919,28 @@
   margin-top: 12px;
   padding-top: 2px;
 }
+
+/* 묶음 머리 — 절(`SecHead`)과 카드 사이의 한 단.
+   같은 절 안의 갈래라 절 제목만큼 무거우면 안 되고, 그렇다고 카드에 묻히면
+   묶음이 있다는 사실 자체가 안 읽힌다. 위 여백을 크게 두어 **묶음의 시작**을
+   여백으로 말한다 — 선을 그으면 절이 하나 더 생긴 것처럼 보인다 */
+.subhead {
+  margin: 22px 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.subhead:first-child {
+  margin-top: 4px;
+}
+.subheadTop {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: 13.5px;
+}
+.subheadNote {
+  font-size: 12px;
+  color: var(--ink-mid, #6b7684);
+  line-height: 1.5;
+}

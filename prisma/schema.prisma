@@ -203,6 +203,8 @@ model Report {
   purchases         Purchase[]
   cartItems         CartItem[]
   complianceReviews ComplianceReview[]
+  /// 새 학습 표현이 이 리포트를 잡은 기록 (PhraseRescanHit — 게시 뒤 재검수)
+  rescanHits        PhraseRescanHit[]
 }
 
 // 예측 카드: 게시 후 수정·삭제 불가. 철회는 가능하되 기록에 남김.
@@ -1005,8 +1007,47 @@ model LearnedPhrase {
   /// 졸업 시각 (21차 Y-3) — 졸업 직후 7일 관찰 창의 기준점.
   /// active=false 만으로는 "졸업"과 "수동 비활성화(오탐 항목)"를 못 가른다
   graduatedAt      DateTime?
+  /// 이 표현을 등록할 때 게시 중 리포트를 다시 훑어 나온 목록 (PhraseRescanHit)
+  rescanHits       PhraseRescanHit[]
 
   @@index([active])
+}
+
+/// **새 표현이 이미 게시된 리포트를 잡은 기록** (2026-08-25 창업자 확정).
+///
+/// ── 왜 표로 저장하나 — "사진이지 창문이 아니다" ─────────────────────────
+/// "지금 이 표현에 걸리는 게시물"을 화면이 그때그때 계산하면(창문), 운영자가 보고
+/// **"괜찮다"고 넘긴 건이 화면을 열 때마다 다시 뜬다.** 판단은 사람 머릿속에만 있고
+/// 글은 그대로라 조건이 계속 참이기 때문이다. 학습 표현은 오탐이 나기 쉬워
+/// 넘어가는 쪽이 대다수일 텐데, 그러면 목록이 "이미 괜찮다고 한 것들"로 차고
+/// 곧 아무도 안 본다 — 이 저장소가 여러 번 겪은 경보 피로와 같은 병이다.
+///
+/// 그래서 **등록 시점의 목록을 박아 두고**(사진), 처리하면 `resolvedAt` 이 채워져
+/// 목록에서 빠진다. 다음 표현을 등록해도 그 표현이 잡은 것만 새로 쌓인다.
+///
+/// ── 처분하지 않는다 ────────────────────────────────────────────────────
+/// 여기 줄이 생겨도 게시는 그대로다. 강제 철회는 전액 환불 + 정산 0 + 점수 0 이라,
+/// 손으로 넣은 문자열 하나가 그것을 자동으로 일으키면 안 된다.
+model PhraseRescanHit {
+  id       String        @id @default(cuid())
+  phraseId String
+  phrase   LearnedPhrase @relation(fields: [phraseId], references: [id], onDelete: Cascade)
+  reportId String
+  report   Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  /// 걸린 문장 — **원문 기준**. 운영자가 자기 눈으로 판단할 유일한 재료다
+  quote    String
+  category String
+  createdAt DateTime     @default(now())
+  /// 사람이 처리한 시각. 채워지면 목록에서 사라진다 (사진의 줄을 긋는 자리)
+  resolvedAt DateTime?
+  /// 무엇으로 닫았나 — 'DISMISSED'(그냥 두기) · 'WITHDRAWN'(강제 철회)
+  resolution String?
+  resolvedBy String?
+
+  /// 같은 표현이 같은 리포트를 두 번 잡지 않는다 — 재등록·되살리기에도 줄이 안 늘게
+  @@unique([phraseId, reportId])
+  /// 미처리 목록 조회가 이 화면의 전부다
+  @@index([resolvedAt])
 }
 
 /// 사전 항목 매칭 이벤트 (관리자 앱 인계서 2026-08-22 §1 → 회신 8호 (나)).

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { RISK_CATEGORIES, type RiskCategory } from '@/domain/compliance';
+import { RISK_CATEGORIES, type RegisteredPhrase, type RiskCategory } from '@/domain/compliance';
 import { PHRASE_MAX_LENGTH, validatePhrase } from '@/domain/learnedPhrases';
 import { createLearnedPhrase, setLearnedPhraseActive } from '@/server/learnedPhraseService';
 import { createDefaultRegistry } from '@/infra/marketData/registry';
@@ -14,6 +14,7 @@ import { canReleaseAutoShadow, releaseAutoShadow } from '@/server/studentAutoSha
 import { createStudentClientFromEnv } from '@/infra/compliance/studentClient';
 import { approvePendingReport, rejectPendingReport } from '@/server/reportService';
 import { recordDecisionElapsed } from '@/server/decisionSpeedService';
+import { previewPhraseRescan, recordPhraseRescan } from '@/server/phraseRescanService';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 
 // 운영자 컴플라이언스 검토 큐: 2단 검수로 결론이 안 난 건에 대한 결정.
@@ -115,7 +116,7 @@ async function registerPhrase(
   text: string | undefined,
   cats: RiskCategory[] | undefined,
   reason: string,
-): Promise<{ warning: string | null; collisions: string[] }> {
+): Promise<{ warning: string | null; collisions: string[]; rescanned?: number }> {
   const none = { warning: null, collisions: [] as string[] };
   const trimmed = text?.trim();
   if (!trimmed) return none;
@@ -132,18 +133,30 @@ async function registerPhrase(
     createdBy: operatorUserId,
     sourceReportId: reportId,
   });
+  /* **등록한 표현으로 게시 중 리포트를 다시 훑는다** (2026-08-25 창업자 확정).
+     학습 표현은 지금까지 **앞으로 올라올 글에만** 닿았고, 이미 팔리는 글에는 영원히
+     닿지 않았다 — 위험이 큰 쪽은 오히려 그쪽이다.
+     결과는 **목록일 뿐 처분이 아니다**: 게시는 그대로고 강제 철회는 사람이 따로 한다.
+     실패해도 삼킨다 — 표현 등록은 이미 끝난 일이라, 곁가지가 본업을 되돌리면 안 된다. */
+  const rescanned = await previewPhraseRescan(prisma, created as unknown as RegisteredPhrase)
+    .then((r) => recordPhraseRescan(prisma, created.id, r.hits))
+    .catch((e) => {
+      console.error('새 표현 재검수 실패:', e);
+      return 0;
+    });
+
   // 이미 있던 항목을 되살린 경로에는 충돌 목록이 없다 — 그때는 잰 적이 없다
   // (`createLearnedPhrase` 의 반환이 세 갈래 합집합이라 `in` 만으로는 안 좁혀진다)
   const { collisions = [] } = created as { collisions?: { against: string }[] };
-  return { warning: null, collisions: collisions.map((c) => c.against) };
+  return { warning: null, collisions: collisions.map((c) => c.against), rescanned };
 }
 
 /** 응답 모양은 한 곳에서만 만든다 — 두 갈래(반려·철회)가 다른 이름을 쓰면 화면이 갈린다 */
 async function phrasePayload(
   ...args: Parameters<typeof registerPhrase>
-): Promise<{ phraseWarning: string | null; phraseCollisions: string[] }> {
-  const { warning, collisions } = await registerPhrase(...args);
-  return { phraseWarning: warning, phraseCollisions: collisions };
+): Promise<{ phraseWarning: string | null; phraseCollisions: string[]; phraseRescanned: number }> {
+  const { warning, collisions, rescanned } = await registerPhrase(...args);
+  return { phraseWarning: warning, phraseCollisions: collisions, phraseRescanned: rescanned ?? 0 };
 }
 
 export async function GET() {

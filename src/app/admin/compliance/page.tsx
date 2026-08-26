@@ -72,6 +72,7 @@ import {
   GRADUATION_WATCH_DAYS,
 } from "@/server/phraseGraduationService";
 import { countHardNegatives } from "@/server/retrainSignalService";
+import { getRescanQueue, type RescanQueueRow } from "@/server/phraseRescanService";
 import { GraduateButton } from "./GraduateButton";
 import { GraduationWatch } from "./GraduationWatch";
 import { RegressionCases } from "./RegressionCases";
@@ -503,6 +504,95 @@ function PromotionCandidate({
  * 남는 규칙: **칩이 붙은 카드는 전부 평소와 다른 이유로 온 건**이라, 훑다가 걸리는
  * 것 자체가 신호가 된다.
  */
+/**
+ * **`검수 모델이 세운 것` 을 넷으로 가른다** (2026-08-25 창업자 확정).
+ *
+ * 가르는 기준은 "무엇에 걸렸나"가 아니라 **운영자가 무엇을 하는가**다:
+ *
+ *   판매 중    이미 팔린 글을 내릴지 → 별도 목록(재검수 결과)이 그린다
+ *   검수 실패  검수가 온전치 않다 → 모델이 못 본 것을 **내가 대신 읽는다**
+ *   반려 3회   소견이 없는데 왔다 → 글이 아니라 **재제출 이력**을 본다
+ *   검수 성공  검수가 온전했고 소견이 있다 → 그 **소견이 맞는지** 본다
+ *
+ * ── 겹칠 때는 `검수 실패` 가 이긴다 ────────────────────────────────
+ * 소견 0건 + 반려 3회 + `IRIS !` 인 건이 실제로 있다. 그것을 `반려 3회` 로 넣으면
+ * **"소견이 0건"이라는 사실이 앞에 서는데, IRIS 가 안 돌았으면 그 0건을 못 믿는다** —
+ * 깨끗해서 0건인지 안 봐서 0건인지 구별이 안 된다. 그 불확실이 더 무거우므로 위로 올린다.
+ */
+type HoldGroup = "fail" | "rejected" | "ok";
+
+const HOLD_GROUP_NOTE: Record<HoldGroup, string> = {
+  fail: "규칙 엔진이나 IRIS 가 판정에 참여하지 못했습니다 — 모델이 못 본 부분을 직접 읽어야 합니다.",
+  rejected: "검수 소견은 없습니다. 반려가 쌓여 자동 게시 경로가 닫힌 건이라, 볼 것은 본문이 아니라 재제출 이력입니다.",
+  ok: "검수가 온전히 돌았고 소견이 나와 멈췄습니다. 그 소견이 맞는지 보시면 됩니다.",
+};
+
+function holdGroup(review: {
+  reviewer: string;
+  findingsJson: string;
+  report: { rejectionCount: number };
+}): HoldGroup {
+  if (missingScreeners(review.reviewer) !== null) return "fail";
+  let findingCount = 0;
+  try {
+    findingCount = (JSON.parse(review.findingsJson) as unknown[]).length;
+  } catch {
+    /* 깨진 JSON 은 소견 0 으로 본다 — 아래 분기가 `검수 성공` 으로 보내지 않게 */
+  }
+  if (findingCount === 0 && requiresReviewAfterRejections(review.report.rejectionCount)) {
+    return "rejected";
+  }
+  return "ok";
+}
+
+/**
+ * 재검수 한 줄 — **판정 카드가 아니라 목록의 줄**이다.
+ *
+ * 여기서 승인·반려를 받지 않는다. 이 건들은 이미 게시된 글이라 할 수 있는 일이
+ * "그냥 두기"와 "강제 철회" 둘뿐인데, 철회는 전액 환불 + 정산 0 + 점수 0 이라
+ * **판매 중 리포트 탭의 기존 경로**를 그대로 타야 한다 — 처분 화면이 두 벌이 되면
+ * 확인 문구·2인 승인 같은 관문이 한쪽에만 붙는다.
+ * 그래서 이 줄이 하는 일은 **어느 글을 봐야 하는지 알려주고 그 자리로 보내는 것**뿐이다.
+ */
+function RescanRow({ hit, now }: { hit: RescanQueueRow; now: Date }) {
+  return (
+    <Link href={`/admin/compliance?tab=published&focus=${hit.reportId}`} className={a.lite}>
+      <span className={a.liteMain}>
+        <span className={a.liteName}>{hit.reportTitle}</span>
+        <span className={a.liteSub}>
+          {hit.researcherName} · {formatElapsedShort(hit.createdAt, now)}
+        </span>
+        {/* **걸린 문장이 이 줄의 전부다** — 운영자가 자기 눈으로 판단할 유일한 재료라
+            제목보다 이쪽이 먼저 읽혀야 한다 */}
+        <span className={a.quote}>&ldquo;{hit.quote}&rdquo;</span>
+        <span className={a.liteTags}>
+          <span className={a.chip}>{hit.phrase}</span>
+          <span className={a.chip}>{RISK_CATEGORY_LABEL[hit.category] ?? hit.category}</span>
+          {hit.heldPurchases > 0 && (
+            <span className={`${a.chip} ${a.chipNeg}`}>에스크로 {hit.heldPurchases}건</span>
+          )}
+        </span>
+      </span>
+      <span className={a.liteRight}>
+        <span className={a.go}>›</span>
+      </span>
+    </Link>
+  );
+}
+
+/** 묶음 머리 — 절 제목(`SecHead`)보다 한 단 작다. 같은 절 안의 갈래이기 때문 */
+function SubHead({ title, count, note }: { title: string; count: number; note: string }) {
+  return (
+    <div className={a.subhead}>
+      <div className={a.subheadTop}>
+        <b>{title}</b>
+        <span className={a.n}>{count}</span>
+      </div>
+      <span className={a.subheadNote}>{note}</span>
+    </div>
+  );
+}
+
 function QueueReasonChip({
   decision,
   rejectionCount,
@@ -886,6 +976,7 @@ export default async function AdminCompliancePage({
     graduationWatch,
     retrain,
     regressionCases,
+    rescanQueue,
   ] = await Promise.all([
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
@@ -903,6 +994,7 @@ export default async function AdminCompliancePage({
     getGraduationWatch(prisma),
     countHardNegatives(prisma),
     getRegressionCases(prisma),
+    getRescanQueue(prisma),
   ]);
   // 문항은 사전 항목에 붙어 있다 — 졸업이 만든 것이라 그 항목 카드에서 닿는 것이 맞다.
   // (관찰 큐는 7일짜리 임시 자리고 문항은 영구라 수명이 안 맞는다 — 회신 4호 §4-b)
@@ -1203,20 +1295,58 @@ export default async function AdminCompliancePage({
             </div>
           )}
           {sort === "wait" && <UrgencyLine {...urgencySummary(contentHolds, now)} />}
-          {contentHolds.length === 0 ? (
+
+          {/* **판매 중 — 새 기준에 걸린 게시물** (2026-08-25 창업자 확정).
+              맨 위인 이유: 이 묶음만 **돈이 걸려 있다.** 아래 셋은 아직 아무도 못 샀지만
+              여기는 이미 팔렸고, 내리면 전액 환불 + 정산 0 + 점수 0 이다.
+              0건이면 아무것도 그리지 않는다 — 평소 0인 자리가 매일 보이면 배경음이 된다 */}
+          {rescanQueue.length > 0 && (
+            <>
+              <SubHead
+                title="판매 중"
+                count={rescanQueue.length}
+                note="새로 등록한 학습 표현이 이미 게시된 리포트를 잡았습니다. 게시는 그대로입니다 — 내릴지는 확인하고 정하십시오."
+              />
+              {rescanQueue.map((h) => (
+                <RescanRow key={h.id} hit={h} now={now} />
+              ))}
+            </>
+          )}
+
+          {contentHolds.length === 0 && rescanQueue.length === 0 ? (
             <p className={a.empty}>본문 검수로 보류된 건이 없습니다.</p>
           ) : (
-            sortPending(contentHolds, sort, sales).map((review) => (
-              <ReviewCard
-                key={review.id}
-                review={review}
-                now={now}
-                open={sp.open === review.id}
-                tab={tab}
-                sort={sort}
-                judgedCardCount={signals.get(review.report.researcher.id)?.judgedCount ?? 0}
-              />
-            ))
+            /* **셋으로 나눈다** (2026-08-25 창업자 확정) — 운영자가 하는 일이 다르다.
+               순서가 곧 무게다: 검수를 못 믿는 것 → 성격이 다른 것 → 평상시 업무.
+               묶음이 비면 그리지 않는다 — 빈 제목은 정보가 아니라 장식이다 */
+            (
+              [
+                ["fail", "검수 실패"],
+                ["rejected", "반려 3회"],
+                ["ok", "검수 성공"],
+              ] as const
+            ).map(([key, label]) => {
+              const group = sortPending(contentHolds, sort, sales).filter(
+                (r) => holdGroup(r) === key,
+              );
+              if (group.length === 0) return null;
+              return (
+                <div key={key}>
+                  <SubHead title={label} count={group.length} note={HOLD_GROUP_NOTE[key]} />
+                  {group.map((review) => (
+                    <ReviewCard
+                      key={review.id}
+                      review={review}
+                      now={now}
+                      open={sp.open === review.id}
+                      tab={tab}
+                      sort={sort}
+                      judgedCardCount={signals.get(review.report.researcher.id)?.judgedCount ?? 0}
+                    />
+                  ))}
+                </div>
+              );
+            })
           )}
 
           {/* 신고 확인의 후속 — 판단이 아니라 **약속을 지키는 일**이라 큐를 따로 둔다 */}
