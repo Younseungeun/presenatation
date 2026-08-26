@@ -1,6 +1,8 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import { RISK_CATEGORY_LABEL, type Finding, type RiskCategory } from "@/domain/compliance";
-import a from "../admin.module.css";
 import s from "./flaggedReport.module.css";
 
 // **검수가 문제 삼은 워딩을 본문 안에서 그대로 보여준다** (2026-08-26 창업자 지시).
@@ -178,25 +180,23 @@ function Highlighted({ text, findings }: { text: string; findings: Finding[] }) 
 }
 
 /**
- * 검수 카드 — **제목 + 위반 이유 칩 + 빨간 본문**, 박스 전체가 이용자 화면으로 가는 문.
- * (2026-08-26 창업자 시안: 요약·별도 링크 박스 삭제, 박스 클릭 = 이용자 화면 이동)
+ * 검수 카드 — 제목 + **상세 보기 링크**(우상) + **위반 유형 칩 필터**(중간) + 빨간 본문.
+ * (2026-08-27 창업자 시안 2차)
  *
- * ── 위반 이유는 칩으로 (우상단) ────────────────────────────────────
- * 소견 유형을 칩으로 모아 우상단에 둔다. 본문에서 위치를 잡은 소견은 아래에서 빨갛게도
- * 칠해지지만, IRIS 전체 판정·카드 소견처럼 **문장을 못 짚는 것**은 빨간 자리가 없어
- * 칩만이 유일한 표시다 — 그래서 유형은 위치 여부와 무관하게 전부 칩으로 나온다.
- * 감추면 "빨간 데가 없으니 문제없다"는 오독이 생긴다.
+ * ── 왜 칩이 필터인가 ───────────────────────────────────────────────
+ * 위반 유형이 여러 개일 수 있고, 서로 다른 유형의 문제 부분을 한 본문에 **동시에** 다
+ * 칠하면 무엇이 어느 유형 때문인지 뒤섞인다. 그래서 본문에는 **선택된 한 유형만** 칠하고
+ * (같은 유형끼리 겹치는 건 그대로 둔다), 칩을 누르면 그 유형의 의심 파트로 바꿔 칠한다.
  *
- * ── 종목·목표가·별점은 본문에 없다 ─────────────────────────────────
- * 그것들은 카드에 있어 인라인으로 못 채운다. 박스를 누르면 그 전체 화면으로 가므로,
- * 하나로 합치되 텍스트에 없는 정보를 지어내지 않는다.
+ * ── 상세 보기는 링크, 칩은 버튼 ────────────────────────────────────
+ * 예전엔 박스 전체가 이용자 화면 링크였는데, 이제 칩이 클릭으로 필터를 바꾸므로 박스
+ * 전체를 링크로 둘 수 없다(칩을 누르면 화면을 떠난다). 이동은 우상단 "상세 보기 ›"가 맡는다.
  */
 export function FlaggedReport({
   reportId,
   title,
   content,
   findings,
-  pendingPublish,
 }: {
   reportId: string;
   title: string;
@@ -204,10 +204,10 @@ export function FlaggedReport({
   summary?: string | null;
   content: string | null;
   findings: Finding[];
-  /** 게시 전이면 아직 아무도 못 본 화면, 게시 후면 이미 팔리는 화면 (접근성 라벨의 시제) */
-  pendingPublish: boolean;
+  /** @deprecated 링크 문구가 고정("상세 보기")이라 더는 안 쓴다 — 호환용 */
+  pendingPublish?: boolean;
 }) {
-  // 위반 이유 칩 — 유형별로 하나씩, 더 무거운 심각도(BLOCK)를 대표로. 툴팁에 근거·출처
+  // 위반 유형 칩 — 유형별 하나씩, 더 무거운 심각도(BLOCK)를 대표로. BLOCK 을 앞에 세운다
   const byCategory = new Map<string, Finding>();
   for (const f of findings) {
     const prev = byCategory.get(f.category);
@@ -215,45 +215,66 @@ export function FlaggedReport({
       byCategory.set(f.category, f);
     }
   }
-  const reasonChips = [...byCategory.values()];
+  const reasonChips = [...byCategory.values()].sort(
+    (x, y) => (x.severity === "BLOCK" ? 0 : 1) - (y.severity === "BLOCK" ? 0 : 1),
+  );
 
-  const viewLabel = pendingPublish
-    ? "이용자가 보게 될 전체 화면 열기 (종목·목표가·별점까지)"
-    : "이용자가 보는 전체 화면 열기 (종목·목표가·별점까지)";
+  // 기본 선택 = 첫 칩(가장 무거운 유형). 유형이 없으면 null
+  const [selected, setSelected] = useState<string | null>(reasonChips[0]?.category ?? null);
+  const activeFindings = findings.filter((f) => f.category === selected);
+  // 선택한 유형이 본문·제목에서 문장을 하나라도 짚는가 — 못 짚으면 아래 안내를 띄운다
+  const selectedHasLocatable = activeFindings.some((f) => isLocated([title, content ?? ""], f));
 
   return (
-    // **박스 전체가 링크다** — 누르면 이용자 화면으로 (시안). mark 의 툴팁은 hover 라
-    // 클릭과 겹치지 않는다
-    <Link href={`/report/${reportId}`} className={s.card} aria-label={viewLabel} title={viewLabel}>
+    <div className={s.card}>
       <div className={s.top}>
-        <span className={s.title}>
-          <Highlighted text={title} findings={findings} />
-        </span>
-        {reasonChips.length > 0 && (
-          <span className={s.chips}>
-            {reasonChips.map((f, i) => (
-              <span
-                key={i}
-                className={`${a.chip} ${f.severity === "BLOCK" ? a.chipNeg : a.chipWarn}`}
-                title={`${severityWord(f)} · ${sourceLabel(f)}${f.reason ? ` · ${f.reason}` : ""}`}
-              >
-                {RISK_CATEGORY_LABEL[f.category as RiskCategory] ?? f.category}
-              </span>
-            ))}
-          </span>
-        )}
+        <span className={s.title}>{title}</span>
+        {/* 옛 칩 자리 — 이제 이용자 전체 화면으로 가는 문 (시안) */}
+        <Link href={`/report/${reportId}`} className={s.detailLink}>
+          상세 보기 ›
+        </Link>
       </div>
 
-      {/* 본문을 안쪽 박스로 한 번 더 감싼다 (시안: 박스 안의 박스) */}
+      {/* 위반 유형 칩 — 제목과 본문 **사이**에 일렬로. 누르면 본문 하이라이트가 그 유형으로 */}
+      {reasonChips.length > 0 && (
+        <div className={s.chipRow} role="tablist" aria-label="위반 유형 선택">
+          {reasonChips.map((f) => {
+            const on = f.category === selected;
+            const tone = f.severity === "BLOCK" ? s.chipBlock : s.chipWarn;
+            return (
+              <button
+                key={f.category}
+                type="button"
+                role="tab"
+                aria-selected={on}
+                className={`${s.chip} ${tone} ${on ? s.chipOn : s.chipOff}`}
+                title={`${severityWord(f)} · ${sourceLabel(f)}${f.reason ? ` · ${f.reason}` : ""}`}
+                onClick={() => setSelected(f.category)}
+              >
+                {RISK_CATEGORY_LABEL[f.category as RiskCategory] ?? f.category}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 본문 — 안쪽 박스. 선택된 유형의 의심 파트만 칠한다 */}
       <div className={s.bodyBox}>
         {content?.trim() ? (
           <p className={s.body}>
-            <Highlighted text={content} findings={findings} />
+            <Highlighted text={content} findings={activeFindings} />
           </p>
         ) : (
           <p className={`${s.body} ${s.empty}`}>본문이 없습니다</p>
         )}
+        {/* 선택한 유형이 본문에서 문장을 못 짚으면(IRIS 전체 판정·카드 소견) 그 사실을 적는다 —
+            빨간 데가 없는 것을 "문제없음"으로 오해하지 않게 */}
+        {selected && !selectedHasLocatable && (
+          <p className={s.note}>
+            이 유형은 특정 문장을 짚지 못했습니다 — 본문 전체 또는 예측 카드를 문제 삼은 것입니다.
+          </p>
+        )}
       </div>
-    </Link>
+    </div>
   );
 }

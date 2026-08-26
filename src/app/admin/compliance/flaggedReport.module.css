@@ -9,26 +9,16 @@
   padding: 14px 16px;
   background: var(--card, #fff);
   color: var(--text);
-  text-decoration: none; /* Link 기본 밑줄 제거 */
-  cursor: pointer;
   /* 테두리만으로는 박스 형태가 안 읽혀 그림자로 띄운다 (창업자 지시) */
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
-  transition: box-shadow 0.12s, border-color 0.12s;
 }
 
-/* 누를 수 있다는 신호 — 그림자가 더 깊어진다. 클릭하면 이용자 화면으로 */
-.card:hover {
-  border-color: var(--brand, #12b896);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.06);
-}
-
-/* 상단: 제목(좌) + 위반 이유 칩(우) — 시안의 위쪽 두 상자 */
+/* 상단: 제목(좌) + 상세 보기 링크(우). 한 줄에 붙여 제목-본문 간격이 벌지 않게 */
 .top {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
 }
 
 /* 제목은 위(카드 헤더)에도 있으므로 여기서는 작게 (창업자 지시) */
@@ -38,15 +28,66 @@
   line-height: 1.4;
   color: var(--text-weak);
   word-break: break-word;
+  min-width: 0;
 }
 
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  justify-content: flex-end;
+/* 옛 칩 자리 — 이용자 전체 화면으로 가는 링크 (시안 2차) */
+.detailLink {
   flex-shrink: 0;
-  max-width: 55%; /* 칩이 많아도 제목을 다 밀어내지 않는다 */
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--brand, #12b896);
+  text-decoration: none;
+  white-space: nowrap;
+}
+.detailLink:hover {
+  text-decoration: underline;
+}
+
+/* 위반 유형 칩 줄 — 제목과 본문 **사이**에 일렬로 (시안 2차). 넘치면 가로 스크롤 */
+.chipRow {
+  display: flex;
+  gap: 6px;
+  margin: 10px 0;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+
+.chip {
+  flex-shrink: 0;
+  border: 1px solid;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+/* 선택 안 됨 — 옅은 외곽선. 선택됨 — 유형 색으로 채움 */
+.chipOff {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--text-faint);
+}
+.chipWarn.chipOn {
+  background: #fbeecd;
+  border-color: #e0a03a;
+  color: #9a6410;
+}
+.chipBlock.chipOn {
+  background: #bd4242;
+  border-color: #bd4242;
+  color: #fff;
+}
+/* 선택 안 된 상태에서도 유형별로 점 하나 정도의 힌트 (테두리 살짝) */
+.chipWarn.chipOff {
+  border-color: #ecd6ad;
+}
+.chipBlock.chipOff {
+  border-color: #e2b4b4;
 }
 
 /* 본문을 감싸는 안쪽 박스 — 박스 안의 박스 (시안).
@@ -79,6 +120,13 @@
 .empty {
   color: var(--text-faint);
   font-style: italic;
+}
+
+/* 선택한 유형이 문장을 못 짚을 때의 안내 — 본문 아래 옅게 */
+.note {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
 }
 
 /* WARN(확인 필요) — 옅은 빨강 배경 + 빨간 글씨. 밑줄은 뺀다.
