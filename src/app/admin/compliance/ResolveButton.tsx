@@ -102,6 +102,12 @@ export function ResolveButton({
     setCategories((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
   }
 
+  // '위반이 아니라면' 항목도 위반 유형 칩처럼 **재클릭하면 해제**된다 (2026-08-27 창업자 지시).
+  // 같은 값을 다시 누르면 null(표시하지 않고 승인 — 기본)로 돌아간다
+  function pickValidity(v: boolean) {
+    setFindingsValid((prev) => (prev === v ? null : v));
+  }
+
   /**
    * **열람 → 판정까지 걸린 시간** (26차 CC-1 반증 조건 — 피로도 함정 감지).
    *
@@ -215,15 +221,9 @@ export function ResolveButton({
           />
         </div>
 
-        {/* 나가기 전에 무엇이 나가는지 */}
-        <div className={a.sent}>
-          <div className={a.sTag}>
-            전달될 사유 · {reason.trim() ? "직접 입력" : "아직 없음"}
-          </div>
-          <div className={`${a.sV} ${reason.trim() ? "" : a.sVNone}`}>
-            {reason.trim() || "사유를 적으면 여기 그대로 나타납니다"}
-          </div>
-        </div>
+        {/* '전달될 사유' 미리보기 박스는 걷었다 (2026-08-27 창업자 지시) — 바로 위
+            입력란이 곧 리서처에게 갈 문장 그대로라(placeholder·aria-label이 그렇게 말한다)
+            아래에 같은 값을 한 번 더 비추는 박스는 중복이었다 */}
 
         <TwoPaths
           takedown={takedown}
@@ -238,37 +238,32 @@ export function ResolveButton({
         {flaggedCategories.length > 0 ? (
           <>
             {/* 고르지 않아도 승인은 된다 — 클릭을 강제하면 아무렇게나 눌린다.
-                다만 고른 것과 안 고른 것이 **다른 뜻**이라는 사실은 화면이 말해야 한다. */}
-            <label className={a.check}>
-              <input
-                type="radio"
-                name={`fv-${reportId}`}
-                checked={findingsValid === null}
-                onChange={() => setFindingsValid(null)}
-              />
-              표시하지 않고 승인 — 모델 성적에 반영하지 않습니다
-            </label>
-            <label className={a.check}>
-              <input
-                type="radio"
-                name={`fv-${reportId}`}
-                checked={findingsValid === true}
-                onChange={() => setFindingsValid(true)}
-              />
-              지적 자체는 타당했다 (경미해서 통과)
-            </label>
-            <label className={a.check}>
-              <input
-                type="radio"
-                name={`fv-${reportId}`}
-                checked={findingsValid === false}
-                onChange={() => setFindingsValid(false)}
-              />
-              <b>오탐이었다</b> — 이 지적은 부적절했습니다
-            </label>
+                다만 고른 것과 안 고른 것이 **다른 뜻**이라는 사실은 화면이 말해야 한다.
+                위반 유형 칩과 같은 토글 버튼(a.pick) — 고른 것을 다시 누르면 해제된다
+                (2026-08-27 창업자 지시). 아무것도 안 고른 상태 = '표시하지 않고 승인' */}
+            <div className={a.chips}>
+              <button
+                type="button"
+                className={`${a.pick} ${findingsValid === true ? a.pickOn : ""}`}
+                aria-pressed={findingsValid === true}
+                onClick={() => pickValidity(true)}
+              >
+                지적 자체는 타당했다 (경미해서 통과)
+              </button>
+              <button
+                type="button"
+                className={`${a.pick} ${findingsValid === false ? a.pickOn : ""}`}
+                aria-pressed={findingsValid === false}
+                onClick={() => pickValidity(false)}
+              >
+                오탐이었다 — 이 지적은 부적절했습니다
+              </button>
+            </div>
             <p className={a.hint}>
-              마지막 항목만 IRIS의 <b>오탐 표본</b>으로 셉니다. 이 신고가 쌓이면
-              모델이 스스로 검수에서 내려갑니다 — 그래서 무심코 누른 승인은 세지 않습니다.
+              고르지 않으면 <b>표시하지 않고 승인</b>됩니다 (모델 성적에 반영 안 함).
+              <br />
+              <b>오탐이었다</b>만 IRIS의 <b>오탐 표본</b>으로 셉니다 — 이 신고가 쌓이면
+              모델이 스스로 검수에서 내려갑니다. 그래서 무심코 누른 승인은 세지 않습니다.
             </p>
           </>
         ) : (

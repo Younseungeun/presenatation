@@ -51,8 +51,6 @@ import {
   type TeacherAskCoverage,
 } from "@/server/teacherAnswerQueue";
 import { getTeacherTag } from "@/server/appSettings";
-import { researcherSignals } from "@/server/marketQueries";
-import { teacherAskRequirement } from "@/domain/teacherAskPolicy";
 import { StudentShadowRelease } from "./StudentShadowRelease";
 import {
   getPendingComplianceReviews,
@@ -669,15 +667,12 @@ function ReviewCard({
   open,
   tab,
   sort,
-  judgedCardCount,
 }: {
   review: PendingReview;
   now: Date;
   open: boolean;
   tab: string;
   sort: SortKey;
-  /** 이 리서처의 판정 완료 카드 수 — 교사 질의 강제 판단에 쓴다 (18차 V-7) */
-  judgedCardCount: number;
 }) {
   const findings = parseFindings(review.findingsJson);
   const researcher = review.report.researcher.user;
@@ -812,35 +807,9 @@ function ReviewCard({
         </div>
       )}
 
-      {/* **교사 질문지는 늘 열어 둔다** (2026-08-24 창업자 확정으로 조건 삭제).
-          예전에는 "2차가 안 돌았을 때"만 띄웠는데, 그 조건이 `hadSecondTier` 라
-          IRIS 가 도는 지금은 **모든 건에서 사라질 뻔했다.** 교사의 몫은 대타가 아니라
-          **학습 자료 수집**이다 — 운영자 판정에 교사 답이 붙어야 재학습 라벨이 된다
-          (operatorLabelExport 의 `operator:<id>|teacher:<표식>`). 조건을 걸면 그
-          통로가 조용히 막힌다.
-          ⚠ 순서는 그대로 지킨다: **먼저 승인·반려를 결정한 뒤** 답을 기록한다 —
-          답을 보고 고르면 두 판단이 같은 출처가 되어 나중에 교사를 검증할 수 없다 */}
-      <div className={`${a.note}`} style={{ marginTop: 12 }}>
-        {/* **큐가 밀리면 다 물어볼 수 없다** (18차 V-7). 그때 무엇을 반드시 물을지
-            화면이 말해 준다 — 말하지 않으면 운영자는 앞에서부터 자르고, 그 순서에는
-            위험의 크기가 들어 있지 않다 */}
-        {(() => {
-          const ask = teacherAskRequirement({
-            findings,
-            judgedCardCount,
-            rejectionCount: review.report.rejectionCount,
-          });
-          return ask.requirement === "REQUIRED" ? (
-            <b>반드시 물어야 하는 건입니다 — {ask.reason}</b>
-          ) : (
-            <span style={{ color: "var(--text-faint)" }}>{ask.reason}</span>
-          );
-        })()}
-      </div>
-      {/* **재학습 논의 자료는 여기 없다** (2026-08-26 목적 재정의). 그 자료는 사람 판정과
-          자동 검수 판정을 나란히 놓는 것이라 **사람 판정이 먼저** 있어야 한다. 그래서
-          결정 전인 이 큐가 아니라 결정 뒤 "교사 답 대기" 줄(TeacherRelayPanel)에서 연다.
-          여기서는 판정만 내린다 (ResolveButton) */}
+      {/* '반드시 물어야 하는 건' 안내는 걷었다 (2026-08-27 창업자 지시) — 교사 질문지가
+          결정 후 "교사 답 대기" 줄(TeacherRelayPanel)로 옮겨진 뒤로 이 큐에서 물어보라는
+          안내는 자리를 잃었다. 여기서는 판정만 내린다 (ResolveButton) */}
 
       {/* **본문 + 빨간 소견** — 문제 삼은 워딩을 본문 맥락 안에서 곧장 읽는다.
           문장을 못 짚은 소견(IRIS 전체 판정·표기 변형)은 그 아래 따로 뜨고,
@@ -1079,12 +1048,6 @@ export default async function AdminCompliancePage({
           ...new Set(pending.map((r) => r.report.researcher.id)),
         ])
       : new Map<string, number>();
-
-  // 교사 질의를 강제할지 가르는 재료 (18차 V-7) — 판정 이력이 없는 리서처는
-  // 평판으로 거를 수 없어 사람이 반드시 본다. 목록 전체에 조회 두 번으로 끝난다
-  const signals = await researcherSignals(prisma, [
-    ...new Set(pending.map((r) => r.report.researcher.id)),
-  ]);
 
   const q = await getAdminQueues(prisma, now);
 
@@ -1342,7 +1305,6 @@ export default async function AdminCompliancePage({
                       open={sp.open === review.id}
                       tab={tab}
                       sort={sort}
-                      judgedCardCount={signals.get(review.report.researcher.id)?.judgedCount ?? 0}
                     />
                   ))}
                 </div>
@@ -1467,7 +1429,6 @@ export default async function AdminCompliancePage({
                 open={sp.open === review.id}
                 tab={tab}
                 sort={sort}
-                judgedCardCount={signals.get(review.report.researcher.id)?.judgedCount ?? 0}
               />
             ))
           )}
