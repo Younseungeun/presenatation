@@ -73,12 +73,16 @@ class JsonlDataset(Dataset):
         # 정상 문장이 유일하게 온전한 음성 신호원이므로 여기는 절대 마스킹하지 않는다.
         mask = y.clone() if row["labels"] else torch.ones(len(self.index))
         is_doc = 1.0 if row["id"].startswith("doc:") else 0.0
+        # 증류: 교사 로짓이 붙어 있으면 함께 나른다 (main 이 --teacher-logits 를 읽어 부착)
+        teacher = row.get("_teacher")
         return {
             "input_ids": enc["input_ids"],      # 아직 텐서가 아니다 — collate가 맞춘다
             "attention_mask": enc["attention_mask"],
             "labels": y,
             "loss_mask": mask,
             "is_doc": torch.tensor(is_doc),
+            "teacher": torch.tensor(teacher, dtype=torch.float32) if teacher is not None
+                       else torch.zeros(len(self.index)),
         }
 
 
@@ -100,6 +104,7 @@ def collate(batch):
         "labels": torch.stack([b["labels"] for b in batch]),
         "loss_mask": torch.stack([b["loss_mask"] for b in batch]),
         "is_doc": torch.stack([b["is_doc"] for b in batch]),
+        "teacher": torch.stack([b["teacher"] for b in batch]),
     }
 
 
@@ -265,6 +270,16 @@ def main():
     # 학습이 폭주하지 않게 막는 천장이지, 성능을 맞추는 손잡이가 아니다.
     ap.add_argument("--pos-weight-cap", type=float, default=50.0,
                     help="유도값의 안전 상한 (성능 조절용 아님)")
+    # ── 증류 (KD — README "증류 실험" 사전 등록) ──
+    # loss = (1−α)·하드BCE(기존 경로 그대로) + α·T²·BCE(z_s/T, sigmoid(z_t/T))
+    #   · KD 항에 pos_weight·loss_mask 를 태우지 않는다 — 교사 분포 자체가 8차원 전부의
+    #     목표다(미명시 차원의 답을 교사가 준다 — 마스킹 딜레마의 해소가 KD 의 존재 이유)
+    #   · T² 배율: 온도가 로짓을 1/T 로 눌러 기울기가 1/T² 로 작아지는 것을 되돌리는
+    #     표준 보정 — 없으면 T 를 올릴수록 KD 항이 조용히 사라진다
+    ap.add_argument("--teacher-logits", default=None,
+                    help="distill_teacher_labels.py 산출물 (id → 8차원 로짓). 주면 KD 켜짐")
+    ap.add_argument("--kd-alpha", type=float, default=0.5, help="KD 항 비중 α (하드는 1−α)")
+    ap.add_argument("--kd-temp", type=float, default=2.0, help="증류 온도 T")
     args = ap.parse_args()
 
     random.seed(SEED)
@@ -272,6 +287,21 @@ def main():
 
     labels = json.loads(Path("data/labels.json").read_text(encoding="utf-8"))
     rows = load_examples(args.data)
+    # ── 증류: 교사 로짓 부착 ──
+    # 빠진 예시가 있으면 **그 자리에서 실패한다** — 조용히 빼면 KD 가 반쯤 켜진 채 돌고,
+    # "증류 효과가 없다"는 결론이 사실은 "절반만 증류했다"일 수 있게 된다.
+    if args.teacher_logits:
+        tmap = {}
+        for line in Path(args.teacher_logits).read_text(encoding="utf-8").splitlines():
+            if line.strip():
+                t = json.loads(line)
+                tmap[t["id"]] = t["logits"]
+        missing = [r["id"] for r in rows if r["id"] not in tmap]
+        if missing:
+            raise SystemExit(f"교사 로짓 누락 {len(missing)}건 (예: {missing[:3]}) — distill_teacher_labels.py 를 같은 --data 로 다시 돌리십시오")
+        for r in rows:
+            r["_teacher"] = tmap[r["id"]]
+        print(f"KD 켜짐 — 교사 로짓 {len(tmap)}건, α={args.kd_alpha}, T={args.kd_temp}")
     if args.exclude_labeler:
         before = len(rows)
         rows = [r for r in rows
@@ -328,6 +358,14 @@ def main():
                 per = (raw * m).sum(dim=1) / m.sum(dim=1).clamp(min=1.0)
             else:
                 per = raw.mean(dim=1)
+            if args.teacher_logits:
+                # KD 항: 교사 확률(온도 눌림)을 목표로 하는 BCE. pos_weight·마스크 없음 —
+                # 교사의 8차원 분포 그 자체가 목표다. T² 는 기울기 보정 (인자 주석 참고)
+                T = args.kd_temp
+                q = torch.sigmoid(batch["teacher"].to(device) / T)
+                kd_raw = nn.functional.binary_cross_entropy_with_logits(logits / T, q, reduction="none")
+                kd_per = kd_raw.mean(dim=1) * (T * T)
+                per = (1.0 - args.kd_alpha) * per + args.kd_alpha * kd_per
             scale = 1.0 + (args.doc_weight - 1.0) * batch["is_doc"].to(device)
             loss = (per * scale).mean() / args.accum  # 누적 시 평균이 유효 batch 기준이 되도록
             loss.backward()
@@ -384,6 +422,10 @@ def main():
                 "cost_ratio": args.cost_ratio,
                 "pos_weight_cap": args.pos_weight_cap,
                 "data": args.data,
+                # 증류 이력 — "이 모델은 무엇에게 무엇을 배웠나"가 파일과 함께 다닌다
+                **({"kd": {"teacher_logits": args.teacher_logits,
+                           "alpha": args.kd_alpha, "temp": args.kd_temp}}
+                   if args.teacher_logits else {}),
                 # **out_dir의 지문이다 — args.base가 아니다.** (2026-08-19 실행에서 잡힌 결함)
                 # 서빙(사이드카)은 이 out_dir를 읽는데, save_pretrained가 저장하는 파일
                 # 구성이 원본과 다르다(원본 vocab.txt / 저장본 tokenizer.json). 원본 지문을
