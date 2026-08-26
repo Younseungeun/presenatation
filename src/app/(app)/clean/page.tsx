@@ -48,6 +48,8 @@ export default async function CleanPage({
         select: {
           id: true,
           title: true,
+          summary: true,
+          content: true,
           priceKrw: true,
           researcher: { select: { user: { select: { penName: true, email: true } } } },
         },
@@ -55,6 +57,19 @@ export default async function CleanPage({
     : null;
   // 무료 시황(가격 0)은 예측 카드가 없어 판매를 멈출 대상이 아니다 — 신고는 자유 입력 쪽으로
   const targetReport = target && target.priceKrw > 0 ? target : null;
+
+  // **본문은 산 사람에게만 보여준다** (마스킹) — 신고자가 본문의 어느 부분이 위반인지
+  // 짚으려면 본문을 봤어야 하고, 그건 구매한 사람이다. 안 산 사람은 종전대로 자유 입력.
+  const purchased = targetReport
+    ? !!(await prisma.purchase.findFirst({
+        where: { reportId: targetReport.id, buyerId: userId },
+        select: { id: true },
+      }))
+    : false;
+  const reportBody =
+    targetReport && purchased
+      ? { title: targetReport.title, content: targetReport.content ?? "" }
+      : null;
   const notice = targetReport
     ? await getReportAbuseNotice(prisma, targetReport.id, userId)
     : null;
@@ -153,7 +168,11 @@ export default async function CleanPage({
                     저희가 더 빨리 움직입니다 — 남겨 주시면 그 판단에 그대로 들어갑니다.
                   </div>
                 )}
-                <CleanReportForm reportId={targetReport?.id} fixedTargetName={targetName} />
+                <CleanReportForm
+                  reportId={targetReport?.id}
+                  fixedTargetName={targetName}
+                  reportBody={reportBody}
+                />
               </>
             )}
           </section>

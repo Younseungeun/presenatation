@@ -1,0 +1,131 @@
+/* 신고 접수 — 검수 상세(FlaggedReport)와 같은 카드로 본문을 펼쳐 문장을 고르게 한다.
+   (2026-08-27 창업자 지시) */
+
+.card {
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: var(--card, #fff);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-weak, #6b7280);
+  word-break: break-word;
+}
+
+.count {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #bd4242;
+}
+
+/* 본문 안쪽 박스 — 검수 카드의 '박스 안의 박스'와 같은 옅은 회색 */
+.bodyBox {
+  margin-top: 10px;
+  border: 1px solid #e3e6ea;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #f2f4f6;
+}
+
+.hint {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--text-faint, #9aa2ad);
+}
+
+/* 문장 — 눌러서 고른다. 고른 것은 빨갛게(검수 카드의 소견 하이라이트와 같은 톤) */
+.sentence {
+  display: inline;
+  border: none;
+  background: transparent;
+  padding: 1px 2px;
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--text, #111827);
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.1s, color 0.1s;
+}
+.sentence::after {
+  content: " ";
+}
+.sentence:hover {
+  background: #eceff2;
+}
+.sentenceOn {
+  background: #f7ebeb;
+  color: #bd4242;
+  font-weight: 800;
+}
+.sentenceOn:hover {
+  background: #f3dede;
+}
+
+/* 지적한 부분마다 유형 고르기 */
+.picks {
+  margin-top: 4px;
+}
+
+.pickRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border, #eef0f2);
+}
+.pickRow:first-of-type {
+  border-top: none;
+}
+
+.pickQuote {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  color: #bd4242;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickCtrl {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.pickSelect {
+  font-size: 12px;
+  padding: 4px 6px;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text, #111827);
+}
+
+.pickRemove {
+  border: none;
+  background: transparent;
+  color: var(--text-faint, #9aa2ad);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+}
+.pickRemove:hover {
+  color: #bd4242;
+}

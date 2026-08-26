@@ -14,6 +14,13 @@ const bodySchema = z.object({
   category: z.enum(ABUSE_CATEGORIES),
   detail: z.string().min(10, '정황을 10자 이상 적어 주세요').max(4000),
   reportId: z.string().max(64).optional(),
+  // 본문을 산 신고자의 문장별 지적 (없을 수 있다)
+  findings: z
+    .array(
+      z.object({ quote: z.string().min(1).max(2000), category: z.enum(ABUSE_CATEGORIES) }),
+    )
+    .max(20)
+    .optional(),
 });
 
 export async function POST(req: NextRequest) {

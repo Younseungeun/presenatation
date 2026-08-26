@@ -63,12 +63,20 @@ export class AbuseReportError extends Error {
   }
 }
 
+/** 신고자가 짚은 한 부분 — 본문 문장 + 유형 (2026-08-27) */
+export interface AbuseFinding {
+  quote: string;
+  category: AbuseCategory;
+}
+
 export interface CreateAbuseReportInput {
   reporterId: string;
   targetName: string;
   category: AbuseCategory;
   detail: string;
   reportId?: string;
+  /** 문장별 지적 — 본문을 산 신고자만. 운영자 화면이 이것으로 카드를 그린다 */
+  findings?: AbuseFinding[];
 }
 
 export async function createAbuseReport(
@@ -104,6 +112,11 @@ export async function createAbuseReport(
     }
   }
 
+  // 문장별 지적 — 빈 인용은 버리고, 있으면 직렬화해 저장한다
+  const findings = (input.findings ?? [])
+    .map((f) => ({ quote: f.quote.trim(), category: f.category }))
+    .filter((f) => f.quote.length > 0);
+
   const created = await prisma.abuseReport.create({
     data: {
       reporterId: input.reporterId,
@@ -111,6 +124,7 @@ export async function createAbuseReport(
       category: input.category,
       detail: input.detail.trim(),
       reportId: input.reportId ?? null,
+      findingsJson: findings.length ? JSON.stringify(findings) : null,
     },
   });
 
