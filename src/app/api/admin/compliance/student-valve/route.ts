@@ -8,7 +8,7 @@ import {
 } from '@/server/studentValveService';
 import { requireOperatorId, toErrorResponse } from '../../../_lib/http';
 import { SETTING_KEYS } from '@/server/appSettings';
-import { readCanaryBeat } from '@/server/screeningCanaryRunner';
+import { getCanaryScreen, readCanaryBeat } from '@/server/screeningCanaryRunner';
 import { composeReviewerStamp } from '@/server/complianceService';
 import { readAttendanceBeat } from '@/server/studentAttendance';
 import { readHeartbeat } from '@/server/schedulerHealth';
@@ -114,9 +114,25 @@ export async function GET(req: NextRequest) {
       readHeartbeat(prisma),
     ]);
 
+    /* **규칙은 폴링에서도 다시 잰다** (2026-08-25 창업자 신고).
+       화면이 검수 규칙을 **서버 렌더 때 한 번** 재고, 그 뒤로는 그 값이 그대로 늙었다.
+       탭을 열어 두면 `26분 전 측정` + 회색 점이 뜨는데, 정작 스케줄러는 멀쩡히 돌고
+       옆의 `자동 점검 ✓` 는 초록이다 — **한 줄이 서로 모순되게 보인다.**
+       고장이 아니라 화면이 자기 측정의 나이를 말한 것인데, 읽는 사람에게는 구별되지 않는다.
+       IRIS 를 폴링에서 다시 안 재는 이유(사이드카 9회 호출)는 여기 해당하지 않는다 —
+       규칙은 정규식이고 종목명은 캐시라, 실측 게시물 28건에 137ms 짜리 일이다. */
+    const canaryScreen = await getCanaryScreen(prisma).catch(() => null);
+
     return NextResponse.json({
       ...board,
-      canary: { ...canaryBeat, schedulerOff: schedulerBeat.stale },
+      canary: {
+        ...canaryBeat,
+        schedulerOff: schedulerBeat.stale,
+        // 방금 잰 값 — 화면이 이걸 받으면 `measuredAt` 이 30초마다 새로 선다
+        measuredAt: Date.now(),
+        failures: canaryScreen?.failures ?? [],
+        ran: canaryScreen?.ran ?? 0,
+      },
       // student.attendance.{lastOkAt,lastRanAt,nextAt,stale,timerStale} — 화면은 검수 규칙 줄과
       // 같은 타이머를 IRIS 줄에 그린다. **타이머 칸이 읽는 것은 `timerStale`** 이다:
       // 그 칸이 답하는 질문은 "IRIS 가 답했나"가 아니라 "물어보러 갔나"이고, IRIS 자신의

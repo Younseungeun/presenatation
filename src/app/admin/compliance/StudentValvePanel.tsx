@@ -57,6 +57,9 @@ interface Board {
     nextAt: string | null;
     heartbeatStale: boolean;
     schedulerOff: boolean;
+    /** **폴링이 방금 잰 값** (2026-08-25) — 서버 렌더 스냅샷이 늙는 것을 막는다 */
+    measuredAt?: number;
+    failures?: { layer: string }[];
   };
   outageHolds: number;
   bypass: { active: boolean; until: string | null };
@@ -575,13 +578,16 @@ export function StudentValvePanel({
             그래서 폴백을 지웠다 — 이 패널은 `board` 없이는 아무것도 그리지 않으므로
             (`if (!board) return null`) 첫 페인트부터 폴링 값이 있고, 폴백이 필요한 순간이
             애초에 없다. **값이 없으면 타이머를 안 그린다**: 모르는 것을 색으로 말하지 않는다.
-            층별 결과(`failures`)만 서버 렌더 값이고, 늙으면 점이 회색으로 내려가 그 사실을
-            스스로 말한다 */}
+            ⚠ **층별 결과도 이제 폴링이 재 온다** (2026-08-25 창업자 신고). 예전에는
+            그것만 서버 렌더 값이라, 탭을 열어 두면 `26분 전 측정` + 회색 점이 뜨는데
+            옆의 `자동 점검` 은 초록이었다 — **한 줄이 서로 모순되게 보였다.**
+            고장이 아니라 화면이 자기 측정의 나이를 말한 것인데 읽는 사람에게는
+            구별되지 않는다. 폴링 값이 있으면 그것을 쓰고, 없을 때만 서버 렌더로 떨어진다 */}
         <RuleRow
-          failures={canaryFailures}
+          failures={board.canary?.failures ?? canaryFailures}
           heartbeatStale={board.canary?.heartbeatStale ?? true}
           nowMs={now}
-          measuredAt={measuredAt ?? now}
+          measuredAt={board.canary?.measuredAt ?? measuredAt ?? now}
           nextAt={board.canary?.nextAt ? new Date(board.canary.nextAt) : null}
           freshMs={canaryIntervalMs}
           staleMs={canaryStaleMs}
