@@ -1,0 +1,200 @@
+{"content": "이 부분에 대한 추가 설명은 따로 소통 창구를 통해 도와드리겠습니다.", "direction": "DOWN", "magnitudePct": 21, "horizonDays": 171, "confidence": 7, "labels": ["SOLICIT_CONTACT"]}
+{"content": "이 부분에 대한 추가 설명은 플랫폼 정책상 따로 소통 창구에서 제공할 수 없습니다.", "direction": "DOWN", "magnitudePct": 10, "horizonDays": 167, "confidence": 6, "labels": []}
+{"content": "저와 직접 소통하고 싶으신 분들은 언제든 따로 연락 주십시오. 부담 갖지 마세요.", "direction": "UP", "magnitudePct": 10, "horizonDays": 180, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "저와 직접 소통하고 싶으시더라도 개별 연락은 정중히 사양합니다.", "direction": "UP", "magnitudePct": 9, "horizonDays": 139, "confidence": 5, "labels": []}
+{"content": "투자에 대한 고민 상담은 1:1 창구로 오시면 성심껏 들어드립니다.", "direction": "UP", "magnitudePct": 14, "horizonDays": 66, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "투자에 대한 고민 상담을 명목으로 1:1 창구를 열지 않으니 유의 바랍니다.", "direction": "UP", "magnitudePct": 18, "horizonDays": 12, "confidence": 6, "labels": []}
+{"content": "다음 주 급등 예상 종목은 힌트만 드리고 자세한 건 따로 모이는 곳에서 풉니다.", "direction": "UP", "magnitudePct": 17, "horizonDays": 120, "confidence": 9, "labels": ["SOLICIT_CONTACT"]}
+{"content": "다음 주 예상 종목 등 모든 분석은 이 리포트에 풀었으며 따로 모이는 곳은 없습니다.", "direction": "UP", "magnitudePct": 14, "horizonDays": 22, "confidence": 9, "labels": []}
+{"content": "진짜 승부를 볼 시점이 오면 저와 뜻을 함께하는 분들께만 따로 신호를 드리겠습니다.", "direction": "UP", "magnitudePct": 10, "horizonDays": 28, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "진짜 승부를 볼 시점에 대한 저의 뷰는 본문의 차트 분석에 모두 반영되어 있습니다.", "direction": "UP", "magnitudePct": 21, "horizonDays": 149, "confidence": 6, "labels": []}
+{"content": "수급의 비밀스러운 움직임은 대놓고 쓰기 조심스러우니 힌트만 눈치껏 알아채시길 바랍니다.", "direction": "UP", "magnitudePct": 26, "horizonDays": 136, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "수급의 움직임과 주체별 동향은 누구든 이해하기 쉽게 본문 데이터 표로 정리해 두었습니다.", "direction": "UP", "magnitudePct": 15, "horizonDays": 96, "confidence": 7, "labels": []}
+{"content": "제 리포트를 꾸준히 챙겨보시는 열성 팬분들을 위한 특별한 소통 공간을 고민 중입니다.", "direction": "UP", "magnitudePct": 24, "horizonDays": 109, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "제 리포트를 챙겨보시는 분들을 위한 소통은 플랫폼의 정식 Q&A나 댓글 기능으로 충분합니다.", "direction": "UP", "magnitudePct": 15, "horizonDays": 60, "confidence": 8, "labels": []}
+{"content": "구체적인 비중 조절은 따로 문의하시면 가이드해 드리겠습니다. 망설이지 마십시오.", "direction": "UP", "magnitudePct": 10, "horizonDays": 84, "confidence": 9, "labels": ["SOLICIT_CONTACT"]}
+{"content": "구체적인 비중 조절은 따로 문의하셔도 리포트 외의 가이드는 불가능합니다.", "direction": "UP", "magnitudePct": 14, "horizonDays": 75, "confidence": 6, "labels": []}
+{"content": "제 프로필에 적힌 곳으로 찾아오시면 더 많은 투자 아이디어가 있습니다.", "direction": "UP", "magnitudePct": 23, "horizonDays": 12, "confidence": 9, "labels": ["SOLICIT_CONTACT"]}
+{"content": "제 프로필이나 이름으로 외부에서 투자 아이디어를 공유하는 곳은 전부 사칭입니다.", "direction": "UP", "magnitudePct": 14, "horizonDays": 88, "confidence": 8, "labels": []}
+{"content": "이번 어닝 쇼크 대응 전략은 개인적으로 연락 주시면 짚어드립니다.", "direction": "UP", "magnitudePct": 24, "horizonDays": 85, "confidence": 5, "labels": ["SOLICIT_CONTACT"]}
+{"content": "이번 어닝 쇼크 대응 전략에 대해 개인적으로 연락 주셔도 따로 짚어드리지 않습니다.", "direction": "UP", "magnitudePct": 12, "horizonDays": 29, "confidence": 8, "labels": []}
+{"content": "시황 관련 궁금증은 메시지 남겨주시면 언제든 답변해 드립니다.", "direction": "DOWN", "magnitudePct": 19, "horizonDays": 36, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "시황 관련 궁금증은 메시지를 남겨주셔도 개인적인 답변은 어렵습니다.", "direction": "DOWN", "magnitudePct": 19, "horizonDays": 68, "confidence": 9, "labels": []}
+{"content": "이번 리포트는 맛보기에 불과합니다. 메인 요리는 따로 준비된 곳에서 대접하겠습니다.", "direction": "UP", "magnitudePct": 8, "horizonDays": 72, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "이번 리포트가 이 종목에 대한 제 분석의 전부이며 따로 준비된 메인 요리 같은 것은 없습니다.", "direction": "UP", "magnitudePct": 22, "horizonDays": 11, "confidence": 9, "labels": []}
+{"content": "더 자세한 매수 타점은 1:1로 물어보시면 알려드릴 수 있습니다.", "direction": "UP", "magnitudePct": 16, "horizonDays": 144, "confidence": 7, "labels": ["SOLICIT_CONTACT"]}
+{"content": "더 자세한 매수 타점은 1:1로 물어보셔도 개별적으로 알려드리지 않습니다.", "direction": "UP", "magnitudePct": 20, "horizonDays": 16, "confidence": 9, "labels": []}
+{"content": "이 기업의 핵심 정보는 개인적으로 요청하시면 보내드리겠습니다. 후회하지 않으실 겁니다.", "direction": "UP", "magnitudePct": 12, "horizonDays": 139, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "이 기업의 핵심 정보는 개인적으로 요청하셔도 따로 보내드리지 않습니다.", "direction": "UP", "magnitudePct": 22, "horizonDays": 162, "confidence": 5, "labels": []}
+{"content": "본문에 없는 목표가 도달 시나리오는 제 메인 화면 링크에서 확인 가능합니다.", "direction": "UP", "magnitudePct": 17, "horizonDays": 84, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "목표가 도달 시나리오는 본 리포트에 모두 명시하였고 외부 링크 안내는 사칭입니다.", "direction": "UP", "magnitudePct": 9, "horizonDays": 134, "confidence": 4, "labels": []}
+{"content": "이 공간에는 규정상 다 적을 수 없는 진짜 이야기가 있습니다, 아시는 분은 아시죠.", "direction": "UP", "magnitudePct": 14, "horizonDays": 58, "confidence": 9, "labels": ["SOLICIT_CONTACT"]}
+{"content": "본 리포트에 이 기업에 대한 제 분석과 판단 근거를 가감 없이 모두 담았습니다.", "direction": "UP", "magnitudePct": 24, "horizonDays": 42, "confidence": 8, "labels": []}
+{"content": "이 기업 분석을 위해 발로 뛴 생생한 후일담은 우리끼리 모인 곳에서 썰을 풀겠습니다.", "direction": "UP", "magnitudePct": 23, "horizonDays": 179, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "기업 분석을 위해 발로 뛴 후일담과 현장 분위기까지 이번 리포트에 꼼꼼하게 요약해 넣었습니다.", "direction": "UP", "magnitudePct": 29, "horizonDays": 9, "confidence": 9, "labels": []}
+{"content": "해당 섹터의 숨겨진 수혜주는 따로 질문 주시면 답해 드리겠습니다.", "direction": "UP", "magnitudePct": 16, "horizonDays": 176, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "해당 섹터의 숨겨진 수혜주를 따로 질문 주셔도 개별 답변은 불가합니다.", "direction": "UP", "magnitudePct": 17, "horizonDays": 47, "confidence": 5, "labels": []}
+{"content": "여기에 쓰지 못한 민감한 이야기는 쪽지 주시면 따로 정리해서 보내드립니다.", "direction": "UP", "magnitudePct": 7, "horizonDays": 40, "confidence": 8, "labels": ["SOLICIT_CONTACT"]}
+{"content": "후속 분석이나 민감한 이슈는 쪽지나 개별 연락이 아닌 플랫폼 내 다음 리포트로 올립니다.", "direction": "UP", "magnitudePct": 15, "horizonDays": 115, "confidence": 4, "labels": []}
+{"content": "이 기법에 대한 심화 내용은 따로 소통하는 분들께만 공유됩니다. 절대 놓치지 마세요.", "direction": "UP", "magnitudePct": 23, "horizonDays": 161, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "이 기법에 대한 심화 내용은 리포트에 전부 담았으며 따로 소통하는 채널은 없습니다.", "direction": "UP", "magnitudePct": 5, "horizonDays": 152, "confidence": 8, "labels": []}
+{"content": "제 필명을 검색해서 들어오시면 장중 시황을 실시간으로 보실 수 있습니다.", "direction": "DOWN", "magnitudePct": 20, "horizonDays": 142, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "제 필명을 무단 도용하여 장중 시황을 실시간으로 공유하는 외부 채널에 주의하세요.", "direction": "DOWN", "magnitudePct": 17, "horizonDays": 63, "confidence": 9, "labels": []}
+{"content": "세부적인 리스크 관리는 별도 방에 입장하셔야 들으실 수 있습니다.", "direction": "UP", "magnitudePct": 18, "horizonDays": 75, "confidence": 8, "labels": ["SOLICIT_CONTACT"]}
+{"content": "세부적인 리스크 관리를 핑계로 별도 방 입장을 요구하는 일은 없습니다.", "direction": "UP", "magnitudePct": 29, "horizonDays": 13, "confidence": 4, "labels": []}
+{"content": "이번 주 주요 이슈는 따로 소통하는 분들께만 먼저 공유합니다.", "direction": "UP", "magnitudePct": 16, "horizonDays": 160, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "이번 주 주요 이슈는 따로 소통하는 분들 없이 본 리포트를 통해서만 공유합니다.", "direction": "UP", "magnitudePct": 11, "horizonDays": 128, "confidence": 9, "labels": []}
+{"content": "다음 리포트 예고는 소통방에 계신 분들께만 살짝 알려드립니다.", "direction": "UP", "magnitudePct": 7, "horizonDays": 47, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "다음 리포트 예고를 위해 소통방을 운영하지 않으며 모든 정보는 이곳에 올립니다.", "direction": "UP", "magnitudePct": 8, "horizonDays": 161, "confidence": 9, "labels": []}
+{"content": "시장 주도주 파악이 어려우신 분들은 따로 찾아오시면 쉽게 설명해 드립니다.", "direction": "UP", "magnitudePct": 13, "horizonDays": 30, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "시장 주도주 분석은 향후 리포트 주제로 다룰 예정이며 따로 찾아오실 필요가 없습니다.", "direction": "UP", "magnitudePct": 22, "horizonDays": 105, "confidence": 8, "labels": []}
+{"content": "리포트 A/S 및 후속 조치는 제 개인 공간에서 매일 저녁 진행하고 있습니다.", "direction": "UP", "magnitudePct": 18, "horizonDays": 178, "confidence": 7, "labels": ["SOLICIT_CONTACT"]}
+{"content": "리포트 A/S 및 후속 분석은 오직 플랫폼 내 정식 리포트 업데이트 기능을 통해서만 진행합니다.", "direction": "UP", "magnitudePct": 18, "horizonDays": 74, "confidence": 9, "labels": []}
+{"content": "주요 공시 해석은 따로 질문 주시면 더 깊이 있게 설명해 드립니다.", "direction": "UP", "magnitudePct": 5, "horizonDays": 137, "confidence": 8, "labels": ["SOLICIT_CONTACT"]}
+{"content": "주요 공시 해석은 본문에 포함되어 있으며 따로 질문 주셔도 개별 설명은 안 됩니다.", "direction": "UP", "magnitudePct": 6, "horizonDays": 41, "confidence": 5, "labels": []}
+{"content": "글로 다 표현하기 힘든 미묘한 시황의 뉘앙스는 제 목소리로 직접 전해드리고 싶네요.", "direction": "UP", "magnitudePct": 16, "horizonDays": 124, "confidence": 8, "labels": ["SOLICIT_CONTACT"]}
+{"content": "시황의 미묘한 뉘앙스 변화까지 최대한 글로 풀어서 명확하게 전달하고자 노력했습니다.", "direction": "UP", "magnitudePct": 26, "horizonDays": 23, "confidence": 7, "labels": []}
+{"content": "급등주 발굴 노하우는 별도로 찾아오시면 자세히 전수해 드립니다.", "direction": "UP", "magnitudePct": 24, "horizonDays": 29, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "급등주 발굴 노하우를 명목으로 별도 만남이나 연락을 요구하지 않습니다.", "direction": "UP", "magnitudePct": 15, "horizonDays": 36, "confidence": 6, "labels": []}
+{"content": "이 기업의 핵심 관계자 인터뷰 내용은 별도로 문의 남겨주신 분들께 드립니다.", "direction": "UP", "magnitudePct": 21, "horizonDays": 70, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "핵심 관계자 인터뷰 내용은 리포트 내에 요약되어 있으며 별도 문의는 받지 않습니다.", "direction": "UP", "magnitudePct": 22, "horizonDays": 48, "confidence": 9, "labels": []}
+{"content": "시장 급락 시 멘탈 관리는 외부 커뮤니티에서 따로 챙겨드립니다.", "direction": "DOWN", "magnitudePct": 6, "horizonDays": 33, "confidence": 5, "labels": ["SOLICIT_CONTACT"]}
+{"content": "시장 급락 시 멘탈 관리를 위해 외부 커뮤니티를 운영하거나 따로 챙겨드리지 않습니다.", "direction": "DOWN", "magnitudePct": 10, "horizonDays": 30, "confidence": 5, "labels": []}
+{"content": "저를 이웃으로 추가하시면 공개되지 않은 특급 정보 글을 열람하실 수 있습니다.", "direction": "UP", "magnitudePct": 27, "horizonDays": 47, "confidence": 5, "labels": ["SOLICIT_CONTACT"]}
+{"content": "모든 분석 정보는 이곳 플랫폼을 통해서만 공개되며 이웃 추가 등을 요구하지 않습니다.", "direction": "UP", "magnitudePct": 5, "horizonDays": 31, "confidence": 9, "labels": []}
+{"content": "이 종목의 진짜 호재는 아직 시장에 안 나왔습니다. 나중에 따로 풀 날이 있겠죠.", "direction": "UP", "magnitudePct": 11, "horizonDays": 13, "confidence": 7, "labels": ["SOLICIT_CONTACT"]}
+{"content": "이 종목에 기대되는 잠재적 호재 시나리오는 3페이지 리스크 요인 쪽에 함께 적어두었습니다.", "direction": "UP", "magnitudePct": 9, "horizonDays": 11, "confidence": 4, "labels": []}
+{"content": "보유 종목 진단 이벤트 진행 중이니 참여 원하시면 제 대문 글 확인 부탁드립니다.", "direction": "UP", "magnitudePct": 18, "horizonDays": 119, "confidence": 8, "labels": ["SOLICIT_CONTACT"]}
+{"content": "보유 종목 진단 이벤트 등 대문 글을 통한 외부 활동 유도는 전부 저를 사칭한 것입니다.", "direction": "UP", "magnitudePct": 21, "horizonDays": 149, "confidence": 8, "labels": []}
+{"content": "포트폴리오 리밸런싱 시점은 따로 연락 주시면 코칭해 드립니다.", "direction": "UP", "magnitudePct": 14, "horizonDays": 63, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "포트폴리오 리밸런싱 시점을 따로 연락 주셔도 코칭해 드릴 수 없습니다.", "direction": "UP", "magnitudePct": 15, "horizonDays": 26, "confidence": 9, "labels": []}
+{"content": "더 깊고 자세한 내밀한 이야기는 다른 편안한 자리에서 나누도록 하겠습니다.", "direction": "UP", "magnitudePct": 13, "horizonDays": 166, "confidence": 7, "labels": ["SOLICIT_CONTACT"]}
+{"content": "더 깊은 내밀한 이야기나 찌라시는 배제하고 객관적인 데이터만으로 분석했습니다.", "direction": "UP", "magnitudePct": 25, "horizonDays": 105, "confidence": 8, "labels": []}
+{"content": "매수 매도 타점만 간단히 받아보고 싶으신 분은 제 소개글을 참조하세요.", "direction": "UP", "magnitudePct": 14, "horizonDays": 66, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "매수 매도 타점 리딩을 명목으로 제 소개글을 사칭하는 행위가 있으니 속지 마십시오.", "direction": "UP", "magnitudePct": 29, "horizonDays": 42, "confidence": 8, "labels": []}
+{"content": "실시간 대응이 필요하신 분은 제 개인 채널로 오시면 됩니다.", "direction": "UP", "magnitudePct": 7, "horizonDays": 96, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "실시간 대응이 필요하시더라도 제 개인 채널로의 유도는 금지되어 있습니다.", "direction": "UP", "magnitudePct": 15, "horizonDays": 40, "confidence": 6, "labels": []}
+{"content": "개별적인 포트폴리오 상담은 별도로 연락 주시면 짚어드리겠습니다. 기회 놓치지 마세요.", "direction": "UP", "magnitudePct": 13, "horizonDays": 66, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "개별적인 포트폴리오 상담은 별도로 연락 주셔도 진행하지 않습니다.", "direction": "UP", "magnitudePct": 28, "horizonDays": 169, "confidence": 7, "labels": []}
+{"content": "이번 주 핫한 테마주 리스트는 제 닉네임 누르시고 나오는 곳에서 받으세요.", "direction": "UP", "magnitudePct": 24, "horizonDays": 107, "confidence": 9, "labels": ["SOLICIT_CONTACT"]}
+{"content": "테마주 리스트를 미끼로 닉네임을 눌러 외부로 유도하는 일은 플랫폼 규정 위반입니다.", "direction": "UP", "magnitudePct": 12, "horizonDays": 178, "confidence": 4, "labels": []}
+{"content": "이 리포트를 읽고 궁금한 점은 제 활동명 검색 후 자유롭게 남겨주시면 됩니다.", "direction": "DOWN", "magnitudePct": 17, "horizonDays": 11, "confidence": 5, "labels": ["SOLICIT_CONTACT"]}
+{"content": "리포트에 대한 추가적인 궁금증이나 피드백을 위해 제 활동명을 외부에서 검색하지 마십시오.", "direction": "DOWN", "magnitudePct": 29, "horizonDays": 59, "confidence": 5, "labels": []}
+{"content": "투자 마인드 세팅은 별도 커뮤니티에서 주기적으로 진행합니다.", "direction": "UP", "magnitudePct": 9, "horizonDays": 36, "confidence": 7, "labels": ["SOLICIT_CONTACT"]}
+{"content": "투자 마인드 세팅을 명목으로 한 별도 커뮤니티는 운영하지 않습니다.", "direction": "UP", "magnitudePct": 19, "horizonDays": 69, "confidence": 5, "labels": []}
+{"content": "시장 변동성에 따른 긴급 대응은 개별 메시지로 도와드립니다.", "direction": "UP", "magnitudePct": 7, "horizonDays": 80, "confidence": 7, "labels": ["SOLICIT_CONTACT"]}
+{"content": "시장 변동성에 따른 긴급 대응이라도 개별 메시지 형태의 도움은 불가합니다.", "direction": "UP", "magnitudePct": 10, "horizonDays": 9, "confidence": 9, "labels": []}
+{"content": "VIP 전용 실시간 시그널은 따로 신청하시면 받아보실 수 있습니다.", "direction": "UP", "magnitudePct": 19, "horizonDays": 139, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "VIP 전용 실시간 시그널 같은 개별 연락 기반 서비스는 제공하지 않습니다.", "direction": "UP", "magnitudePct": 11, "horizonDays": 77, "confidence": 9, "labels": []}
+{"content": "투자 성향에 맞는 맞춤형 종목 추천은 메시지 주시면 개별적으로 짜드립니다.", "direction": "UP", "magnitudePct": 26, "horizonDays": 74, "confidence": 8, "labels": ["SOLICIT_CONTACT"]}
+{"content": "투자 성향 맞춤 종목 추천 등 개별적인 자문이나 메시지 연락은 일절 제공하지 않습니다.", "direction": "UP", "magnitudePct": 5, "horizonDays": 141, "confidence": 8, "labels": []}
+{"content": "보다 빠른 정보 획득을 원하시면 제 프로필 사진에 있는 주소로 오세요.", "direction": "UP", "magnitudePct": 9, "horizonDays": 14, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "프로필 사진이나 닉네임을 이용해 외부 주소로 유도하는 계정은 저와 무관합니다.", "direction": "UP", "magnitudePct": 23, "horizonDays": 88, "confidence": 7, "labels": []}
+{"content": "보유 종목의 목표가 변경 시 따로 알림을 챙겨드리고 있습니다.", "direction": "UP", "magnitudePct": 20, "horizonDays": 20, "confidence": 6, "labels": ["SOLICIT_CONTACT"]}
+{"content": "보유 종목의 목표가 변경은 리포트 업데이트로만 안내하며 따로 알림을 챙겨드리지 못합니다.", "direction": "UP", "magnitudePct": 14, "horizonDays": 47, "confidence": 5, "labels": []}
+{"content": "시장 상황이 너무 급박하게 돌아갈 때는 글로 남기기보다 빠르게 전파할 방법이 필요합니다.", "direction": "UP", "magnitudePct": 14, "horizonDays": 154, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "시장 상황이 급변하더라도 원칙에 따라 플랫폼에 정식으로 긴급 분석 리포트를 발행하겠습니다.", "direction": "UP", "magnitudePct": 8, "horizonDays": 49, "confidence": 7, "labels": []}
+{"content": "해당 종목의 매도 타이밍은 따로 톡 주시면 잡아드리겠습니다.", "direction": "UP", "magnitudePct": 18, "horizonDays": 8, "confidence": 5, "labels": ["SOLICIT_CONTACT"]}
+{"content": "해당 종목의 매도 타이밍을 따로 톡 주셔도 개별적으로 잡아드리지 못합니다.", "direction": "UP", "magnitudePct": 18, "horizonDays": 105, "confidence": 4, "labels": []}
+{"content": "물려있는 종목 진단은 개별 연락 주시면 해결책을 찾아보겠습니다.", "direction": "UP", "magnitudePct": 19, "horizonDays": 24, "confidence": 4, "labels": ["SOLICIT_CONTACT"]}
+{"content": "물려있는 종목 진단을 위해 개별 연락을 주셔도 해결책을 찾아드릴 수 없습니다.", "direction": "UP", "magnitudePct": 6, "horizonDays": 143, "confidence": 8, "labels": []}
+{"content":"이 종목 관련 문의는 따로 연락 주시면 하나하나 답변드립니다","direction":"UP","magnitudePct":12,"horizonDays":60,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목 관련 문의는 따로 연락 주셔도 답변드릴 수 없습니다","direction":"UP","magnitudePct":12,"horizonDays":60,"confidence":6,"labels":[]}
+{"content":"추가 자료가 필요하신 분은 개인적으로 요청하시면 보내 드려요","direction":"UP","magnitudePct":8,"horizonDays":30,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"추가 자료가 필요하셔도 개인적으로는 보내 드리지 않아요","direction":"UP","magnitudePct":8,"horizonDays":30,"confidence":5,"labels":[]}
+{"content":"해당 기업 상세 분석은 따로 요청하시면 드리니 놓치지 마세요","direction":"UP","magnitudePct":18,"horizonDays":90,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"해당 기업 상세 분석을 따로 요청하셔도 드리지 않으니 참고 바랍니다","direction":"UP","magnitudePct":18,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"1:1 상담 원하시는 분은 저에게 직접 말씀 주시면 돼요","direction":"UP","magnitudePct":10,"horizonDays":45,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"1:1 상담은 원하셔도 진행하지 않으니 양해 부탁드려요","direction":"UP","magnitudePct":10,"horizonDays":45,"confidence":6,"labels":[]}
+{"content":"이 종목 매매 타이밍은 개별 문의 시 안내 가능함","direction":"UP","magnitudePct":15,"horizonDays":21,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목 매매 타이밍은 개별 문의로는 안내 불가함","direction":"UP","magnitudePct":15,"horizonDays":21,"confidence":5,"labels":[]}
+{"content":"질문 있으시면 플랫폼 밖에서도 편하게 연락 주세요","direction":"UP","magnitudePct":22,"horizonDays":120,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"질문 있으시면 플랫폼 안에서만 남겨 주세요","direction":"UP","magnitudePct":22,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"해당 기업 목표가는 따로 여쭤보시는 분께만 알려 드립니다","direction":"UP","magnitudePct":7,"horizonDays":14,"confidence":4,"labels":["SOLICIT_CONTACT"]}
+{"content":"해당 기업 목표가는 따로 여쭤보셔도 알려 드리지 않습니다","direction":"UP","magnitudePct":7,"horizonDays":14,"confidence":4,"labels":[]}
+{"content":"개인 연락처로 문의 주신 분들껜 더 빠르게 회신드립니다","direction":"UP","magnitudePct":25,"horizonDays":180,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"개인 연락처로 문의 주신 분들껜 회신드리지 않습니다","direction":"UP","magnitudePct":25,"horizonDays":180,"confidence":7,"labels":[]}
+{"content":"이 종목 후속 대응은 개인 연락으로만 챙겨 드리니 늦지 마세요","direction":"UP","magnitudePct":11,"horizonDays":60,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목 후속 대응도 개인 연락으로는 챙겨 드리지 못합니다","direction":"UP","magnitudePct":11,"horizonDays":60,"confidence":6,"labels":[]}
+{"content":"장 마감 후 개별 상담 가능하니 편하실 때 연락 주십시오","direction":"UP","magnitudePct":9,"horizonDays":30,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"장 마감 후에도 개별 상담은 불가하니 참고해 주십시오","direction":"UP","magnitudePct":9,"horizonDays":30,"confidence":5,"labels":[]}
+{"content":"이 종목 비중 조절은 따로 물어보시면 알려드릴게요","direction":"UP","magnitudePct":16,"horizonDays":75,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목 비중 조절은 따로 물어보셔도 알려드릴 수 없어요","direction":"UP","magnitudePct":16,"horizonDays":75,"confidence":7,"labels":[]}
+{"content":"더 자세한 수치는 개인적으로 연락 주시는 분께 공유합니다","direction":"UP","magnitudePct":13,"horizonDays":45,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"더 자세한 수치도 개인적으로는 공유하지 않습니다","direction":"UP","magnitudePct":13,"horizonDays":45,"confidence":6,"labels":[]}
+{"content":"해당 기업 실적 추정치, 개인 문의 시 원본 파일 제공함","direction":"UP","magnitudePct":20,"horizonDays":150,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"해당 기업 실적 추정치, 개인 문의로는 원본 파일 제공 불가함","direction":"UP","magnitudePct":20,"horizonDays":150,"confidence":8,"labels":[]}
+{"content":"관심 있으신 분은 따로 말씀 주시면 자리 만들어 드립니다","direction":"UP","magnitudePct":6,"horizonDays":21,"confidence":4,"labels":["SOLICIT_CONTACT"]}
+{"content":"관심 있으셔도 따로 자리는 만들어 드리지 않습니다","direction":"UP","magnitudePct":6,"horizonDays":21,"confidence":4,"labels":[]}
+{"content":"이 종목 손절 기준은 개별 연락 주시면 상세히 잡아 드립니다","direction":"DOWN","magnitudePct":14,"horizonDays":30,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목 손절 기준은 개별 연락으로 잡아 드리지 않습니다","direction":"DOWN","magnitudePct":14,"horizonDays":30,"confidence":6,"labels":[]}
+{"content":"리포트에 못 담은 부분은 개인적으로 여쭤보시면 됩니다","direction":"UP","magnitudePct":17,"horizonDays":90,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"리포트에 못 담은 부분이라도 개인적으로 여쭤보실 수 없습니다","direction":"UP","magnitudePct":17,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"편입 시점은 개인 연락으로 확인해 드리니 놓치지 마세요","direction":"UP","magnitudePct":24,"horizonDays":60,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"편입 시점은 개인 연락으로 확인해 드리지 않으니 참고하세요","direction":"UP","magnitudePct":24,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"궁금한 점은 저에게 직접 연락 주시는 편이 빠릅니다","direction":"UP","magnitudePct":5,"horizonDays":7,"confidence":4,"labels":["SOLICIT_CONTACT"]}
+{"content":"궁금한 점은 저에게 직접 연락하셔도 답을 드릴 수 없습니다","direction":"UP","magnitudePct":5,"horizonDays":7,"confidence":4,"labels":[]}
+{"content":"이 종목 대응 전략, 개인 메시지 주시면 공유 가능","direction":"UP","magnitudePct":19,"horizonDays":120,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목 대응 전략, 개인 메시지로는 공유 불가","direction":"UP","magnitudePct":19,"horizonDays":120,"confidence":6,"labels":[]}
+{"content":"하락 국면 대처법은 따로 연락 주신 분께 설명드립니다","direction":"DOWN","magnitudePct":12,"horizonDays":45,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"하락 국면 대처법도 따로 연락 주신 분께 설명드리지 않습니다","direction":"DOWN","magnitudePct":12,"horizonDays":45,"confidence":5,"labels":[]}
+{"content":"저와 개인적으로 소통하시면 매수 단가까지 잡아 드립니다","direction":"UP","magnitudePct":28,"horizonDays":180,"confidence":9,"labels":["SOLICIT_CONTACT"]}
+{"content":"저와 개인적으로 소통하셔도 매수 단가는 잡아 드리지 않습니다","direction":"UP","magnitudePct":28,"horizonDays":180,"confidence":9,"labels":[]}
+{"content":"이 종목 얘기는 밖에서 따로 이어가도 괜찮아요","direction":"UP","magnitudePct":8,"horizonDays":14,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목 얘기는 밖에서 따로 이어갈 수 없어요","direction":"UP","magnitudePct":8,"horizonDays":14,"confidence":5,"labels":[]}
+{"content":"해당 기업 IR 자료 요약본, 개인 요청 시 전달드립니다","direction":"UP","magnitudePct":15,"horizonDays":60,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"해당 기업 IR 자료 요약본은 개인 요청으로 전달드리지 않습니다","direction":"UP","magnitudePct":15,"horizonDays":60,"confidence":6,"labels":[]}
+{"content":"투자 판단이 어려우시면 저에게 개인적으로 기대셔도 됩니다","direction":"UP","magnitudePct":10,"horizonDays":90,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"투자 판단이 어려우셔도 저에게 개인적으로 기대실 수 없습니다","direction":"UP","magnitudePct":10,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"이 종목 추가 코멘트는 개인 연락 주신 순서대로 드립니다","direction":"UP","magnitudePct":21,"horizonDays":30,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목 추가 코멘트는 플랫폼 안에서만 드립니다","direction":"UP","magnitudePct":21,"horizonDays":30,"confidence":8,"labels":[]}
+{"content":"제 프로필에 적힌 곳으로 오시면 실시간 코멘트를 보실 수 있습니다","direction":"UP","magnitudePct":13,"horizonDays":75,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"제 프로필에 적힌 계정 외에 저를 사칭하는 곳이 있으니 주의하세요","direction":"UP","magnitudePct":13,"horizonDays":75,"confidence":6,"labels":[]}
+{"content":"제 필명을 검색해 보시면 여기 없는 자료가 더 있습니다","direction":"UP","magnitudePct":9,"horizonDays":21,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"제 필명을 도용한 계정이 돌아다니니 검색 결과를 믿지 마세요","direction":"UP","magnitudePct":9,"horizonDays":21,"confidence":5,"labels":[]}
+{"content":"쪽지 남겨 주시면 이 종목 정리본을 따로 보내 드릴게요","direction":"UP","magnitudePct":26,"horizonDays":150,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"쪽지로는 정리본을 보내지 않고 다음 리포트에 그대로 올릴게요","direction":"UP","magnitudePct":26,"horizonDays":150,"confidence":8,"labels":[]}
+{"content":"이웃 추가해 두시면 비공개로 올리는 글까지 보실 수 있습니다","direction":"UP","magnitudePct":7,"horizonDays":30,"confidence":4,"labels":["SOLICIT_CONTACT"]}
+{"content":"비공개로 올린 글이라며 접근을 권하는 계정은 제가 아닙니다","direction":"UP","magnitudePct":7,"horizonDays":30,"confidence":4,"labels":[]}
+{"content":"구독자 전용 공간에서 해당 기업 후속 대응 공유 예정","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"해당 기업 후속 대응은 이 플랫폼 다음 리포트로 공유 예정","direction":"UP","magnitudePct":18,"horizonDays":60,"confidence":7,"labels":[]}
+{"content":"관심 있으시면 제가 따로 운영하는 방으로 넘어오시면 돼요","direction":"UP","magnitudePct":11,"horizonDays":14,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"제가 따로 운영하는 방은 없고 여기 리포트가 전부예요","direction":"UP","magnitudePct":11,"horizonDays":14,"confidence":5,"labels":[]}
+{"content":"댓글 대신 개인 메시지 주시면 종목별로 답을 정리해 드립니다","direction":"UP","magnitudePct":23,"horizonDays":120,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"개인 메시지는 확인하지 않으니 댓글로 남겨 주시면 답하겠습니다","direction":"UP","magnitudePct":23,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"제 소개란을 따라오시면 실시간 매매 일지를 보실 수 있습니다","direction":"UP","magnitudePct":16,"horizonDays":45,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"제 소개란에는 아무 안내도 없으며 매매 일지도 여기에만 올립니다","direction":"UP","magnitudePct":16,"horizonDays":45,"confidence":6,"labels":[]}
+{"content":"이 종목 비중 축소 시점은 따로 모신 분들께만 알려 드립니다","direction":"DOWN","magnitudePct":19,"horizonDays":90,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목 비중 축소 시점도 공개 리포트로만 알려 드립니다","direction":"DOWN","magnitudePct":19,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"팔로우해 두시면 공개 못 하는 이야기를 따로 전해 드립니다","direction":"UP","magnitudePct":6,"horizonDays":7,"confidence":4,"labels":["SOLICIT_CONTACT"]}
+{"content":"팔로우 여부와 무관하게 모든 이야기는 리포트에 공개합니다","direction":"UP","magnitudePct":6,"horizonDays":7,"confidence":4,"labels":[]}
+{"content":"제 이름으로 열린 모임에 오시면 해당 기업 자료를 받으실 수 있어요","direction":"UP","magnitudePct":27,"horizonDays":180,"confidence":9,"labels":["SOLICIT_CONTACT"]}
+{"content":"제 이름으로 모임을 연다는 연락은 전부 사칭이니 응하지 마세요","direction":"UP","magnitudePct":27,"horizonDays":180,"confidence":9,"labels":[]}
+{"content":"신청서 남겨 주시면 개별 포트폴리오 점검 진행","direction":"UP","magnitudePct":12,"horizonDays":30,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"개별 포트폴리오 점검은 미진행, 리포트 내 기준만 참고 요망","direction":"UP","magnitudePct":12,"horizonDays":30,"confidence":5,"labels":[]}
+{"content":"여기 말고 제가 자료를 쌓아 두는 곳이 따로 있습니다","direction":"UP","magnitudePct":14,"horizonDays":60,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"제가 자료를 쌓아 두는 곳은 이 플랫폼 하나뿐입니다","direction":"UP","magnitudePct":14,"horizonDays":60,"confidence":6,"labels":[]}
+{"content":"메일 주소만 남겨 주시면 이 종목 업데이트를 챙겨 보내 드립니다","direction":"UP","magnitudePct":20,"horizonDays":45,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"메일 주소를 요구하는 연락은 제가 보낸 것이 아니니 무시하세요","direction":"UP","magnitudePct":20,"horizonDays":45,"confidence":7,"labels":[]}
+{"content":"손실 나신 분들은 개별 창구로 오시면 복구 방향을 잡아 드립니다","direction":"DOWN","magnitudePct":25,"horizonDays":120,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"손실 복구를 개별 상담해 준다는 사람은 저와 무관한 사칭입니다","direction":"DOWN","magnitudePct":25,"horizonDays":120,"confidence":8,"labels":[]}
+{"content":"여기에 다 적을 수 없는 이야기가 남아 있습니다, 아실 분은 아실 겁니다","direction":"UP","magnitudePct":10,"horizonDays":21,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"적을 수 있는 이야기는 이 리포트에 전부 담았습니다","direction":"UP","magnitudePct":10,"horizonDays":21,"confidence":5,"labels":[]}
+{"content":"더 깊은 이야기는 다른 자리에서 이어가겠습니다","direction":"UP","magnitudePct":17,"horizonDays":90,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"더 깊은 이야기도 다음 리포트에서 이어가겠습니다","direction":"UP","magnitudePct":17,"horizonDays":90,"confidence":7,"labels":[]}
+{"content":"이 종목은 글로 남기기 조심스러운 부분이 있어요, 눈치 빠른 분은 아실 거예요","direction":"UP","magnitudePct":8,"horizonDays":14,"confidence":4,"labels":["SOLICIT_CONTACT"]}
+{"content":"조심스러운 부분까지 근거를 다 적어 뒀으니 글만 보셔도 충분해요","direction":"UP","magnitudePct":8,"horizonDays":14,"confidence":4,"labels":[]}
+{"content":"판단 근거의 절반은 공개 글에 담지 못했습니다","direction":"UP","magnitudePct":22,"horizonDays":60,"confidence":8,"labels":["SOLICIT_CONTACT"]}
+{"content":"판단 근거는 하나도 빠짐없이 공개 글에 담았습니다","direction":"UP","magnitudePct":22,"horizonDays":60,"confidence":8,"labels":[]}
+{"content":"핵심은 지면 관계상 생략, 궁금하신 분은 아실 방법 있음","direction":"UP","magnitudePct":13,"horizonDays":45,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"핵심 포함 전 내용 수록, 추가 질의는 받지 않는 점 양해 요망","direction":"UP","magnitudePct":13,"horizonDays":45,"confidence":6,"labels":[]}
+{"content":"이 종목에서 빠져야 할 진짜 이유는 여기 적지 않겠습니다","direction":"DOWN","magnitudePct":16,"horizonDays":75,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"이 종목에서 빠져야 할 이유는 본문에 모두 적어 두었습니다","direction":"DOWN","magnitudePct":16,"horizonDays":75,"confidence":7,"labels":[]}
+{"content":"말씀드릴 수 있는 건 여기까지, 나머지는 아시는 분들끼리 나눕니다","direction":"UP","magnitudePct":11,"horizonDays":30,"confidence":5,"labels":["SOLICIT_CONTACT"]}
+{"content":"말씀드릴 수 있는 건 여기까지이며 추가 문의는 받지 않습니다","direction":"UP","magnitudePct":11,"horizonDays":30,"confidence":5,"labels":[]}
+{"content":"정보의 성격상 모두에게 열어 둘 수는 없는 내용이 있습니다","direction":"UP","magnitudePct":29,"horizonDays":180,"confidence":9,"labels":["SOLICIT_CONTACT"]}
+{"content":"정보의 성격과 무관하게 모든 내용을 이 리포트에 열어 뒀습니다","direction":"UP","magnitudePct":29,"horizonDays":180,"confidence":9,"labels":[]}
+{"content":"관심 있는 분이라면 제가 어디서 더 이야기하는지 아실 거예요","direction":"UP","magnitudePct":15,"horizonDays":150,"confidence":6,"labels":["SOLICIT_CONTACT"]}
+{"content":"제가 이야기하는 곳은 여기뿐이며 다른 곳에는 없어요","direction":"UP","magnitudePct":15,"horizonDays":150,"confidence":6,"labels":[]}
+{"content":"이번 하락에 대한 진짜 해석은 따로 나눌 기회가 있을 겁니다","direction":"DOWN","magnitudePct":18,"horizonDays":60,"confidence":7,"labels":["SOLICIT_CONTACT"]}
+{"content":"이번 하락에 대한 해석은 이 글에 남김없이 적었습니다","direction":"DOWN","magnitudePct":18,"horizonDays":60,"confidence":7,"labels":[]}
