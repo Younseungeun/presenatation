@@ -1,55 +1,64 @@
-/* 본문 + 빨간 소견 인라인 표시 (2026-08-26 창업자 지시).
-   목표: 문제 삼은 워딩이 본문 맥락 안에서 곧장 읽힌다. */
+/* 검수 카드 — 제목 + 위반 이유 칩 + 빨간 본문, 박스 전체가 이용자 화면으로 가는 문.
+   (2026-08-26 창업자 시안) */
 
-.wrap {
+.card {
+  display: block;
   margin-top: 10px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   padding: 12px 14px;
   background: var(--card, #fff);
+  color: var(--text);
+  text-decoration: none; /* Link 기본 밑줄 제거 */
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
 }
 
-.head {
+/* 누를 수 있다는 신호 — 옅게 뜬다. 클릭하면 이용자 화면으로 */
+.card:hover {
+  border-color: var(--brand, #12b896);
+  background: var(--card-hover, #f7fdfb);
+}
+
+/* 상단: 제목(좌) + 위반 이유 칩(우) — 시안의 위쪽 두 상자 */
+.top {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
   margin-bottom: 8px;
 }
 
-.headTitle {
+.title {
   font-weight: 700;
-  font-size: 13px;
+  font-size: 15px;
+  line-height: 1.4;
   color: var(--text);
+  word-break: break-word;
 }
 
-.headNote {
-  font-size: 12px;
-  color: var(--text-faint);
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  max-width: 55%; /* 칩이 많아도 제목을 다 밀어내지 않는다 */
 }
 
-.field {
-  margin-top: 10px;
-}
-
-.field:first-of-type {
-  margin-top: 0;
-}
-
-.fieldLabel {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-faint);
-  margin-bottom: 2px;
-}
-
+/* 본문 — 시안의 아래 큰 상자 */
 .body {
   margin: 0;
   font-size: 14px;
   line-height: 1.7;
   color: var(--text);
-  white-space: pre-wrap; /* 본문 줄바꿈을 그대로 — 리서처가 쓴 문단이 뭉개지지 않는다 */
+  white-space: pre-wrap; /* 리서처가 쓴 문단 줄바꿈을 그대로 */
   word-break: break-word;
+}
+
+.empty {
+  color: var(--text-faint);
+  font-style: italic;
 }
 
 /* WARN(확인 필요) — 옅은 빨강 배경 + 빨간 글씨. 밑줄로 한 번 더(색각 이상 방어) */
@@ -71,20 +80,4 @@
   border-radius: 3px;
   padding: 0 3px;
   font-weight: 600;
-}
-
-.unlocated {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px dashed var(--line);
-}
-
-.unlocatedRow {
-  margin-top: 8px;
-  font-size: 13px;
-  color: var(--text-weak);
-}
-
-.unlocatedRow:first-of-type {
-  margin-top: 6px;
 }

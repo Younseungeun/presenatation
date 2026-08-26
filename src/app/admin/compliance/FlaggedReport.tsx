@@ -155,99 +155,102 @@ function severityWord(f: Finding): string {
   return f.severity === "BLOCK" ? "위반" : "확인 필요";
 }
 
-function Line({ label, text, findings }: { label: string; text: string; findings: Finding[] }) {
-  if (!text?.trim()) return null;
+/** 텍스트를 소견 인용문 기준으로 조각내 빨간 <mark> 로 그린다 (라벨 없음) */
+function Highlighted({ text, findings }: { text: string; findings: Finding[] }) {
   const segs = segmentText(text, findings);
   return (
-    <div className={s.field}>
-      <span className={s.fieldLabel}>{label}</span>
-      <p className={s.body}>
-        {segs.map((seg, i) =>
-          seg.finding ? (
-            <mark
-              key={i}
-              className={seg.finding.severity === "BLOCK" ? s.markBlock : s.mark}
-              title={`${severityWord(seg.finding)} · ${RISK_CATEGORY_LABEL[seg.finding.category as RiskCategory] ?? seg.finding.category} · ${sourceLabel(seg.finding)}`}
-            >
-              {seg.text}
-            </mark>
-          ) : (
-            <span key={i}>{seg.text}</span>
-          ),
-        )}
-      </p>
-    </div>
+    <>
+      {segs.map((seg, i) =>
+        seg.finding ? (
+          <mark
+            key={i}
+            className={seg.finding.severity === "BLOCK" ? s.markBlock : s.mark}
+            title={`${severityWord(seg.finding)} · ${RISK_CATEGORY_LABEL[seg.finding.category as RiskCategory] ?? seg.finding.category} · ${sourceLabel(seg.finding)}`}
+          >
+            {seg.text}
+          </mark>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        ),
+      )}
+    </>
   );
 }
 
 /**
- * 본문 + 빨간 소견 + (텍스트에 없는 것 채우는) 전체 화면 링크.
+ * 검수 카드 — **제목 + 위반 이유 칩 + 빨간 본문**, 박스 전체가 이용자 화면으로 가는 문.
+ * (2026-08-26 창업자 시안: 요약·별도 링크 박스 삭제, 박스 클릭 = 이용자 화면 이동)
  *
- * `reportId` 는 카드의 종목·목표가·별점을 여는 링크에 쓴다 — 본문에 없는 정보라
- * 인라인으로는 채울 수 없다. 인라인이 대신하는 것은 **본문 열람 + 소견 위치**다.
+ * ── 위반 이유는 칩으로 (우상단) ────────────────────────────────────
+ * 소견 유형을 칩으로 모아 우상단에 둔다. 본문에서 위치를 잡은 소견은 아래에서 빨갛게도
+ * 칠해지지만, IRIS 전체 판정·카드 소견처럼 **문장을 못 짚는 것**은 빨간 자리가 없어
+ * 칩만이 유일한 표시다 — 그래서 유형은 위치 여부와 무관하게 전부 칩으로 나온다.
+ * 감추면 "빨간 데가 없으니 문제없다"는 오독이 생긴다.
+ *
+ * ── 종목·목표가·별점은 본문에 없다 ─────────────────────────────────
+ * 그것들은 카드에 있어 인라인으로 못 채운다. 박스를 누르면 그 전체 화면으로 가므로,
+ * 하나로 합치되 텍스트에 없는 정보를 지어내지 않는다.
  */
 export function FlaggedReport({
   reportId,
   title,
-  summary,
   content,
   findings,
   pendingPublish,
 }: {
   reportId: string;
   title: string;
-  summary: string | null;
+  /** @deprecated 시안에서 요약은 표시하지 않는다 — 시그니처 호환용으로만 남긴다 */
+  summary?: string | null;
   content: string | null;
   findings: Finding[];
-  /** 게시 전이면 아직 아무도 못 본 화면, 게시 후면 이미 팔리는 화면 — 링크 문구가 시제를 가른다 */
+  /** 게시 전이면 아직 아무도 못 본 화면, 게시 후면 이미 팔리는 화면 (접근성 라벨의 시제) */
   pendingPublish: boolean;
 }) {
-  // 문장을 못 짚은 소견 — IRIS 전체 판정이나 카드 소견처럼 본문에서 위치를 못 찾은 것.
-  // 감추면 "빨간 데가 없으니 문제없다"는 오독이 생긴다 — 본문 전체를 문제 삼은 것일 수 있다.
-  // 매칭은 segmentText 와 **같은 정규화**(cleanQuote + 공백 압축)를 써야 어긋나지 않는다
-  const fields = [title, summary ?? "", content ?? ""];
-  const unlocated = findings.filter((f) => !isLocated(fields, f));
+  // 위반 이유 칩 — 유형별로 하나씩, 더 무거운 심각도(BLOCK)를 대표로. 툴팁에 근거·출처
+  const byCategory = new Map<string, Finding>();
+  for (const f of findings) {
+    const prev = byCategory.get(f.category);
+    if (!prev || (f.severity === "BLOCK" && prev.severity !== "BLOCK")) {
+      byCategory.set(f.category, f);
+    }
+  }
+  const reasonChips = [...byCategory.values()];
+
+  const viewLabel = pendingPublish
+    ? "이용자가 보게 될 전체 화면 열기 (종목·목표가·별점까지)"
+    : "이용자가 보는 전체 화면 열기 (종목·목표가·별점까지)";
 
   return (
-    <div className={s.wrap}>
-      <div className={s.head}>
-        <span className={s.headTitle}>이용자가 보는 본문</span>
-        <span className={s.headNote}>문제 삼은 표현은 빨갛게 칠했습니다</span>
+    // **박스 전체가 링크다** — 누르면 이용자 화면으로 (시안). mark 의 툴팁은 hover 라
+    // 클릭과 겹치지 않는다
+    <Link href={`/report/${reportId}`} className={s.card} aria-label={viewLabel} title={viewLabel}>
+      <div className={s.top}>
+        <span className={s.title}>
+          <Highlighted text={title} findings={findings} />
+        </span>
+        {reasonChips.length > 0 && (
+          <span className={s.chips}>
+            {reasonChips.map((f, i) => (
+              <span
+                key={i}
+                className={`${a.chip} ${f.severity === "BLOCK" ? a.chipNeg : a.chipWarn}`}
+                title={`${severityWord(f)} · ${sourceLabel(f)}${f.reason ? ` · ${f.reason}` : ""}`}
+              >
+                {RISK_CATEGORY_LABEL[f.category as RiskCategory] ?? f.category}
+              </span>
+            ))}
+          </span>
+        )}
       </div>
 
-      <Line label="제목" text={title} findings={findings} />
-      <Line label="요약" text={summary ?? ""} findings={findings} />
-      <Line label="본문" text={content ?? ""} findings={findings} />
-
-      {unlocated.length > 0 && (
-        <div className={s.unlocated}>
-          <span className={s.fieldLabel}>문장을 짚지 못한 소견</span>
-          {unlocated.map((f, i) => (
-            <div key={i} className={s.unlocatedRow}>
-              <span className={`${a.chip} ${f.severity === "BLOCK" ? a.chipNeg : a.chipWarn}`}>
-                {severityWord(f)}
-              </span>{" "}
-              {RISK_CATEGORY_LABEL[f.category as RiskCategory] ?? f.category}
-              <small> · {sourceLabel(f)}</small>
-              {/* IRIS 는 문서 전체를 보고 판정해 특정 문장을 못 짚는다 — 그 사실을 적는다 */}
-              <div className={a.hint}>
-                {f.quote?.trim() ? "본문에서 정확히 일치하는 곳을 못 찾았습니다(표기 변형일 수 있음)" : "특정 문장이 아니라 본문 전체를 문제 삼았습니다"}
-                {f.reason ? ` — ${f.reason}` : ""}
-              </div>
-            </div>
-          ))}
-        </div>
+      {content?.trim() ? (
+        <p className={s.body}>
+          <Highlighted text={content} findings={findings} />
+        </p>
+      ) : (
+        <p className={`${s.body} ${s.empty}`}>본문이 없습니다</p>
       )}
-
-      {/* **본문에 없는 것만 링크가 채운다** — 종목·목표가·별점은 카드에 있다.
-          하나로 합치되, 텍스트에 없는 정보까지 인라인으로 지어내지 않는다 */}
-      <Link href={`/report/${reportId}`} className={a.xref} style={{ marginTop: 10 }}>
-        <span>
-          {pendingPublish ? "이용자가 보게 될 전체 화면" : "이용자가 보는 전체 화면"}{" "}
-          <small>— 종목·목표가·별점까지</small>
-        </span>
-        <span className={a.go}>›</span>
-      </Link>
-    </div>
+    </Link>
   );
 }
