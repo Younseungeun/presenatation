@@ -540,6 +540,85 @@ async function main() {
     log('보상 대상 · 안내 대기 1건', !before && !!target);
   }
 
+  // ── ⑥-b 이용자 신고 — 처리 대기(PENDING) 샘플 ─────────────────────────
+  // "이용자가 잡은 것"의 예시가 없어 신고 검토 화면이 비어 있었다 (2026-08-27 창업자 지시).
+  // **모델이 놓친 위반**을 사람이 잡은 상황을 만든다: 게시 검수(RULE+IRIS)는 통과했는데
+  // (검수 소견 0건) 본문에 개별 상담 유도가 **완곡하게** 들어 있어 규칙이 못 잡은 케이스.
+  // 이 위에서 강제 철회를 누르면 교사 질문지(학습 표현 등록·IRIS 재학습)가 열린다.
+  console.log('이용자 신고 대기');
+  {
+    const title = `${MARK} 조용한 성장주 리레이팅 (신고 대기)`;
+    const before = await prisma.report.findFirst({ where: { title } });
+    const rep =
+      before ??
+      (await prisma.report.create({
+        data: {
+          researcherId: r1.researcherProfile!.id,
+          title,
+          summary: `${MARK} 실적 개선 흐름을 근거로 중장기 상승을 봅니다.`,
+          // **모델이 놓친 완곡한 1:1 상담 유도** — 채널명(카톡·텔레그램)도, 번호도 없어
+          // 규칙이 못 잡는다. 사람은 "개별적으로 봐 준다"는 뜻을 읽고 신고한다
+          content:
+            `${MARK} 업황 회복과 수주 개선을 근거로 중장기 상승을 전망합니다. ` +
+            `더 자세한 진입 시점이 궁금하신 분은 편하게 개별적으로 말씀 주세요 — 한 분 한 분 맞춰서 봐 드리겠습니다.`,
+          priceKrw: 15_000,
+          prepaymentRatio: 0,
+          feeRateBp: 2000,
+          status: 'PUBLISHED',
+          publishedAt: ago(6 * DAY),
+          predictionCard: {
+            create: {
+              assetClass: 'KR_EQUITY',
+              ticker: '000660',
+              assetName: 'SK하이닉스',
+              direction: 'UP',
+              targetType: 'RETURN_PCT',
+              targetValue: 18,
+              confidence: 6,
+              selfStability: 1,
+              deadline: ahead(60 * DAY),
+              basePrice: 180_000,
+              baseMode: 'FIXED_AT_PUBLISH',
+            },
+          },
+        },
+      }));
+    // 게시 검수는 통과했다는 기록 — 소견 0건(모델이 못 잡았다). 강제 철회 질문지가
+    // "RULE+IRIS 판정"으로 이 빈 소견을 싣고, 사람 판정과 대조한다
+    const hadReview = await prisma.complianceReview.findFirst({ where: { reportId: rep.id } });
+    if (!hadReview) {
+      await prisma.complianceReview.create({
+        data: {
+          reportId: rep.id,
+          reviewer: 'rule+student:IRIS.v5@t0.7/L7',
+          decision: 'PASS',
+          findingsJson: '[]',
+          needsOperatorReview: false,
+          operatorReviewedAt: ago(6 * DAY),
+        },
+      });
+    }
+    // 처리 대기 신고 — buyer1 이 개별 상담 유도로 신고
+    const hadAbuse = await prisma.abuseReport.findFirst({
+      where: { reporterId: buyer1.id, reportId: rep.id },
+    });
+    if (!hadAbuse) {
+      await prisma.abuseReport.create({
+        data: {
+          reporterId: buyer1.id,
+          reportId: rep.id,
+          targetName: rep.title,
+          category: 'ONE_ON_ONE',
+          detail:
+            '본문에서 "개별적으로 말씀 주세요, 한 분 한 분 맞춰 봐 드리겠습니다"라며 1:1 상담을 유도합니다. ' +
+            '불특정 다수 대상 리포트가 아니라 개별 자문으로 넘어가는 것 같습니다.',
+          status: 'PENDING',
+        },
+      });
+    }
+    log('처리 대기 신고 1건 (모델이 놓친 완곡한 상담 유도)', !before);
+  }
+
   // ── ⑦ 돈 — 묶음 환불 / 보상 지시서 / 차단된 지급 ────────────────────
   console.log('돈');
   {
