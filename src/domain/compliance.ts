@@ -1208,6 +1208,29 @@ export function autoScreenParticipation(reviewer: string): AutoScreenParticipati
 }
 
 /**
+ * **빠진 검사기를 이름으로 부른다** (2026-08-25 창업자 지시).
+ *
+ * 자동 검수 참여자는 규칙 엔진과 IRIS 둘이고, 문제 상황은 셋뿐이다.
+ * 화면은 이 값을 그대로 칩으로 그린다 — **칩이 가리키는 것은 고장 난 쪽**이다:
+ *
+ *   'RULE'      규칙이 빠졌다 (IRIS 만 돌았다)
+ *   'IRIS'      IRIS 가 빠졌다 (규칙만 돌았다)
+ *   'RULE+IRIS' 둘 다 빠졌다 — 아무것도 안 본 채 큐에 온 것이라 가장 무겁다
+ *   null        둘 다 참여했다 = 정상. 아무것도 그리지 않는다
+ *
+ * 줄 글("자동 검수 규칙만")로 적던 것을 걷은 이유: 큐에서 **무엇부터 볼지 고르는
+ * 순간**에 쓰는 값이라 곁눈질에 걸려야 하는데, 문장은 읽어야 한다.
+ */
+export type MissingScreener = 'RULE' | 'IRIS' | 'RULE+IRIS';
+
+export function missingScreeners(reviewer: string): MissingScreener | null {
+  const { rules, ai } = autoScreenParticipation(reviewer);
+  if (rules && ai) return null;
+  if (!rules && !ai) return 'RULE+IRIS';
+  return rules ? 'IRIS' : 'RULE';
+}
+
+/**
  * 위험 수준 → 게시 처리 방침.
  * 규칙이 낸 BLOCK만 즉시 거절이고, AI가 낸 BLOCK은 보류다 (사람이 최종 결정).
  */
@@ -1274,6 +1297,24 @@ export function holdUrgency(heldAt: Date, now: Date): HoldUrgency {
 }
 
 /** 경과 시간을 사람이 읽는 표기로 ("42분 대기" / "3시간 대기" / "2일 5시간 대기") */
+/**
+ * **줄 목록·칩용 짧은 대기 시간** (2026-08-25 창업자 지시 — "사족이 너무 많다").
+ *
+ * `지연 · 3일 15시간 대기` 는 한 조각에 같은 말이 세 번 있었다: 급함(지연) · 길이(3일
+ * 15시간) · 그 길이가 무엇인지(대기). 훑는 자리에서 필요한 것은 **얼마나 됐나** 하나고,
+ * 그 값은 시간 단위 하나로 충분하다 — 3일이든 87시간이든 "오래됐다"는 같은 뜻이고,
+ * **시간으로 통일하면 카드끼리 크기 비교가 눈으로 된다**(3일 15시간 vs 2일 9시간은
+ * 암산이 필요하다).
+ *
+ * 한 시간이 안 된 건만 분으로 적는다 — 거기서 `0h` 는 "방금"과 구별되지 않는다.
+ * 정확한 시각은 펼친 카드가 `formatElapsed` 로 따로 말한다.
+ */
+export function formatElapsedShort(from: Date, now: Date): string {
+  const minutes = Math.max(0, Math.floor((now.getTime() - from.getTime()) / 60_000));
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h`;
+}
+
 export function formatElapsed(from: Date, now: Date): string {
   const minutes = Math.max(0, Math.floor((now.getTime() - from.getTime()) / 60_000));
   if (minutes < 60) return `${minutes}분 대기`;
