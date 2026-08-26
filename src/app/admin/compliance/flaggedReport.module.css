@@ -34,9 +34,9 @@
 /* 옛 칩 자리 — 이용자 전체 화면으로 가는 링크 (시안 2차) */
 .detailLink {
   flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--brand, #12b896);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-faint);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -107,10 +107,10 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
-/* 본문 — 안쪽 박스 안. 글씨는 조금 작게 (창업자 지시) */
+/* 본문 — 안쪽 박스 안. 아주 살짝 키움 (창업자 지시) */
 .body {
   margin: 0;
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.7;
   color: var(--text);
   white-space: pre-wrap; /* 리서처가 쓴 문단 줄바꿈을 그대로 */
