@@ -39,7 +39,8 @@ import {
   CANARY_STALE_MS,
   getCanaryScreen,
 } from "@/server/screeningCanaryRunner";
-import { FlaggedReport, fromComplianceFindings } from "./FlaggedReport";
+import { FlaggedReport } from "./FlaggedReport";
+import { fromComplianceFindings } from "./flaggedFinding";
 import { StudentValvePanel } from "./StudentValvePanel";
 import { ManualQueueList } from "./ManualQueueList";
 import { TeacherBatchCopy } from "./TeacherBatchCopy";
