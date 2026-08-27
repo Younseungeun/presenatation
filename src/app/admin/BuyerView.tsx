@@ -89,7 +89,15 @@ export function BuyerView({ detail }: { detail: AbuseGroupDetail }) {
             단어 하나로 판단하게 되는데, 그 단어는 "오픈채팅 유인은 신고 대상입니다"라고
             쓴 정직한 문장에도 들어 있다. 같은 문장도 맥락이 다르면 다른 글이다 */}
         <div className={a.ubody}>
-          <Marked text={detail.body} phrases={flaggedQuotes(detail)} />
+          {/* 규칙 재검사 문구 + **신고자가 직접 짚은 부분**을 함께 칠한다 (2026-08-27) —
+              규칙이 못 잡은 것을 사람이 잡은 것이라 오히려 이쪽이 핵심이다 */}
+          <Marked
+            text={detail.body}
+            phrases={[
+              ...flaggedQuotes(detail),
+              ...(detail.reporterFindings ?? []).map((f) => f.quote),
+            ]}
+          />
         </div>
 
         {/* 이 줄이 이 창문의 정직함이다 — 우리는 지금 남의 유료 본문을 보고 있고,

@@ -3,6 +3,7 @@ import { applyRules, type Finding } from '@/domain/compliance';
 import { getActiveLearnedPhrases } from './learnedPhraseService';
 import { magnitudePctToTargetPrice, targetPriceToMagnitudePct } from '@/domain/scoring';
 import { TIER_NAME, type Tier } from '@/domain/constants';
+import { ABUSE_CATEGORY_LABEL, type AbuseCategory } from './abuseReportService';
 
 /**
  * 신고 건 하나를 판단하는 데 필요한 재료 — **목록이 아니라 펼친 뒤에만 부른다.**
@@ -23,6 +24,12 @@ export type AbuseGroupDetail = {
   salesCount: number;
   /** 신고된 본문을 규칙에 **다시 걸어 본 결과** — 아래 주석 참조 */
   flagged: Finding[];
+  /**
+   * **신고자가 본문에서 직접 짚은 부분** (2026-08-27 창업자 지시). 구매자가 드래그로
+   * 고른 문장 + 유형이다 — 규칙이 못 잡은 것을 사람이 잡은 것이라, "이용자가 잡은 것"의
+   * 핵심 재료다. categoryLabel 은 소비자용 유형 이름(1:1 상담·수익 보장 등).
+   */
+  reporterFindings: { quote: string; category: string; categoryLabel: string }[];
   card: {
     assetName: string;
     ticker: string;
@@ -144,6 +151,36 @@ export async function getAbuseGroupDetail(
   const phrases = await getActiveLearnedPhrases(prisma);
   const flagged = applyRules(input, { phrases });
 
+  // **신고자가 직접 짚은 부분** — 이 리포트에 들어온 대기 신고들의 findingsJson 을 모은다.
+  // 같은 문장을 둘이 짚으면 한 번만(유형은 먼저 온 것). 규칙이 못 잡아도 여기는 남는다
+  const abuseRows = await prisma.abuseReport.findMany({
+    where: { reportId, status: 'PENDING', findingsJson: { not: null } },
+    select: { findingsJson: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  const seen = new Set<string>();
+  const reporterFindings: AbuseGroupDetail['reporterFindings'] = [];
+  for (const row of abuseRows) {
+    let parsed: { quote?: unknown; category?: unknown }[] = [];
+    try {
+      const v = JSON.parse(row.findingsJson ?? '[]');
+      if (Array.isArray(v)) parsed = v;
+    } catch {
+      /* 깨진 JSON 은 건너뛴다 */
+    }
+    for (const f of parsed) {
+      const quote = typeof f.quote === 'string' ? f.quote.trim() : '';
+      const category = typeof f.category === 'string' ? f.category : '';
+      if (!quote || seen.has(quote)) continue;
+      seen.add(quote);
+      reporterFindings.push({
+        quote,
+        category,
+        categoryLabel: ABUSE_CATEGORY_LABEL[category as AbuseCategory] ?? category,
+      });
+    }
+  }
+
   return {
     reportId: r.id,
     title: r.title,
@@ -154,6 +191,7 @@ export async function getAbuseGroupDetail(
     tierLabel: TIER_NAME[r.researcher.tier as Tier] ?? r.researcher.tier,
     salesCount: r._count.purchases,
     flagged,
+    reporterFindings,
     card: card ? toCardView(card) : null,
   };
 }

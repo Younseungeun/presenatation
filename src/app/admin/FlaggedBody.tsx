@@ -16,7 +16,11 @@ export function FlaggedBody({ detail }: { detail: AbuseGroupDetail }) {
   const quotes = flaggedQuotes(detail);
   const fullHref = `/admin/compliance?tab=body&open=${detail.reportId}&full=${detail.reportId}`;
 
-  if (quotes.length === 0) {
+  // **신고자가 직접 짚은 부분** (2026-08-27) — 규칙이 못 잡은 것을 사람이 잡은 것이라
+  // 맨 위에 둔다. 유형 칩까지 붙어 "어느 부분이 어느 위반인지"가 곧장 읽힌다
+  const reporter = detail.reporterFindings ?? [];
+
+  if (quotes.length === 0 && reporter.length === 0) {
     // 걸린 문구가 없으면 **문만 남긴다** (2026-08-20 사용자 지시) — "못 찾았다"는 설명은
     // 판단 화면에서 자리를 차지할 만한 사실이 아니다. 칠해 둔 자리가 없다는 것은
     // 원문을 열면 그 자리에서 바로 보이고, 그 화면에 그 한 줄이 이미 있다.
@@ -34,6 +38,22 @@ export function FlaggedBody({ detail }: { detail: AbuseGroupDetail }) {
 
   return (
     <>
+      {/* 신고자가 짚은 부분 — 인용문 + 신고자가 고른 유형 칩. 규칙 재검사(아래)와 갈라 둔다:
+          이건 사람이 잡은 것이고 저건 기계가 지금 다시 걸어 본 것이라 성격이 다르다 */}
+      {reporter.length > 0 && (
+        <div style={{ marginBottom: quotes.length > 0 ? 12 : 0 }}>
+          <div className={a.lbl} style={{ marginBottom: 6 }}>
+            신고자가 짚은 부분 {reporter.length}
+          </div>
+          {reporter.map((f, i) => (
+            <Link key={i} href={fullHref} className={`${a.quote} ${a.quoteOpen}`}>
+              <span className={`${a.chip} ${a.chipNeg}`}>{f.categoryLabel}</span>{" "}
+              &ldquo;…<b>{f.quote}</b>…&rdquo;
+            </Link>
+          ))}
+        </div>
+      )}
+
       {quotes.map((q) => (
         <Link key={q} href={fullHref} className={`${a.quote} ${a.quoteOpen}`}>
           &ldquo;…<b>{q}</b>…&rdquo;
