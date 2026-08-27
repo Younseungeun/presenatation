@@ -44,6 +44,7 @@ async function main() {
   console.log(`  ${String(c.operator_confirmed).padStart(5)}건  정탐 ${process.argv.includes('--confirmed') ? '(전부)' : '(앵커 표본 — --anchor 로 비율 조절, 0 이면 제외)'}`);
   console.log(`  ${String(c.operator_clean).padStart(5)}건  정상 통과 ${process.argv.includes('--clean') ? '' : '(--clean 으로 켠다)'}`);
   console.log(`\n  건너뜀 ${result.skipped}건 (경미·유형 미지목 미탐 — 라벨이 애매해 넣지 않는다)`);
+  console.log(`  동결 제외 ${result.frozen}건 (LL-3 — 운영 판정 첫 50건은 검증 전용, 학습에 영영 안 들어간다)`);
   if (result.fatigued > 0) {
     console.log(`  ⚠ 피로 의심 판정 제외 **${result.fatigued}건** (열람→판정 3초 미만 — 안 읽고 누른 판정은 정답이 아니다)`);
   }

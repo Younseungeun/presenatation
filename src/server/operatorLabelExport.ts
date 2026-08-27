@@ -43,7 +43,15 @@ export interface OperatorExportResult {
   skipped: number;
   /** 열람→판정이 너무 빨라(피로 의심) 라벨로 믿지 않은 건수 (27차 ③) */
   fatigued: number;
+  /** LL-3 동결로 제외한 건수 — 운영 판정 첫 50건은 검증 전용, 학습에 영영 안 들어간다 */
+  frozen: number;
 }
+
+/**
+ * @근거 계약 — 36차 LL-3: 운영 판정 첫 50건은 검증 전용 영구 동결. 순번은
+ *   ComplianceReview 의 createdAt + id 타이브레이크(회신 21호 합의 — 새 칸 불필요).
+ */
+export const OPERATION_FROZEN_COUNT = 50;
 
 /**
  * @근거 설계 — 소견 한 줄과 인용문을 읽는 데 필요한 최소 시간. 3초 밑의 '승인'은
@@ -65,9 +73,20 @@ export async function exportOperatorLabels(
   prisma: PrismaClient,
   opts: OperatorExportOptions & { since?: Date; limit?: number } = {},
 ): Promise<OperatorExportResult> {
+  // **LL-3 동결 (36차)**: 운영 판정 첫 50건은 검증 전용 — 학습 수출에서 영구 제외한다.
+  // 여기(수출 관문)에서 거는 이유: 호출부·옵션이 무엇이든 뚫리지 않는 자리가 이곳뿐이다.
+  const frozenRows = await prisma.complianceReview.findMany({
+    where: { operatorVerdict: { not: null } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    take: OPERATION_FROZEN_COUNT,
+    select: { id: true },
+  });
+  const frozenIds = frozenRows.map((r) => r.id);
+
   const reviews = await prisma.complianceReview.findMany({
     where: {
       operatorVerdict: { not: null },
+      ...(frozenIds.length ? { id: { notIn: frozenIds } } : {}),
       ...(opts.since ? { createdAt: { gte: opts.since } } : {}),
     },
     orderBy: { createdAt: 'desc' },
@@ -194,7 +213,7 @@ export async function exportOperatorLabels(
     results.push(decided);
   }
 
-  return { examples, counts: summarizeOperatorExamples(results), leaked, skipped, fatigued };
+  return { examples, counts: summarizeOperatorExamples(results), leaked, skipped, fatigued, frozen: frozenIds.length };
 }
 
 /** id 로부터 0~1 의 안정적인 값 — 같은 건은 언제나 같은 쪽에 떨어진다 */
