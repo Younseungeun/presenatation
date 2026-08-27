@@ -570,11 +570,13 @@ export default async function ReportDetail({
         <div className={styles.locked}>현재 판매 중인 리포트가 아닙니다.</div>
       )}
 
-      {/* 신고는 **누구나, 언제나** 할 수 있어야 한다 — 사기 전에도(구매 전 화면의 표현만
-          보고도 알 수 있는 위반이 있다) 사고 나서도(본문을 읽어야 보이는 위반이 더 많다).
-          자기 리포트와 무료 시황만 뺀다: 자기 것은 신고할 이유가 없고, 무료 글은
-          예측 카드가 없어 판매를 멈출 대상이 아니다 */}
-      {!free && viewerId && !isOwner && <ReportAbuseLink reportId={report.id} />}
+      {/* 신고 버튼은 **산 사람에게만** 연다 (2026-08-27 창업자 지시). 신고 화면이 본문을
+          문장으로 펼쳐 "어느 부분이 어느 위반인지" 짚게 하는데(CleanReportForm), 그건
+          본문을 읽은 사람 = 구매자만 할 수 있다. 구매 전 화면은 제목·본문이 마스킹돼
+          있어 짚을 것이 없다. 자기 리포트·무료 시황은 그대로 제외(자기 건 신고할 이유가
+          없고, 무료 글은 예측 카드가 없어 판매를 멈출 대상이 아니다).
+          리서처를 이름으로 신고하는 일반 경로(/clean, reportId 없음)는 그대로 남는다 */}
+      {!free && viewerId && !isOwner && purchased && <ReportAbuseLink reportId={report.id} />}
 
       <Disclaimer />
       </main>
