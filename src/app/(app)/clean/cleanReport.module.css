@@ -30,54 +30,73 @@
   color: #bd4242;
 }
 
-/* 본문 안쪽 박스 — 검수 카드의 '박스 안의 박스'와 같은 옅은 회색 */
+.guide {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-faint, #9aa2ad);
+}
+
+/* 본문 안쪽 박스 — 검수 카드의 '박스 안의 박스'와 같은 옅은 회색. 통째로 보여주고 드래그 선택 */
 .bodyBox {
-  margin-top: 10px;
+  margin-top: 8px;
   border: 1px solid #e3e6ea;
   border-radius: 10px;
   padding: 10px 12px;
   background: #f2f4f6;
 }
 
-.hint {
-  margin: 0 0 6px;
-  font-size: 12px;
-  color: var(--text-faint, #9aa2ad);
-}
-
-/* 문장 — 눌러서 고른다. 고른 것은 빨갛게(검수 카드의 소견 하이라이트와 같은 톤) */
-.sentence {
-  display: inline;
-  border: none;
-  background: transparent;
-  padding: 1px 2px;
+/* 본문 — 연속 텍스트. 드래그로 선택하는 자리라 파랑 선택 하이라이트를 또렷하게 */
+.bodyText {
   margin: 0;
   font-size: 13.5px;
-  line-height: 1.75;
+  line-height: 1.8;
   color: var(--text, #111827);
-  text-align: left;
-  cursor: pointer;
-  border-radius: 3px;
-  transition: background 0.1s, color 0.1s;
+  white-space: pre-wrap;
+  word-break: break-word;
+  cursor: text;
 }
-.sentence::after {
-  content: " ";
-}
-.sentence:hover {
-  background: #eceff2;
-}
-.sentenceOn {
-  background: #f7ebeb;
-  color: #bd4242;
-  font-weight: 800;
-}
-.sentenceOn:hover {
-  background: #f3dede;
+.bodyText::selection,
+.bodyText *::selection {
+  background: #cfe3ff;
 }
 
-/* 지적한 부분마다 유형 고르기 */
+/* 이미 지적한 부분 — 채도 낮춘 빨강 (검수 카드와 같은 톤) */
+.mark {
+  background: #f7ebeb;
+  color: #bd4242;
+  border-radius: 3px;
+  padding: 0 2px;
+  font-weight: 800;
+}
+
+/* 방금 드래그로 잡은 부분 — 유형 붙여 추가 */
+.pendingBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid #bd4242;
+  border-radius: 10px;
+  background: #fdf6f6;
+}
+
+.addBtn {
+  border: 1px solid #bd4242;
+  background: #bd4242;
+  color: #fff;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+/* 지적한 부분 목록 */
 .picks {
-  margin-top: 4px;
+  margin-top: 10px;
 }
 
 .pickRow {

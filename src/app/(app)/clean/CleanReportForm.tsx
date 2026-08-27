@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ABUSE_CATEGORIES,
   ABUSE_CATEGORY_LABEL,
@@ -11,26 +11,43 @@ import s from "./cleanReport.module.css";
 
 // 신고 접수 폼 — POST /api/abuse-reports.
 //
-// **본문을 산 사람에게는 검수 상세(FlaggedReport)와 같은 카드로 보여준다** (2026-08-27 창업자
-// 지시). 리포트 본문을 문장으로 펼치고, 신고자가 **문제되는 문장을 눌러 유형을 붙인다.**
-// 그러면 운영자의 "이용자가 잡은 것"이 검수 모델이 잡은 것과 같은 모양(부분 + 유형)이 되고,
-// 강제 철회 시 그 지적이 교사 질문지에 그대로 실린다.
+// **본문을 통째로 보여주고, 신고자가 드래그로 시작·끝을 직접 잡아 부분을 고른다**
+// (2026-08-27 창업자 지시). 문장 단위로 끊어 고르던 방식은 위반이 문장 중간에 걸치거나
+// 여러 문장에 걸칠 때 정확히 못 짚는다. 드래그 선택은 그 경계를 사람이 정한다.
+// 고른 부분마다 유형을 붙이면 운영자의 "이용자가 잡은 것"이 검수 모델이 잡은 것과 같은
+// 모양(부분 + 유형)이 되고, 강제 철회 시 교사 질문지에 실린다.
 //
 // 본문을 못 보는 경우(구매 전·리포트 없는 신고)는 종전대로 자유 입력만 받는다.
 
-/** 신고자가 짚은 한 부분 — 문장 + 유형 */
 interface Part {
   quote: string;
   category: AbuseCategory;
 }
 
-/** 본문을 문장 단위로 쪼갠다 — 줄바꿈 + 종결 부호. 마크다운 머리표(##·-·1.)는 걷고 빈 조각은 버린다 */
-function splitSentences(text: string): string[] {
-  return text
-    .split(/\n+/)
-    .flatMap((line) => line.split(/(?<=[.!?。])\s+/))
-    .map((x) => x.replace(/^#{1,6}\s*/, "").replace(/^[-*]\s+/, "").trim())
-    .filter(Boolean);
+/** 본문을 지적된 부분 기준으로 조각낸다 — 겹치면 합친다 */
+function highlight(text: string, quotes: string[]): { text: string; on: boolean }[] {
+  const spans: { start: number; end: number }[] = [];
+  for (const q of quotes) {
+    const at = text.indexOf(q);
+    if (at >= 0) spans.push({ start: at, end: at + q.length });
+  }
+  if (spans.length === 0) return [{ text, on: false }];
+  spans.sort((a, b) => a.start - b.start);
+  const merged: { start: number; end: number }[] = [];
+  for (const sp of spans) {
+    const last = merged[merged.length - 1];
+    if (last && sp.start <= last.end) last.end = Math.max(last.end, sp.end);
+    else merged.push({ ...sp });
+  }
+  const out: { text: string; on: boolean }[] = [];
+  let cur = 0;
+  for (const m of merged) {
+    if (m.start > cur) out.push({ text: text.slice(cur, m.start), on: false });
+    out.push({ text: text.slice(m.start, m.end), on: true });
+    cur = m.end;
+  }
+  if (cur < text.length) out.push({ text: text.slice(cur), on: false });
+  return out;
 }
 
 export function CleanReportForm({
@@ -40,26 +57,45 @@ export function CleanReportForm({
 }: {
   reportId?: string;
   fixedTargetName?: string;
-  /** 산 사람에게만 온다 — 본문을 카드로 펼쳐 문장을 고르게 한다 */
+  /** 산 사람에게만 온다 — 본문을 통째로 펼쳐 드래그로 부분을 고르게 한다 */
   reportBody?: { title: string; content: string } | null;
 } = {}) {
   const [category, setCategory] = useState<AbuseCategory>("ONE_ON_ONE");
   const [targetName, setTargetName] = useState(fixedTargetName ?? "");
   const [detail, setDetail] = useState("");
   const [parts, setParts] = useState<Part[]>([]);
+  // 지금 드래그로 잡은(아직 유형 안 붙인) 선택
+  const [pending, setPending] = useState("");
+  const [pendingCat, setPendingCat] = useState<AbuseCategory>("ONE_ON_ONE");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
-  const sentences = reportBody ? splitSentences(reportBody.content) : [];
-  const selectedQuotes = new Set(parts.map((p) => p.quote));
+  const content = reportBody?.content ?? "";
 
-  function toggleSentence(quote: string) {
+  function captureSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    // 본문 상자 안의 선택만 받는다
+    if (!bodyRef.current || !bodyRef.current.contains(sel.anchorNode)) return;
+    const text = sel.toString().trim();
+    // 본문에 실제로 있는 연속 구간만 (하이라이트 조각을 넘나든 선택은 버린다)
+    if (!text || !content.includes(text)) return;
+    setPending(text);
+  }
+
+  function addPending() {
+    const q = pending.trim();
+    if (!q) return;
     setParts((prev) =>
-      prev.some((p) => p.quote === quote)
-        ? prev.filter((p) => p.quote !== quote)
-        : [...prev, { quote, category }],
+      prev.some((p) => p.quote === q) ? prev : [...prev, { quote: q, category: pendingCat }],
     );
+    setPending("");
+    window.getSelection()?.removeAllRanges();
+  }
+  function removePart(quote: string) {
+    setParts((prev) => prev.filter((p) => p.quote !== quote));
   }
   function setPartCategory(quote: string, c: AbuseCategory) {
     setParts((prev) => prev.map((p) => (p.quote === quote ? { ...p, category: c } : p)));
@@ -84,11 +120,9 @@ export function CleanReportForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           targetName,
-          // 대표 유형 — 지적한 부분이 있으면 그 첫 유형을, 없으면 위에서 고른 유형을 쓴다
           category: parts[0]?.category ?? category,
           detail,
           reportId,
-          // 문장별 지적 (있을 때만) — 운영자 화면이 이것으로 카드를 그린다
           findings: parts.length ? parts : undefined,
         }),
       });
@@ -102,39 +136,76 @@ export function CleanReportForm({
     }
   };
 
+  const segments = reportBody ? highlight(content, parts.map((p) => p.quote)) : [];
+
   return (
     <form onSubmit={submit} className={styles.form}>
       {reportBody ? (
-        // ── 본문을 산 사람: 문장을 눌러 유형을 붙인다 (검수 카드와 같은 방식) ──
         <>
           <div className={s.card}>
             <div className={s.top}>
               <span className={s.title}>{reportBody.title}</span>
               {parts.length > 0 && <span className={s.count}>{parts.length}곳 지적</span>}
             </div>
-            <div className={s.bodyBox}>
-              <p className={s.hint}>문제되는 문장을 눌러 표시하세요.</p>
-              {sentences.map((sen, i) => {
-                const on = selectedQuotes.has(sen);
-                return (
-                  <button
-                    type="button"
-                    key={i}
-                    className={`${s.sentence} ${on ? s.sentenceOn : ""}`}
-                    onClick={() => toggleSentence(sen)}
-                    aria-pressed={on}
-                  >
-                    {sen}
-                  </button>
-                );
-              })}
+            <p className={s.guide}>
+              문제되는 부분을 <b>드래그로 선택</b>하세요 — 시작과 끝을 직접 잡으면 됩니다.
+            </p>
+            <div
+              ref={bodyRef}
+              className={s.bodyBox}
+              onMouseUp={captureSelection}
+              onTouchEnd={captureSelection}
+            >
+              <p className={s.bodyText}>
+                {segments.map((seg, i) =>
+                  seg.on ? (
+                    <mark key={i} className={s.mark}>
+                      {seg.text}
+                    </mark>
+                  ) : (
+                    <span key={i}>{seg.text}</span>
+                  ),
+                )}
+              </p>
             </div>
           </div>
 
+          {/* 방금 드래그로 잡은 부분 — 유형을 붙여 추가한다 */}
+          {pending && (
+            <div className={s.pendingBar}>
+              <span className={s.pickQuote}>&ldquo;{pending}&rdquo;</span>
+              <div className={s.pickCtrl}>
+                <select
+                  className={s.pickSelect}
+                  value={pendingCat}
+                  onChange={(e) => setPendingCat(e.target.value as AbuseCategory)}
+                >
+                  {ABUSE_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {ABUSE_CATEGORY_LABEL[c]}
+                    </option>
+                  ))}
+                </select>
+                <button type="button" className={s.addBtn} onClick={addPending}>
+                  지적 추가
+                </button>
+                <button
+                  type="button"
+                  className={s.pickRemove}
+                  onClick={() => setPending("")}
+                  aria-label="선택 취소"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 지적한 부분 목록 — 유형 바꾸기·빼기 */}
           {parts.length > 0 && (
             <div className={s.picks}>
               <div className={styles.label} style={{ marginBottom: 4 }}>
-                지적한 부분마다 어떤 행위인가요?
+                지적한 부분 ({parts.length})
               </div>
               {parts.map((p) => (
                 <div key={p.quote} className={s.pickRow}>
@@ -154,7 +225,7 @@ export function CleanReportForm({
                     <button
                       type="button"
                       className={s.pickRemove}
-                      onClick={() => toggleSentence(p.quote)}
+                      onClick={() => removePart(p.quote)}
                       aria-label="지적 취소"
                     >
                       ✕
@@ -166,7 +237,6 @@ export function CleanReportForm({
           )}
         </>
       ) : (
-        // ── 본문을 못 보는 경우: 종전 자유 입력 ──
         <label className={styles.label}>
           어떤 행위인가요?
           <select
@@ -209,7 +279,7 @@ export function CleanReportForm({
           onChange={(e) => setDetail(e.target.value)}
           placeholder={
             reportBody
-              ? "표시한 문장이 왜 문제인지, 언제·어디서 겪었는지 등을 적어 주세요."
+              ? "선택한 부분이 왜 문제인지, 언제·어디서 겪었는지 등을 적어 주세요."
               : "언제, 어디서(리포트 본문·댓글 등), 어떤 내용이 있었는지 적어 주세요. 캡처가 있다면 내용을 옮겨 적어 주세요."
           }
           rows={5}
