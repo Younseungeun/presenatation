@@ -52,25 +52,17 @@ const FEWSHOT: { text: string; answer: string }[] = [
   },
 ];
 
-const SCHEMA = {
-  type: 'object',
-  properties: {
-    violations: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          type: { type: 'string', enum: [...STUDENT_LABELS] },
-          quote: { type: 'string', maxLength: 240 },
-        },
-        required: ['type', 'quote'],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ['violations'],
-  additionalProperties: false,
-} as const;
+// GBNF 를 직접 쓴다 (검토자 지시 그대로). response_format(json_schema→문법 자동 변환)은
+// b10643 에서 Gemma 계열이 통째로 실패(최소 스키마도 grammar stack 오류)하고 Kanana 는
+// peg-native 파서와 충돌 — 원시 grammar 필드는 전 모델 정상 (실측).
+const GRAMMAR = `
+root ::= "{" ws "\\"violations\\"" ws ":" ws "[" ws (viol (ws "," ws viol)*)? ws "]" ws "}"
+viol ::= "{" ws "\\"type\\"" ws ":" ws vtype ws "," ws "\\"quote\\"" ws ":" ws str ws "}"
+vtype ::= ${STUDENT_LABELS.map((l) => `"\\"${l}\\""`).join(' | ')}
+str ::= "\\"" chr{0,240} "\\""
+chr ::= [^"\\\\\\x00-\\x1F] | "\\\\" (["\\\\/bfnrt] | "u" [0-9a-fA-F][0-9a-fA-F][0-9a-fA-F][0-9a-fA-F])
+ws ::= [ \\t\\n]{0,4}
+`;
 
 interface Verdict { types: string[]; parsed: boolean; ms: number; raw?: string }
 
@@ -79,19 +71,10 @@ async function chat(messages: unknown[], opts: { maxTokens?: number; schema?: bo
   const body: Record<string, unknown> = {
     model: 'local', messages, temperature: 0, max_tokens: opts.maxTokens ?? 400,
   };
-  if (opts.schema !== false) {
-    body.response_format = { type: 'json_schema', json_schema: { name: 'screen', strict: true, schema: SCHEMA } };
-  }
-  let res = await fetch(`${BASE}/v1/chat/completions`, {
+  if (opts.schema !== false) body.grammar = GRAMMAR;
+  const res = await fetch(`${BASE}/v1/chat/completions`, {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
   });
-  if (!res.ok && opts.schema !== false) {
-    // 구 API 형태 폴백 (json_object + schema)
-    body.response_format = { type: 'json_object', schema: SCHEMA };
-    res = await fetch(`${BASE}/v1/chat/completions`, {
-      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
-    });
-  }
   if (!res.ok) throw new Error(`server ${res.status}: ${(await res.text()).slice(0, 300)}`);
   const j = (await res.json()) as { choices: { message: { content: string } }[] };
   return { content: j.choices[0]?.message?.content ?? '', ms: Date.now() - t0 };
@@ -114,7 +97,9 @@ async function screen(text: string): Promise<Verdict> {
       content = retry.content; ms += retry.ms;
     }
     try {
-      const j = JSON.parse(content) as { violations: { type: string }[] };
+      // 앞뒤 잡소리 방어 (Kanana 가 "<|eot_id|>" 를 덧붙이는 것 실측) — 중괄호 구간만 파싱
+      const jsonSlice = content.slice(content.indexOf('{'), content.lastIndexOf('}') + 1);
+      const j = JSON.parse(jsonSlice) as { violations: { type: string }[] };
       const types = [...new Set((j.violations ?? []).map((v) => v.type).filter((t) => (STUDENT_LABELS as readonly string[]).includes(t)))];
       return { types, parsed: true, ms };
     } catch {

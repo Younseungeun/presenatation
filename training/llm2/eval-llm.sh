@@ -14,7 +14,9 @@ mkdir -p "$LLM/results"
 
 for p in $(netstat -ano | grep ":$PORT " | grep LISTENING | awk '{print $5}' | sort -u); do taskkill //PID $p //F >/dev/null 2>&1; done
 # --reasoning-budget 0: Qwen3 류 하이브리드 모델의 생각 모드를 끈다 (안 끄면 content 가 비어 나옴 — 스모크 실측)
-"$SRV" -m "$LLM/$MODEL" --port $PORT -ngl 99 --ctx-size 4096 --jinja --reasoning-budget 0 > "$LOG" 2>&1 &
+# NOJINJA=1 → 내장 템플릿 사용 (Kanana: jinja 의 peg 출력 파서가 문법 강제와 충돌 — 실측)
+JFLAGS="--jinja --reasoning-budget 0"; [ "${NOJINJA:-0}" = "1" ] && JFLAGS=""
+"$SRV" -m "$LLM/$MODEL" --port $PORT -ngl 99 --ctx-size 4096 $JFLAGS > "$LOG" 2>&1 &
 SPID=$!
 # /health 는 로딩 중에도 503 으로 응답한다 — 반드시 200 을 확인 (스모크에서 실측한 함정)
 for i in $(seq 1 90); do
