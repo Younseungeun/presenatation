@@ -275,6 +275,11 @@ export async function getLearnedPhraseStats(prisma: PrismaClient) {
   const distinctRows = await prisma.$queryRaw<{ phraseId: string; n: number | bigint }[]>`
     SELECT "phraseId", COUNT(DISTINCT "researcherId") AS n FROM "LearnedPhraseHit" GROUP BY "phraseId"`;
   const distinctByPhrase = new Map(distinctRows.map((d) => [d.phraseId, Number(d.n)]));
+  // 부정·헷지 문맥에서 쓰인 hit 수 (회신 20호 요청 2) — 승격 후보 판정의 넷째 조건.
+  // STRONG 은 소견이 억제돼 hit 이 안 되므로 실제로는 WEAK 만 여기 잡힌다
+  const negationRows = await prisma.$queryRaw<{ phraseId: string; n: number | bigint }[]>`
+    SELECT "phraseId", COUNT(*) AS n FROM "LearnedPhraseHit" WHERE "negation" IS NOT NULL GROUP BY "phraseId"`;
+  const negationByPhrase = new Map(negationRows.map((d) => [d.phraseId, Number(d.n)]));
   const stats = rows.map((r) => {
     const stat: PhraseStat = {
       id: r.id,
@@ -302,10 +307,56 @@ export async function getLearnedPhraseStats(prisma: PrismaClient) {
       graduatedAt: r.graduatedAt,
       // 코드 규칙 후보 조건 넷째의 분자 — 0 이면 아직 아무도 안 걸렸거나 기록 도입 전
       distinctResearcherCount: distinctByPhrase.get(r.id) ?? 0,
+      // 부정·헷지 문맥 출현 수 (회신 20호 요청 2) — 승격 후보 다섯째 조건의 재료
+      negationHitCount: negationByPhrase.get(r.id) ?? 0,
     };
   });
   // 재검토 대상 → 활성 → 최신 순
   return stats.sort(
     (a, b) => Number(b.needsReview) - Number(a.needsReview) || Number(b.active) - Number(a.active),
   );
+}
+
+export interface PhraseEvidenceRow {
+  /** 걸린 지점을 포함한 문맥 (±60자) */
+  sentence: string | null;
+  /** 실제 출현형 (정규화 전) */
+  surface: string | null;
+  /** 부정 강도 (WEAK/null) */
+  negation: string | null;
+  /** 그 게시 시도의 최종 판정 */
+  verdict: string | null;
+  createdAt: Date;
+}
+
+/**
+ * 한 학습 표현의 매칭 증거 묶음 (회신 20호 요청 2) — 승격·졸업 심사 화면이 편다.
+ *
+ * 숫자(정탐률·부정 수)만으로는 "코드로 굳혀도 되나"를 못 정한다. 실제 문장·출현형·부정을
+ * 나란히 봐야 사람이 판단한다. 최신순, 기본 상한 50건(사람이 훑을 분량).
+ */
+export async function getPhraseEvidence(
+  prisma: PrismaClient,
+  phraseId: string,
+  take = 50,
+): Promise<PhraseEvidenceRow[]> {
+  const rows = await prisma.learnedPhraseHit.findMany({
+    where: { phraseId },
+    orderBy: { createdAt: 'desc' },
+    take,
+    select: {
+      matchedSentence: true,
+      matchedSurface: true,
+      negation: true,
+      verdict: true,
+      createdAt: true,
+    },
+  });
+  return rows.map((r) => ({
+    sentence: r.matchedSentence,
+    surface: r.matchedSurface,
+    negation: r.negation,
+    verdict: r.verdict,
+    createdAt: r.createdAt,
+  }));
 }

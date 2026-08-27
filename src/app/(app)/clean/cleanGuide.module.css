@@ -1,0 +1,76 @@
+/* 신고 대상·보상 안내 — 접이식 (2026-08-27) */
+
+/* 큰 카드가 아니라 작은 토글 하나 — 필요할 때만 펼치는 부차적 안내라 무게를 뺀다 */
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* 알약 토글 — 자기 폭만 차지하는 작은 버튼(전폭 카드 아님) */
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 13px 6px 10px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 999px;
+  background: var(--card, #fff);
+  color: var(--text-weak, #6b7280);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.toggle:hover {
+  background: #f6f7f9;
+  color: var(--text, #111827);
+}
+/* › 를 90° 돌려 아래를 가리키게 = 열림 (디스클로저 삼각형 관용) */
+.chev {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--text-faint, #9aa2ad);
+  transition: transform 0.18s ease;
+}
+.chev[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+/* 펼친 내용 — 토글 아래 전폭 패널 */
+.body {
+  align-self: stretch;
+  margin-top: 10px;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 12px;
+  background: var(--card, #fff);
+}
+.h3 {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text, #111827);
+  margin: 12px 0 6px;
+}
+.h3:first-child {
+  margin-top: 0;
+}
+.list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-weak, #6b7280);
+}
+.p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-weak, #6b7280);
+}
+.strong {
+  color: var(--text, #111827);
+}

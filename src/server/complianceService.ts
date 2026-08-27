@@ -16,7 +16,9 @@ import {
   decide,
   findingMessages,
   mergeFindings,
+  negationAfter,
   resolveAction,
+  screeningText,
   type ComplianceDecision,
   type ComplianceResult,
   type Finding,
@@ -47,6 +49,32 @@ import { recordGraduationWatch } from './phraseGraduationService';
 //
 // 순서: 결정적 규칙 → (규칙이 차단하지 않았으면) AI 검수 → 병합 → 결정 → 기록.
 // 규칙이 이미 BLOCK을 냈으면 AI를 호출하지 않는다 (결과가 바뀌지 않는데 비용·지연만 든다).
+
+/**
+ * 학습 표현 hit 의 매칭 스냅샷 (회신 20호 요청 1) — 소견의 span·quote 로 계산한다.
+ *
+ * span 은 screeningText(제목⏎요약⏎본문) 기준 위치다. span 이 있으면 그 자리에서
+ *   · surface  = 매칭 원문 조각 (정규화 전 — 회피 표기가 보인다)
+ *   · sentence = ±60 자 문맥 (공백 정리 + … 표시)
+ *   · negation = negationAfter (STRONG/WEAK/null. STRONG 은 소견 자체가 억제돼 여기 안 온다)
+ * span 이 없는 옛/일부 소견은 quote 를 문맥으로만 남기고 나머지는 비운다(지어내지 않는다).
+ */
+function phraseHitSnapshot(
+  finding: Finding,
+  text: string,
+): { sentence: string | null; surface: string | null; negation: string | null } {
+  const span = finding.span;
+  if (!span) return { sentence: finding.quote || null, surface: null, negation: null };
+  const [start, end] = span;
+  const surface = text.slice(start, end);
+  const from = Math.max(0, start - 60);
+  const to = Math.min(text.length, end + 60);
+  const sentence =
+    (from > 0 ? '…' : '') +
+    text.slice(from, to).replace(/\s+/g, ' ').trim() +
+    (to < text.length ? '…' : '');
+  return { sentence, surface, negation: negationAfter(text, end) };
+}
 
 /**
  * 검수 실행에 붙는 운영 데이터.
@@ -358,6 +386,14 @@ export async function screenAndRecord(
   input: ScreeningInput,
   screener: ComplianceScreener | null,
   now = new Date(),
+  /**
+   * false면 **검수만 하고 아무것도 기록하지 않는다** — 게시 전 되묻기 팝업의 프리뷰용.
+   * 리뷰 행·hit·알림·그림자·졸업 관찰을 모두 건너뛴다. 큐(getPendingComplianceReviews)는
+   * 미해결 리뷰를 리포트당 dedupe 없이 전부 담으므로, 커밋하지 않을 검수가 리뷰를 남기면
+   * 리서처가 팝업에서 취소해도 큐에 유령 항목이 생긴다. 그래서 프리뷰는 runScreening 만 돌고
+   * 곧장 결과를 돌려준다.
+   */
+  commit = true,
 ): Promise<ComplianceResult> {
   // 운영자 판정이 다음 검수로 되돌아오는 두 통로.
   // 조회 실패가 게시를 막으면 안 되므로 실패해도 빈 값으로 진행한다.
@@ -395,6 +431,8 @@ export async function screenAndRecord(
     studentBypass: bypass.active,
     knownNames,
   });
+  // 프리뷰(commit=false): 검수 결과만 돌려주고 기록·알림·그림자를 전부 건너뛴다.
+  if (!commit) return result;
   const usage = result.usage as ScreeningUsage | undefined;
 
   // 장애 전이 기록 — 띠지의 "장애 N시간째"(2회차 B-1). 라이브 경로의 장애만 장애다:
@@ -432,10 +470,14 @@ export async function screenAndRecord(
     }),
   ];
 
-  // 학습 표현이 걸린 횟수를 센다 — 표현별 정확도(걸린 것 중 실제 반려 비율)의 분모
-  const matchedPhraseIds = [
-    ...new Set(result.findings.flatMap((f) => (f.phraseId ? [f.phraseId] : []))),
-  ];
+  // 학습 표현이 걸린 횟수를 센다 — 표현별 정확도(걸린 것 중 실제 반려 비율)의 분모.
+  // **표현마다 대표 소견 하나**를 골라 둔다 — 같은 표현이 두 번 걸려도 hit·matchCount 는
+  // 표현당 1이고(기존 계약), 스냅샷은 그 첫 소견에서 뜬다
+  const phraseFindings = new Map<string, Finding>();
+  for (const f of result.findings) {
+    if (f.phraseId && !phraseFindings.has(f.phraseId)) phraseFindings.set(f.phraseId, f);
+  }
+  const matchedPhraseIds = [...phraseFindings.keys()];
   if (matchedPhraseIds.length > 0) {
     writes.push(
       prisma.learnedPhrase.updateMany({
@@ -446,16 +488,23 @@ export async function screenAndRecord(
     // **누가 걸렸는지도 남긴다** (관리자 앱 인계서 2026-08-22 §1 → 회신 8호 (나)).
     // matchCount 숫자만으로는 "서로 다른 리서처 ≥ 5명"(코드 규칙 후보 조건 넷째)을 셀 수
     // 없다 — 한 사람이 같은 문구를 30번 써서 만든 30회와 30명이 만든 30회가 같은 숫자다.
+    //
+    // **매칭 스냅샷도 이 순간 함께 박는다 (회신 20호 요청 1).** 반려되면 본문이 바뀌어
+    // 소급 복원이 안 되므로, 소견의 quote·span 으로 문맥·출현형·부정을 지금 계산해 둔다.
     // (새 표라 클라이언트 타입 재생성 전에도 돌아야 해서 raw 로 쓴다)
     const owner = await prisma.report.findUnique({
       where: { id: reportId },
       select: { researcherId: true },
     });
     if (owner) {
-      for (const phraseId of matchedPhraseIds) {
+      const text = screeningText(input);
+      for (const [phraseId, finding] of phraseFindings) {
+        const snap = phraseHitSnapshot(finding, text);
         writes.push(
-          prisma.$executeRaw`INSERT INTO "LearnedPhraseHit" ("id", "phraseId", "reportId", "researcherId", "createdAt")
-            VALUES (${randomUUID()}, ${phraseId}, ${reportId}, ${owner.researcherId}, ${now.getTime()})`,
+          prisma.$executeRaw`INSERT INTO "LearnedPhraseHit"
+            ("id", "phraseId", "reportId", "researcherId", "createdAt", "matchedSentence", "matchedSurface", "negation")
+            VALUES (${randomUUID()}, ${phraseId}, ${reportId}, ${owner.researcherId}, ${now.getTime()},
+              ${snap.sentence}, ${snap.surface}, ${snap.negation})`,
         );
       }
     }
@@ -610,6 +659,7 @@ export function getPublishedReportsForOversight(prisma: PrismaClient, limit = 20
       id: true,
       title: true,
       status: true,
+      content: true, // 강제 철회 때 근거 문장 지목(EvidencePicker)에 쓴다 (회신 20호 요청 3)
       publishedAt: true,
       researcher: {
         select: { id: true, tier: true, user: { select: { id: true, penName: true, email: true } } },
@@ -659,6 +709,8 @@ export interface VerdictLabel {
   /** 승인 시: 지적 자체는 타당했는가 (경미해서 승인한 경우 true) */
   /** 11차 K-1 — 세 갈래. `null`(무응답)과 `false`(명시적 오탐 신고)를 갈라 둔다 */
   findingsValid?: boolean | null;
+  /** 반려·철회 때 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3) — IRIS 라벨 지역화용 */
+  evidence?: string[];
 }
 
 /**
@@ -676,6 +728,7 @@ export async function operatorVerdictWrites(
   now: Date,
   label: VerdictLabel = {},
 ): Promise<Prisma.PrismaPromise<unknown>[]> {
+  const evidence = (label.evidence ?? []).map((q) => q.trim()).filter((q) => q.length > 0);
   const data = {
     operatorReviewedAt: now,
     operatorReviewedBy: operatorUserId,
@@ -683,6 +736,8 @@ export async function operatorVerdictWrites(
     operatorReason: label.reason?.trim() || null,
     operatorCategories: label.categories?.length ? JSON.stringify(label.categories) : null,
     aiFindingsValid: label.findingsValid ?? null,
+    // 근거 문장 (회신 20호 요청 3) — 있으면 JSON 배열로, 없으면 null(종전대로 문서 라벨)
+    operatorEvidence: evidence.length ? JSON.stringify(evidence) : null,
   };
 
   const [pendingCount, latest] = await Promise.all([
@@ -709,6 +764,15 @@ export async function operatorVerdictWrites(
       ]
     : [];
 
+  // **hit 스냅샷의 판정 칸을 갱신한다 (회신 20호 요청 1).** 이 리포트에서 걸린 학습 표현
+  // hit 전부에 최종 판정을 박아 문장 단위 정탐/오탐과 대비쌍(요청 4)의 재료로 남긴다.
+  // 판정 enum 을 그대로 저장한다(REJECTED/TAKEDOWN/APPROVED/KEPT/MISSED) — 대상 행이
+  // 없으면 updateMany 는 무해하게 0행을 고친다
+  const hitVerdictWrite = prisma.learnedPhraseHit.updateMany({
+    where: { reportId },
+    data: { verdict },
+  });
+
   if (pendingCount > 0) {
     return [
       prisma.complianceReview.updateMany({
@@ -716,10 +780,15 @@ export async function operatorVerdictWrites(
         data,
       }),
       ...phraseWrites,
+      hitVerdictWrite,
     ];
   }
   if (!latest) return [];
-  return [prisma.complianceReview.update({ where: { id: latest.id }, data }), ...phraseWrites];
+  return [
+    prisma.complianceReview.update({ where: { id: latest.id }, data }),
+    ...phraseWrites,
+    hitVerdictWrite,
+  ];
 }
 
 /**
@@ -1006,6 +1075,8 @@ export interface TakedownInput {
   reason: string;
   /** 실제 위반 유형 (선택) — 통과된 건을 철회했다면 검수가 못 잡은 유형이 된다 */
   categories?: RiskCategory[];
+  /** 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3, 선택) — IRIS 라벨 지역화용 */
+  evidence?: string[];
   /**
    * 리서처에게 자동 철회 통지를 보낼지 (기본 true).
    *
@@ -1119,6 +1190,7 @@ export async function forceWithdrawReport(
     ...(await operatorVerdictWrites(prisma, report.id, 'TAKEDOWN', input.operatorUserId, now, {
       reason,
       categories: input.categories,
+      evidence: input.evidence,
     })),
   ];
 

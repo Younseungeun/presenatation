@@ -30,17 +30,37 @@ export function ReportActions({
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 게시 전 되묻기 — 서버가 "보류감"이라 판단하면 게시 대신 이 정보를 돌려준다.
+  const [hold, setHold] = useState<{
+    decision: string;
+    categories: string[];
+    repeated: boolean;
+  } | null>(null);
 
-  async function act(action: "publish" | "withdraw" | "close-sales") {
+  async function act(action: "publish" | "withdraw" | "close-sales", acknowledgeHold = false) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reports/${reportId}/${action}`, { method: "POST" });
+      const res = await fetch(`/api/reports/${reportId}/${action}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(action === "publish" ? { acknowledgeHold } : {}),
+      });
       const body = await res.json();
       if (!res.ok) {
         setError(body.issues ? body.issues.join(" / ") : body.error ?? "실패");
         return;
       }
+      // 보류감이면 게시하지 않고 팝업을 띄운다 (BLOCK 처럼 강제하지 않는다).
+      if (body?.needsHoldConfirm) {
+        setHold({
+          decision: String(body.decision ?? ""),
+          categories: Array.isArray(body.categories) ? body.categories.map(String) : [],
+          repeated: body.repeated === true,
+        });
+        return;
+      }
+      setHold(null);
       router.refresh();
     } catch (e) {
       setError((e as Error).message);
@@ -95,6 +115,77 @@ export function ReportActions({
         </button>
       )}
       {error && <span className={styles.hint} style={{ color: "#c62828" }}>{error}</span>}
+
+      {hold && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setHold(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.4)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 20,
+            zIndex: 100,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface, #fff)",
+              borderRadius: 16,
+              padding: "22px 20px",
+              maxWidth: 360,
+              width: "100%",
+              boxShadow: "0 12px 40px rgba(0,0,0,0.2)",
+            }}
+          >
+            <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>
+              게시 전에 확인해주세요
+            </div>
+            <p style={{ fontSize: 13.5, lineHeight: 1.7, color: "var(--text)", margin: "0 0 10px" }}>
+              자동 검수 결과, 이 리포트는 게시 직후 바로 판매되지 않고{" "}
+              <b>운영자 검토(보류)</b>로 넘어갈 가능성이 높습니다.
+            </p>
+            {hold.categories.length > 0 && (
+              <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text-dim)", margin: "0 0 8px" }}>
+                확인이 필요한 유형: <b>{hold.categories.join(", ")}</b>
+              </p>
+            )}
+            {hold.repeated && (
+              <p style={{ fontSize: 13, lineHeight: 1.7, color: "var(--text-dim)", margin: "0 0 8px" }}>
+                반려가 여러 번 누적돼 자동 게시 대상이 아닙니다.
+              </p>
+            )}
+            <p style={{ fontSize: 12.5, lineHeight: 1.7, color: "var(--text-faint)", margin: "6px 0 16px" }}>
+              그대로 게시하면 검토 후 승인 시 판매가 시작되고, 반려되면 사유와 함께 초안으로
+              돌아옵니다. 지금 본문을 고치면 검토 없이 바로 게시될 수 있어요.
+            </p>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                style={{ flex: 1, background: "var(--surface-2, #f2f4f6)", color: "var(--text)" }}
+                onClick={() => setHold(null)}
+              >
+                고쳐 쓰기
+              </button>
+              <button
+                type="button"
+                className={styles.actionBtn}
+                style={{ flex: 1 }}
+                disabled={busy}
+                onClick={() => act("publish", true)}
+              >
+                그래도 게시
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

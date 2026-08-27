@@ -9,6 +9,7 @@ import { getSessionUserId } from "@/server/session";
 import { AppHeader } from "../AppHeader";
 import styles from "../market.module.css";
 import { CleanReportForm } from "./CleanReportForm";
+import { CollapsibleGuide } from "./CollapsibleGuide";
 
 export const dynamic = "force-dynamic";
 
@@ -51,11 +52,17 @@ export default async function CleanPage({
           content: true,
           priceKrw: true,
           researcher: { select: { user: { select: { penName: true, email: true } } } },
+          // 판정 완료 여부 — 판정된 리포트는 신고를 받지 않는다 (아래 judged)
+          predictionCard: { select: { judgment: { select: { id: true } } } },
         },
       })
     : null;
   // 무료 시황(가격 0)은 예측 카드가 없어 판매를 멈출 대상이 아니다 — 신고는 자유 입력 쪽으로
   const targetReport = target && target.priceKrw > 0 ? target : null;
+  // **판정이 끝난 리포트는 신고를 받지 않는다** (2026-08-27 창업자 지시) — 강제 철회가
+  // 불가능하고(정산 종료·환불 불가) 판매도 끝나, 신고해도 나올 처분이 없다.
+  // 서버 게이트는 createAbuseReport 에 있고, 여기서는 폼을 열기 전에 사람에게 말로 답한다
+  const judged = !!targetReport?.predictionCard?.judgment;
 
   // **본문은 산 사람에게만 보여준다** (마스킹) — 신고자가 본문의 어느 부분이 위반인지
   // 짚으려면 본문을 봤어야 하고, 그건 구매한 사람이다. 안 산 사람은 종전대로 자유 입력.
@@ -89,35 +96,14 @@ export default async function CleanPage({
         </p>
 
         <div style={{ marginTop: 20, display: "flex", flexDirection: "column", gap: 20 }}>
-          <section>
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>신고 대상 행위</h2>
-            <ul
-              style={{
-                fontSize: 14,
-                lineHeight: 1.7,
-                color: "var(--text-weak)",
-                paddingLeft: 18,
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-              }}
-            >
-              {TARGETS.map((t) => (
-                <li key={t}>{t}</li>
-              ))}
-            </ul>
-          </section>
-
-          <section>
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>보상과 절차</h2>
-            <p style={{ fontSize: 14, lineHeight: 1.7, color: "var(--text-weak)" }}>
-              접수된 신고는 운영자가 직접 검토하며, 위반이 확인된 신고에 한해 선착순{" "}
-              {REWARD_QUOTA}건까지 보상을 드립니다 (현재 잔여 {remaining.toLocaleString()}건).
-              같은 리포트에 여러 신고가 들어오면 <b style={{ color: "var(--text)" }}>가장 먼저
-              신고하신 분</b>에게 보상이 갑니다. 검토 결과는 알림으로 안내되며, 보상 지급
-              방법은 확인 후 개별로 안내드립니다.
-            </p>
-          </section>
+          {/* 신고 대상·보상 안내 — 접이식. 리포트에서 들어왔으면(대상 이미 정해짐) 접어
+              폼을 앞으로 당긴다. 일반 진입은 펼쳐 둔다 (2026-08-27 창업자 지시 2번) */}
+          <CollapsibleGuide
+            targets={TARGETS}
+            quota={REWARD_QUOTA}
+            remaining={remaining}
+            defaultOpen={!targetReport}
+          />
 
           {/* 유의사항은 **신고 접수 직전 팝업**으로 옮겼다 (2026-08-27 창업자 지시) —
               진짜 접수 전 마지막 고지가 되어야 눈에 들어온다 (CleanReportForm 의 확인창) */}
@@ -137,7 +123,13 @@ export default async function CleanPage({
                 신고하려는 사람에게 "남이 이미 했다"를 먼저 보여주면 신고 의욕을 꺾는다.
                 선착순 보상 규칙은 위 '보상과 절차'에 상시 문구로 옮겼다.
                 단, 내가 이미 신고한 건은 중복 접수를 막아야 하므로 그대로 안내한다 */}
-            {notice?.byViewer ? (
+            {judged ? (
+              // 판정이 끝나면 신고를 받지 않는다 (2026-08-27 창업자 지시) — 폼을 아예 열지 않는다
+              <p className={styles.sub} style={{ marginBottom: 0 }}>
+                이미 판정이 완료된 리포트라 신고를 받지 않습니다. 판정된 예측은 강제 철회·환불
+                대상이 아니어서, 신고해도 처리할 수 있는 조치가 없습니다.
+              </p>
+            ) : notice?.byViewer ? (
               <p className={styles.sub} style={{ marginBottom: 0 }}>
                 이미 이 리포트를 신고하셨습니다. 검토 결과는 알림으로 알려드립니다.
               </p>

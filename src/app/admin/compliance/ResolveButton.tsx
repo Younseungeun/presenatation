@@ -6,6 +6,7 @@ import { RISK_CATEGORIES, RISK_CATEGORY_LABEL, type RiskCategory } from "@/domai
 import a from "../admin.module.css";
 import { PhraseField } from "../PhraseField";
 import { TwoPaths } from "../TwoPaths";
+import { EvidencePicker } from "./EvidencePicker";
 
 // 2단 검수로 결론이 나지 않은 건에 대한 운영자의 최종 결정.
 //
@@ -38,6 +39,7 @@ export function ResolveButton({
   heldAmountKrw,
   flaggedCategories = [],
   suggestedPhrase = "",
+  content = null,
   measure = false,
 }: {
   /** 검토 큐 항목일 때만 존재 — 판매 중 목록에서 온 건은 없다 */
@@ -50,6 +52,8 @@ export function ResolveButton({
   flaggedCategories?: RiskCategory[];
   /** 학습 표현 등록란의 기본값 (검수 인용문 중 가장 짧은 것) */
   suggestedPhrase?: string;
+  /** 리포트 본문 — 반려·철회 때 근거 문장 지목(EvidencePicker)에 쓴다 (회신 20호 요청 3) */
+  content?: string | null;
   /**
    * 판단 소요 시간을 재서 함께 보낼 것인가.
    * **큐에서 펼친 카드에서만 참이다** — 이 컴포넌트의 마운트가 곧 열람인 자리.
@@ -65,6 +69,8 @@ export function ResolveButton({
     openedAt.current = Date.now();
   }, []);
   const [reason, setReason] = useState("");
+  // 근거 문장 지목 (회신 20호 요청 3) — 반려·철회 때 본문에서 짚은 위반 문장들
+  const [evidence, setEvidence] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // 승인 라벨은 **세 갈래다** (11차 K-1):
@@ -224,6 +230,10 @@ export function ResolveButton({
           />
         </div>
 
+        {/* 근거 문장 지목 (회신 20호 요청 3) — 본문에서 위반 문장을 짚으면 IRIS 가 그 창만
+            위반으로 배운다. 권장(선택). 근거로 삼을 본문이 있을 때만 뜬다 */}
+        <EvidencePicker content={content} value={evidence} onChange={setEvidence} />
+
         {/* '전달될 사유' 미리보기 박스는 걷었다 (2026-08-27 창업자 지시) — 바로 위
             입력란이 곧 리서처에게 갈 문장 그대로라(placeholder·aria-label이 그렇게 말한다)
             아래에 같은 값을 한 번 더 비추는 박스는 중복이었다 */}
@@ -357,6 +367,7 @@ export function ResolveButton({
                   reason,
                   categories,
                   phrase: manual ? phrase : undefined,
+                  evidence: evidence.length ? evidence : undefined,
                 },
                 takedown ? "철회 실패" : "반려 실패",
               )

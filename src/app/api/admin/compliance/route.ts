@@ -39,6 +39,8 @@ const categories = z.array(z.enum(RISK_CATEGORIES)).max(RISK_CATEGORIES.length).
 // 반려·철회와 함께 등록하는 학습 표현 — 다음 리서처가 작성 단계에서 미리 경고를 받는다.
 // 반려 사유를 남기는 김에 한 줄 더 적는 것이므로 운영자의 추가 작업은 거의 없다.
 const phrase = z.string().trim().max(PHRASE_MAX_LENGTH * 3).optional();
+// 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3, 선택) — IRIS 라벨 지역화용
+const evidence = z.array(z.string().trim().min(1).max(1000)).max(20).optional();
 
 // 관리자 화면이 잰 "열람 → 판정" 시간 (26차 CC-1 피로도 감지 — decisionSpeedService).
 // 화면이 안 보내면 그냥 빈 칸이다 — 텔레메트리가 판정을 막으면 안 된다.
@@ -77,6 +79,7 @@ const bodySchema = z.discriminatedUnion('action', [
     reason: z.string().trim().min(1).max(500),
     categories,
     phrase,
+    evidence,
     decisionElapsedMs,
   }),
   z.object({
@@ -85,6 +88,7 @@ const bodySchema = z.discriminatedUnion('action', [
     reason: z.string().trim().min(1).max(500),
     categories,
     phrase,
+    evidence,
     decisionElapsedMs,
   }),
   z.object({
@@ -204,6 +208,7 @@ export async function POST(req: NextRequest) {
           body.reason,
           new Date(),
           body.categories ?? [],
+          body.evidence ?? [],
         );
         if (body.decisionElapsedMs) {
           await recordDecisionElapsed(prisma, body.reportId, body.decisionElapsedMs);
@@ -248,6 +253,7 @@ export async function POST(req: NextRequest) {
           operatorUserId,
           reason: body.reason,
           categories: body.categories ?? [],
+          evidence: body.evidence ?? [],
         });
         if (body.decisionElapsedMs) {
           await recordDecisionElapsed(prisma, body.reportId, body.decisionElapsedMs);

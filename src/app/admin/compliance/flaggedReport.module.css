@@ -122,6 +122,12 @@
   font-style: italic;
 }
 
+/* 접힌 평문 자리의 '…' — 강조 사이/가장자리에서 생략된 본문. 옅게 둬 강조가 튀게 */
+.ellipsis {
+  color: var(--text-faint);
+  user-select: none;
+}
+
 /* 선택한 유형이 문장을 못 짚을 때의 안내 — 본문 아래 옅게 */
 .note {
   margin: 8px 0 0;

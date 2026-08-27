@@ -37,6 +37,7 @@ import { purchaseReport } from '../purchaseService';
 import {
   approvePendingReport,
   createDraftReport,
+  HoldConfirmationRequired,
   publishReport,
   rejectPendingReport,
 } from '../reportService';
@@ -298,6 +299,85 @@ describe('publishReport — 검수 연동', () => {
     // 리서처도 왜 안 올라갔는지 알아야 한다
     await prisma.notification.findFirstOrThrow({
       where: { type: 'COMPLIANCE_PENDING', title: { contains: '게시 보류' } },
+    });
+  });
+
+  describe('게시 전 되묻기 (acknowledgeHold) — 팝업', () => {
+    const HOLD_CONTENT = '시장에 카더라가 돌고 있습니다. 상승을 전망합니다.';
+
+    it('acknowledgeHold=false면 보류감일 때 커밋하지 않고 HoldConfirmationRequired를 던진다 — 유형만 싣고 문장은 싣지 않는다', async () => {
+      const draft = await createDraftReport(
+        prisma,
+        draftInput(HOLD_CONTENT, '되묻기 유형'),
+        DRAFT_NOW,
+      );
+      const err = await publishReport(
+        prisma,
+        registry,
+        draft.id,
+        researcherId,
+        PUBLISH_NOW,
+        null,
+        false, // 리서처 UI 경로
+      ).catch((e) => e);
+      expect(err).toBeInstanceOf(HoldConfirmationRequired);
+      // 위반 유형 라벨은 전하되, 어느 문장이 걸렸는지(인용문·위치)는 싣지 않는다 (우회 오라클 방어)
+      expect((err as HoldConfirmationRequired).categories.length).toBeGreaterThan(0);
+      expect(JSON.stringify(err)).not.toContain('카더라');
+
+      // 리포트는 여전히 DRAFT, 그리고 **프리뷰는 리뷰를 기록하지 않는다** — 취소해도 큐에 유령이 없다
+      const report = await prisma.report.findUniqueOrThrow({ where: { id: draft.id } });
+      expect(report.status).toBe('DRAFT');
+      expect(await prisma.complianceReview.count({ where: { reportId: draft.id } })).toBe(0);
+      expect(
+        (await getPendingComplianceReviews(prisma)).filter((r) => r.reportId === draft.id).length,
+      ).toBe(0);
+    });
+
+    it('"그래도 게시"(acknowledgeHold=true)면 종전대로 보류 큐로 들어가고 리뷰가 한 번만 기록된다', async () => {
+      const draft = await createDraftReport(
+        prisma,
+        draftInput(HOLD_CONTENT, '되묻기 확인'),
+        DRAFT_NOW,
+      );
+      // 1) UI 첫 클릭 — 팝업
+      await expect(
+        publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW, null, false),
+      ).rejects.toBeInstanceOf(HoldConfirmationRequired);
+      // 2) "그래도 게시" — 확인 후 재호출
+      const result = await publishReport(
+        prisma,
+        registry,
+        draft.id,
+        researcherId,
+        PUBLISH_NOW,
+        null,
+        true,
+      );
+      expect(result.status).toBe('PENDING_REVIEW');
+      // 프리뷰가 기록을 남기지 않으므로 리뷰는 확인 경로에서 딱 하나 — 큐 중복 없음
+      expect(await prisma.complianceReview.count({ where: { reportId: draft.id } })).toBe(1);
+      expect(
+        (await getPendingComplianceReviews(prisma)).filter((r) => r.reportId === draft.id).length,
+      ).toBe(1);
+    });
+
+    it('깨끗한 리포트는 팝업 없이 바로 게시된다 (acknowledgeHold=false여도 PASS면 통과)', async () => {
+      const draft = await createDraftReport(
+        prisma,
+        draftInput('실적과 업황을 근거로 상승을 전망합니다.', '정상 게시'),
+        DRAFT_NOW,
+      );
+      const result = await publishReport(
+        prisma,
+        registry,
+        draft.id,
+        researcherId,
+        PUBLISH_NOW,
+        null,
+        false,
+      );
+      expect(result.status).toBe('PUBLISHED');
     });
   });
 
@@ -877,6 +957,78 @@ describe('학습 표현 — 운영자 반려가 다음 리서처의 작성 화�
     ]);
     const after = await prisma.learnedPhrase.findUniqueOrThrow({ where: { id: phrase.id } });
     expect(after.confirmedCount).toBe(1);
+  });
+
+  it('걸린 순간의 문장·출현형·부정을 hit 에 박제하고, 판정 때 verdict 를 갱신한다 (회신 20호 요청 1)', async () => {
+    await createLearnedPhrase(prisma, {
+      phrase: '반드시 오릅니다',
+      category: 'UNSUPPORTED_CLAIM',
+      createdBy: OPERATOR,
+    });
+    const text = '이 종목은 반드시 오릅니다 지금 담으세요';
+    const draft = await createDraftReport(
+      prisma,
+      draftInput(text, '스냅샷 시험', phraseResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, phraseResearcherId, PUBLISH_NOW);
+
+    const hit = await prisma.learnedPhraseHit.findFirstOrThrow({ where: { reportId: draft.id } });
+    // 출현형: 실제 걸린 원문 조각 (정규화 전)
+    expect(hit.matchedSurface).toBe('반드시 오릅니다');
+    // 문맥: 앞뒤가 함께 담긴다 (± 60자) — 출현형보다 길다
+    expect(hit.matchedSentence).toContain('반드시 오릅니다');
+    expect((hit.matchedSentence ?? '').length).toBeGreaterThan('반드시 오릅니다'.length);
+    // 부정 문맥 아님
+    expect(hit.negation).toBeNull();
+    // 아직 판정 전
+    expect(hit.verdict).toBeNull();
+
+    // 반려하면 그 hit 에 최종 판정이 박힌다 (대비쌍·정탐 연결의 재료)
+    await rejectPendingReport(prisma, draft.id, OPERATOR, '근거 없는 단정', NOW, [
+      'UNSUPPORTED_CLAIM',
+    ]);
+    const after = await prisma.learnedPhraseHit.findUniqueOrThrow({ where: { id: hit.id } });
+    expect(after.verdict).toBe('REJECTED');
+  });
+
+  it('반려 때 짚은 근거 문장이 operatorEvidence 에 저장된다 (회신 20호 요청 3)', async () => {
+    await createLearnedPhrase(prisma, {
+      phrase: '반드시 오릅니다',
+      category: 'UNSUPPORTED_CLAIM',
+      createdBy: OPERATOR,
+    });
+    const draft = await createDraftReport(
+      prisma,
+      draftInput('이 종목은 반드시 오릅니다 지금 담으세요', '근거 문장 시험', phraseResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft.id, phraseResearcherId, PUBLISH_NOW);
+
+    // 운영자가 본문에서 짚은 근거 문장과 함께 반려
+    await rejectPendingReport(prisma, draft.id, OPERATOR, '근거 없는 단정', NOW, ['UNSUPPORTED_CLAIM'], [
+      '이 종목은 반드시 오릅니다',
+    ]);
+
+    const review = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId: draft.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(JSON.parse(review.operatorEvidence ?? '[]')).toEqual(['이 종목은 반드시 오릅니다']);
+
+    // 안 짚으면 null (종전대로 문서 라벨)
+    const draft2 = await createDraftReport(
+      prisma,
+      draftInput('이 종목은 반드시 오릅니다 지금 담으세요', '지목 없음', phraseResearcherId),
+      DRAFT_NOW,
+    );
+    await publishReport(prisma, registry, draft2.id, phraseResearcherId, PUBLISH_NOW);
+    await rejectPendingReport(prisma, draft2.id, OPERATOR, '근거 없는 단정', NOW, ['UNSUPPORTED_CLAIM']);
+    const review2 = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId: draft2.id },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(review2.operatorEvidence).toBeNull();
   });
 
   it('운영자가 다른 유형을 실제 위반으로 지목하면 그 표현은 확정되지 않는다', async () => {

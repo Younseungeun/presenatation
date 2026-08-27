@@ -84,6 +84,7 @@ import { getAbuseGroupDetail } from "@/server/abuseGroupDetail";
 import { AdminHead } from "../AdminHead";
 import { SecHead } from "../Why";
 import { PhraseToggle } from "./PhraseToggle";
+import { PhraseEvidence } from "./PhraseEvidence";
 import { RewardNotice } from "./RewardNotice";
 import { ResolveButton } from "./ResolveButton";
 
@@ -359,7 +360,8 @@ function TeacherRelayPanel({ pending }: { pending: TeacherAnswerPending[] }) {
   );
 }
 
-/** @근거 계약 — 회신 8호 §2-b 확정: 코드 이식 후보의 네 조건 */
+/** @근거 계약 — 회신 8호 §2-b 4조건 + 회신 20호 부정 문맥 0 = 5조건. 목적지는 회신 21호로
+ *  졸업(IRIS 위임)으로 확정 (20차 X-2 유지) */
 const PROMOTION_MIN_MATCHES = 30;
 const PROMOTION_MIN_RESEARCHERS = 5;
 const PROMOTION_MIN_AGE_DAYS = 30;
@@ -367,26 +369,37 @@ const PROMOTION_MIN_AGE_DAYS = 30;
 const HIT_LOG_SINCE = "2026-08-22";
 
 /**
- * **코드 이식 후보** — 즉시 거절로 가는 유일한 길의 문 앞.
+ * **졸업 후보** — 사전 항목을 IRIS(학생)에게 넘길지 심사하는 자리 (회신 21호 확정).
  *
- * 사전 항목은 아무리 정확해져도 저절로 세지지 않는다(회신 7호 §3, 영구 확정). 대신
- * 실적이 쌓이면 **코드 패턴으로 이식할 후보**가 된다 — 문맥 조건을 적고, 대조군에서
- * 오탐 0 을 재고, 배포한다.
+ * ── 목적지는 졸업이지 코드 BLOCK 이 아니다 (20차 X-2 유지) ──
+ * 사전 항목은 아무리 정확해져도 저절로 세지지 않는다. 실적이 쌓이면 출구 후보가 되는데,
+ * **그 출구는 졸업(IRIS 위임)뿐**이다 — 의미를 가진 낱말은 코드로 굳히지 않는다(의미의
+ * 관할은 학생). WARN 도 게시를 막고 사람 앞에 오므로, BLOCK 이 아끼는 것은 "버튼 한 번"이고
+ * 거는 것은 "즉시 거절 오탐 = 복구 불가"라 절대 조건 쪽이 이긴다.
+ * (같은 5조건은 훗날 재검토 조건 — 보류 큐 7일 연속 하루 30건 초과 — 이 발동할 때에만
+ *  BLOCK 코드 이식을 외부 검토 안건으로 올리는 문턱으로도 쓴다. 회신 21호)
  *
- * ── 네 조건을 모두 그린다 (하나만 빠져도 배지가 거짓말이 된다) ──
+ * ── 다섯 조건을 모두 그린다 (하나만 빠져도 배지가 거짓말이 된다) ──
  * 특히 **서로 다른 리서처 수**가 이 배지의 값어치다. 그것 없이 "30회 · 100%" 만 보면
- * 한 사람이 같은 문구를 30번 써서 만든 30회가 후보로 뜨는데, 즉시 거절이 지키는 상대는
- * "지금 리서처"가 아니라 "아직 안 온 정상 문장"이다.
+ * 한 사람이 같은 문구를 30번 써서 만든 30회가 후보로 뜨는데, 심사가 지키는 상대는
+ * "지금 리서처"가 아니라 "아직 안 온 정상 문장"이다. **부정 문맥 0**(회신 20호 요청 2)은
+ * IRIS 가 넘겨받아도 헷지·부정 문장을 위반으로 오인하지 않을지의 신호다.
  *
  * ── 못 채운 조건을 감추지 않는다 ──
- * 채운 것만 보여주면 "거의 다 됐다"로 읽힌다. 넷을 다 늘어놓고 못 채운 것을 흐리게
+ * 채운 것만 보여주면 "거의 다 됐다"로 읽힌다. 다섯을 다 늘어놓고 못 채운 것을 흐리게
  * 그린다 — 무엇이 남았는지가 이 줄의 정보다.
  */
 function PromotionCandidate({
   p,
   now,
 }: {
-  p: { matchCount: number; confirmedCount: number; createdAt: Date; distinctResearcherCount: number };
+  p: {
+    matchCount: number;
+    confirmedCount: number;
+    createdAt: Date;
+    distinctResearcherCount: number;
+    negationHitCount: number;
+  };
   now: Date;
 }) {
   const ageDays = Math.floor((now.getTime() - p.createdAt.getTime()) / 86_400_000);
@@ -401,6 +414,9 @@ function PromotionCandidate({
       ok: p.distinctResearcherCount >= PROMOTION_MIN_RESEARCHERS,
       label: `리서처 ${p.distinctResearcherCount}/${PROMOTION_MIN_RESEARCHERS}명`,
     },
+    // 다섯째 조건 (회신 20호 요청 2) — 부정·헷지 문맥 출현 0. BLOCK 승격의 최대 위험이
+    // 부정문 오거절이라, 이 표현이 부정 문맥에서 쓰인 실적이 있으면 후보에서 뺀다
+    { ok: p.negationHitCount === 0, label: `부정 ${p.negationHitCount}건` },
   ];
   const done = checks.every((c) => c.ok);
 
@@ -411,7 +427,7 @@ function PromotionCandidate({
   return (
     <div className={a.meta}>
       <span style={{ color: done ? "var(--text)" : "var(--text-faint)", fontWeight: done ? 600 : 400 }}>
-        {done ? "코드 규칙 후보" : "코드 규칙 후보까지"}
+        {done ? "졸업 후보" : "졸업 후보까지"}
       </span>
       {checks.map((c) => (
         <span key={c.label} style={{ color: c.ok ? "var(--text-weak)" : "var(--text-faint)" }}>
@@ -767,6 +783,7 @@ function ReviewCard({
         heldAmountKrw={heldAmountKrw}
         flaggedCategories={[...new Set(findings.map((f) => f.category))]}
         suggestedPhrase={suggestPhrase(findings)}
+        content={review.report.content}
         // **여기서만 시간을 잰다.** 이 카드는 펼쳐졌을 때만 폼을 그리므로(접힌 상태는
         // 위의 `if (!open)` 링크다) 폼의 마운트가 곧 열람이다. 판매 중 목록은 카드마다
         // 폼을 한꺼번에 그려 마운트가 열람이 아니므로 재지 않는다
@@ -1474,6 +1491,8 @@ export default async function AdminCompliancePage({
                 {p.capExempt && <span>밀어내기 면제</span>}
               </div>
               {p.active && <PromotionCandidate p={p} now={now} />}
+              {/* 승격·졸업 심사의 재료 — 걸린 문장·출현형·부정·판정 (회신 20호 요청 2) */}
+              <PhraseEvidence phraseId={p.id} count={p.matchCount} />
               {p.note && <p className={a.hint}>{p.note}</p>}
               {p.needsReview && (
                 <p className={a.hint} style={{ color: "var(--warn)", fontWeight: 600 }}>
@@ -1554,6 +1573,7 @@ export default async function AdminCompliancePage({
                 reportStatus={report.status}
                 heldPurchases={report.purchases.length}
                 heldAmountKrw={heldAmountKrw}
+                content={report.content}
               />
             </div>
           );

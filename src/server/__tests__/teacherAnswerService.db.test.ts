@@ -243,29 +243,43 @@ describe('질의 실태 계측 (18차 V-7)', () => {
   // 전체 실행의 디스크 경합 아래에서 기본 5초가 간헐적으로 모자랐다 (2026-08-21
   // 재현: 전체 실행 2/4회 타임아웃, 단독 실행 항상 통과). 재는 것은 속도가 아니라
   // 집계의 정확성이므로 시간을 넉넉히 준다
-  it('안 물어보고 내린 결정이 숫자로 남는다 — 이 고장은 조용히 일어난다', { timeout: 30_000 }, async () => {
+  // **기준이 바뀌었다 (2026-08-27): "물어봤나"가 아니라 "질문지가 저장됐나"로 센다.**
+  // 질문지는 판정 시점에 자동 저장되므로(teacherPackText), "안 물어보고 내렸다"는 고장은
+  // 사라졌다(논의가 필요한 건은 전부 저장된다). 이제 이 표가 재는 것은 **답 대기 backlog**와
+  // **교사 갈림**이다 — decided(질문지 저장된 건) vs answered(답 걷은 건).
+  it('질문지가 저장된 건만 세고, 답 걷은 건과 대기 건을 가른다', { timeout: 30_000 }, async () => {
     const prisma2 = createTestDb('teacher-coverage-');
     try {
       await seedTestInstruments(prisma2);
       const saved = prisma;
       prisma = prisma2;
-      const asked = await seedReview('APPROVED', { findingsValid: true });
-      const notAsked = await seedReview('APPROVED', { findingsValid: true });
+      const withAnswer = await seedReview('REJECTED', { categories: ['PROFIT_GUARANTEE'] });
+      const waiting = await seedReview('REJECTED', { categories: ['PROFIT_GUARANTEE'] });
       prisma = saved;
-      await prisma2.complianceReview.update({
-        where: { id: notAsked },
-        data: { teacherAskedAt: null },
+
+      // 논의가 필요한 건은 판정 시점에 질문지가 저장된다 — 두 건 다 반려라 대상이다.
+      // (storeTeacherPackForReport 가 하는 일을 여기서는 값만 박아 재현한다)
+      await prisma2.complianceReview.updateMany({
+        where: { id: { in: [withAnswer, waiting] } },
+        data: { teacherPackText: '질문지' },
+      });
+
+      // 한 건만 교사 답을 걷는다 — 나머지는 대기
+      await recordTeacherAnswer(prisma2, {
+        reviewId: withAnswer,
+        text: answer(withAnswer, ['PROFIT_GUARANTEE']),
+        teacherTag: 't',
+        operatorUserId: 'op-1',
       });
 
       const cov = await getTeacherAskCoverage(prisma2);
-      expect(cov.decided).toBe(2);
-      expect(cov.asked).toBe(1); // 하나는 물어보지 않고 결정했다
-      expect(cov.answered).toBe(0);
+      expect(cov.decided).toBe(2); // 질문지가 저장된 두 건 = 논의가 필요했던 건
+      expect(cov.asked).toBe(2); // 자동 저장이라 asked = decided (인터페이스 호환)
+      expect(cov.answered).toBe(1); // 그중 답까지 걷은 건
 
-      // 답 대기 줄에는 **물어본 건만** 선다 — 안 물어본 건까지 세우면 줄이 안 줄고,
-      // 줄어들지 않는 큐는 곧 아무도 안 보는 큐가 된다
+      // 답 대기 줄에는 **답이 아직 없는 건만** 선다 — 답을 걷은 건은 줄에서 빠진다
       const pending = await getTeacherAnswerPending(prisma2);
-      expect(pending.map((p) => p.reviewId)).toEqual([asked]);
+      expect(pending.map((p) => p.reviewId)).toEqual([waiting]);
     } finally {
       await prisma2.$disconnect();
     }

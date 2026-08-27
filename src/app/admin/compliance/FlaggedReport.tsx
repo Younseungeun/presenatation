@@ -158,24 +158,56 @@ function tooltipOf(f: FlaggedFinding): string {
   return [severityWord(f), f.label, f.sublabel].filter(Boolean).join(" · ");
 }
 
-/** 텍스트를 소견 인용문 기준으로 조각내 빨간 <mark> 로 그린다 (라벨 없음) */
+// 강조 구간 좌우로 남길 문맥 길이. 잘린 인용은 앞뒤 한두 마디에 뜻이 뒤집히므로
+// (예: "…권유가 아닙니다") 최소한의 맥락은 남긴다
+const CONTEXT_PAD = 14;
+
+/**
+ * 텍스트를 소견 인용문 기준으로 조각내되 **강조된 부분만** 보여준다 — 그 사이의 긴 평문은
+ * `…`로 접는다 (2026-08-27 창업자 지시). 본문 전체를 통째로 그리면 긴 리포트에서 정작
+ * 문제 삼은 워딩이 벽지에 묻힌다. 강조 구간 좌우로 CONTEXT_PAD 만큼의 맥락만 남기고
+ * 나머지는 접어, 운영자가 "문제 삼은 곳"만 곧장 읽게 한다.
+ *
+ * 짧은 평문(양쪽 합 CONTEXT_PAD*2 이하)은 그대로 둔다 — 가까운 두 강조 사이는 이어 읽혀야
+ * 하고, 접어 봤자 `…` 가 원문보다 길어 오히려 지저분하다.
+ */
 function Highlighted({ text, findings }: { text: string; findings: FlaggedFinding[] }) {
   const segs = segmentText(text, findings);
+  // 강조가 하나도 없으면 본문을 접는다 — 아래 '문장을 짚지 못한 소견' 안내가 대신 말한다
+  if (!segs.some((seg) => seg.finding)) return null;
+
   return (
     <>
-      {segs.map((seg, i) =>
-        seg.finding ? (
-          <mark
-            key={i}
-            className={seg.finding.severity === "BLOCK" ? s.markBlock : s.mark}
-            title={tooltipOf(seg.finding)}
-          >
-            {seg.text}
-          </mark>
-        ) : (
-          <span key={i}>{seg.text}</span>
-        ),
-      )}
+      {segs.map((seg, i) => {
+        if (seg.finding) {
+          return (
+            <mark
+              key={i}
+              className={seg.finding.severity === "BLOCK" ? s.markBlock : s.mark}
+              title={tooltipOf(seg.finding)}
+            >
+              {seg.text}
+            </mark>
+          );
+        }
+        // 평문 — 강조 사이/가장자리라 문맥으로만 남긴다. plain 은 언제나 mark 로 둘러싸여
+        // 있으므로(segmentText), 앞뒤 mark 유무는 인덱스로 안다
+        const hasLeft = i > 0;
+        const hasRight = i < segs.length - 1;
+        const t = seg.text;
+        if (t.length <= CONTEXT_PAD * 2) {
+          return <span key={i}>{t}</span>;
+        }
+        const head = hasLeft ? t.slice(0, CONTEXT_PAD) : "";
+        const tail = hasRight ? t.slice(t.length - CONTEXT_PAD) : "";
+        return (
+          <span key={i}>
+            {head}
+            <span className={s.ellipsis}> … </span>
+            {tail}
+          </span>
+        );
+      })}
     </>
   );
 }

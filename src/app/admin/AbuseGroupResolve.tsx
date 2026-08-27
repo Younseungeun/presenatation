@@ -52,6 +52,9 @@ export function AbuseGroupResolve({
   const [manual, setManual] = useState(false);
   const [phrase, setPhrase] = useState("");
   const [note, setNote] = useState("");
+  // 기각의 두 갈래 — false=오신고(무고), true=지적은 타당했으나 위반 아님(경미).
+  // rejecting 일 때만 의미가 있고, decision 이 null 로 풀리면 checked 가 저절로 꺼진다
+  const [validConcern, setValidConcern] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -102,6 +105,18 @@ export function AbuseGroupResolve({
    * 결말"이지 "지금 눌러도 된다"가 아니다. 덜 채운 채 누르면 조용히 아무 일도
    * 안 일어나는 대신 무엇이 빠졌는지 말한다.
    */
+  // '위반이 아니라면'의 두 갈래 — 같은 것을 다시 누르면 해제(decision null)된다.
+  // valid=false 오신고 / valid=true 지적은 타당(경미). 둘 다 기각(판매 재개)이고,
+  // 무고 집계·학습 반영만 갈린다
+  const pickReject = (valid: boolean) => {
+    if (rejecting && validConcern === valid) {
+      setDecision(null);
+    } else {
+      setValidConcern(valid);
+      setDecision("REJECTED");
+    }
+  };
+
   const ask = () => {
     if (!decision) return;
     if (!ready) {
@@ -128,6 +143,8 @@ export function AbuseGroupResolve({
           note,
           category: confirming && category ? category : undefined,
           phrase: confirming && manual && phrase.trim() ? phrase.trim() : undefined,
+          // 기각 + 지적 타당일 때만 참을 보낸다 (경미 → 무고 제외·학습 반영)
+          findingsValid: rejecting && validConcern ? true : undefined,
         }),
       });
       const json = await res.json();
@@ -218,15 +235,27 @@ export function AbuseGroupResolve({
         >
           위반이 아니라면
         </WhyLabel>
+        {/* 기각은 두 갈래다 (2026-08-27 창업자 지시) — 둘 다 판매 재개·양쪽 통지지만
+            무고 집계와 학습 반영이 갈린다. 순수 오신고만 무고 이력에 남는다 */}
         <label className={a.check}>
           <input
             type="checkbox"
-            checked={rejecting}
-            onChange={(e) => setDecision(e.target.checked ? "REJECTED" : null)}
+            checked={rejecting && !validConcern}
+            onChange={() => pickReject(false)}
           />
           {/* 가는 곳을 **둘 다** 적는다 (2026-08-20 사용자 지시) — 기각은 신고자만의
               일이 아니다. 판매가 다시 열리는 쪽이 리서처이고, 그 사람도 통지를 받는다 */}
-          오신고로 확인했다 — 신고자 {reporterCount}명/리서처에게 통지
+          오신고였다 — 무고 이력에 남고, 신고자 {reporterCount}명·리서처에게 통지
+        </label>
+        <label className={a.check}>
+          <input
+            type="checkbox"
+            checked={rejecting && validConcern}
+            onChange={() => pickReject(true)}
+          />
+          {/* 성실한 지적이나 위반까지는 아님 — 무고로 세지 않고, 경계 사례로 학습에 남긴다
+              (검수 기록에 KEPT + findingsValid=true → 교사 질문지 생성) */}
+          지적은 타당했으나 위반은 아니다 — 무고로 세지 않고 경계 사례로 남깁니다
         </label>
       </div>
 

@@ -9,11 +9,13 @@ import {
   ABUSE_RESUME_TITLE,
 } from '@/domain/notice';
 import { FixtureMarketDataProvider } from '@/infra/marketData/fixtureProvider';
-import { createAbuseReport, isAbuseSuspended } from '../abuseReportService';
+import { createAbuseReport, getAbuseReports, isAbuseSuspended } from '../abuseReportService';
 import { resolveAbuseReportGroup } from '../abuseResolveService';
 import { createTestDb, seedTestInstruments } from './helpers/testDb';
 import { purchaseReport } from '../purchaseService';
 import { createDraftReport, publishReport } from '../reportService';
+import { storeTeacherPackForReport } from '../teacherPackStore';
+import { getTeacherAnswerPending } from '../teacherAnswerQueue';
 
 // 신고 그룹 처리 — **판단 하나가 전부를 정한다** (2026-08-19 사용자 확정).
 //
@@ -182,6 +184,54 @@ describe('확인 = 철회·환불·미탐·통지·보상이 한 번에', () => 
     await expect(purchaseReport(prisma, reportId, late.id, NOW)).rejects.toThrow();
   });
 
+  it('확인된 미탐은 교사 질문지로 남아 재학습 논의 큐에 뜬다', async () => {
+    // 신고로 잡힌 위반 = 검수가 놓친 것이라 재학습에서 가장 값진 라벨이다. 그전에는
+    // 미탐 라벨만 쓰고 '재학습 논의 자료' 큐에는 안 떴다 — 검수 라우트는 판정마다
+    // storeTeacherPackForReport 를 부르는데 신고 라우트만 빠져 있었다.
+    // 라우트가 판정 커밋 뒤에 부르는 것과 같은 흐름을 재현한다.
+    // 신선한 신고자 1명으로 단건 신고한다 — 공유 신고자 풀의 하루 한도(3건)를
+    // 건드리면 뒤 시험이 깨진다(교사 질문지에는 중단·다수 신고가 필요 없다)
+    const reportId = await publishTarget('교사 질문지 대상');
+    const solo = await prisma.user.create({
+      data: { email: 'teacherpack@resolve.io', identityVerified: true },
+    });
+    await createAbuseReport(
+      prisma,
+      {
+        reporterId: solo.id,
+        reportId,
+        targetName: 't',
+        category: 'OUTSIDE_CHANNEL',
+        detail: '오픈채팅으로 유도하는 문구를 봤습니다',
+      },
+      NOW,
+    );
+
+    await resolveAbuseReportGroup(
+      prisma,
+      {
+        reportId,
+        operatorUserId: operatorId,
+        decision: 'CONFIRMED',
+        note: '본문에 오픈채팅 유도 문구 확인',
+        categories: ['SOLICIT_CONTACT'],
+      },
+      NOW,
+    );
+    await storeTeacherPackForReport(prisma, reportId);
+
+    const review = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(review.operatorVerdict).toBe('TAKEDOWN');
+    // 질문지가 저장돼야 큐(getTeacherAnswerPending)가 이 건을 자동으로 세운다
+    expect(review.teacherPackText).not.toBeNull();
+
+    const pending = await getTeacherAnswerPending(prisma);
+    expect(pending.some((p) => p.reportId === reportId)).toBe(true);
+  });
+
   it('이미 닫힌 리포트면 철회만 건너뛰고 신고 확인은 진행된다', async () => {
     const reportId = await publishTarget('이미 닫힌 리포트');
     await createAbuseReport(
@@ -343,5 +393,178 @@ describe('기각 = 전원 통지·무고 기록, 판매는 저절로 재개', ()
       where: { userId: researcherUserId, type: 'ABUSE_SALES_RESUMED' },
     });
     expect(notes.every((n) => !n.body.includes('멈추지 않은 리포트'))).toBe(true);
+  });
+});
+
+describe('기각의 두 갈래 — 오신고 vs 지적 타당 (2026-08-27)', () => {
+  it('지적 타당 기각은 무고로 안 세고, 경계 사례로 학습에 남긴다', async () => {
+    // 게시 파이프라인을 타지 않는다(장기 카드 상한과 무관) — 필요한 것은 리포트 하나와
+    // 그 리포트의 검수 기록(operatorVerdictWrites 가 갱신할 대상)뿐이다
+    const report = await prisma.report.create({
+      data: {
+        researcherId,
+        title: '지적 타당 기각 리포트',
+        summary: 's',
+        content: '본문에 애매한 표현이 하나 있다',
+        priceKrw: 10_000,
+        prepaymentRatio: 0,
+        feeRateBp: 2000,
+        status: 'PUBLISHED',
+        publishedAt: PUBLISH_NOW,
+      },
+    });
+    const reportId = report.id;
+    await prisma.complianceReview.create({
+      data: { reportId, decision: 'PASS', reviewer: 'rule', findingsJson: '[]' },
+    });
+    const reporter = await prisma.user.create({
+      data: { email: 'valid-concern@resolve.io', identityVerified: true },
+    });
+    await createAbuseReport(
+      prisma,
+      {
+        reporterId: reporter.id,
+        reportId,
+        targetName: 't',
+        category: 'SOLICIT',
+        detail: '수익 보장처럼 읽히는 표현이 있는 것 같습니다',
+      },
+      NOW,
+    );
+
+    await resolveAbuseReportGroup(
+      prisma,
+      {
+        reportId,
+        operatorUserId: operatorId,
+        decision: 'REJECTED',
+        note: '표현이 애매하나 위반까지는 아님',
+        findingsValid: true,
+      },
+      NOW,
+    );
+    await storeTeacherPackForReport(prisma, reportId);
+
+    // 기각(판매 재개)은 그대로 — 신고는 REJECTED
+    const row = await prisma.abuseReport.findFirstOrThrow({ where: { reportId } });
+    expect(row.status).toBe('REJECTED');
+
+    // 검수 기록에 KEPT + findingsValid=true → 교사 질문지 생성(경계 사례 학습)
+    const review = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(review.operatorVerdict).toBe('KEPT');
+    expect(review.aiFindingsValid).toBe(true);
+    expect(review.teacherPackText).not.toBeNull();
+
+    // **무고로 세지 않는다** — 이 신고자의 기각 이력이 0
+    const listed = await getAbuseReports(prisma);
+    const mine = listed.find((x) => x.reportId === reportId && x.reporterId === reporter.id);
+    expect(mine?.reporterRejectedCount).toBe(0);
+  });
+
+  it('순수 오신고 기각은 무고 이력에 남고 학습에는 안 들어간다', async () => {
+    const report = await prisma.report.create({
+      data: {
+        researcherId,
+        title: '오신고 기각 리포트',
+        summary: 's',
+        content: '평범한 분석입니다',
+        priceKrw: 10_000,
+        prepaymentRatio: 0,
+        feeRateBp: 2000,
+        status: 'PUBLISHED',
+        publishedAt: PUBLISH_NOW,
+      },
+    });
+    const reportId = report.id;
+    await prisma.complianceReview.create({
+      data: { reportId, decision: 'PASS', reviewer: 'rule', findingsJson: '[]' },
+    });
+    const reporter = await prisma.user.create({
+      data: { email: 'false-reporter@resolve.io', identityVerified: true },
+    });
+    await createAbuseReport(
+      prisma,
+      { reporterId: reporter.id, reportId, targetName: 't', category: 'OTHER', detail: '문제 없어 보이는데 그냥 신고합니다' },
+      NOW,
+    );
+
+    await resolveAbuseReportGroup(
+      prisma,
+      { reportId, operatorUserId: operatorId, decision: 'REJECTED', note: '근거 없음', findingsValid: false },
+      NOW,
+    );
+
+    // verdict 를 안 쓴다 — 모델은 옳게 통과시켰고 배울 게 없다
+    const review = await prisma.complianceReview.findFirstOrThrow({
+      where: { reportId },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(review.operatorVerdict).toBeNull();
+
+    // 무고 이력에 남는다
+    const listed = await getAbuseReports(prisma);
+    const mine = listed.find((x) => x.reportId === reportId && x.reporterId === reporter.id);
+    expect(mine?.reporterRejectedCount).toBe(1);
+  });
+});
+
+describe('판정이 끝난 리포트는 신고를 받지 않는다 (2026-08-27)', () => {
+  it('판정된 카드의 리포트에 신고하면 거절한다 — 나올 처분이 없다', async () => {
+    // 판정된 카드는 강제 철회가 불가능하고(정산 종료·환불 불가) 판매도 끝났다.
+    // UI(리포트 버튼·/clean)도 감추지만, API 직접 호출을 막는 방어선은 createAbuseReport 다.
+    //
+    // 게시 파이프라인을 타지 않고 행을 직접 만든다 — 여기서 재는 것은 게시 규칙(장기 카드
+    // 상한 등)이 아니라 **판정 완료 시 신고 게이트**이고, 필요한 것은 '판정된 카드가 달린
+    // 리포트' 하나뿐이다
+    const report = await prisma.report.create({
+      data: {
+        researcherId,
+        title: '판정 완료 리포트',
+        summary: 's',
+        content: 'c',
+        priceKrw: 10_000,
+        prepaymentRatio: 0,
+        feeRateBp: 2000,
+        status: 'CLOSED',
+        publishedAt: PUBLISH_NOW,
+      },
+    });
+    const reportId = report.id;
+    const card = await prisma.predictionCard.create({
+      data: {
+        reportId,
+        assetClass: 'CRYPTO',
+        ticker: 'KRW-AAA',
+        assetName: 'KRW-AAA',
+        direction: 'UP',
+        targetType: 'RETURN_PCT',
+        targetValue: 20,
+        deadline: new Date('2026-12-01T00:00:00Z'),
+      },
+    });
+    await prisma.judgment.create({ data: { predictionCardId: card.id, outcome: 'HIT' } });
+
+    const reporter = await prisma.user.create({
+      data: { email: 'judged-reporter@resolve.io', identityVerified: true },
+    });
+    await expect(
+      createAbuseReport(
+        prisma,
+        {
+          reporterId: reporter.id,
+          reportId,
+          targetName: 't',
+          category: 'SOLICIT',
+          detail: '수익 보장 표현을 봤습니다',
+        },
+        NOW,
+      ),
+    ).rejects.toThrow(/판정이 완료/);
+
+    // 신고 행이 실제로 만들어지지 않았다
+    expect(await prisma.abuseReport.count({ where: { reportId } })).toBe(0);
   });
 });

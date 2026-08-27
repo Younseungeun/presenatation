@@ -153,7 +153,10 @@ export async function buildTeacherPack(
 
 /** 사람 판정 — 네 칸을 하나로 묶는다. 아직 판정 전이면 null */
 export interface HumanVerdict {
-  verdict: 'APPROVED' | 'REJECTED' | 'KEPT' | 'TAKEDOWN';
+  // MISSED = 검수 통과 후 신고로 잡혔는데 이미 닫혀 있어 내리지 못한 미탐.
+  // 처분만 다를 뿐 관측은 TAKEDOWN 과 같은 '검수가 놓친 위반'이라(screeningAccuracy.isMiss),
+  // 교사 질문지에서도 같은 미탐으로 다룬다
+  verdict: 'APPROVED' | 'REJECTED' | 'KEPT' | 'TAKEDOWN' | 'MISSED';
   /** 운영자가 인정한 실제 위반 유형 — 비었으면 "검수 소견 그대로 인정" */
   categories: RiskCategory[];
   /** 승인 시: 지적 자체는 타당했는가 (경미 ↔ 오탐) */
@@ -168,7 +171,8 @@ function readHumanVerdict(review: {
   aiFindingsValid: boolean | null;
 }): HumanVerdict | null {
   const v = review.operatorVerdict;
-  if (v !== 'APPROVED' && v !== 'REJECTED' && v !== 'KEPT' && v !== 'TAKEDOWN') return null;
+  if (v !== 'APPROVED' && v !== 'REJECTED' && v !== 'KEPT' && v !== 'TAKEDOWN' && v !== 'MISSED')
+    return null;
   let categories: RiskCategory[] = [];
   try {
     const parsed = JSON.parse(review.operatorCategories ?? '[]');
@@ -269,10 +273,12 @@ function humanVerdictBlock(v: HumanVerdict | null): string[] {
     REJECTED: '반려 (초안 복귀)',
     KEPT: '게시 유지',
     TAKEDOWN: '강제 철회 (게시 중단·전액 환불)',
+    MISSED: '미탐 (검수 통과 후 신고로 확인 — 이미 닫혀 내리지 못함)',
   };
   const out = ['## 사람 판정 (운영자)', '', `- **결론: ${label[v.verdict]}**`];
 
-  const rejectedLike = v.verdict === 'REJECTED' || v.verdict === 'TAKEDOWN';
+  const rejectedLike =
+    v.verdict === 'REJECTED' || v.verdict === 'TAKEDOWN' || v.verdict === 'MISSED';
   if (rejectedLike) {
     out.push(
       v.categories.length > 0
@@ -412,6 +418,16 @@ function caseGuide(v: HumanVerdict | null): { headline: string; points: string[]
     return {
       headline:
         '자동 검수가 통과시킨 것을 사람이 내린 건입니다 — 왜 못 잡았고, 어떻게 잡게 할지 논의해 주세요.',
+      points: rejectLike.points,
+    };
+  }
+  if (v.verdict === 'MISSED') {
+    // 검수가 통과시켰고 이미 닫힌 뒤 신고로 드러난 미탐 — 처분(철회)만 못 했을 뿐
+    // 논의는 TAKEDOWN 과 같다("어떻게 잡게 할지"). caseGuide 에서 빠져 있으면
+    // 아래 'APPROVED + null'로 떨어져 "표시 없이 승인"이라는 틀린 머리말이 붙는다
+    return {
+      headline:
+        '자동 검수가 통과시켰고 이미 닫힌 뒤 신고로 드러난 건입니다 — 왜 못 잡았고, 어떻게 잡게 할지 논의해 주세요.',
       points: rejectLike.points,
     };
   }

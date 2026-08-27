@@ -297,20 +297,53 @@ export const OPS_THRESHOLDS = {
   interventionsPer100: 5,
 } as const;
 
+/**
+ * 보류 큐(검수 대기) 일 유입의 최근 7일 최대값 (회신 21호).
+ *
+ * 20차 X-2(코드 BLOCK 승격 금지)를 되살릴지 정하는 **재검토 개시 조건**의 계기판이다 —
+ * 조건은 "보류 큐 유입이 7일 연속 하루 30건 초과"(운영자 1인의 판정 노동이 실질 부담이
+ * 되는 선)이고, 그때에만 5조건 통과 표현의 BLOCK 이식을 외부 검토 안건으로 올린다.
+ * 여기서는 **알림을 걸지 않는다** — 분기 검토 때 사람이 본다. 7일 최대값이면 "7일 연속
+ * 초과"가 애초에 가능한지를 한눈에 준다(최대값이 30 이하면 조건은 성립할 수 없다).
+ */
+async function holdQueueInflow7dMax(
+  prisma: PrismaClient,
+  now: Date,
+): Promise<{ max: number; total: number }> {
+  const since = new Date(now.getTime() - 7 * 86_400_000);
+  const rows = await prisma.complianceReview.findMany({
+    where: { needsOperatorReview: true, createdAt: { gte: since } },
+    select: { createdAt: true },
+  });
+  const byDay = new Map<string, number>();
+  for (const r of rows) {
+    const day = r.createdAt.toISOString().slice(0, 10);
+    byDay.set(day, (byDay.get(day) ?? 0) + 1);
+  }
+  let max = 0;
+  for (const n of byDay.values()) if (n > max) max = n;
+  return { max, total: rows.length };
+}
+
+/** @근거 계약 — 회신 21호: 재검토 개시 조건의 일 유입 문턱 */
+const HOLD_REREVIEW_DAILY = 30;
+
 export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Promise<OpsMetric[]> {
-  const [lead, payout, zero, revert, repurchase, manual, approvalRows, solo] = await Promise.all([
-    judgmentLeadTime(prisma),
-    payoutLatency(prisma),
-    zeroPurchaseRate(prisma, now),
-    judgmentDisputeRate(prisma),
-    repurchaseAfterJudgment(prisma, now),
-    manualInterventions(prisma),
-    prisma.operatorApproval.findMany({
-      where: { decidedAt: { not: null }, decidedBy: { not: null } },
-      select: { requestedAt: true, decidedAt: true, decidedBy: true, status: true },
-    }),
-    isSoloOperatorMode(prisma),
-  ]);
+  const [lead, payout, zero, revert, repurchase, manual, approvalRows, solo, holdInflow] =
+    await Promise.all([
+      judgmentLeadTime(prisma),
+      payoutLatency(prisma),
+      zeroPurchaseRate(prisma, now),
+      judgmentDisputeRate(prisma),
+      repurchaseAfterJudgment(prisma, now),
+      manualInterventions(prisma),
+      prisma.operatorApproval.findMany({
+        where: { decidedAt: { not: null }, decidedBy: { not: null } },
+        select: { requestedAt: true, decidedAt: true, decidedBy: true, status: true },
+      }),
+      isSoloOperatorMode(prisma),
+      holdQueueInflow7dMax(prisma, now),
+    ]);
   const approval = assessApprovalHealth(
     approvalRows.map((r) => ({
       requestedAt: r.requestedAt,
@@ -410,6 +443,17 @@ export async function getOpsMetrics(prisma: PrismaClient, now = new Date()): Pro
       meaning:
         '확장 가능성의 지표입니다. 100건에 5건을 손대면 1,000건에서는 50건이고, 그때 사람이 병목이 됩니다.',
       alert: per100 > OPS_THRESHOLDS.interventionsPer100,
+    },
+    {
+      // 회신 21호 — 20차 X-2(코드 BLOCK 승격 금지)를 되살릴지의 재검토 개시 조건 계기판.
+      // 알림은 안 건다(분기 검토). 7일 최대값이 문턱 이하면 "7일 연속 초과"는 성립 불가.
+      key: 'holdInflow',
+      label: '보류 유입 7일 최대',
+      value: `하루 ${holdInflow.max}건`,
+      sample: `최근 7일 · 보류 유입 총 ${holdInflow.total}건`,
+      meaning:
+        `졸업 후보를 코드 BLOCK 으로 이식할지 **재검토를 여는 조건**의 계기판입니다(회신 21호). "보류 유입이 7일 연속 하루 ${HOLD_REREVIEW_DAILY}건 초과"가 되면 그때만 5조건 통과 표현의 BLOCK 이식을 외부 검토 안건으로 올립니다. 7일 최대값이 ${HOLD_REREVIEW_DAILY} 이하이면 조건은 성립할 수 없습니다. 알림은 걸지 않습니다 — 분기 검토 때 사람이 봅니다.`,
+      alert: false,
     },
     {
       // 2인 승인의 사망 원인은 우회가 아니라 습관화다 (검토 5차 Q1). 성격이 다른

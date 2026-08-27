@@ -49,6 +49,14 @@ export interface ResolveAbuseGroupInput {
   note: string;
   /** 확인일 때 실제 위반 유형 — 미탐 라벨이 되고, 학습 표현 등록의 근거가 된다 */
   categories?: RiskCategory[];
+  /**
+   * **기각일 때만** — 신고자의 지적이 타당했는가 (2026-08-27 창업자 지시).
+   *   · true  = "지적은 타당했으나 위반은 아님"(경미). 무고로 세지 않고, 검수 기록에
+   *     KEPT + findingsValid=true 로 남겨 **경계 사례로 학습**에 넣는다(교사 질문지 생성).
+   *   · false/미지정 = 순수 오신고. 종전대로 무고 이력에 남고 학습에는 안 들어간다.
+   * 확인(CONFIRMED)일 때는 무시한다 — 그쪽은 미탐(TAKEDOWN)이 라벨이다.
+   */
+  findingsValid?: boolean;
 }
 
 export interface ResolveAbuseGroupSummary {
@@ -155,6 +163,22 @@ export async function resolveAbuseReportGroup(
   //    전부다 — 전에는 없어서 리서처는 멈췄다는 말만 듣고 열렸다는 말은 못 들었다
   if (input.decision === 'REJECTED' && wasSuspended) {
     await notifySalesResumedAfterRejection(prisma, input.reportId, now);
+  }
+
+  // ④ **기각인데 지적은 타당했으면** 검수 기록에 KEPT + findingsValid=true 로 남긴다
+  //    (2026-08-27 창업자 지시). 위반은 아니라 판매는 재개하되, 신고자가 짚은 것은
+  //    경계 사례라 모델이 배울 값이 있다 — verdictNeedsTeacherPack(KEPT, true) 가 참이라
+  //    라우트의 storeTeacherPackForReport 가 이 건을 교사 질문지로 만든다.
+  //    무고 제외(reporterRejectedCount)는 이 verdict 를 보고 getAbuseReports 가 판단한다.
+  //    ⚠ 순수 오신고(findingsValid=false)에는 아무 verdict 도 쓰지 않는다 — 모델은 옳게
+  //    통과시켰고 배울 게 없다(신고 경로의 '오탐'은 질문지 미작성, teacherPackStore 주석)
+  if (input.decision === 'REJECTED' && input.findingsValid === true) {
+    await prisma.$transaction(
+      await operatorVerdictWrites(prisma, input.reportId, 'KEPT', input.operatorUserId, now, {
+        reason: input.note,
+        findingsValid: true,
+      }),
+    );
   }
 
   return { resolved: pending.length, rewarded, takedown, takedownSkipped };

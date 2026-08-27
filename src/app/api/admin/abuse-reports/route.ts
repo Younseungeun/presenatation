@@ -6,6 +6,7 @@ import { getAbuseReports, reviewAbuseReport } from '@/server/abuseReportService'
 import { resolveAbuseReportGroup } from '@/server/abuseResolveService';
 import { prisma } from '@/server/db';
 import { createLearnedPhrase } from '@/server/learnedPhraseService';
+import { storeTeacherPackForReport } from '@/server/teacherPackStore';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 
 // 운영자 신고 검토.
@@ -27,6 +28,8 @@ const groupSchema = z.object({
   note: z.string().min(1, '검토 사유를 적어 주세요').max(2000),
   category: z.enum(RISK_CATEGORIES).optional(),
   phrase: z.string().max(200).optional(),
+  // 기각일 때만 의미 — "지적은 타당했다(경미)". 무고에서 빼고 경계 사례로 학습에 남긴다
+  findingsValid: z.boolean().optional(),
 });
 
 /**
@@ -90,11 +93,20 @@ export async function POST(req: NextRequest) {
         decision: body.decision,
         note: body.note,
         categories: body.category ? [body.category] : [],
+        findingsValid: body.findingsValid,
       });
       const phrase =
         body.decision === 'CONFIRMED'
           ? await registerPhrase(operatorUserId, body.reportId, body.phrase, body.category, body.note)
           : { phraseWarning: null, phraseCollisions: [] };
+      // **교사 질문지 생성** (2026-08-27 창업자 지시 — 검수와 같은 흐름). 판정 커밋 뒤,
+      // 최선-노력으로(실패해도 판정은 유효). 두 갈래에서 만든다:
+      //   · 확인(TAKEDOWN) = 미탐. 검수가 놓친 것이라 재학습에서 가장 값진 라벨
+      //   · 기각 + 지적 타당(KEPT+findingsValid) = 경계 사례. 모델이 배울 값이 있다
+      // 순수 오신고(기각 + findingsValid 아님)는 verdict 를 안 써서 질문지가 안 생긴다
+      if (body.decision === 'CONFIRMED' || body.findingsValid === true) {
+        await storeTeacherPackForReport(prisma, body.reportId);
+      }
       return NextResponse.json({ ...summary, ...phrase });
     }
 

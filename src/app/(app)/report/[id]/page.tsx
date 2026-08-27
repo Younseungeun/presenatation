@@ -575,8 +575,13 @@ export default async function ReportDetail({
           본문을 읽은 사람 = 구매자만 할 수 있다. 구매 전 화면은 제목·본문이 마스킹돼
           있어 짚을 것이 없다. 자기 리포트·무료 시황은 그대로 제외(자기 건 신고할 이유가
           없고, 무료 글은 예측 카드가 없어 판매를 멈출 대상이 아니다).
-          리서처를 이름으로 신고하는 일반 경로(/clean, reportId 없음)는 그대로 남는다 */}
-      {!free && viewerId && !isOwner && purchased && <ReportAbuseLink reportId={report.id} />}
+          리서처를 이름으로 신고하는 일반 경로(/clean, reportId 없음)는 그대로 남는다.
+          **판정이 끝나면 신고를 받지 않는다** (2026-08-27 창업자 지시): 판정된 카드는
+          강제 철회가 불가능하고(정산이 끝나 환불도 못 한다) 판매도 이미 끝났다 —
+          신고해도 나올 처분이 없다. reportId 없는 이름 신고는 그대로 남는다 */}
+      {!free && viewerId && !isOwner && purchased && !judgment && (
+        <ReportAbuseLink reportId={report.id} />
+      )}
 
       <Disclaimer />
       </main>

@@ -51,6 +51,21 @@ export const ABUSE_CATEGORY_CLAIM: Record<AbuseCategory, string> = {
   OTHER: '이용약관·법령 위반이 의심돼요',
 };
 
+/**
+ * 칩(버튼)에 얹는 **짧은 이름표** — LABEL을 한 줄 칩 안에 넣으면 넘친다.
+ *
+ * 신고 화면에서 유형을 드롭다운이 아니라 4개 칩으로 고르게 하면서 필요해졌다
+ * (2026-08-27 창업자 지시: 상단 '신고 대상 행위' 설명과 아래 유형 선택이 같은 4가지인데
+ * 화면에서 끊겨 있어, 고르는 자리를 칩으로 만들어 설명과 선택을 하나로 잇는다).
+ * LABEL과 뜻은 같고 길이만 줄인 것이라 순서·키가 어긋나면 안 된다.
+ */
+export const ABUSE_CATEGORY_SHORT: Record<AbuseCategory, string> = {
+  ONE_ON_ONE: '1:1 상담 유도',
+  SOLICIT: '수익 보장·권유',
+  OUTSIDE_CHANNEL: '외부 채널 유인',
+  OTHER: '기타 위반',
+};
+
 /** 보상 선착순 쿼터 — 확인된 신고 기준. 소진 후에도 신고는 받되 보상 없이 처리 */
 export const REWARD_QUOTA = 100;
 /** 무고성 대량 신고 1차 방어 — 1인당 하루 신고 한도 */
@@ -93,6 +108,22 @@ export async function createAbuseReport(
     throw new AbuseReportError(
       `신고는 하루 ${DAILY_REPORT_LIMIT}건까지 접수할 수 있습니다. 내일 다시 시도해 주세요.`,
     );
+  }
+
+  // **판정이 끝난 리포트는 신고를 받지 않는다** (2026-08-27 창업자 지시).
+  //
+  // 판정된 카드는 강제 철회가 구조적으로 불가능하고(정산이 끝나 환불도 못 하며,
+  // forceWithdrawReport 가 ALREADY_CLOSED 로 막는다) 판매도 이미 끝났다 — 신고해도
+  // 나올 처분이 없다. UI(리포트 신고 버튼·/clean)도 감추지만, API 직접 호출을 막는
+  // 권위 있는 방어선은 여기다. reportId 없는 이름 신고(자유 입력)는 이 게이트를 지나지 않는다
+  if (input.reportId) {
+    const target = await prisma.report.findUnique({
+      where: { id: input.reportId },
+      select: { predictionCard: { select: { judgment: { select: { id: true } } } } },
+    });
+    if (target?.predictionCard?.judgment) {
+      throw new AbuseReportError('이미 판정이 완료된 리포트는 신고할 수 없습니다.');
+    }
   }
 
   // **같은 사람이 같은 리포트를 두 번 신고할 수 없다.** 중단 문턱이 "서로 다른 신고자
@@ -414,9 +445,22 @@ export async function getAbuseReports(prisma: PrismaClient): Promise<AbuseReport
   );
   const suspended = await abuseSuspendedReportIds(prisma, reportIds);
 
+  // **지적이 타당했던 기각은 무고가 아니다** (2026-08-27 창업자 지시). 운영자가 "위반은
+  // 아니지만 지적은 타당했다"로 기각하면 검수 기록에 KEPT + findingsValid=true 가 남는다.
+  // 그 리포트의 REJECTED 신고는 성실한 지적이라 무고 이력(reporterRejectedCount)에서 뺀다 —
+  // 순수 오신고만 반복 무고 판단에 들어가야 한다
+  const validConcernRows = reportIds.length
+    ? await prisma.complianceReview.findMany({
+        where: { reportId: { in: reportIds }, operatorVerdict: 'KEPT', aiFindingsValid: true },
+        select: { reportId: true },
+      })
+    : [];
+  const validConcernReports = new Set(validConcernRows.map((r) => r.reportId));
+
   const rejectedOf = new Map<string, number>();
   for (const r of rows) {
-    if (r.status === 'REJECTED') {
+    // 지적이 타당했던 기각은 무고로 세지 않는다
+    if (r.status === 'REJECTED' && !(r.reportId && validConcernReports.has(r.reportId))) {
       rejectedOf.set(r.reporterId, (rejectedOf.get(r.reporterId) ?? 0) + 1);
     }
   }

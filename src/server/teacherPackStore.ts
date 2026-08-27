@@ -25,7 +25,10 @@ export function verdictNeedsTeacherPack(
   verdict: string | null,
   findingsValid: boolean | null,
 ): boolean {
-  if (verdict === 'REJECTED' || verdict === 'TAKEDOWN') return true;
+  // TAKEDOWN·MISSED 는 둘 다 '검수가 놓친 위반'이다(screeningAccuracy.isMiss) — 미탐은
+  // 재학습에서 가장 값진 라벨이라 반드시 질문지를 남긴다. MISSED 는 신고로 잡혔으나
+  // 이미 닫혀 내리지 못한 건(abuseResolveService)이라, 처분만 다를 뿐 논의 대상은 같다
+  if (verdict === 'REJECTED' || verdict === 'TAKEDOWN' || verdict === 'MISSED') return true;
   if (verdict === 'APPROVED') return findingsValid !== null; // 표시 안 함(null)만 제외
   if (verdict === 'KEPT') return findingsValid === true; // 판매 재개 + 지적 타당만
   return false;

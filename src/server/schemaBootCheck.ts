@@ -29,7 +29,19 @@ export interface RequiredSchema {
 /** raw SQL 이 닿는 표·칸. 새 raw 쿼리를 쓰면 여기 한 줄 — 래칫이 강제한다 */
 export const REQUIRED_SCHEMA: readonly RequiredSchema[] = [
   { table: 'ComplianceReview', columns: ['decisionElapsedMs', 'operatorReviewedAt', 'operatorVerdict'] },
-  { table: 'LearnedPhraseHit', columns: ['phraseId', 'reportId', 'researcherId', 'createdAt'] },
+  {
+    table: 'LearnedPhraseHit',
+    columns: [
+      'phraseId',
+      'reportId',
+      'researcherId',
+      'createdAt',
+      // 매칭 스냅샷 (회신 20호 요청 1) — raw INSERT 가 이 칸들에 박는다
+      'matchedSentence',
+      'matchedSurface',
+      'negation',
+    ],
+  },
 ];
 
 /**

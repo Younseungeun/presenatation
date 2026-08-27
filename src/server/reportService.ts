@@ -15,6 +15,8 @@ import {
   findingMessages,
   REPUBLISH_REVIEW_THRESHOLD,
   requiresReviewAfterRejections,
+  RISK_CATEGORY_LABEL,
+  type Finding,
   type RiskCategory,
 } from '@/domain/compliance';
 import {
@@ -153,6 +155,38 @@ function cardScreeningFields(card: CardDraft, now: Date) {
   };
 }
 
+/**
+ * 게시 전 되묻기 — 검수가 "보류감"일 때 리서처에게 확인을 받으려고 던지는 신호.
+ * BLOCK(즉시 거절)과 다르다: 다시 쓰라 강제하지 않고, "그래도 게시" 를 고르면 종전대로
+ * 보류 큐로 간다. 우회 오라클을 막으려고 **어느 문장이 걸렸는지는 싣지 않는다** — 위반
+ * 유형(categories)과 위험 수준(decision)만 전한다.
+ */
+export class HoldConfirmationRequired extends Error {
+  readonly decision: string;
+  readonly categories: string[];
+  readonly repeated: boolean;
+  constructor(decision: string, categories: string[], repeated: boolean) {
+    super('게시 전 검토 보류 가능성이 높습니다');
+    this.name = 'HoldConfirmationRequired';
+    this.decision = decision;
+    this.categories = categories;
+    this.repeated = repeated;
+  }
+}
+
+/** 보류를 유발한 소견의 **유형 라벨**만 추린다 (인용문·위치는 제외 — 우회 오라클 방어). */
+function holdCategories(findings: Finding[]): string[] {
+  const seen = new Set<RiskCategory>();
+  const labels: string[] = [];
+  for (const f of findings) {
+    if (f.severity !== 'WARN' && f.severity !== 'BLOCK') continue;
+    if (seen.has(f.category)) continue;
+    seen.add(f.category);
+    labels.push(RISK_CATEGORY_LABEL[f.category]);
+  }
+  return labels;
+}
+
 export async function publishReport(
   prisma: PrismaClient,
   registry: ProviderRegistry,
@@ -161,6 +195,12 @@ export async function publishReport(
   now = new Date(),
   /** 컴플라이언스 검수기. null이면 결정적 규칙만 적용된다 */
   screener: ComplianceScreener | null = null,
+  /**
+   * true(기본)면 보류감이어도 곧장 보류 큐로 보낸다(내부 호출·승인 경로·테스트).
+   * false면 보류가 예상될 때 커밋하지 않고 HoldConfirmationRequired 를 던져 팝업을 띄운다 —
+   * 리서처가 "그래도 게시" 를 눌러 확인하면 UI 가 true 로 다시 부른다.
+   */
+  acknowledgeHold = true,
 ) {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
@@ -194,38 +234,59 @@ export async function publishReport(
     throw new PublishValidationError(instrument.issues);
   }
 
+  // 컴플라이언스 검수 입력 — 프리뷰(팝업)와 실제 게시가 **같은 입력**을 쓴다.
+  const screeningInput = {
+    title: report.title,
+    summary: report.summary,
+    content: report.content,
+    assetClass: cardDraft.assetClass,
+    assetName: cardDraft.assetName,
+    direction: cardDraft.direction,
+    // 종목 위험(시장경보·상폐 가능성·과소 시총)은 게시 보류를 유발한다
+    riskLevel: instrument.riskLevel,
+    riskNote: instrument.riskNote,
+    delistingRisk: instrument.delistingRisk,
+    marketCap: instrument.marketCap,
+    // 예측 카드 — 크기의 현실성(규칙)과 본문-카드 정합성(AI)을 함께 보게 한다.
+    // 판정은 전적으로 카드로 이뤄지는데 구매자는 본문을 보고 사므로,
+    // 카드를 검수 입력에서 빼면 그 둘이 어긋난 리포트를 아무도 못 잡는다.
+    ...cardScreeningFields(cardDraft, now),
+    // 크기 상한 규칙이 종목 변동성을 함께 본다 — 거친 종목의 큰 예측은 낚시가 아니다.
+    // 작성 화면 사전 검사가 쓰는 것과 같은 캐시값이라 두 화면의 판정이 어긋나지 않는다
+    sigmaDaily: instrument.sigmaDaily,
+    // **판정 불가가 반복되면 사람이 한 번 본다** (2026-08-16). 보상 원장이 생기면서
+    // "판정 불가가 실패보다 낫다"가 됐고, 그러면 판정되기 어려운 종목을 고를 유인이
+    // 생긴다. 작성 화면 사전 검사에는 넘기지 않는다 — 리서처 이력은 서버가 게시
+    // 시점에만 붙이는 사실이고, 미리 보여주면 문턱을 피해 가는 법을 알려주는 셈이다
+    unjudgeableCardCount: await countUnjudgeableCards(prisma, report.researcher.userId, now),
+  };
+
+  // 반복 반려된 리포트는 검수를 통과해도 자동 게시하지 않는다 (규칙 탐색 방어).
+  const repeatedRejection = requiresReviewAfterRejections(report.rejectionCount);
+
+  // ── 게시 전 되묻기 (회신 22호) ──────────────────────────────────────
+  // 리서처가 아직 확인하지 않았으면(acknowledgeHold=false), **기록 없는 프리뷰**로 먼저
+  // 검수만 돌려 보류감인지 본다. 보류감이면 커밋하지 않고 HoldConfirmationRequired 를 던져
+  // 팝업을 띄운다 — "그래도 게시" 를 고르면 UI 가 acknowledgeHold=true 로 다시 부른다.
+  // 프리뷰가 리뷰를 남기지 않으므로 취소해도 큐에 유령이 안 생긴다. REJECT(명백한 위반)는
+  // 되묻지 않고 그대로 거절한다 — 팝업은 "보류감" 용이지 즉시 거절용이 아니다.
+  if (!acknowledgeHold) {
+    const preview = await screenAndRecord(prisma, reportId, screeningInput, screener, now, false);
+    if (preview.action === 'REJECT') {
+      throw new PublishValidationError(findingMessages(preview.findings, 'BLOCK'));
+    }
+    if (preview.action === 'HOLD' || repeatedRejection) {
+      throw new HoldConfirmationRequired(
+        preview.decision,
+        holdCategories(preview.findings),
+        repeatedRejection,
+      );
+    }
+    // PASS 예상 — 아래 실제 검수로 진행해 기록·게시한다.
+  }
+
   // 컴플라이언스 검수: 규제 위반 표현은 게시 자체를 막는다 (§1 법적 경계).
-  const compliance = await screenAndRecord(
-    prisma,
-    reportId,
-    {
-      title: report.title,
-      summary: report.summary,
-      content: report.content,
-      assetClass: cardDraft.assetClass,
-      assetName: cardDraft.assetName,
-      direction: cardDraft.direction,
-      // 종목 위험(시장경보·상폐 가능성·과소 시총)은 게시 보류를 유발한다
-      riskLevel: instrument.riskLevel,
-      riskNote: instrument.riskNote,
-      delistingRisk: instrument.delistingRisk,
-      marketCap: instrument.marketCap,
-      // 예측 카드 — 크기의 현실성(규칙)과 본문-카드 정합성(AI)을 함께 보게 한다.
-      // 판정은 전적으로 카드로 이뤄지는데 구매자는 본문을 보고 사므로,
-      // 카드를 검수 입력에서 빼면 그 둘이 어긋난 리포트를 아무도 못 잡는다.
-      ...cardScreeningFields(cardDraft, now),
-      // 크기 상한 규칙이 종목 변동성을 함께 본다 — 거친 종목의 큰 예측은 낚시가 아니다.
-      // 작성 화면 사전 검사가 쓰는 것과 같은 캐시값이라 두 화면의 판정이 어긋나지 않는다
-      sigmaDaily: instrument.sigmaDaily,
-      // **판정 불가가 반복되면 사람이 한 번 본다** (2026-08-16). 보상 원장이 생기면서
-      // "판정 불가가 실패보다 낫다"가 됐고, 그러면 판정되기 어려운 종목을 고를 유인이
-      // 생긴다. 작성 화면 사전 검사에는 넘기지 않는다 — 리서처 이력은 서버가 게시
-      // 시점에만 붙이는 사실이고, 미리 보여주면 문턱을 피해 가는 법을 알려주는 셈이다
-      unjudgeableCardCount: await countUnjudgeableCards(prisma, report.researcher.userId, now),
-    },
-    screener,
-    now,
-  );
+  const compliance = await screenAndRecord(prisma, reportId, screeningInput, screener, now);
   // 결정적 규칙이 잡은 명백한 위반만 즉시 거절한다 (오탐이 사실상 없는 표현).
   if (compliance.action === 'REJECT') {
     throw new PublishValidationError(findingMessages(compliance.findings, 'BLOCK'));
@@ -235,8 +296,6 @@ export async function publishReport(
   // AI 판단만으로 게시를 죽이지 않되(오탐 가능), 판매도 시작하지 않고 사람이 결정한다.
   // 기준가·수수료도 여기서 확정하지 않는다 — 승인 시점에 확정해야
   // 보류 기간 동안의 시세 변동이 기준가에 반영되어 정보 이점이 생기지 않는다.
-  // 반복 반려된 리포트는 검수를 통과해도 자동 게시하지 않는다 (규칙 탐색 방어).
-  const repeatedRejection = requiresReviewAfterRejections(report.rejectionCount);
   if (compliance.action === 'HOLD' || repeatedRejection) {
     const detail =
       compliance.decision === 'UNAVAILABLE'
@@ -505,6 +564,8 @@ export async function rejectPendingReport(
   now = new Date(),
   /** 운영자가 확인한 실제 위반 유형 (선택) — 비우면 검수 소견을 그대로 인정한 것으로 본다 */
   categories: RiskCategory[] = [],
+  /** 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3, 선택) — IRIS 라벨 지역화용 */
+  evidence: string[] = [],
 ) {
   const trimmed = reason.trim();
   if (!trimmed) throw new PublishValidationError(['반려 사유는 필수입니다']);
@@ -526,6 +587,7 @@ export async function rejectPendingReport(
     ...(await operatorVerdictWrites(prisma, reportId, 'REJECTED', operatorUserId, now, {
       reason: trimmed,
       categories,
+      evidence,
     })),
     // **반려는 처리되는 순간 바로 알린다** (2026-08-20 사용자 확정).
     //
