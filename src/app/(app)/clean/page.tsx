@@ -1,6 +1,5 @@
 import { redirect } from "next/navigation";
 import {
-  DAILY_REPORT_LIMIT,
   REWARD_QUOTA,
   getReportAbuseNotice,
   rewardedCount,
@@ -114,18 +113,14 @@ export default async function CleanPage({
             <p style={{ fontSize: 14, lineHeight: 1.7, color: "var(--text-weak)" }}>
               접수된 신고는 운영자가 직접 검토하며, 위반이 확인된 신고에 한해 선착순{" "}
               {REWARD_QUOTA}건까지 보상을 드립니다 (현재 잔여 {remaining.toLocaleString()}건).
-              검토 결과는 알림으로 안내되며, 보상 지급 방법은 확인 후 개별로 안내드립니다.
+              같은 리포트에 여러 신고가 들어오면 <b style={{ color: "var(--text)" }}>가장 먼저
+              신고하신 분</b>에게 보상이 갑니다. 검토 결과는 알림으로 안내되며, 보상 지급
+              방법은 확인 후 개별로 안내드립니다.
             </p>
           </section>
 
-          <section>
-            <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 6 }}>유의사항</h2>
-            <p style={{ fontSize: 14, lineHeight: 1.7, color: "var(--text-weak)" }}>
-              신고는 1인당 하루 {DAILY_REPORT_LIMIT}건까지 접수할 수 있습니다. 사실과 다른
-              내용을 고의로 신고하거나 허위 신고를 반복하면 보상 대상에서 제외되고 서비스
-              이용이 제한될 수 있습니다.
-            </p>
-          </section>
+          {/* 유의사항은 **신고 접수 직전 팝업**으로 옮겼다 (2026-08-27 창업자 지시) —
+              진짜 접수 전 마지막 고지가 되어야 눈에 들어온다 (CleanReportForm 의 확인창) */}
 
           <section>
             <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 10 }}>신고하기</h2>
@@ -138,42 +133,20 @@ export default async function CleanPage({
                 볼 수 있는데, 거기 "2건 접수됨"이 뜨면 담합하는 쪽이 자기 진도를 잰다 —
                 문턱이 3인 걸 아는 사람은 정확히 한 명만 더 부른다. 고지가 공격의
                 계기판이 되는 것이라, 밖으로 나가는 것은 있다/없다뿐이다 */}
+            {/* '이미 접수된 신고가 있습니다' 안내는 걷었다 (2026-08-27 창업자 지시) —
+                신고하려는 사람에게 "남이 이미 했다"를 먼저 보여주면 신고 의욕을 꺾는다.
+                선착순 보상 규칙은 위 '보상과 절차'에 상시 문구로 옮겼다.
+                단, 내가 이미 신고한 건은 중복 접수를 막아야 하므로 그대로 안내한다 */}
             {notice?.byViewer ? (
               <p className={styles.sub} style={{ marginBottom: 0 }}>
                 이미 이 리포트를 신고하셨습니다. 검토 결과는 알림으로 알려드립니다.
               </p>
             ) : (
-              <>
-                {notice?.alreadyReported && (
-                  <div
-                    style={{
-                      background: "var(--surface)",
-                      border: "1px solid var(--border)",
-                      borderRadius: 12,
-                      padding: "14px 16px",
-                      marginBottom: 14,
-                      fontSize: 13.5,
-                      lineHeight: 1.7,
-                      color: "var(--text-weak)",
-                    }}
-                  >
-                    <strong style={{ color: "var(--text)" }}>
-                      이미 접수된 신고가 있는 리포트입니다.
-                    </strong>
-                    <br />
-                    {/* 두 번째 신고자를 막으면 안 된다 — 막으면 누적이 안 쌓이고,
-                        누적이 안 쌓이면 정작 판매 중단이 걸리지 않는다. 그래서 닫는 말이
-                        아니라 **정직하게 여는 말**을 쓴다: 보상은 없지만 효과는 있다 */}
-                    보상은 먼저 신고하신 분에게 갑니다. 다만 같은 리포트에 신고가 겹치면
-                    저희가 더 빨리 움직입니다 — 남겨 주시면 그 판단에 그대로 들어갑니다.
-                  </div>
-                )}
-                <CleanReportForm
-                  reportId={targetReport?.id}
-                  fixedTargetName={targetName}
-                  reportBody={reportBody}
-                />
-              </>
+              <CleanReportForm
+                reportId={targetReport?.id}
+                fixedTargetName={targetName}
+                reportBody={reportBody}
+              />
             )}
           </section>
         </div>

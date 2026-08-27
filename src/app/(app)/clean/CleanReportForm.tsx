@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import {
   ABUSE_CATEGORIES,
   ABUSE_CATEGORY_LABEL,
+  DAILY_REPORT_LIMIT,
   type AbuseCategory,
 } from "@/server/abuseReportService";
 import styles from "../researcher/researcher.module.css";
@@ -70,6 +71,8 @@ export function CleanReportForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  // 신고 접수 직전 유의사항 확인창 (진짜 접수 전 마지막 고지)
+  const [confirming, setConfirming] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
 
   const content = reportBody?.content ?? "";
@@ -110,8 +113,14 @@ export function CleanReportForm({
     );
   }
 
-  const submit = async (e: React.FormEvent) => {
+  // 접수 버튼 → 폼 검증(required)을 거친 뒤 확인창을 연다. 실제 접수는 확인창에서
+  const openConfirm = (e: React.FormEvent) => {
     e.preventDefault();
+    setConfirming(true);
+  };
+
+  const doSubmit = async () => {
+    setConfirming(false);
     setBusy(true);
     setError(null);
     try {
@@ -139,7 +148,33 @@ export function CleanReportForm({
   const segments = reportBody ? highlight(content, parts.map((p) => p.quote)) : [];
 
   return (
-    <form onSubmit={submit} className={styles.form}>
+    <form onSubmit={openConfirm} className={styles.form}>
+      {/* 신고 접수 직전 유의사항 확인창 (2026-08-27 창업자 지시) */}
+      {confirming && (
+        <div className={s.modalBackdrop} onClick={() => setConfirming(false)}>
+          <div className={s.modal} onClick={(e) => e.stopPropagation()}>
+            <div className={s.modalTitle}>신고를 접수하기 전에</div>
+            <p className={s.modalBody}>
+              신고는 1인당 하루 {DAILY_REPORT_LIMIT}건까지 접수할 수 있습니다. 사실과 다른
+              내용을 고의로 신고하거나 허위 신고를 반복하면 보상 대상에서 제외되고 서비스
+              이용이 제한될 수 있습니다.
+            </p>
+            <div className={s.modalBtns}>
+              <button
+                type="button"
+                className={s.modalCancel}
+                onClick={() => setConfirming(false)}
+              >
+                취소
+              </button>
+              <button type="button" className={s.modalOk} onClick={doSubmit}>
+                확인하고 접수
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {reportBody ? (
         <>
           <div className={s.card}>
