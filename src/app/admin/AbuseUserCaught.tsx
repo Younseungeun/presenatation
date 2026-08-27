@@ -13,6 +13,7 @@ import { DirectMessage } from "./DirectMessage";
 import { ReviewForm } from "./abuse-reports/ReviewForm";
 
 import { FlaggedBody } from "./FlaggedBody";
+import { FlaggedReport, type FlaggedFinding } from "./compliance/FlaggedReport";
 
 // **이용자가 잡은 것 — 리포트 화면의 '본문' 탭에 산다** (2026-08-19 사용자 지시).
 //
@@ -136,10 +137,30 @@ export function AbuseUserCaught({
                 말한다. 그 둘이 있으면 카드 안의 문단은 읽히지 않고 자리만 차지한다 —
                 그리고 매번 지나치는 문단이 하나 늘면 정작 붉은 줄이 안 튄다 */}
 
-            {/* 발췌만 — 걸린 문구는 붉게. 누르면 이용자가 본 화면이 **자기 화면에서**
-                열린다(시안 scr-rp-full). 여기 통째로 깔면 카드 하나가 화면 몇 개
-                길이가 되고, 줄과 상세를 나눈 이유가 그대로 무너진다 */}
-            {detail && <FlaggedBody detail={detail} />}
+            {/* **신고자가 짚은 부분을 검수 카드(FlaggedReport)와 같은 형식으로** 보여준다
+                (2026-08-27 창업자 지시 — 통일). 제목 + 유형 칩(선택) + 본문 하이라이트.
+                상세 보기는 전체 본문 화면(?full=)으로 넘긴다. 신고자가 부분을 안 짚은
+                옛 건은 종전 발췌(FlaggedBody)로 떨어진다 */}
+            {detail &&
+              (detail.reporterFindings.length > 0 ? (
+                <FlaggedReport
+                  reportId={detail.reportId}
+                  title={detail.title}
+                  content={detail.body}
+                  detailHref={`/admin/compliance?tab=body&open=${detail.reportId}&full=${detail.reportId}`}
+                  findings={detail.reporterFindings.map(
+                    (f): FlaggedFinding => ({
+                      quote: f.quote,
+                      category: f.category,
+                      label: f.categoryLabel,
+                      severity: "WARN",
+                      sublabel: "신고자",
+                    }),
+                  )}
+                />
+              ) : (
+                <FlaggedBody detail={detail} />
+              ))}
 
             {/* **판단은 그룹에 하나다.** 신고 셋은 한 판단의 세 증거지 세 개의 판단거리가
                 아니다 — 확인이면 강제 철회·미탐 기록·전원 통지·보상까지 이 폼 하나가 끝낸다.

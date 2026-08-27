@@ -1,14 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { segmentText, cleanQuote, isLocated } from "../FlaggedReport";
-import type { Finding } from "@/domain/compliance";
+import { segmentText, cleanQuote, isLocated, type FlaggedFinding } from "../FlaggedReport";
 
 // 본문을 소견 인용문 기준으로 조각내는 순수 로직 — 화면은 이 조각을 색만 입혀 그린다.
-const f = (quote: string, severity: "BLOCK" | "WARN" = "WARN"): Finding => ({
+const f = (quote: string, severity: "BLOCK" | "WARN" = "WARN"): FlaggedFinding => ({
   category: "PROFIT_GUARANTEE",
+  label: "수익 보장·손실 보전 표현",
   severity,
   quote,
-  reason: "x",
-  source: "rule",
+  note: "x",
 });
 
 describe("segmentText — 문제 삼은 워딩만 조각낸다", () => {

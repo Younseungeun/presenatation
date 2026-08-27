@@ -5,6 +5,41 @@ import Link from "next/link";
 import { RISK_CATEGORY_LABEL, type Finding, type RiskCategory } from "@/domain/compliance";
 import s from "./flaggedReport.module.css";
 
+// ── 범용 소견 형태 (2026-08-27 창업자 지시: 검수·신고 카드 통일) ─────────────
+// 검수(RISK 유형)와 신고(신고자가 고른 유형)가 **같은 카드**를 쓰도록, 카드가 아는 것은
+// 이 최소 형태뿐이다. 각 경로가 자기 데이터를 여기로 변환해 넘긴다.
+export interface FlaggedFinding {
+  quote: string;
+  /** 유형 키 — 칩 필터의 식별자 */
+  category: string;
+  /** 칩·툴팁에 보일 유형 이름 */
+  label: string;
+  severity: "BLOCK" | "WARN";
+  /** 툴팁 보조 — 검수는 출처(규칙·코드/IRIS), 신고는 신고자 표시 */
+  sublabel?: string;
+  /** 툴팁 근거 */
+  note?: string;
+}
+
+/** 검수 소견(Finding) → 범용 카드 소견. RISK 라벨·출처를 여기서 붙인다 */
+export function fromComplianceFindings(findings: Finding[]): FlaggedFinding[] {
+  return findings.map((f) => ({
+    quote: f.quote ?? "",
+    category: f.category,
+    label: RISK_CATEGORY_LABEL[f.category as RiskCategory] ?? f.category,
+    severity: f.severity === "BLOCK" ? "BLOCK" : "WARN",
+    sublabel: complianceSource(f),
+    note: f.reason ?? undefined,
+  }));
+}
+
+function complianceSource(f: Finding): string {
+  if (f.source === "student") return "IRIS";
+  if (f.source === "learned") return "규칙·사전";
+  if (f.source === "rule") return "규칙·코드";
+  return f.source ?? "출처 미기록";
+}
+
 // **검수가 문제 삼은 워딩을 본문 안에서 그대로 보여준다** (2026-08-26 창업자 지시).
 //
 // ── 왜 합쳤나 ──────────────────────────────────────────────────────
@@ -24,7 +59,7 @@ import s from "./flaggedReport.module.css";
 /** 한 조각 — 평문이거나, 소견이 붙은 빨간 조각이거나 */
 interface Segment {
   text: string;
-  finding: Finding | null;
+  finding: FlaggedFinding | null;
 }
 
 /**
@@ -72,10 +107,10 @@ function buildNorm(text: string): { norm: string; map: number[] } {
 /** 소견들이 이 텍스트에서 차지하는 구간 — **원문 좌표로.** 못 찾으면 그 소견은 빠진다 */
 function matchSpans(
   text: string,
-  findings: Finding[],
-): { start: number; end: number; finding: Finding }[] {
+  findings: FlaggedFinding[],
+): { start: number; end: number; finding: FlaggedFinding }[] {
   const { norm, map } = buildNorm(text);
-  const spans: { start: number; end: number; finding: Finding }[] = [];
+  const spans: { start: number; end: number; finding: FlaggedFinding }[] = [];
   for (const f of findings) {
     const q = cleanQuote(f.quote);
     if (!q) continue;
@@ -94,7 +129,7 @@ function matchSpans(
 }
 
 /** 이 소견이 이 텍스트들 중 어딘가에서 실제로 위치를 잡히는가 (아래 '못 짚은 소견' 판정용) */
-export function isLocated(fields: string[], f: Finding): boolean {
+export function isLocated(fields: string[], f: FlaggedFinding): boolean {
   const q = cleanQuote(f.quote);
   if (!q) return false;
   return fields.some((t) => buildNorm(t).norm.includes(q));
@@ -112,7 +147,7 @@ export function isLocated(fields: string[], f: Finding): boolean {
  * · 인용문이 본문에서 안 찾아지면(IRIS 전체 판정·카드 소견) 조각을 만들지 않는다 —
  *   그 소견은 아래 "문장을 짚지 못한 소견"으로 따로 뜬다.
  */
-export function segmentText(text: string, findings: Finding[]): Segment[] {
+export function segmentText(text: string, findings: FlaggedFinding[]): Segment[] {
   if (!text) return [];
   const spans = matchSpans(text, findings);
   if (spans.length === 0) return [{ text, finding: null }];
@@ -120,7 +155,7 @@ export function segmentText(text: string, findings: Finding[]): Segment[] {
   spans.sort((x, y) => x.start - y.start || y.end - x.end);
 
   // 겹치거나 맞닿은 구간을 하나로 합친다 — 대표 소견은 더 무거운 쪽(BLOCK)
-  const merged: { start: number; end: number; finding: Finding }[] = [];
+  const merged: { start: number; end: number; finding: FlaggedFinding }[] = [];
   for (const sp of spans) {
     const last = merged[merged.length - 1];
     if (last && sp.start <= last.end) {
@@ -144,21 +179,18 @@ export function segmentText(text: string, findings: Finding[]): Segment[] {
   return segments;
 }
 
-/** 소견 하나가 어느 층에서 왔는지 — 툴팁 한 줄로. FindingRow 의 칩과 같은 말 */
-function sourceLabel(f: Finding): string {
-  if (f.source === "student") return "IRIS";
-  if (f.source === "learned") return "규칙·사전";
-  if (f.source === "rule") return "규칙·코드";
-  return f.source ?? "출처 미기록";
-}
-
-/** 심각도 — 규칙 BLOCK 만 즉시 거절, 나머지는 확인 필요(WARN) */
-function severityWord(f: Finding): string {
+/** 심각도 — BLOCK 은 위반, 나머지는 확인 필요(WARN) */
+function severityWord(f: FlaggedFinding): string {
   return f.severity === "BLOCK" ? "위반" : "확인 필요";
 }
 
+/** 툴팁 한 줄 — 심각도 · 유형 · 보조(출처/신고자) */
+function tooltipOf(f: FlaggedFinding): string {
+  return [severityWord(f), f.label, f.sublabel].filter(Boolean).join(" · ");
+}
+
 /** 텍스트를 소견 인용문 기준으로 조각내 빨간 <mark> 로 그린다 (라벨 없음) */
-function Highlighted({ text, findings }: { text: string; findings: Finding[] }) {
+function Highlighted({ text, findings }: { text: string; findings: FlaggedFinding[] }) {
   const segs = segmentText(text, findings);
   return (
     <>
@@ -167,7 +199,7 @@ function Highlighted({ text, findings }: { text: string; findings: Finding[] }) 
           <mark
             key={i}
             className={seg.finding.severity === "BLOCK" ? s.markBlock : s.mark}
-            title={`${severityWord(seg.finding)} · ${RISK_CATEGORY_LABEL[seg.finding.category as RiskCategory] ?? seg.finding.category} · ${sourceLabel(seg.finding)}`}
+            title={tooltipOf(seg.finding)}
           >
             {seg.text}
           </mark>
@@ -197,18 +229,17 @@ export function FlaggedReport({
   title,
   content,
   findings,
+  detailHref,
 }: {
   reportId: string;
   title: string;
-  /** @deprecated 시안에서 요약은 표시하지 않는다 — 시그니처 호환용으로만 남긴다 */
-  summary?: string | null;
   content: string | null;
-  findings: Finding[];
-  /** @deprecated 링크 문구가 고정("상세 보기")이라 더는 안 쓴다 — 호환용 */
-  pendingPublish?: boolean;
+  findings: FlaggedFinding[];
+  /** 상세 보기 링크 목적지 — 기본은 이용자 리포트 화면. 신고 경로는 전체 본문 보기로 넘긴다 */
+  detailHref?: string;
 }) {
   // 위반 유형 칩 — 유형별 하나씩, 더 무거운 심각도(BLOCK)를 대표로. BLOCK 을 앞에 세운다
-  const byCategory = new Map<string, Finding>();
+  const byCategory = new Map<string, FlaggedFinding>();
   for (const f of findings) {
     const prev = byCategory.get(f.category);
     if (!prev || (f.severity === "BLOCK" && prev.severity !== "BLOCK")) {
@@ -229,8 +260,8 @@ export function FlaggedReport({
     <div className={s.card}>
       <div className={s.top}>
         <span className={s.title}>{title}</span>
-        {/* 옛 칩 자리 — 이제 이용자 전체 화면으로 가는 문 (시안) */}
-        <Link href={`/report/${reportId}`} className={s.detailLink}>
+        {/* 옛 칩 자리 — 이제 전체 화면으로 가는 문 (시안). 검수는 이용자 리포트, 신고는 전체 본문 */}
+        <Link href={detailHref ?? `/report/${reportId}`} className={s.detailLink}>
           상세 보기 ›
         </Link>
       </div>
@@ -248,10 +279,10 @@ export function FlaggedReport({
                 role="tab"
                 aria-selected={on}
                 className={`${s.chip} ${tone} ${on ? s.chipOn : s.chipOff}`}
-                title={`${severityWord(f)} · ${sourceLabel(f)}${f.reason ? ` · ${f.reason}` : ""}`}
+                title={`${tooltipOf(f)}${f.note ? ` · ${f.note}` : ""}`}
                 onClick={() => setSelected(f.category)}
               >
-                {RISK_CATEGORY_LABEL[f.category as RiskCategory] ?? f.category}
+                {f.label}
               </button>
             );
           })}

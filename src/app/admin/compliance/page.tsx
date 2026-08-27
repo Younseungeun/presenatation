@@ -39,7 +39,7 @@ import {
   CANARY_STALE_MS,
   getCanaryScreen,
 } from "@/server/screeningCanaryRunner";
-import { FlaggedReport } from "./FlaggedReport";
+import { FlaggedReport, fromComplianceFindings } from "./FlaggedReport";
 import { StudentValvePanel } from "./StudentValvePanel";
 import { ManualQueueList } from "./ManualQueueList";
 import { TeacherBatchCopy } from "./TeacherBatchCopy";
@@ -754,10 +754,8 @@ function ReviewCard({
       <FlaggedReport
         reportId={review.report.id}
         title={review.report.title}
-        summary={review.report.summary}
         content={review.report.content}
-        findings={findings}
-        pendingPublish={pendingPublish}
+        findings={fromComplianceFindings(findings)}
       />
 
       <ResolveButton
