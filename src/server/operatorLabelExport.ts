@@ -120,6 +120,19 @@ export async function exportOperatorLabels(
     ).map((x) => x.id),
   );
 
+  // **근거 문장 지목** (회신 22호 요청 3 → 서버 몫 (b)): 운영자가 반려·철회하며 위반
+  // 문장을 짚어 두면(operatorEvidence — string[] JSON), 문서 전체에 위반 라벨을 바르는
+  // 대신 **지목 문장만 위반, 나머지는 정상**으로 갈라 내보낸다. 문서 라벨은 정상 문장
+  // 아홉에 위반 딱지를 묻히는 소음원이었다. 지목이 없으면(대다수) 종전 그대로.
+  // (새 칸이라 클라이언트 타입 재생성 전에도 돌아야 해서 raw 로 읽는다 — 피로 하한과 동일)
+  const evidenceById = new Map<string, string[]>(
+    (
+      await prisma.$queryRaw<{ id: string; operatorEvidence: string }[]>`
+        SELECT "id", "operatorEvidence" FROM "ComplianceReview"
+        WHERE "operatorEvidence" IS NOT NULL`
+    ).map((x) => [x.id, parseJson<string[]>(x.operatorEvidence, [])]),
+  );
+
   const examples: TrainingExample[] = [];
   const results: OperatorLabelResult[] = [];
   let leaked = 0;
@@ -191,6 +204,38 @@ export async function exportOperatorLabels(
       sigmaDaily: card?.sigmaDaily ?? null,
     };
 
+    const labeler =
+      `operator:${r.operatorReviewedBy ?? 'unknown'}` +
+      (r.teacherAnswer ? `|teacher:${r.teacherAnswer.teacherTag}` : '');
+    const quotes = (evidenceById.get(r.id) ?? []).filter((q) => q.trim().length > 0 && body.includes(q));
+    if (quotes.length > 0 && decided.labels.length > 0) {
+      // 지목 문장 = 위반. 카드·제목·요약은 그대로 두고 본문만 지목 구간으로 좁힌다
+      examples.push({
+        id: `op:${r.id}:ev`,
+        source: 'operator',
+        kind: decided.kind,
+        text: buildStudentText({ ...input, content: quotes.join(' ') }),
+        labels: decided.labels,
+        labeler,
+      });
+      // 나머지 = 정상 (운영자가 위반을 지목까지 하고 남긴 부분이므로). 지목 구간을 걷어낸
+      // 잔여가 문장 하나 분량도 안 되면 정상 표본으로서 무의미해 내보내지 않는다
+      let rest = body;
+      for (const q of quotes) rest = rest.split(q).join(' ');
+      if (rest.replace(/\s+/g, '').length >= 40) {
+        examples.push({
+          id: `op:${r.id}:rest`,
+          source: 'operator',
+          kind: decided.kind,
+          text: buildStudentText({ ...input, content: rest }),
+          labels: [],
+          labeler,
+        });
+      }
+      results.push(decided);
+      continue;
+    }
+
     examples.push({
       id: `op:${r.id}`,
       source: 'operator',
@@ -206,9 +251,7 @@ export async function exportOperatorLabels(
       //
       // 왜 남기나: 대화창의 교사는 버전이 오른다. 표식이 없으면 교사가 바뀐 전후의
       // 라벨을 섞어 재학습하게 되고, 그 사실조차 나중에 알 수 없다
-      labeler:
-        `operator:${r.operatorReviewedBy ?? 'unknown'}` +
-        (r.teacherAnswer ? `|teacher:${r.teacherAnswer.teacherTag}` : ''),
+      labeler,
     });
     results.push(decided);
   }
