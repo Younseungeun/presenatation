@@ -318,6 +318,63 @@ export function MoneyIcon() {
 }
 
 /**
+ * 간편 비밀번호 — 윤곽 입력창 + 마스킹 점 넷. 자물쇠(보안)는 "닫혀 있다"이고
+ * 이건 "코드를 친다"다. 점은 넷 — 로그인 카드가 넷을 그리고, 여섯은 키패드(다른 개념),
+ * 셋은 말줄임표로 읽힌다. 가로형 창은 비밀번호 칸이 글줄이라 "여기 입력"이라 말한다.
+ */
+export function PinIcon() {
+  return (
+    <svg {...BOX}>
+      <rect
+        x="2.6"
+        y="6.6"
+        width="18.8"
+        height="10.8"
+        rx="3.2"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+      <g fill="currentColor">
+        <circle cx="6.4" cy="12" r="1.45" />
+        <circle cx="10.13" cy="12" r="1.45" />
+        <circle cx="13.87" cy="12" r="1.45" />
+        <circle cx="17.6" cy="12" r="1.45" />
+      </g>
+    </svg>
+  );
+}
+
+/**
+ * 생체 인증 — 지문. 동심 능선 셋 + 코어 심 + 꼬리 눈금 둘.
+ * 아래가 열린 동심 호는 무지개로 읽히므로 셋으로 고쳤다: 코어 심(무지개엔 없는 소용돌이),
+ * 꼬리 눈금(좌 2.0·우 1.5 비대칭 — 아치엔 없는 능선 끝), 능선이 폭보다 살짝 높아 손가락
+ * 끝 타원. 세트에서 유일하게 채운 덩어리가 없다(지문은 능선). 그래도 획 1.8로 무게를 지킨다.
+ */
+export function FingerprintIcon() {
+  return (
+    <svg {...BOX}>
+      <g
+        transform="translate(0 1.5)"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      >
+        <path d="M4.01 16.5 A8.4 9.4 0 1 1 19.99 16.5" />
+        <path d="M6.29 16.34 A6.2 7 0 1 1 17.57 16.67" />
+        <path d="M8.47 15.76 A4 4.6 0 1 1 15.32 16.17" />
+        <path d="M12 13.6 V9.2" />
+        <path d="M7 14.9 V16.9" />
+        <path d="M17 14.9 V16.4" />
+      </g>
+    </svg>
+  );
+}
+
+/**
  * 복사하기 — 시트 한 장이 다른 한 장 뒤로 복제된 모양. 복사는 문서 × 2다.
  * document(접힌 모서리 + 줄)·escrow(손잡이 케이스)와 부품이 겹치지만, 이건
  * 민 시트 둘을 어긋나게 겹친 것이고 겹침 자체가 신호다. 접힌 모서리도 손잡이도 없다.
