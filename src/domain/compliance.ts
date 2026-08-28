@@ -528,6 +528,11 @@ const RULES: Rule[] = [
   },
 ];
 
+/** ruleId → 심각도. 검출 항목 관리 대시보드가 코드 규칙의 층(BLOCK/WARN)을 가른다 (2026-08-28). */
+export const RULE_SEVERITY_BY_ID: Readonly<Record<string, Severity>> = Object.fromEntries(
+  RULES.map((r) => [r.id, r.severity]),
+);
+
 /** 원문에서 매칭 구간 주변을 잘라 인용문으로 만든다 (리서처가 위치를 찾을 수 있게) */
 export function quoteAround(text: string, index: number, length: number): string {
   const start = Math.max(0, index - 15);

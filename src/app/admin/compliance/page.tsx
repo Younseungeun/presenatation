@@ -1132,6 +1132,26 @@ export default async function AdminCompliancePage({
           할 일은 계기판에 있어야 한다 */}
       {retrain.reached && <RetrainGauge {...retrain} />}
 
+      {/* 검출 항목 관리 — 승격/강등 사다리 대시보드 (2026-08-28). 검수 성적 옆이 자리인
+          이유: 정확도가 "얼마나 맞나"라면 이건 "어느 항목을 어느 층으로 옮길까"라, 같은
+          증거를 다른 각도로 읽는다. 추천만·읽기 전용 */}
+      <Link
+        href="/admin/detection"
+        style={{
+          display: "block",
+          margin: "0 16px 12px",
+          padding: "10px 12px",
+          borderRadius: 10,
+          border: "1px solid var(--line)",
+          fontSize: 13,
+          color: "var(--text-weak)",
+          textDecoration: "none",
+        }}
+      >
+        <strong style={{ color: "var(--text)" }}>검출 항목 관리</strong>{" "}
+        <span style={{ color: "var(--text-faint)" }}>· 승격·강등 사다리 (추천만) →</span>
+      </Link>
+
       {/* IRIS을 계속 켜 둘 것인가 (9차 G-4).
           채택선과 **같은 공식**(순이익)으로 최근 창을 다시 잰다 — 켤 때와 끌 때의
           잣대가 다르면 두 판단이 서로를 반박한다.
