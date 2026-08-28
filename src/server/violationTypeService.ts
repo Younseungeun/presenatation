@@ -1,5 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
-import { RISK_CATEGORIES, RISK_CATEGORY_LABEL, type RiskCategory } from '@/domain/compliance';
+import { isBuiltinCategory, RISK_CATEGORIES, RISK_CATEGORY_LABEL } from '@/domain/compliance';
+
+export { isBuiltinCategory };
 
 // 운영자 정의 위반 유형 (2026-08-28 창업자 지시).
 //
@@ -24,11 +26,6 @@ export function validateViolationTypeLabel(raw: string): { label: string } | { e
     return { error: '이미 있는 위반 유형입니다 — 위 칩에서 골라 주세요' };
   }
   return { label };
-}
-
-/** key(=label) 가 내장 유형인지. 표시·검증에서 커스텀과 가르는 데 쓴다. */
-export function isBuiltinCategory(key: string): key is RiskCategory {
-  return BUILTIN_KEYS.has(key);
 }
 
 /** 활성 커스텀 유형의 라벨(=key) 목록 — 선택기가 칩으로 그린다. */

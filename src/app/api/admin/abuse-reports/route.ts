@@ -1,8 +1,11 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
+import { isBuiltinCategory } from '@/domain/compliance';
+import { validatePhrase } from '@/domain/learnedPhrases';
 import { getAbuseReports, reviewAbuseReport } from '@/server/abuseReportService';
 import { resolveAbuseReportGroup } from '@/server/abuseResolveService';
 import { prisma } from '@/server/db';
+import { createLearnedPhrase } from '@/server/learnedPhraseService';
 import { storeTeacherPackForReport } from '@/server/teacherPackStore';
 import { ensureViolationType } from '@/server/violationTypeService';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
@@ -29,9 +32,41 @@ const groupSchema = z.object({
   category: z.string().min(1).max(40).optional(),
   // 근거 문장 지목 — 강제 철회(미탐)·지적 타당(경계)의 재학습 자료 근거 (필수는 UI 가 강제)
   evidence: z.array(z.string().min(1)).max(20).optional(),
+  // 실시간 학습 표현 (복원 2026-08-28) — 확인 시 고른 내장 유형 아래 등록. 리서처가 글
+  // 쓰는 중에 그 어구에서 즉시 WARN. 승격 사다리의 빠른 입구
+  phrase: z.string().max(200).optional(),
   // 기각일 때만 의미 — "지적은 타당했다(경미)". 무고에서 빼고 경계 사례로 학습에 남긴다
   findingsValid: z.boolean().optional(),
 });
+
+/**
+ * 확인과 함께 들어온 표현을 학습 표현으로 등록한다 (복원 2026-08-28, 회신 24호 답장 §4).
+ * 표현이 잘못됐다고 확인을 되돌리지 않고, 실패 사유만 응답에 실어 준다.
+ * **학습 표현은 내장 유형 아래에만** — 커스텀 유형은 라벨 전용이라 실시간 매칭 대상이 아니다.
+ */
+async function registerPhrase(
+  operatorUserId: string,
+  reportId: string,
+  text: string | undefined,
+  category: string | undefined,
+  reason: string,
+): Promise<{ phraseWarning: string | null }> {
+  const trimmed = text?.trim();
+  if (!trimmed) return { phraseWarning: null };
+  if (!category || !isBuiltinCategory(category)) {
+    return { phraseWarning: '실시간 표현은 내장 위반 유형 아래 등록됩니다 — 내장 유형을 하나 골라 주세요' };
+  }
+  const issues = validatePhrase(trimmed);
+  if (issues.length > 0) return { phraseWarning: issues.join(' / ') };
+  await createLearnedPhrase(prisma, {
+    phrase: trimmed,
+    category,
+    note: reason,
+    createdBy: operatorUserId,
+    sourceReportId: reportId,
+  });
+  return { phraseWarning: null };
+}
 
 export async function GET() {
   try {
@@ -80,7 +115,12 @@ export async function POST(req: NextRequest) {
       if (body.decision === 'CONFIRMED' || body.findingsValid === true) {
         await storeTeacherPackForReport(prisma, body.reportId);
       }
-      return NextResponse.json(summary);
+      // 실시간 학습 표현 등록 — 확인일 때만. 실패해도 판정은 유효, 사유만 실어 준다
+      const phraseResult =
+        body.decision === 'CONFIRMED'
+          ? await registerPhrase(operatorUserId, body.reportId, body.phrase, category, body.note)
+          : { phraseWarning: null };
+      return NextResponse.json({ ...summary, ...phraseResult });
     }
 
     const body = singleSchema.parse(raw);

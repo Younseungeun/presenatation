@@ -105,6 +105,12 @@ export function violationLabel(key: string): string {
   return RISK_CATEGORY_LABEL[key as RiskCategory] ?? key;
 }
 
+const BUILTIN_CATEGORY_SET: ReadonlySet<string> = new Set(RISK_CATEGORIES);
+/** 내장 RiskCategory 인가 (커스텀 유형과 가른다). 클라이언트·서버 공용. */
+export function isBuiltinCategory(key: string): key is RiskCategory {
+  return BUILTIN_CATEGORY_SET.has(key);
+}
+
 /**
  * 유형이 걸린 위험의 **성격**. 미탐(놓침)의 비용이 유형마다 다르기 때문에 나눈다.
  *

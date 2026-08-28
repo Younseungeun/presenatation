@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { setLearnedPhraseActive } from '@/server/learnedPhraseService';
+import { isBuiltinCategory, type RegisteredPhrase } from '@/domain/compliance';
+import { PHRASE_MAX_LENGTH, validatePhrase } from '@/domain/learnedPhrases';
+import { createLearnedPhrase, setLearnedPhraseActive } from '@/server/learnedPhraseService';
 import { createDefaultRegistry } from '@/infra/marketData/registry';
 import {
   forceWithdrawReport,
@@ -13,6 +15,7 @@ import { createStudentClientFromEnv } from '@/infra/compliance/studentClient';
 import { approvePendingReport, rejectPendingReport } from '@/server/reportService';
 import { recordDecisionElapsed } from '@/server/decisionSpeedService';
 import { storeTeacherPackForReport } from '@/server/teacherPackStore';
+import { previewPhraseRescan, recordPhraseRescan } from '@/server/phraseRescanService';
 import { ensureViolationType } from '@/server/violationTypeService';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 
@@ -36,6 +39,9 @@ import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 const categories = z.array(z.string().trim().min(1).max(40)).max(30).optional();
 // 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3) — IRIS 라벨 지역화용
 const evidence = z.array(z.string().trim().min(1).max(1000)).max(20).optional();
+// 실시간 학습 표현 (복원 2026-08-28) — 반려·철회 시 고른 내장 유형 아래 등록. 리서처가
+// 작성 중에 그 어구에서 즉시 WARN. 승격 사다리의 빠른 입구
+const phrase = z.string().trim().max(PHRASE_MAX_LENGTH * 3).optional();
 
 // 관리자 화면이 잰 "열람 → 판정" 시간 (26차 CC-1 피로도 감지 — decisionSpeedService).
 // 화면이 안 보내면 그냥 빈 칸이다 — 텔레메트리가 판정을 막으면 안 된다.
@@ -76,6 +82,7 @@ const bodySchema = z.discriminatedUnion('action', [
     reason: z.string().trim().min(1).max(500),
     categories,
     evidence,
+    phrase,
     decisionElapsedMs,
   }),
   z.object({
@@ -84,6 +91,7 @@ const bodySchema = z.discriminatedUnion('action', [
     reason: z.string().trim().min(1).max(500),
     categories,
     evidence,
+    phrase,
     decisionElapsedMs,
   }),
   z.object({
@@ -109,6 +117,55 @@ async function ensureCategories(
 ): Promise<string[]> {
   if (!cats?.length) return [];
   return Promise.all(cats.map((c) => ensureViolationType(prisma, c, operatorUserId, reportId)));
+}
+
+/**
+ * 반려·철회와 함께 들어온 표현을 학습 표현으로 등록한다 (복원 2026-08-28, 회신 24호 답장 §4).
+ * 표현이 잘못됐다고 판정을 되돌리지 않고 실패 사유만 응답에 싣는다.
+ * **내장 유형 아래에만** — 커스텀 유형은 라벨 전용이라 실시간 매칭 대상이 아니다.
+ * 등록 시 게시 중 리포트를 다시 훑고(rescan), 근사 표기 충돌을 등록 직후 한 번 돌려준다.
+ */
+async function registerPhrase(
+  operatorUserId: string,
+  reportId: string,
+  text: string | undefined,
+  cats: string[] | undefined,
+  reason: string,
+): Promise<{ warning: string | null; collisions: string[]; rescanned?: number }> {
+  const none = { warning: null, collisions: [] as string[] };
+  const trimmed = text?.trim();
+  if (!trimmed) return none;
+  const category = cats?.find((c) => isBuiltinCategory(c));
+  if (!category) {
+    return { ...none, warning: '실시간 표현은 내장 위반 유형 아래 등록됩니다 — 내장 유형을 하나 골라 주세요' };
+  }
+  const issues = validatePhrase(trimmed);
+  if (issues.length > 0) return { ...none, warning: issues.join(' / ') };
+  const created = await createLearnedPhrase(prisma, {
+    phrase: trimmed,
+    category,
+    note: reason,
+    createdBy: operatorUserId,
+    sourceReportId: reportId,
+  });
+  // 등록한 표현으로 게시 중 리포트를 다시 훑는다 (2026-08-25). 결과는 목록일 뿐 처분 아님.
+  // 실패해도 삼킨다 — 표현 등록은 이미 끝난 일이라 곁가지가 본업을 되돌리면 안 된다
+  const rescanned = await previewPhraseRescan(prisma, created as unknown as RegisteredPhrase)
+    .then((r) => recordPhraseRescan(prisma, created.id, r.hits))
+    .catch((e) => {
+      console.error('새 표현 재검수 실패:', e);
+      return 0;
+    });
+  const { collisions = [] } = created as { collisions?: { against: string }[] };
+  return { warning: null, collisions: collisions.map((c) => c.against), rescanned };
+}
+
+/** 응답 모양은 한 곳에서만 만든다 — 두 갈래(반려·철회)가 다른 이름을 쓰면 화면이 갈린다 */
+async function phrasePayload(
+  ...args: Parameters<typeof registerPhrase>
+): Promise<{ phraseWarning: string | null; phraseCollisions: string[]; phraseRescanned: number }> {
+  const { warning, collisions, rescanned } = await registerPhrase(...args);
+  return { phraseWarning: warning, phraseCollisions: collisions, phraseRescanned: rescanned ?? 0 };
 }
 
 export async function GET() {
@@ -161,7 +218,10 @@ export async function POST(req: NextRequest) {
           await recordDecisionElapsed(prisma, body.reportId, body.decisionElapsedMs);
         }
         await storeTeacherPackForReport(prisma, body.reportId);
-        return NextResponse.json({ ok: true });
+        return NextResponse.json({
+          ok: true,
+          ...(await phrasePayload(operatorUserId, body.reportId, body.phrase, cats, body.reason)),
+        });
       }
       case 'RELEASE_STUDENT_SHADOW': {
         // **콘솔에서는 증거가 맞을 때만 풀린다** (11차 K-4). 확인 창은 문턱이 아니다 —
@@ -199,7 +259,11 @@ export async function POST(req: NextRequest) {
           await recordDecisionElapsed(prisma, body.reportId, body.decisionElapsedMs);
         }
         await storeTeacherPackForReport(prisma, body.reportId);
-        return NextResponse.json({ ok: true, ...summary });
+        return NextResponse.json({
+          ok: true,
+          ...summary,
+          ...(await phrasePayload(operatorUserId, body.reportId, body.phrase, cats, body.reason)),
+        });
       }
       default:
         await markComplianceReviewed(prisma, body.reviewId, operatorUserId);

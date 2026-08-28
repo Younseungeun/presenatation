@@ -4,11 +4,13 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   CARD_BASED_CATEGORIES,
+  isBuiltinCategory,
   OPERATOR_VIOLATION_CATEGORIES,
   violationLabel,
   type RiskCategory,
 } from "@/domain/compliance";
 import a from "../admin.module.css";
+import { PhraseField } from "../PhraseField";
 import { TwoPaths } from "../TwoPaths";
 import { EvidencePicker } from "./EvidencePicker";
 
@@ -97,6 +99,14 @@ export function ResolveButton({
   // "위반 유형 추가" — 새 유형을 손으로 적어 목록에 더한다
   const [adding, setAdding] = useState(false);
   const [newType, setNewType] = useState("");
+  // "실시간 표현 등록" (복원 2026-08-28, 회신 24호 답장 §4) — 위반 유형 추가와 다른 축:
+  // 유형 추가는 재학습 라벨, 이건 리서처가 작성 중에 즉시 WARN 뜨는 학습 표현. 고른 내장
+  // 유형 아래 등록된다. 승격 사다리의 빠른 입구
+  const [phraseOpen, setPhraseOpen] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [warning, setWarning] = useState<string | null>(null);
+  /** 등록 직후 한 번만 보여줄 근사 표기 충돌 상대 — 화면을 새로 그리면 사라진다 */
+  const [collisions, setCollisions] = useState<string[] | null>(null);
 
   const pending = reportStatus === "PENDING_REVIEW";
   const takedown = !pending && reportStatus === "PUBLISHED";
@@ -170,6 +180,16 @@ export function ResolveButton({
         setError(payload.issues ? payload.issues.join(" / ") : (payload.error ?? failMessage));
         return;
       }
+      // 처리는 됐는데 실시간 표현 등록만 실패한 경우 — 되돌리지 않고 알리기만 한다
+      if (payload.phraseWarning) {
+        setWarning(payload.phraseWarning);
+        return;
+      }
+      // 등록 직후 딱 한 번 근사 표기 충돌 상대를 보여준다 (회신 5호 Q1)
+      if (payload.phraseCollisions?.length) {
+        setCollisions(payload.phraseCollisions);
+        return;
+      }
       router.refresh();
     } catch {
       setError(failMessage);
@@ -228,6 +248,14 @@ export function ResolveButton({
           >
             위반 유형 추가 ✎
           </button>
+          {/* 실시간 표현 등록 — 유형 추가와 다른 축이라 나란히 (2026-08-28 복원) */}
+          <button
+            type="button"
+            className={`${a.pick} ${a.pickMore} ${phraseOpen ? a.pickOn : ""}`}
+            onClick={() => setPhraseOpen((v) => !v)}
+          >
+            실시간 표현 등록 ✎
+          </button>
         </div>
 
         {adding && (
@@ -244,6 +272,17 @@ export function ResolveButton({
               반려·철회하면 이 유형이 <b>위반 유형 목록에 추가</b>되어 다음부터 칩으로 뜹니다.
             </div>
           </div>
+        )}
+
+        {/* 학습 표현 = 리서처가 작성 중에 즉시 WARN 뜨는 어구. **고른 내장 유형 아래** 등록.
+            승격 사다리의 빠른 입구 (커스텀 유형 아래엔 안 된다 — 커스텀은 라벨 전용) */}
+        {phraseOpen && (
+          <PhraseField
+            value={phrase}
+            onChange={setPhrase}
+            category={categories.find((c) => isBuiltinCategory(c)) as RiskCategory | undefined}
+            placeholder="실시간 표현 — 예: 반드시 오릅니다"
+          />
         )}
 
         <div className={a.field}>
@@ -398,6 +437,8 @@ export function ResolveButton({
                   // 내장 key + 커스텀 라벨 — 서버가 커스텀이면 ViolationType 에 올린다
                   categories: effectiveCategories,
                   evidence: evidence.length ? evidence : undefined,
+                  // 실시간 학습 표현 — 서버가 고른 내장 유형 아래 등록
+                  phrase: phraseOpen && phrase.trim() ? phrase.trim() : undefined,
                 },
                 takedown ? "철회 실패" : "반려 실패",
               )
@@ -413,6 +454,32 @@ export function ResolveButton({
       {!approving && negMissing && <div className={a.gate}>{negMissing}</div>}
       {approving && posMissing && <div className={a.gate}>{posMissing}</div>}
       {error && <p className={a.error}>{error}</p>}
+      {warning && (
+        <p className={a.hint} style={{ color: "var(--warn)", fontWeight: 700 }}>
+          처리는 완료됐지만 실시간 표현은 등록되지 않았습니다: {warning}
+        </p>
+      )}
+      {collisions && <CollisionNotice against={collisions} onClose={() => router.refresh()} />}
     </>
+  );
+}
+
+/**
+ * 왜 근사 표기 감시에서 빠졌는지 — **등록 직후 한 번**. 이 표현의 한 글자 이웃에 정상
+ * 낱말이 있어 근사 매칭을 켜면 그것들까지 잡히므로, 그 사실을 등록 순간에 한 번 알린다.
+ */
+function CollisionNotice({ against, onClose }: { against: string[]; onClose: () => void }) {
+  return (
+    <div className={`${a.note} ${a.noteWarn}`} style={{ marginTop: 10 }}>
+      <b>등록됐습니다 — 다만 근사 표기 감시에서는 빠집니다.</b>
+      <br />이 표현을 한 글자 흐트러뜨린 형태가 다음과 정확히 부딪힙니다:{" "}
+      <b>{against.map((x) => `“${x}”`).join(" · ")}</b>. 근사 매칭을 켜면 이것들을 쓴 정상
+      리포트가 함께 보류됩니다. <b>정확 표기 감시는 그대로 돕니다.</b>
+      <div style={{ marginTop: 8 }}>
+        <button type="button" className={a.btn} onClick={onClose}>
+          확인했습니다
+        </button>
+      </div>
+    </div>
   );
 }

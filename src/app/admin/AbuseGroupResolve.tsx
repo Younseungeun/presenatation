@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
 import {
   CARD_BASED_CATEGORIES,
+  isBuiltinCategory,
   OPERATOR_VIOLATION_CATEGORIES,
   violationLabel,
   type RiskCategory,
@@ -11,6 +12,7 @@ import {
 import { ABUSE_REPLY_TITLE, ABUSE_RESUME_TITLE } from "@/domain/notice";
 import { DirectMessage } from "./DirectMessage";
 import { EvidencePicker } from "./compliance/EvidencePicker";
+import { PhraseField } from "./PhraseField";
 import { WhyLabel } from "./Why";
 import a from "./admin.module.css";
 import { TwoPaths } from "./TwoPaths";
@@ -57,6 +59,11 @@ export function AbuseGroupResolve({
   // "위반 유형 추가" — 새 유형을 손으로 적는다. 적는 동안 그 값이 곧 선택된 유형이 된다
   const [adding, setAdding] = useState(false);
   const [newType, setNewType] = useState("");
+  // "실시간 표현 등록" (복원 2026-08-28, 회신 24호 답장 §4) — 위반 유형 추가와 **다른 물건**:
+  // 유형 추가는 재학습 라벨, 이건 리서처가 글 쓰는 중에 그 어구에서 즉시 WARN 뜨게 하는
+  // 학습 표현. 승격 사다리의 "빠른 입구"라 되살린다. 고른 내장 유형 아래 등록된다
+  const [phraseOpen, setPhraseOpen] = useState(false);
+  const [phrase, setPhrase] = useState("");
   const [note, setNote] = useState("");
   // 근거 문장 지목 — 강제철회·지적타당에서 필수 (2026-08-28)
   const [evidence, setEvidence] = useState<string[]>([]);
@@ -162,6 +169,8 @@ export function AbuseGroupResolve({
           note,
           // 내장 key 또는 새로 정의한 커스텀 유형 라벨 — 서버가 커스텀이면 ViolationType 에 올린다
           category: confirming && effectiveCategory ? effectiveCategory : undefined,
+          // 실시간 학습 표현 — 확인(강제철회) 시에만. 서버가 고른 내장 유형 아래 등록한다
+          phrase: confirming && phraseOpen && phrase.trim() ? phrase.trim() : undefined,
           // 근거 문장 지목 — 강제철회·지적타당의 재학습 자료 근거
           evidence: needsEvidence && evidence.length ? evidence : undefined,
           // 기각 + 지적 타당일 때만 참을 보낸다 (경미 → 무고 제외·학습 반영)
@@ -170,8 +179,11 @@ export function AbuseGroupResolve({
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "처리에 실패했습니다");
-      // 건너뛴 것은 조용히 넘기지 않는다 — 성공 화면 뒤에 숨은 미완이 가장 나쁘다
-      if (json.takedownSkipped) setNotice(`철회는 건너뛰었습니다: ${json.takedownSkipped}`);
+      // 건너뛴 것·등록 실패는 조용히 넘기지 않는다 — 성공 화면 뒤에 숨은 미완이 가장 나쁘다
+      const parts: string[] = [];
+      if (json.takedownSkipped) parts.push(`철회는 건너뛰었습니다: ${json.takedownSkipped}`);
+      if (json.phraseWarning) parts.push(`실시간 표현 미등록: ${json.phraseWarning}`);
+      if (parts.length) setNotice(parts.join(" · "));
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "처리에 실패했습니다");
@@ -232,6 +244,17 @@ export function AbuseGroupResolve({
           >
             위반 유형 추가 ✎
           </button>
+          {/* 실시간 표현 등록 — 유형 추가와 다른 축이라 나란히 둔다 (2026-08-28 복원) */}
+          <button
+            type="button"
+            className={`${a.pick} ${a.pickMore} ${phraseOpen ? a.pickOn : ""}`}
+            onClick={() => {
+              setPhraseOpen((v) => !v);
+              if (!phraseOpen && !decision) setDecision("CONFIRMED");
+            }}
+          >
+            실시간 표현 등록 ✎
+          </button>
         </div>
         {adding && (
           <div className={a.field}>
@@ -247,6 +270,16 @@ export function AbuseGroupResolve({
               강제 철회하면 이 유형이 <b>위반 유형 목록에 추가</b>되어 다음부터 칩으로 뜹니다.
             </div>
           </div>
+        )}
+        {/* 학습 표현 = 리서처가 글 쓰는 중에 즉시 WARN 뜨는 어구. **고른 내장 유형 아래**
+            등록된다(커스텀 유형 아래엔 안 된다 — 커스텀은 라벨 전용). 승격 사다리의 빠른 입구 */}
+        {phraseOpen && (
+          <PhraseField
+            value={phrase}
+            onChange={setPhrase}
+            category={isBuiltinCategory(effectiveCategory) ? effectiveCategory : undefined}
+            placeholder="실시간 표현 — 예: 오픈채팅방에서 안내"
+          />
         )}
 
         {/* **여기가 미탐 경로다** — 검수가 놓쳤고 이용자가 잡아 준 건이라, 라벨로서
