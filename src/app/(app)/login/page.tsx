@@ -3,8 +3,7 @@
 import { Suspense } from "react";
 import { AppHeader } from "../AppHeader";
 import { LoginForm } from "./LoginForm";
-import { PasskeyButton } from "./PasskeyButton";
-import { PinLogin } from "./PinLogin";
+import { SimpleLogin } from "./SimpleLogin";
 import pkStyles from "./passkey.module.css";
 import styles from "../researcher/researcher.module.css";
 
@@ -19,11 +18,11 @@ export default function LoginPage() {
     <>
       <AppHeader title="로그인" backHref="/my" />
       <main className={styles.page} style={{ maxWidth: 460 }}>
-        {/* 순서가 곧 우선순위다 (2026-08-16 사용자 확정):
-            생체(동의자 우선) → 간편 비밀번호(폴백) → 본인 인증(처음이거나 새 기기) */}
-        <PasskeyButton />
-        <PinLogin />
-        <div className={pkStyles.divider}>
+        {/* 순서가 곧 우선순위다 (2026-08-16 사용자 확정, 2026-08-28 흐름화):
+            생체 먼저 → 3회 실패 시 방법 선택 → 간편 비밀번호 → 본인 인증(처음·새 기기).
+            SimpleLogin 이 앞 셋을 상태로 몰고, 본인 인증(LoginForm)은 '다른 방식'의 도착지다 */}
+        <SimpleLogin />
+        <div id="fullauth" className={pkStyles.divider}>
           <span>처음이거나 새 기기라면</span>
         </div>
         <p className={styles.sub}>

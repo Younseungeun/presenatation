@@ -1,0 +1,423 @@
+/* 간편 로그인 — 생체 먼저(Face-ID 링) → 3회 실패 시 방법 선택 → 간편 비밀번호.
+   형태·애니메이션은 지갑 결제 흐름 참고(계단식 등장 + 중앙 펄스 링)를 우리 브랜드로
+   각색했다. 색은 앱 토큰만: 민트(--brand 계열)는 '인증' 맥락이라 여기 맞다. */
+
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* 계단식 등장 — 항목마다 지연을 다르게 줘 순차로 떠오른다 */
+.rise {
+  animation: slRise 0.42s cubic-bezier(0.23, 1, 0.32, 1) both;
+}
+@keyframes slRise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── 생체 인증 화면 (Face-ID 링) ─────────────────────────── */
+.bio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 26px 0 8px;
+}
+
+.ring {
+  position: relative;
+  height: 116px;
+  width: 116px;
+  border: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--brand-soft, #eafff6);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--brand-strong, #12b886);
+}
+.ring:disabled {
+  cursor: default;
+}
+
+/* 펄스 고리 — 링 뒤에서 퍼져 나간다("대기 중" 신호). 둘을 지연 걸어 연달아 */
+.pulse,
+.pulse2 {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--brand-strong, #12b886);
+  animation: slPulse 1.8s ease-out infinite;
+}
+.pulse2 {
+  animation-delay: 0.9s;
+}
+@keyframes slPulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+/* 인증 진행 중이 아닐 때(실패 후 대기)는 고리를 멈춰 "탭하세요"를 조용히 만든다 */
+.ringIdle .pulse,
+.ringIdle .pulse2 {
+  animation: none;
+  opacity: 0;
+}
+
+.ringIcon {
+  position: relative;
+  height: 46px;
+  width: 46px;
+}
+/* 브랜드 아이콘은 고정 24px라 링·카드에 맞게 CSS로 키운다(스킬: 반응형은 CSS로 덮는다) */
+.ringIcon svg {
+  width: 44px;
+  height: 44px;
+}
+.cardIcon svg {
+  width: 30px;
+  height: 30px;
+}
+
+/* ── 얼굴 스캔 글리프 (영상의 Face ID 형태 — 뷰파인더 브래킷 + 얼굴) ──────
+   큰 원/펄스 대신 이 글리프를 쓴다. 쉴 때는 은은히 숨 쉬고, 인증 중엔 스캔선이
+   위→아래로 훑는다. 색은 브랜드 민트(인증 맥락). */
+.faceScan {
+  position: relative;
+  height: 88px;
+  width: 88px;
+  border: 0;
+  padding: 0;
+  background: none;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--brand-strong, #12b896);
+}
+.faceScan:disabled {
+  cursor: default;
+}
+.faceScan svg {
+  width: 76px;
+  height: 76px;
+}
+.faceScanIdle svg {
+  animation: slFaceBreathe 2.4s ease-in-out infinite;
+}
+@keyframes slFaceBreathe {
+  0%,
+  100% {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+.scanLine {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--brand-strong, #12b896);
+  box-shadow: 0 0 8px var(--brand-strong, #12b896);
+  animation: slFaceSweep 1.15s ease-in-out infinite;
+}
+@keyframes slFaceSweep {
+  0% {
+    top: 22%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 1;
+  }
+  100% {
+    top: 76%;
+    opacity: 0;
+  }
+}
+
+/* 인증 성공 = 얼굴 스캔이 동그라미 체크로 바뀐다(참고 영상). 톡 튀어나오며 체크가 그려진다. */
+.checkPop {
+  animation: slCheckPop 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes slCheckPop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.checkMark {
+  stroke-dasharray: 42;
+  stroke-dashoffset: 42;
+  animation: slCheckDraw 0.4s 0.14s ease forwards;
+}
+@keyframes slCheckDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 인증 성공 모션(우리 브랜드) — 인증 전 4모서리(사각 뷰파인더)가 중앙으로 조여지며
+   사라지고, 원이 둘레를 따라 그려져 감싸고(그린 뒤 살짝 정착 팝), 체크가 그려지며,
+   은은한 민트 플래시가 한 번 퍼진다. */
+.corners {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.22s ease;
+}
+.cornersDone {
+  opacity: 0;
+  transform: scale(0.5);
+}
+.ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+/* 원이 다 그려질 즈음 살짝 커졌다 제자리로(정착 팝) */
+.ringDone {
+  opacity: 1;
+  animation: slRingSettle 0.42s 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes slRingSettle {
+  0% {
+    transform: scale(1);
+  }
+  55% {
+    transform: scale(1.07);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+/* 원을 위(12시)부터 시계방향으로 그린다 — 둘레 2πr ≈ 120 */
+.ringCircle {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: rotate(-90deg);
+  stroke-dasharray: 120;
+  stroke-dashoffset: 120;
+}
+.ringCircleDone {
+  animation: slRingDraw 0.44s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes slRingDraw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+/* 원이 다 그려질 즈음 솔리드 민트가 위로 페이드-인 → 색이 현재 색으로 정착 */
+.ringSolid {
+  opacity: 0;
+}
+.ringSolidDone {
+  animation: slSolidIn 0.28s 0.42s ease forwards;
+}
+@keyframes slSolidIn {
+  to {
+    opacity: 1;
+  }
+}
+.check {
+  stroke-dasharray: 42;
+  stroke-dashoffset: 42;
+}
+.checkDone {
+  animation: slCheckDraw 0.3s 0.42s ease forwards;
+}
+/* 완료 순간 한 번 퍼지는 민트 고리 */
+.ringFlash {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+.ringFlashDone {
+  animation: slRingFlash 0.55s 0.42s ease-out forwards;
+}
+@keyframes slRingFlash {
+  0% {
+    opacity: 0.45;
+    transform: scale(0.92);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .corners {
+    transition: none;
+  }
+  .ringDone {
+    animation: none;
+  }
+  .ringCircle,
+  .check {
+    stroke-dashoffset: 0;
+  }
+  .ringCircleDone,
+  .checkDone,
+  .ringFlashDone,
+  .ringSolidDone {
+    animation: none;
+  }
+  .ringSolid {
+    opacity: 1;
+  }
+  .ringFlash {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .checkPop,
+  .checkMark {
+    animation: none;
+  }
+  .checkMark {
+    stroke-dashoffset: 0;
+  }
+}
+
+.bioText {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text, #191f28);
+}
+.bioSub {
+  font-size: 12.5px;
+  color: var(--text-weak, #4e5968);
+  text-align: center;
+  line-height: 1.6;
+  min-height: 16px;
+}
+.bioErr {
+  color: var(--neg, #f04452);
+}
+/* 링 아래 조용한 폴백 링크 */
+.textLink {
+  border: 0;
+  background: none;
+  color: var(--text-weak, #4e5968);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  padding: 4px;
+}
+
+/* ── 방법 선택 (메리츠식 두 카드) ─────────────────────────── */
+.pickerTitle {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text, #191f28);
+  margin: 6px 2px 16px;
+}
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 22px 12px;
+  border: 2px solid var(--line, #e1e4e8);
+  border-radius: 16px;
+  background: var(--bg, #fff);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+/* 선택된 카드 = 잉크 테두리(민트는 '검증'을 뜻해 선택 표시엔 안 쓴다) */
+.cardOn {
+  border-color: var(--text, #191f28);
+  box-shadow: 0 0 0 3px rgba(25, 31, 40, 0.06);
+}
+.cardIcon {
+  height: 44px;
+  width: 60px;
+  display: grid;
+  place-items: center;
+  color: var(--text, #191f28);
+}
+.cardLabel {
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--text, #191f28);
+}
+
+.primary {
+  width: 100%;
+  margin-top: 16px;
+  padding: 15px 16px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent, #1f2937);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.alt {
+  display: block;
+  width: 100%;
+  margin-top: 22px;
+  border: 0;
+  background: none;
+  text-align: center;
+  color: var(--text-weak, #4e5968);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.err {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--neg, #f04452);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .pulse,
+  .pulse2 {
+    animation: none;
+  }
+  .rise {
+    opacity: 1;
+    transform: none;
+  }
+}

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
-import { payoutAccountView } from "@/server/payoutAccountView";
+import { payoutAccountView, type PayoutAccountView } from "@/server/payoutAccountView";
 import { isTrustedDevice } from "@/server/pinService";
 import { AppHeader } from "../../AppHeader";
 import marketStyles from "../../market.module.css";
@@ -22,26 +22,54 @@ export const dynamic = "force-dynamic";
 // 빼는 것인데 동결은 돈을 막고 운영자를 부른다. 누를 유인이 없고, 푸는 권한은 운영자에게만
 // 있어 눌러도 얻을 것이 없다. 그래서 크게 적는 편이 낫다.
 
-export default async function PayoutProtectionPage() {
-  const userId = await getSessionUserId();
-  if (!userId) {
-    return (
-      <>
-        <AppHeader title="정산 계좌" backHref="/settings" />
-        <main className={marketStyles.page}>
-          <p className={styles.notice}>
-            로그인이 필요합니다. <Link href="/login">로그인하기</Link>
-          </p>
-        </main>
-      </>
-    );
-  }
+export default async function PayoutProtectionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ demo?: string }>;
+}) {
+  // **개발 전용 ?demo=cooldown-new|cooldown-existing** (운영 빌드에선 무시) — 유예 즉시
+  // 해제 화면의 두 얼굴(낯선 기기 = 번호 표시 / 평소 기기 = 번호 입력)을 실제 payout
+  // 페이지에서 눈으로 확인하려는 용도. 진짜 확인 호출은 세션이 없어 실패한다(표시만).
+  const sp = await searchParams;
+  const demo = process.env.NODE_ENV !== "production" ? sp.demo : undefined;
 
-  // 이 화면이 평소 기기에서 열렸는지에 따라 유예 확인 번호를 **보여줄지, 입력받을지**가
-  // 갈린다 — 번호는 낯선 기기에, 입력은 평소 기기에 (payoutAccountView 주석)
-  const store = await cookies();
-  const trusted = await isTrustedDevice(prisma, userId, store.get("rm_device")?.value);
-  const view = await payoutAccountView(prisma, userId, trusted);
+  let view: PayoutAccountView;
+  if (demo === "cooldown-new" || demo === "cooldown-existing") {
+    const base = {
+      registered: true,
+      last4: "8241",
+      bankCode: "088",
+      status: "VERIFIED",
+      frozen: false,
+      frozenAt: null,
+      cooldownHoursLeft: 48,
+      changedAt: null,
+    };
+    view =
+      demo === "cooldown-new"
+        ? { ...base, cooldownCode: "319274", canConfirmCooldown: false }
+        : { ...base, cooldownCode: null, canConfirmCooldown: true };
+  } else {
+    const userId = await getSessionUserId();
+    if (!userId) {
+      return (
+        <>
+          <AppHeader title="정산 계좌" backHref="/settings" />
+          <main className={marketStyles.page}>
+            <p className={styles.notice}>
+              로그인이 필요합니다. <Link href="/login">로그인하기</Link>
+            </p>
+          </main>
+        </>
+      );
+    }
+
+    // 이 화면이 평소 기기에서 열렸는지에 따라 유예 확인 번호를 **보여줄지, 입력받을지**가
+    // 갈린다 — 번호는 낯선 기기에, 입력은 평소 기기에 (payoutAccountView 주석)
+    const store = await cookies();
+    const trusted = await isTrustedDevice(prisma, userId, store.get("rm_device")?.value);
+    view = await payoutAccountView(prisma, userId, trusted);
+  }
 
   return (
     <>
