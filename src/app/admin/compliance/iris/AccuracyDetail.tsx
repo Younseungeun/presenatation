@@ -1,5 +1,5 @@
 import type { AccuracySummary, BreakdownStat, ElapsedGap } from "@/domain/screeningAccuracy";
-import { RISK_CATEGORY_LABEL, type RiskCategory } from "@/domain/compliance";
+import { violationLabel, type RiskCategory } from "@/domain/compliance";
 import { SecHead } from "../../Why";
 import a from "../../admin.module.css";
 
@@ -31,7 +31,8 @@ const UNIT_HINT = "괄호 안은 소견 개수입니다 — 한 건이 소견을
 function types(list: BreakdownStat<RiskCategory>[], pick: (b: BreakdownStat<RiskCategory>) => number) {
   const hit = list.filter((c) => pick(c) > 0);
   if (hit.length === 0) return null;
-  return hit.map((c) => `${RISK_CATEGORY_LABEL[c.key]} ${pick(c)}건`).join(" · ");
+  // 커스텀 유형(운영자 정의)이면 라벨이 곧 key 라 그대로 뜬다 (violationLabel 폴백)
+  return hit.map((c) => `${violationLabel(c.key)} ${pick(c)}건`).join(" · ");
 }
 
 function pct(v: number | null) {

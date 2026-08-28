@@ -14,18 +14,34 @@ export function EvidencePicker({
   content,
   value,
   onChange,
+  cardText,
+  required = false,
 }: {
   content: string | null;
   value: string[];
   onChange: (quotes: string[]) => void;
+  /** 필수 지목이면 처음부터 펼치고 토글 문구를 "(선택)" 대신 그대로 둔다 */
+  required?: boolean;
+  /**
+   * 예측 카드에서 온 값(종목·방향·목표·기간) — 본문에 글로 없는 항목 (2026-08-28 창업자 지시).
+   * 비현실적 예측·카드 불일치처럼 위반이 카드에 있는 유형은 본문에서 문장을 못 찾으므로,
+   * 이 줄을 본문 위에 **다른 글꼴로** 실어 짚게 한다. IRIS 입력에는 카드가 통째로 들어간다.
+   */
+  cardText?: string | null;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(required);
   const [range, setRange] = useState<[number, number] | null>(null);
   const dragging = useRef(false);
   const startIdx = useRef<number | null>(null);
   const lastIdx = useRef<number | null>(null);
 
-  const text = content ?? "";
+  const body = content ?? "";
+  // 카드 줄을 본문 앞에 붙여 한 글자 흐름으로 만든다 — 짚기(elementFromPoint·indexOf)가
+  // 카드 값이든 본문 문장이든 똑같이 동작한다. 경계 앞쪽이 카드 영역이라 글꼴을 달리한다
+  const card = cardText?.trim() ? cardText.trim() : "";
+  const SEP = "\n";
+  const text = card ? card + SEP + body : body;
+  const cardLen = card ? card.length : 0;
   if (!text.trim()) return null;
 
   const idxAt = (x: number, y: number): number | null => {
@@ -84,7 +100,7 @@ export function EvidencePicker({
       <button type="button" className={a.chip} onClick={() => setOpen((o) => !o)}>
         {open
           ? "근거 문장 접기 ▴"
-          : `근거 문장 짚기 (선택)${value.length ? ` · ${value.length}곳` : ""} ▾`}
+          : `근거 문장 짚기${required ? "" : " (선택)"}${value.length ? ` · ${value.length}곳` : ""} ▾`}
       </button>
       {open && (
         <div style={{ marginTop: 6 }}>
@@ -116,11 +132,19 @@ export function EvidencePicker({
           >
             {Array.from(text).map((ch, i) => {
               const live = range != null && i >= range[0] && i <= range[1];
-              const style = live
-                ? { background: "rgba(18,184,150,0.28)", color: "#0e6f5c" }
+              // 카드 영역(경계 앞)은 **본문과 다른 글꼴** — 종목·수익률이 리서처가 쓴
+              // 본문 문장이 아니라 예측 카드에서 온 값임을 눈으로 가른다
+              const inCard = i < cardLen;
+              const base: React.CSSProperties = inCard
+                ? { fontFamily: "var(--font-mono, ui-monospace, monospace)", fontStyle: "italic", color: "#5b6472" }
+                : {};
+              const style: React.CSSProperties | undefined = live
+                ? { ...base, background: "rgba(18,184,150,0.28)", color: "#0e6f5c" }
                 : picked[i]
-                  ? { background: "#f7ebeb", color: "#bd4242" }
-                  : undefined;
+                  ? { ...base, background: "#f7ebeb", color: "#bd4242" }
+                  : inCard
+                    ? base
+                    : undefined;
               return (
                 <span key={i} data-i={i} style={style}>
                   {ch}

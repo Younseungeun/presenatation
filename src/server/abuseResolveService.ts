@@ -1,5 +1,4 @@
 import type { PrismaClient } from '@prisma/client';
-import type { RiskCategory } from '@/domain/compliance';
 import { suspendsOnAbuseReports } from '@/domain/abuseSuspension';
 import {
   AbuseReportError,
@@ -47,8 +46,15 @@ export interface ResolveAbuseGroupInput {
    *     이 글은 `AbuseReport.reviewNote`에만 남아 반복 무고 판단의 근거가 된다
    */
   note: string;
-  /** 확인일 때 실제 위반 유형 — 미탐 라벨이 되고, 학습 표현 등록의 근거가 된다 */
-  categories?: RiskCategory[];
+  /** 확인일 때 실제 위반 유형 — 미탐 라벨이 되고, 유형 선택기의 근거가 된다.
+   *  내장 RiskCategory 또는 운영자가 정의한 커스텀 유형 라벨(문자열)이 온다 */
+  categories?: string[];
+  /**
+   * 근거 문장 지목 (2026-08-28 창업자 지시 — 필수는 UI 가 강제).
+   * 강제 철회(미탐)·지적 타당(경계)의 재학습 자료 근거가 된다 — IRIS 가 그 문장 창만
+   * 위반으로 배운다. 순수 오신고에는 오지 않는다(재학습 자료가 아니므로)
+   */
+  evidence?: string[];
   /**
    * **기각일 때만** — 신고자의 지적이 타당했는가 (2026-08-27 창업자 지시).
    *   · true  = "지적은 타당했으나 위반은 아님"(경미). 무고로 세지 않고, 검수 기록에
@@ -101,6 +107,7 @@ export async function resolveAbuseReportGroup(
           operatorUserId: input.operatorUserId,
           reason: input.note,
           categories: input.categories ?? [],
+          evidence: input.evidence,
           // **정형 통지는 보내지 않는다** (2026-08-20 사용자 확정) — 확인 창에서
           // 운영자가 리서처에게 직접 쓴 쪽지가 이 자리를 대신한다. 사유는 통지가
           // 아니라 감사 스냅샷·검수 라벨로 남는다
@@ -129,7 +136,7 @@ export async function resolveAbuseReportGroup(
             'MISSED',
             input.operatorUserId,
             now,
-            { reason: input.note, categories: input.categories ?? [] },
+            { reason: input.note, categories: input.categories ?? [], evidence: input.evidence },
           ),
         );
       }
@@ -177,6 +184,7 @@ export async function resolveAbuseReportGroup(
       await operatorVerdictWrites(prisma, input.reportId, 'KEPT', input.operatorUserId, now, {
         reason: input.note,
         findingsValid: true,
+        evidence: input.evidence,
       }),
     );
   }

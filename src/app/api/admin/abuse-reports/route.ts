@@ -1,12 +1,10 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
-import { RISK_CATEGORIES } from '@/domain/compliance';
-import { validatePhrase } from '@/domain/learnedPhrases';
 import { getAbuseReports, reviewAbuseReport } from '@/server/abuseReportService';
 import { resolveAbuseReportGroup } from '@/server/abuseResolveService';
 import { prisma } from '@/server/db';
-import { createLearnedPhrase } from '@/server/learnedPhraseService';
 import { storeTeacherPackForReport } from '@/server/teacherPackStore';
+import { ensureViolationType } from '@/server/violationTypeService';
 import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 
 // 운영자 신고 검토.
@@ -26,43 +24,14 @@ const groupSchema = z.object({
   reportId: z.string().min(1),
   decision: z.enum(['CONFIRMED', 'REJECTED']),
   note: z.string().min(1, '검토 사유를 적어 주세요').max(2000),
-  category: z.enum(RISK_CATEGORIES).optional(),
-  phrase: z.string().max(200).optional(),
+  // 내장 유형 key 또는 운영자가 새로 정의한 유형 라벨 — 둘 다 문자열이다 (2026-08-28).
+  // 커스텀이면 ViolationType 에 보장해 다음부터 칩으로 뜨게 한다
+  category: z.string().min(1).max(40).optional(),
+  // 근거 문장 지목 — 강제 철회(미탐)·지적 타당(경계)의 재학습 자료 근거 (필수는 UI 가 강제)
+  evidence: z.array(z.string().min(1)).max(20).optional(),
   // 기각일 때만 의미 — "지적은 타당했다(경미)". 무고에서 빼고 경계 사례로 학습에 남긴다
   findingsValid: z.boolean().optional(),
 });
-
-/**
- * 확인과 함께 들어온 표현을 사전에 등록한다 — 컴플라이언스 라우트의 registerPhrase와
- * 같은 규칙: 표현이 잘못됐다고 확인을 되돌리지 않고, 실패 사유만 응답에 실어 준다.
- */
-async function registerPhrase(
-  operatorUserId: string,
-  reportId: string,
-  text: string | undefined,
-  category: (typeof RISK_CATEGORIES)[number] | undefined,
-  reason: string,
-): Promise<{ phraseWarning: string | null; phraseCollisions: string[] }> {
-  const none = { phraseWarning: null, phraseCollisions: [] as string[] };
-  const trimmed = text?.trim();
-  if (!trimmed) return none;
-  if (!category) {
-    return { ...none, phraseWarning: '표현을 등록하려면 실제 위반 유형을 골라 주세요' };
-  }
-  const issues = validatePhrase(trimmed);
-  if (issues.length > 0) return { ...none, phraseWarning: issues.join(' / ') };
-  const created = await createLearnedPhrase(prisma, {
-    phrase: trimmed,
-    category,
-    note: reason,
-    createdBy: operatorUserId,
-    sourceReportId: reportId,
-  });
-  // 충돌 목록은 **등록 직후 한 번** 화면이 보여준다 (회신 5호 Q1) — 입력 중에는
-  // 싣지 않는다. 되살린 항목에는 없다(그때는 잰 적이 없다)
-  const { collisions = [] } = created as { collisions?: { against: string }[] };
-  return { phraseWarning: null, phraseCollisions: collisions.map((c) => c.against) };
-}
 
 export async function GET() {
   try {
@@ -87,18 +56,22 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
+      // **커스텀 유형이면 보장한다** (2026-08-28) — 새로 정의한 유형("논리적 비약")을
+      // ViolationType 에 올려 다음부터 칩으로 뜨게 한다. 반환값이 실제 저장될 key.
+      // 내장 유형이면 그대로 통과한다. 검증 실패(빈 값·길이·내장 충돌)는 여기서 던진다
+      const category = body.category
+        ? await ensureViolationType(prisma, body.category, operatorUserId, body.reportId)
+        : undefined;
       const summary = await resolveAbuseReportGroup(prisma, {
         reportId: body.reportId,
         operatorUserId,
         decision: body.decision,
         note: body.note,
-        categories: body.category ? [body.category] : [],
+        categories: category ? [category] : [],
+        // 근거 문장 지목 — 강제 철회·지적 타당의 재학습 자료 근거 (회신 20호 요청 3)
+        evidence: body.evidence,
         findingsValid: body.findingsValid,
       });
-      const phrase =
-        body.decision === 'CONFIRMED'
-          ? await registerPhrase(operatorUserId, body.reportId, body.phrase, body.category, body.note)
-          : { phraseWarning: null, phraseCollisions: [] };
       // **교사 질문지 생성** (2026-08-27 창업자 지시 — 검수와 같은 흐름). 판정 커밋 뒤,
       // 최선-노력으로(실패해도 판정은 유효). 두 갈래에서 만든다:
       //   · 확인(TAKEDOWN) = 미탐. 검수가 놓친 것이라 재학습에서 가장 값진 라벨
@@ -107,7 +80,7 @@ export async function POST(req: NextRequest) {
       if (body.decision === 'CONFIRMED' || body.findingsValid === true) {
         await storeTeacherPackForReport(prisma, body.reportId);
       }
-      return NextResponse.json({ ...summary, ...phrase });
+      return NextResponse.json(summary);
     }
 
     const body = singleSchema.parse(raw);

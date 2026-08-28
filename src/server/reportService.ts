@@ -161,6 +161,15 @@ function cardScreeningFields(card: CardDraft, now: Date) {
  * 보류 큐로 간다. 우회 오라클을 막으려고 **어느 문장이 걸렸는지는 싣지 않는다** — 위반
  * 유형(categories)과 위험 수준(decision)만 전한다.
  */
+/**
+ * 게시 전 되묻기 프리뷰의 **보류감 누적 상한** (회신 22호 답장 수리 ①).
+ * 이 횟수를 넘으면 그 리포트는 프리뷰를 건너뛰고 곧장 기록되는 보류 경로로 강등돼,
+ * 무기록 프리뷰를 공짜 IRIS 오라클로 쓰는 이진 탐색이 비싸진다.
+ * @근거 설계 정직한 리서처는 1~2회면 끝나 UX 손해가 없고 이진 탐색만 비싸지는 선(서버
+ *   세션 제안값, 운영 데이터로 재조정 전제). 반복 반려 문턱(3)보다 느슨해 정상 반복을 살린다
+ */
+export const PREVIEW_HOLD_LIMIT = 5;
+
 export class HoldConfirmationRequired extends Error {
   readonly decision: string;
   readonly categories: string[];
@@ -268,21 +277,30 @@ export async function publishReport(
   // 리서처가 아직 확인하지 않았으면(acknowledgeHold=false), **기록 없는 프리뷰**로 먼저
   // 검수만 돌려 보류감인지 본다. 보류감이면 커밋하지 않고 HoldConfirmationRequired 를 던져
   // 팝업을 띄운다 — "그래도 게시" 를 고르면 UI 가 acknowledgeHold=true 로 다시 부른다.
-  // 프리뷰가 리뷰를 남기지 않으므로 취소해도 큐에 유령이 안 생긴다. REJECT(명백한 위반)는
-  // 되묻지 않고 그대로 거절한다 — 팝업은 "보류감" 용이지 즉시 거절용이 아니다.
-  if (!acknowledgeHold) {
+  // 프리뷰가 리뷰를 남기지 않으므로 취소해도 큐에 유령이 안 생긴다.
+  //
+  // **수리 ① (회신 22호 답장) — 무기록·무제한 프리뷰는 공짜 IRIS 오라클이다.** 프리뷰의
+  // 출현/소멸 자체가 신호라, 취소 루프로 흔적 없이 무한 튜닝된다(인용문을 빼도 못 막는다).
+  // 보류감 프리뷰마다 카운터만 올리고(리뷰 행 아님, 큐 유령 없음), 상한을 넘으면 그 리포트는
+  // 프리뷰를 건너뛰고 곧장 기록되는 보류 경로로 강등된다 — 이진 탐색만 비싸진다.
+  //
+  // **수리 ② (회신 22호 답장) — 프리뷰 REJECT 는 던지지 않고 흘려보낸다.** 예전에는 여기서
+  // 던져 끝내 **차단 시도가 아무 데도 안 남았다**("검수 이력은 차단 시도까지 보존" 위반).
+  // 어차피 거절이라 되물을 것이 없으므로, 아래 실제 검수로 진행시켜 시도를 기록·거절한다.
+  if (!acknowledgeHold && report.previewHoldCount <= PREVIEW_HOLD_LIMIT) {
     const preview = await screenAndRecord(prisma, reportId, screeningInput, screener, now, false);
-    if (preview.action === 'REJECT') {
-      throw new PublishValidationError(findingMessages(preview.findings, 'BLOCK'));
-    }
     if (preview.action === 'HOLD' || repeatedRejection) {
+      await prisma.report.update({
+        where: { id: reportId },
+        data: { previewHoldCount: { increment: 1 } },
+      });
       throw new HoldConfirmationRequired(
         preview.decision,
         holdCategories(preview.findings),
         repeatedRejection,
       );
     }
-    // PASS 예상 — 아래 실제 검수로 진행해 기록·게시한다.
+    // PASS 또는 REJECT → 아래 실제 검수로 진행 (REJECT 는 거기서 기록·거절된다)
   }
 
   // 컴플라이언스 검수: 규제 위반 표현은 게시 자체를 막는다 (§1 법적 경계).
@@ -514,6 +532,12 @@ export async function approvePendingReport(
    * '표시하지 않고 승인'(null)에는 사유가 없다. operatorReason 에 저장된다
    */
   approveReason?: string | null,
+  /**
+   * 승인 시 운영자가 본문(또는 예측 카드 값)에서 짚은 근거 문장 (2026-08-28 창업자 확정).
+   * 본문 소견 승인은 재학습에서 값진 자료라(오탐 = 가중치 조절, 지적 타당 = 졸업 논의)
+   * IRIS 가 무엇을 다시 볼지 지역화한다. 화면이 본문 소견 보류에만 필수로 받는다
+   */
+  evidence: string[] = [],
 ) {
   const report = await prisma.report.findUniqueOrThrow({
     where: { id: reportId },
@@ -531,6 +555,8 @@ export async function approvePendingReport(
       // 사유는 findingsValid 를 표시했을 때만(지적 타당·오탐) 뜻이 있다 —
       // '표시하지 않고 승인'(null)에는 기록하지 않는다
       reason: findingsValid !== null ? (approveReason?.trim() || undefined) : undefined,
+      // 근거 문장도 표시했을 때만 (본문 소견 승인) — IRIS 라벨 지역화
+      evidence: findingsValid !== null && evidence.length ? evidence : undefined,
     })),
     prisma.notification.create({
       data: {
@@ -562,8 +588,9 @@ export async function rejectPendingReport(
   operatorUserId: string,
   reason: string,
   now = new Date(),
-  /** 운영자가 확인한 실제 위반 유형 (선택) — 비우면 검수 소견을 그대로 인정한 것으로 본다 */
-  categories: RiskCategory[] = [],
+  /** 운영자가 확인한 실제 위반 유형 (선택) — 비우면 검수 소견을 그대로 인정한 것으로 본다.
+   *  내장 key 또는 커스텀 유형 라벨(문자열) */
+  categories: string[] = [],
   /** 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3, 선택) — IRIS 라벨 지역화용 */
   evidence: string[] = [],
 ) {

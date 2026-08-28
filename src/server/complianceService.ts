@@ -638,8 +638,20 @@ export function getPendingComplianceReviews(prisma: PrismaClient) {
           },
           // 강제 철회 시 환불될 규모 — 운영자가 집행 전에 영향 범위를 보고 판단해야 한다
           purchases: { where: { escrowStatus: 'HELD' }, select: { amountKrw: true } },
-          // 검증 시한 — 대기 중 시한이 다가오면 승인해도 게시 조건을 못 맞출 수 있다
-          predictionCard: { select: { deadline: true, assetClass: true } },
+          // 검증 시한 — 대기 중 시한이 다가오면 승인해도 게시 조건을 못 맞출 수 있다.
+          // 카드 값(종목·방향·목표)은 근거 문장 짚기에서 **본문에 없는 카드 위반**을 짚게 한다 (2026-08-28)
+          predictionCard: {
+            select: {
+              deadline: true,
+              assetClass: true,
+              ticker: true,
+              assetName: true,
+              direction: true,
+              targetType: true,
+              targetValue: true,
+              basePrice: true,
+            },
+          },
         },
       },
     },
@@ -665,7 +677,19 @@ export function getPublishedReportsForOversight(prisma: PrismaClient, limit = 20
         select: { id: true, tier: true, user: { select: { id: true, penName: true, email: true } } },
       },
       purchases: { where: { escrowStatus: 'HELD' }, select: { amountKrw: true } },
-      predictionCard: { select: { deadline: true } },
+      // 카드 값 — 강제 철회 근거 문장 짚기에서 본문에 없는 카드 위반을 짚게 한다 (2026-08-28)
+      predictionCard: {
+        select: {
+          deadline: true,
+          assetClass: true,
+          ticker: true,
+          assetName: true,
+          direction: true,
+          targetType: true,
+          targetValue: true,
+          basePrice: true,
+        },
+      },
       _count: { select: { purchases: true } }, // 판매량 정렬 기준 (환불 건 포함 누적)
     },
     orderBy: { publishedAt: 'desc' },
@@ -704,8 +728,9 @@ export async function researcherSalesCounts(
 export interface VerdictLabel {
   /** 반려·철회 사유 */
   reason?: string;
-  /** 운영자가 확인한 실제 위반 유형 (비우면 검수 소견을 그대로 인정) */
-  categories?: RiskCategory[];
+  /** 운영자가 확인한 실제 위반 유형 (비우면 검수 소견을 그대로 인정).
+   *  내장 RiskCategory key 또는 운영자가 정의한 커스텀 유형 라벨(문자열) — 둘 다 온다 */
+  categories?: string[];
   /** 승인 시: 지적 자체는 타당했는가 (경미해서 승인한 경우 true) */
   /** 11차 K-1 — 세 갈래. `null`(무응답)과 `false`(명시적 오탐 신고)를 갈라 둔다 */
   findingsValid?: boolean | null;
@@ -1073,8 +1098,9 @@ export interface TakedownInput {
   operatorUserId: string;
   /** 강제 철회 사유 — 필수. 감사 스냅샷·검수 라벨에 그대로 실린다 */
   reason: string;
-  /** 실제 위반 유형 (선택) — 통과된 건을 철회했다면 검수가 못 잡은 유형이 된다 */
-  categories?: RiskCategory[];
+  /** 실제 위반 유형 (선택) — 통과된 건을 철회했다면 검수가 못 잡은 유형이 된다.
+   *  내장 key 또는 커스텀 유형 라벨(문자열) */
+  categories?: string[];
   /** 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3, 선택) — IRIS 라벨 지역화용 */
   evidence?: string[];
   /**

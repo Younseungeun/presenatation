@@ -130,6 +130,8 @@ describe('확인 = 철회·환불·미탐·통지·보상이 한 번에', () => 
         decision: 'CONFIRMED',
         note: '본문에 오픈채팅 유도 문구 확인',
         categories: ['SOLICIT_CONTACT'],
+        // 근거 문장 지목 (2026-08-28) — 미탐 재학습 지역화의 근거
+        evidence: ['오픈채팅방에서 안내드립니다'],
       },
       NOW,
     );
@@ -163,6 +165,8 @@ describe('확인 = 철회·환불·미탐·통지·보상이 한 번에', () => 
     });
     expect(review?.operatorVerdict).toBe('TAKEDOWN');
     expect(review?.operatorCategories).toContain('SOLICIT_CONTACT');
+    // 근거 문장이 operatorEvidence 에 저장돼 IRIS 재학습 지역화의 근거가 된다 (2026-08-28)
+    expect(review?.operatorEvidence).toContain('오픈채팅방에서 안내드립니다');
 
     // ④ **자동 통지는 한 통도 나가지 않는다** (2026-08-20 사용자 확정).
     //    확인 창에서 운영자가 신고자·리서처에게 직접 쓴 쪽지가 그 자리를 대신하므로,

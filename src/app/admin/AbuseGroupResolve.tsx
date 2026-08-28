@@ -2,10 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useState } from "react";
-import type { RiskCategory } from "@/domain/compliance";
+import {
+  CARD_BASED_CATEGORIES,
+  OPERATOR_VIOLATION_CATEGORIES,
+  violationLabel,
+  type RiskCategory,
+} from "@/domain/compliance";
 import { ABUSE_REPLY_TITLE, ABUSE_RESUME_TITLE } from "@/domain/notice";
 import { DirectMessage } from "./DirectMessage";
-import { PhraseField } from "./PhraseField";
+import { EvidencePicker } from "./compliance/EvidencePicker";
 import { WhyLabel } from "./Why";
 import a from "./admin.module.css";
 import { TwoPaths } from "./TwoPaths";
@@ -21,22 +26,15 @@ import { TwoPaths } from "./TwoPaths";
 // 반대쪽이 회색이 되는 것이 이 폼의 절반이다: 결과가 정반대인 두 버튼이 같은 얼굴로
 // 나란히 있으면 **어느 쪽을 누르기로 했는지가 화면에 없다.**
 
-// `satisfies` 로 못 박는다 — 이 값들은 그대로 라벨이 되어 학습 자료에 실린다.
-// 오타가 나면 서버가 거절하는 것이 아니라 **없는 유형으로 라벨이 붙는다**
-const CATEGORY_OPTIONS = [
-  ["SOLICIT_CONTACT", "1:1 상담·외부 채널 유도"],
-  ["PROFIT_GUARANTEE", "수익 보장·손실 보전"],
-  ["RISK_INDUCEMENT", "위험 투자 조장"],
-  ["RUMOR", "출처 불명 풍문"],
-  ["PRIVATE_INFO", "미공개 중요정보 정황"],
-] as const satisfies readonly (readonly [RiskCategory, string])[];
-
 export function AbuseGroupResolve({
   reportId,
   reporterCount,
   reporters,
   researcherUserId,
   researcherName,
+  content,
+  cardText,
+  customTypes = [],
 }: {
   reportId: string;
   reporterCount: number;
@@ -45,19 +43,31 @@ export function AbuseGroupResolve({
   /** 철회 확인 창에서 이 사람에게 직접 쪽지를 쓴다 */
   researcherUserId?: string | null;
   researcherName?: string | null;
+  /** 리포트 본문 — 근거 문장 짚기(EvidencePicker)에 쓴다 */
+  content?: string | null;
+  /** 예측 카드 값(종목·수익률 등) — 본문에 없는 항목을 짚게 한다 (2026-08-28) */
+  cardText?: string | null;
+  /** 운영자가 정의한 커스텀 위반 유형 라벨 — 내장 9개 뒤에 칩으로 붙는다 */
+  customTypes?: string[];
 }) {
   const router = useRouter();
   const [decision, setDecision] = useState<"CONFIRMED" | "REJECTED" | null>(null);
-  const [category, setCategory] = useState<RiskCategory | "">("");
-  const [manual, setManual] = useState(false);
-  const [phrase, setPhrase] = useState("");
+  // 내장 key 또는 커스텀 라벨(문자열) — 통일 세트라 둘을 한 문자열로 다룬다
+  const [category, setCategory] = useState<string>("");
+  // "위반 유형 추가" — 새 유형을 손으로 적는다. 적는 동안 그 값이 곧 선택된 유형이 된다
+  const [adding, setAdding] = useState(false);
+  const [newType, setNewType] = useState("");
   const [note, setNote] = useState("");
+  // 근거 문장 지목 — 강제철회·지적타당에서 필수 (2026-08-28)
+  const [evidence, setEvidence] = useState<string[]>([]);
   // 기각의 두 갈래 — false=오신고(무고), true=지적은 타당했으나 위반 아님(경미).
   // rejecting 일 때만 의미가 있고, decision 이 null 로 풀리면 checked 가 저절로 꺼진다
   const [validConcern, setValidConcern] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // 실제 제출될 유형 — 새 유형을 적는 중이면 그것이, 아니면 고른 칩이 이긴다
+  const effectiveCategory = adding && newType.trim() ? newType.trim() : category;
   // 확인 창 — **강제 철회에만 선다** (2026-08-20 사용자 지시).
   //
   // 처음엔 기각에도 세웠는데, 기각 쪽에는 이미 `오신고로 확인했다 — 신고자 N명
@@ -67,11 +77,18 @@ export function AbuseGroupResolve({
 
   const confirming = decision === "CONFIRMED";
   const rejecting = decision === "REJECTED";
+  // 근거 문장 필수 = IRIS 가 배울 지역화가 필요한 경우 (2026-08-28 창업자 확정):
+  //   · 강제철회(미탐)      → 필수 (검수가 놓친 것, 무엇을 배울지 짚어야 한다)
+  //   · 기각·지적타당(경계) → 필수 (모델이 배울 경계 사례)
+  //   · 기각·오신고         → 불요 (모델은 옳게 통과시켰다)
+  const needsEvidence = confirming || (rejecting && validConcern);
   const ready =
-    note.trim().length > 0 && (rejecting || (confirming && category !== ""));
+    note.trim().length > 0 &&
+    (confirming ? effectiveCategory !== "" : true) &&
+    (!needsEvidence || evidence.length > 0);
   const missing = !decision
     ? "위반인지 아닌지 먼저 골라 주세요"
-    : confirming && !category
+    : confirming && !effectiveCategory
       ? "실제 위반 유형을 골라야 철회할 수 있습니다 — 검수가 놓친 것의 기록이 됩니다"
       : !note.trim()
         ? // **가는 곳을 정확히 적는다** (2026-08-20). 예전 문구는 "신고자에게 그대로
@@ -80,7 +97,9 @@ export function AbuseGroupResolve({
           confirming
           ? "사유를 적어야 합니다 — 미탐 기록과 감사 스냅샷에 남습니다"
           : "사유를 적어야 합니다 — 기록에 남고 반복 무고 판단의 근거가 됩니다"
-        : "";
+        : needsEvidence && evidence.length === 0
+          ? "위반 근거 문장을 본문에서 짚어 주세요 — 재학습 자료의 근거가 됩니다"
+          : "";
 
   // 확인 창이 떠 있는 동안 뒤 배경은 잠근다 — 스크롤이 따라 움직이면 창이
   // 화면 위에 얹힌 종이가 아니라 페이지의 일부처럼 보인다
@@ -141,28 +160,18 @@ export function AbuseGroupResolve({
           reportId,
           decision,
           note,
-          category: confirming && category ? category : undefined,
-          phrase: confirming && manual && phrase.trim() ? phrase.trim() : undefined,
+          // 내장 key 또는 새로 정의한 커스텀 유형 라벨 — 서버가 커스텀이면 ViolationType 에 올린다
+          category: confirming && effectiveCategory ? effectiveCategory : undefined,
+          // 근거 문장 지목 — 강제철회·지적타당의 재학습 자료 근거
+          evidence: needsEvidence && evidence.length ? evidence : undefined,
           // 기각 + 지적 타당일 때만 참을 보낸다 (경미 → 무고 제외·학습 반영)
           findingsValid: rejecting && validConcern ? true : undefined,
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? "처리에 실패했습니다");
-      // 건너뛴 것·등록 실패는 조용히 넘기지 않는다 — 성공 화면 뒤에 숨은 미완이 가장 나쁘다
-      const parts: string[] = [];
-      if (json.takedownSkipped) parts.push(`철회는 건너뛰었습니다: ${json.takedownSkipped}`);
-      if (json.phraseWarning) parts.push(`사전 미등록: ${json.phraseWarning}`);
-      // **왜 근사 표기 감시에서 빠졌는지는 지금 말해야 한다** (회신 5호 Q1) —
-      // 등록 직후 한 번뿐인 정보라, 화면을 새로 그리면 사라진다
-      if (json.phraseCollisions?.length) {
-        parts.push(
-          `등록됐지만 근사 표기 감시에서는 빠집니다 — 한 글자 흐트러뜨린 형태가 ` +
-            `${json.phraseCollisions.map((x: string) => `“${x}”`).join(" · ")}와 부딪힙니다 ` +
-            `(정확 표기 감시는 그대로 돕니다)`,
-        );
-      }
-      if (parts.length) setNotice(parts.join(" · "));
+      // 건너뛴 것은 조용히 넘기지 않는다 — 성공 화면 뒤에 숨은 미완이 가장 나쁘다
+      if (json.takedownSkipped) setNotice(`철회는 건너뛰었습니다: ${json.takedownSkipped}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "처리에 실패했습니다");
@@ -179,48 +188,71 @@ export function AbuseGroupResolve({
           sub="실제 유형 — 신고자가 고른 것과 다를 수 있습니다"
           why={
             <>
-              등록한 표현은 사전에 올라가 <b>다음 리서처가 글을 쓰는 중에</b> 같은 표현에서
-              경고를 띄웁니다 — 검수 범위가 운영 중에 넓어지는 유일한 통로입니다.
+              고른 유형은 <b>검수가 놓친 것(미탐)의 라벨</b>이 됩니다 — 재학습에서 가장 값진
+              자료입니다. 없는 유형이면 <b>위반 유형 추가</b>로 새로 정의하세요 — 그 유형은
+              이후 검수·어뷰징 선택기에 그대로 뜹니다.
             </>
           }
         >
           위반이 맞다면
         </WhyLabel>
         <div className={a.chips}>
-          {CATEGORY_OPTIONS.map(([v, l]) => (
-            <button
-              key={v}
-              type="button"
-              className={`${a.pick} ${category === v ? a.pickOn : ""}`}
-              onClick={() => {
-                setCategory((c) => (c === v ? "" : v));
-                setDecision(category === v ? null : "CONFIRMED");
-              }}
-            >
-              {l}
-            </button>
-          ))}
+          {/* 내장 9개 + 운영자가 정의한 커스텀 유형 — 두 화면 통일 세트 (2026-08-28) */}
+          {[...OPERATOR_VIOLATION_CATEGORIES, ...customTypes].map((v) => {
+            const on = !adding && category === v;
+            return (
+              <button
+                key={v}
+                type="button"
+                className={`${a.pick} ${on ? a.pickOn : ""}`}
+                onClick={() => {
+                  setAdding(false);
+                  setNewType("");
+                  setCategory((c) => (c === v ? "" : v));
+                  setDecision(category === v ? null : "CONFIRMED");
+                }}
+                title={CARD_BASED_CATEGORIES.has(v as RiskCategory) ? "예측 카드의 위반 — 아래 카드 값을 짚으세요" : undefined}
+              >
+                {violationLabel(v)}
+                {CARD_BASED_CATEGORIES.has(v as RiskCategory) ? " ▦" : ""}
+              </button>
+            );
+          })}
           <button
             type="button"
-            className={`${a.pick} ${a.pickMore} ${manual ? a.pickOn : ""}`}
-            onClick={() => setManual((v) => !v)}
+            className={`${a.pick} ${a.pickMore} ${adding ? a.pickOn : ""}`}
+            onClick={() => {
+              const next = !adding;
+              setAdding(next);
+              if (next) {
+                setCategory("");
+                setDecision("CONFIRMED");
+              }
+            }}
           >
-            사전에 등록 ✎
+            위반 유형 추가 ✎
           </button>
         </div>
-        {manual && (
-          <PhraseField
-            value={phrase}
-            onChange={setPhrase}
-            category={category || undefined}
-            placeholder="사전에 등록 — 예: 오픈채팅방에서 안내"
-          />
+        {adding && (
+          <div className={a.field}>
+            <input
+              className={a.input}
+              value={newType}
+              onChange={(e) => setNewType(e.target.value)}
+              placeholder="새 위반 유형 — 예: 논리적 비약"
+              aria-label="새 위반 유형"
+              maxLength={40}
+            />
+            <div className={a.hint}>
+              강제 철회하면 이 유형이 <b>위반 유형 목록에 추가</b>되어 다음부터 칩으로 뜹니다.
+            </div>
+          </div>
         )}
 
         {/* **여기가 미탐 경로다** — 검수가 놓쳤고 이용자가 잡아 준 건이라, 라벨로서
             가장 값지고 동시에 **가장 조용히 버려지는** 자리다(유형 미지목이면
             operatorTraining 이 통째로 버린다). 두 갈래를 그려 그 사실을 앞에 놓는다 */}
-        <TwoPaths takedown phrase={manual ? phrase.trim() : ""} categoryCount={category ? 1 : 0} />
+        <TwoPaths takedown phrase="" categoryCount={effectiveCategory ? 1 : 0} />
       </div>
 
       {/* ── 위반이 아니라면 ───────────────────────────────────── */}
@@ -258,6 +290,24 @@ export function AbuseGroupResolve({
           지적은 타당했으나 위반은 아니다 — 무고로 세지 않고 경계 사례로 남깁니다
         </label>
       </div>
+
+      {/* 근거 문장 짚기 — 강제철회(미탐)·지적타당(경계)에서 **필수** (2026-08-28).
+          IRIS 가 그 문장 창만 위반으로 배운다. 카드형 위반은 본문에 없어, 예측 카드 값을
+          다른 글꼴로 실어 그것을 짚게 한다(EvidencePicker cardText). 오신고에는 안 뜬다 */}
+      {needsEvidence && (
+        <div className={a.field}>
+          <div className={a.lbl}>
+            근거 문장 <small>필수 — 본문(또는 예측 카드 값)에서 위반 근거를 짚어 주세요</small>
+          </div>
+          <EvidencePicker
+            content={content ?? null}
+            cardText={cardText ?? null}
+            value={evidence}
+            onChange={setEvidence}
+            required
+          />
+        </div>
+      )}
 
       {/* **이 칸은 기록이다 — 남에게 보내는 글이 아니다** (2026-08-20 사용자 확정).
           기각 통지는 양쪽 다 고정 양식으로 나가므로 여기 쓴 글은 reviewNote에만

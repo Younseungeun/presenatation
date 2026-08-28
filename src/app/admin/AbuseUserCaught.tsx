@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ABUSE_SUSPEND_REPORTERS } from "@/domain/abuseSuspension";
+import { formatCardEvidence } from "@/domain/cardEvidence";
 import {
   ABUSE_CATEGORY_CLAIM,
   ABUSE_CATEGORY_LABEL,
@@ -37,11 +38,14 @@ export function AbuseUserCaught({
   openId,
   detail,
   now,
+  customTypes = [],
 }: {
   groups: AbuseReportGroup[];
   openId?: string;
   detail: AbuseGroupDetail | null;
   now: Date;
+  /** 운영자가 정의한 커스텀 위반 유형 — 판단 폼의 유형 칩에 붙는다 */
+  customTypes?: string[];
 }) {
   if (groups.length === 0) {
     return <div className={a.empty}>이용자 신고로 들어온 건이 없습니다.</div>;
@@ -173,6 +177,23 @@ export function AbuseUserCaught({
                 reporters={<ReportersPart g={g} />}
                 researcherUserId={g.reports[0].researcherUserId}
                 researcherName={g.reports[0].researcherName}
+                // 근거 문장 짚기 — 본문 + 카드 값(본문에 없는 종목·수익률을 다른 글꼴로)
+                content={detail?.reportId === g.reportId ? detail.body : null}
+                cardText={
+                  detail?.reportId === g.reportId && detail.card
+                    ? formatCardEvidence({
+                        assetName: detail.card.assetName,
+                        ticker: detail.card.ticker,
+                        assetClassLabel: detail.card.assetClassLabel,
+                        direction: detail.card.direction,
+                        magnitudePct: detail.card.magnitudePct,
+                        targetPrice: detail.card.targetPrice,
+                        currency: detail.card.currency,
+                        deadline: detail.card.deadline,
+                      })
+                    : null
+                }
+                customTypes={customTypes}
               />
             ) : (
               // 리포트가 특정되지 않은 자유 입력 신고 — 내릴 상품이 없어 그룹 판단이

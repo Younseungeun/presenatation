@@ -38,6 +38,7 @@ import {
   approvePendingReport,
   createDraftReport,
   HoldConfirmationRequired,
+  PREVIEW_HOLD_LIMIT,
   publishReport,
   rejectPendingReport,
 } from '../reportService';
@@ -379,6 +380,56 @@ describe('publishReport — 검수 연동', () => {
       );
       expect(result.status).toBe('PUBLISHED');
     });
+
+    it('수리 ② — 프리뷰 REJECT 도 시도가 기록된다 (차단 이력 보존)', async () => {
+      const draft = await createDraftReport(
+        prisma,
+        draftInput('무조건 오릅니다. 원금 보장 수준입니다.', '프리뷰 거절'),
+        DRAFT_NOW,
+      );
+      // acknowledgeHold=false 라 UI 는 프리뷰를 먼저 타지만, REJECT 면 던지지 않고
+      // 실제 검수로 흘러가 시도가 기록된 뒤 거절된다
+      await expect(
+        publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW, null, false),
+      ).rejects.toThrow(PublishValidationError);
+      const review = await prisma.complianceReview.findFirst({
+        where: { reportId: draft.id },
+        orderBy: { createdAt: 'desc' },
+      });
+      // 예전에는 프리뷰가 던지고 끝나 이 기록이 통째로 사라졌다
+      expect(review?.decision).toBe('BLOCK');
+      expect((await prisma.report.findUniqueOrThrow({ where: { id: draft.id } })).status).toBe(
+        'DRAFT',
+      );
+    });
+
+    it('수리 ① — 보류감 프리뷰가 상한을 넘으면 프리뷰를 건너뛰고 기록되는 보류로 강등된다', async () => {
+      const draft = await createDraftReport(
+        prisma,
+        draftInput(HOLD_CONTENT, '오라클 방어'),
+        DRAFT_NOW,
+      );
+      // 상한까지는 매번 팝업(HoldConfirmationRequired) — 커밋도 리뷰도 없이 카운터만 오른다
+      for (let i = 0; i <= PREVIEW_HOLD_LIMIT; i++) {
+        await expect(
+          publishReport(prisma, registry, draft.id, researcherId, PUBLISH_NOW, null, false),
+        ).rejects.toBeInstanceOf(HoldConfirmationRequired);
+      }
+      expect(
+        (await prisma.report.findUniqueOrThrow({ where: { id: draft.id } })).previewHoldCount,
+      ).toBeGreaterThan(PREVIEW_HOLD_LIMIT);
+      // 상한 초과 — 이제 프리뷰를 건너뛰고 곧장 기록되는 보류(PENDING_REVIEW)로 간다
+      const held = await publishReport(
+        prisma,
+        registry,
+        draft.id,
+        researcherId,
+        PUBLISH_NOW,
+        null,
+        false,
+      );
+      expect(held.status).toBe('PENDING_REVIEW');
+    });
   });
 
   it('AI 검수 실패도 보류 대상 (검수 공백을 사람이 메운다)', async () => {
@@ -559,6 +610,43 @@ describe('보류 건에 대한 운영자 결정 — 승인/반려', () => {
     expect(approved.body).toBe(REVIEW_APPROVED_BODY);
     // 승인 후에는 판매 가능
     await purchaseReport(prisma, reportId, buyerId, DECIDE_NOW);
+  });
+
+  it('본문 소견 승인의 근거 문장이 operatorEvidence 에 저장되고, 무표시 승인엔 저장 안 한다 (2026-08-28)', async () => {
+    // findingsValid=false(오탐) + 근거 문장 → 재학습 지역화 (가중치 조절 자료)
+    const withEv = await held('승인 근거 대상');
+    await approvePendingReport(prisma, registry, withEv, OPERATOR, DECIDE_NOW, false, '오탐 사유', [
+      '카더라가 돌고 있습니다',
+    ]);
+    const r1 = await prisma.complianceReview.findFirst({
+      where: { reportId: withEv },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(r1?.operatorVerdict).toBe('APPROVED');
+    expect(r1?.aiFindingsValid).toBe(false);
+    expect(r1?.operatorEvidence).toContain('카더라가 돌고 있습니다');
+    // 판매 슬롯을 돌려준다 — 뒤 테스트의 활성 카드 상한을 건드리지 않게 즉시 철회
+    await forceWithdrawReport(prisma, {
+      reportId: withEv,
+      operatorUserId: OPERATOR,
+      reason: '테스트 정리',
+    });
+
+    // 표시 없이(null) 승인하면 근거를 저장하지 않는다
+    const noLabel = await held('무표시 승인');
+    await approvePendingReport(prisma, registry, noLabel, OPERATOR, DECIDE_NOW, null, null, [
+      '무시될 근거',
+    ]);
+    const r2 = await prisma.complianceReview.findFirst({
+      where: { reportId: noLabel },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(r2?.operatorEvidence).toBeNull();
+    await forceWithdrawReport(prisma, {
+      reportId: noLabel,
+      operatorUserId: OPERATOR,
+      reason: '테스트 정리',
+    });
   });
 
   it('반려하면 초안으로 돌아가고 사유가 리서처에게 전달된다', async () => {

@@ -28,10 +28,42 @@ import {
   TIERS,
   type Tier,
 } from "@/domain/constants";
-import { suggestPhrase } from "@/domain/learnedPhrases";
 import { REVIEW_REJECTED_TITLE } from "@/domain/notice";
 import type { AccuracySummary } from "@/domain/screeningAccuracy";
 import { getLearnedPhraseStats } from "@/server/learnedPhraseService";
+import { getCustomViolationTypes } from "@/server/violationTypeService";
+import { formatCardEvidence } from "@/domain/cardEvidence";
+
+// 예측 카드를 근거 문장 짚기용 한 줄로 (2026-08-28) — 본문에 없는 카드 위반(비현실적 예측·
+// 카드 불일치)을 짚게 한다. 목표가형은 targetValue 가 가격, 수익률형은 크기(%)다
+const ASSET_CLASS_LABEL_MAP: Record<string, string> = {
+  KR_EQUITY: "국내주식",
+  US_EQUITY: "미국주식",
+  CRYPTO: "코인",
+};
+function cardTextFor(
+  card: {
+    assetName: string;
+    ticker: string;
+    assetClass: string;
+    direction: string;
+    targetType: string;
+    targetValue: number;
+    deadline: Date | null;
+  } | null,
+): string | null {
+  if (!card) return null;
+  const isPct = card.targetType === "RETURN_PCT";
+  return formatCardEvidence({
+    assetName: card.assetName,
+    ticker: card.ticker,
+    assetClassLabel: ASSET_CLASS_LABEL_MAP[card.assetClass] ?? null,
+    direction: card.direction === "DOWN" ? "DOWN" : "UP",
+    magnitudePct: isPct ? card.targetValue : null,
+    targetPrice: isPct ? null : card.targetValue,
+    deadline: card.deadline,
+  });
+}
 import { getManualJudgmentQueue } from "@/server/manualJudgmentService";
 import { getPauseState } from "@/server/judgmentPause";
 import {
@@ -621,12 +653,15 @@ function ReviewCard({
   open,
   tab,
   sort,
+  customTypes,
 }: {
   review: PendingReview;
   now: Date;
   open: boolean;
   tab: string;
   sort: SortKey;
+  /** 운영자가 정의한 커스텀 위반 유형 — 판정 폼의 유형 칩에 붙는다 */
+  customTypes: string[];
 }) {
   const findings = parseFindings(review.findingsJson);
   const researcher = review.report.researcher.user;
@@ -782,8 +817,9 @@ function ReviewCard({
         heldPurchases={held.length}
         heldAmountKrw={heldAmountKrw}
         flaggedCategories={[...new Set(findings.map((f) => f.category))]}
-        suggestedPhrase={suggestPhrase(findings)}
         content={review.report.content}
+        cardText={cardTextFor(review.report.predictionCard)}
+        customTypes={customTypes}
         // **여기서만 시간을 잰다.** 이 카드는 펼쳐졌을 때만 폼을 그리므로(접힌 상태는
         // 위의 `if (!open)` 링크다) 폼의 마운트가 곧 열람이다. 판매 중 목록은 카드마다
         // 폼을 한꺼번에 그려 마운트가 열람이 아니므로 재지 않는다
@@ -898,6 +934,7 @@ export default async function AdminCompliancePage({
     retrain,
     regressionCases,
     rescanQueue,
+    customTypes,
   ] = await Promise.all([
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
@@ -914,6 +951,7 @@ export default async function AdminCompliancePage({
     countHardNegatives(prisma),
     getRegressionCases(prisma),
     getRescanQueue(prisma),
+    getCustomViolationTypes(prisma),
   ]);
   // 문항은 사전 항목에 붙어 있다 — 졸업이 만든 것이라 그 항목 카드에서 닿는 것이 맞다.
   // (관찰 큐는 7일짜리 임시 자리고 문항은 영구라 수명이 안 맞는다 — 회신 4호 §4-b)
@@ -1184,7 +1222,7 @@ export default async function AdminCompliancePage({
               <b>서로 다른 신고자가 3명이 되면 판매가 저절로 멈춥니다.</b> 한 사람의 말로는
               아무것도 멈추지 않습니다 — 신고는 공짜인데 잃은 판매 기간은 되돌릴 장치가
               없기 때문입니다. 기계가 건 중단이라 <b>사람이 풀어야 끝납니다.</b></SecHead>
-          <AbuseUserCaught groups={abuseGroups} openId={sp.open} detail={abuseDetail} now={now} />
+          <AbuseUserCaught groups={abuseGroups} openId={sp.open} detail={abuseDetail} now={now} customTypes={customTypes} />
 
           <SecHead title={<>검수 모델이 세운 것{" "}
               <span className={`${a.n} ${contentHolds.length === 0 ? a.nCalm : ""}`}>
@@ -1249,6 +1287,7 @@ export default async function AdminCompliancePage({
                       open={sp.open === review.id}
                       tab={tab}
                       sort={sort}
+                      customTypes={customTypes}
                     />
                   ))}
                 </div>
@@ -1373,6 +1412,7 @@ export default async function AdminCompliancePage({
                 open={sp.open === review.id}
                 tab={tab}
                 sort={sort}
+                customTypes={customTypes}
               />
             ))
           )}
@@ -1574,6 +1614,8 @@ export default async function AdminCompliancePage({
                 heldPurchases={report.purchases.length}
                 heldAmountKrw={heldAmountKrw}
                 content={report.content}
+                cardText={cardTextFor(report.predictionCard)}
+                customTypes={customTypes}
               />
             </div>
           );

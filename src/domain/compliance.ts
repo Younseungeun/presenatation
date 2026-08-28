@@ -66,6 +66,46 @@ export const RISK_CATEGORY_LABEL: Record<RiskCategory, string> = {
 };
 
 /**
+ * **운영자가 손으로 고르는 위반 유형** (2026-08-28 창업자 확정 — 두 화면 통일).
+ *
+ * 검수(반려·승인)와 어뷰징(강제철회) 선택기가 **같은 세트**를 쓴다 — 예전에는 어뷰징 5개 /
+ * 검수 12개로 갈려 있었다. 여기서 뺀 셋은 **시스템이 자동으로 붙이는 신호**라 사람이
+ * "이게 위반 유형"이라 고를 대상이 아니다:
+ *   · RISKY_INSTRUMENT   — 거래소가 지정한 종목 위험 (내용 무관, 종목 속성)
+ *   · MISSING_DISCLOSURE — 위험 종목인데 고지 없음 (규칙이 자동 부착)
+ *   · UNJUDGEABLE_PATTERN— 이 리서처 카드의 반복 판정 불가 (이력에서 자동 계산)
+ * 운영자가 정의한 커스텀 유형(ViolationType)이 이 뒤에 칩으로 붙는다.
+ */
+export const OPERATOR_VIOLATION_CATEGORIES: readonly RiskCategory[] = [
+  // 본문을 읽고 판단하는 내용 위반 7
+  'PROFIT_GUARANTEE',
+  'SOLICIT_CONTACT',
+  'RISK_INDUCEMENT',
+  'RUMOR',
+  'PRIVATE_INFO',
+  'UNSUPPORTED_CLAIM',
+  'SCREENING_EVASION',
+  // 예측 카드 자체의 위반 2 — 본문에 글로 없어 카드 값을 본문 뷰에 실어 짚는다
+  'UNREALISTIC_TARGET',
+  'CARD_MISMATCH',
+];
+
+/**
+ * 위반이 **본문이 아니라 예측 카드**에 있는 유형 (2026-08-28). 근거 문장 짚기가
+ * 본문에서 문장을 찾을 수 없으므로, 카드 값(종목·방향·목표·기간)을 본문 뷰에 다른
+ * 글꼴로 실어 그것을 짚게 한다. IRIS 입력에는 카드가 통째로 들어간다.
+ */
+export const CARD_BASED_CATEGORIES: ReadonlySet<RiskCategory> = new Set([
+  'UNREALISTIC_TARGET',
+  'CARD_MISMATCH',
+]);
+
+/** 유형 라벨을 푼다 — 내장이면 표에서, 커스텀이면 key(=라벨) 그대로 (별도 맵 불요). */
+export function violationLabel(key: string): string {
+  return RISK_CATEGORY_LABEL[key as RiskCategory] ?? key;
+}
+
+/**
  * 유형이 걸린 위험의 **성격**. 미탐(놓침)의 비용이 유형마다 다르기 때문에 나눈다.
  *
  * 왜 필요한가: 총합 탐지율 하나는 "무엇을 놓쳤는가"를 가린다. 근거 없는 단정을
