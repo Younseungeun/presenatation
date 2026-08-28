@@ -375,6 +375,40 @@ export function FingerprintIcon() {
 }
 
 /**
+ * 생체 인증 로그인 글리프 — 지문과 얼굴 스캔을 겹친 형태 (bioscan.svg, 2026-08-29).
+ * 애플 Touch ID + Face ID 결합 문법: 왼쪽 동심 융선 지문(두 겹 + 채운 코어 점),
+ * 오른쪽 뷰파인더 브래킷 속 웃는 얼굴, 지문이 브래킷 영역 안으로 겹친다.
+ * ⚠ 24 세트가 아니라 48 그리드·획 2.4 — 로그인 카드(36px+) 전용. 융선 끊김을
+ * 겹마다 어긋내 ⓒ가 아니라 지문으로 읽힌다. 작은 자리는 FingerprintIcon(24)이 맡는다.
+ */
+export function BioScanGlyph({ size = 38 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" aria-hidden style={{ width: size, height: size }}>
+      <g
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.4"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      >
+        <path d="M12.6 35.32 A11.2 11.2 0 0 1 7.58 16.58" />
+        <path d="M10.42 14.52 A11.2 11.2 0 0 1 25.65 29.23" />
+        <path d="M11.48 30.23 A7 7 0 0 1 19 18.44" />
+        <path d="M20.7 19.82 A7 7 0 0 1 22.47 23.89" />
+        <path d="M31.5 9 H28 A4 4 0 0 0 24.6 10.9" />
+        <path d="M38.5 9 H42 A4 4 0 0 1 46 13 V17" />
+        <path d="M46 31 V35 A4 4 0 0 1 42 39 H38.5" />
+        <path d="M31.5 39 H28 A4 4 0 0 1 24.6 37.1" />
+        <path d="M31.5 17.5 V21" />
+        <path d="M38.5 17.5 V21" />
+        <path d="M31 27.5 Q35 32 39 27.5" />
+      </g>
+      <circle cx="15.5" cy="24.5" r="2" fill="currentColor" />
+    </svg>
+  );
+}
+
+/**
  * 복사하기 — 시트 한 장이 다른 한 장 뒤로 복제된 모양. 복사는 문서 × 2다.
  * document(접힌 모서리 + 줄)·escrow(손잡이 케이스)와 부품이 겹치지만, 이건
  * 민 시트 둘을 어긋나게 겹친 것이고 겹침 자체가 신호다. 접힌 모서리도 손잡이도 없다.
