@@ -64,6 +64,48 @@ export async function getTeacherAnswerPending(
   }));
 }
 
+export interface TeacherPackDetail {
+  reviewId: string;
+  reportTitle: string;
+  verdict: string;
+  decidedAt: Date | null;
+  /** 판정 시점에 저장된 케이스별 질문지 원문 (재학습 논의 자료 그 자체) */
+  packText: string;
+}
+
+/**
+ * 재학습 논의 자료 **상세** — 쌓인 질문지 원문을 그대로 읽는 화면용 (2026-08-28 창업자 지시).
+ * 박스에서 눌러 들어와, 복사하지 않고도 논의 자료를 직접 확인한다.
+ */
+export async function getTeacherPackDetails(
+  prisma: PrismaClient,
+  limit = 50,
+): Promise<TeacherPackDetail[]> {
+  const rows = await prisma.complianceReview.findMany({
+    where: {
+      operatorVerdict: { not: null },
+      teacherPackText: { not: null },
+      teacherAnswer: { is: null },
+    },
+    orderBy: { operatorReviewedAt: 'desc' },
+    take: limit,
+    select: {
+      id: true,
+      operatorVerdict: true,
+      operatorReviewedAt: true,
+      teacherPackText: true,
+      report: { select: { title: true } },
+    },
+  });
+  return rows.map((r) => ({
+    reviewId: r.id,
+    reportTitle: r.report.title,
+    verdict: r.operatorVerdict ?? '',
+    decidedAt: r.operatorReviewedAt,
+    packText: r.teacherPackText ?? '',
+  }));
+}
+
 export interface TeacherAskCoverage {
   /** 소견이 있어 사람 판단이 필요했던 결정 수 */
   decided: number;

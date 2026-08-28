@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { PayoutAccountView } from "@/server/payoutAccountView";
+import { OtpInput, type OtpInputHandle, type OtpStatus } from "../../OtpInput";
 import styles from "./payout.module.css";
 
 // 유예 즉시 해제 — **번호는 낯선 기기에, 입력은 평소 기기에** (2026-08-16 사용자 확정).
@@ -27,9 +28,10 @@ export function CooldownConfirm({
   view: PayoutAccountView;
   onDone: (v: PayoutAccountView) => void;
 }) {
-  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<OtpStatus>("idle");
+  const field = useRef<OtpInputHandle>(null);
 
   // ── 낯선 기기: 번호를 보여주는 쪽 ──────────────────────────
   if (view.cooldownCode != null) {
@@ -55,23 +57,29 @@ export function CooldownConfirm({
   }
 
   // ── 평소 기기: 입력을 받는 쪽 ──────────────────────────────
-  async function submit() {
+  // 6자리를 다 채우면 자동으로 확인한다(OTP 관례). 틀리면 흔들림 + 초기화 후 다시 입력.
+  async function submit(value: string) {
     setBusy(true);
     setError(null);
     try {
       const res = await fetch("/api/payout/account/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: code.trim() }),
+        body: JSON.stringify({ code: value.trim() }),
       });
       const json = await res.json();
       if (!res.ok) {
         setError(json.error ?? "확인에 실패했습니다");
+        setStatus("error");
+        field.current?.clear();
         return;
       }
+      setStatus("success");
       onDone(json);
     } catch (e) {
       setError((e as Error).message);
+      setStatus("error");
+      field.current?.clear();
     } finally {
       setBusy(false);
     }
@@ -81,18 +89,27 @@ export function CooldownConfirm({
     <div className={styles.notice}>
       <strong>본인이 새 기기에서 계좌를 바꾸신 게 맞나요?</strong> 새 기기 화면에 표시된
       확인 번호를 입력하면 {view.cooldownHoursLeft}시간 대기 없이 바로 지급됩니다.
-      <div style={{ display: "flex", gap: 8, padding: "8px 0 2px" }}>
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          inputMode="numeric"
-          placeholder="확인 번호 6자리"
-          aria-label="유예 해제 확인 번호"
-          style={{ flex: 1, minWidth: 0 }}
+      <div style={{ padding: "10px 0 2px" }}>
+        <OtpInput
+          ref={field}
+          status={status}
+          disabled={busy}
+          autoFocus
+          ariaLabel="유예 해제 확인 번호"
+          onChange={() => {
+            // 오류 뒤 다시 입력을 시작하면 흔들림·빨강을 걷는다
+            if (status !== "idle") {
+              setStatus("idle");
+              setError(null);
+            }
+          }}
+          onComplete={submit}
         />
-        <button type="button" onClick={submit} disabled={busy || code.length < 6}>
-          {busy ? "확인 중…" : "대기 해제"}
-        </button>
+        {busy && (
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: "var(--text-faint,#8b95a1)" }}>
+            확인 중…
+          </p>
+        )}
       </div>
       {/* 이 문장이 이 장치의 마지막 방어다 — 지우면 보이스피싱이 유일한 우회로가 된다 */}
       <p style={{ margin: "6px 0 0", fontWeight: 700 }}>

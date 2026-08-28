@@ -106,6 +106,12 @@ export function PinSetup() {
     );
   }
 
+  // 확인 박스 색 — 다 채웠을 때만 판단한다(입력 중 빨강은 재촉이라 성가시다).
+  //   ok  = 6자리를 넣었고 설정한 값과 같다  → 초록
+  //   bad = 6자리를 넣었는데 다르다            → 빨강
+  const confirmTone: "idle" | "ok" | "bad" =
+    pin2.length < 6 ? "idle" : pin2 === pin ? "ok" : "bad";
+
   return (
     <div className={styles.box}>
       <h2 className={styles.title}>간편 비밀번호 만들기</h2>
@@ -113,6 +119,9 @@ export function PinSetup() {
         다음부터 이 기기에서는 <strong>숫자 6자리</strong>로 로그인합니다. 이 비밀번호는
         이 기기에서만 쓸 수 있어, 다른 곳에서 입력해도 열리지 않습니다.
       </p>
+      {/* 박스는 하나짜리 그대로 두고(마스킹 password) — 확인 박스만 색으로 답한다:
+          6자리를 다 넣었을 때 설정한 값과 같으면 초록(--pos), 다르면 빨강(--neg).
+          견본과 같은 색이라 "무엇이 맞고 틀렸나"의 신호가 앱 전체에서 한 뜻이다. */}
       <label className={styles.field}>
         비밀번호 (숫자 6자리)
         <input
@@ -127,7 +136,9 @@ export function PinSetup() {
       <label className={styles.field}>
         한 번 더
         <input
-          className={styles.input}
+          className={`${styles.input} ${
+            confirmTone === "ok" ? styles.inputOk : confirmTone === "bad" ? styles.inputBad : ""
+          }`}
           value={pin2}
           onChange={(e) => setPin2(e.target.value.replace(/\D/g, "").slice(0, 6))}
           inputMode="numeric"

@@ -32,6 +32,7 @@ import { REVIEW_REJECTED_TITLE } from "@/domain/notice";
 import type { AccuracySummary } from "@/domain/screeningAccuracy";
 import { getLearnedPhraseStats } from "@/server/learnedPhraseService";
 import { getCustomViolationTypes } from "@/server/violationTypeService";
+import { getDetectionLadder } from "@/server/detectionLadderService";
 import { formatCardEvidence } from "@/domain/cardEvidence";
 
 // 예측 카드를 근거 문장 짚기용 한 줄로 (2026-08-28) — 본문에 없는 카드 위반(비현실적 예측·
@@ -114,7 +115,7 @@ import { BuyerView } from "../BuyerView";
 import { flaggedQuotes } from "../FlaggedBody";
 import { getAbuseGroupDetail } from "@/server/abuseGroupDetail";
 import { AdminHead } from "../AdminHead";
-import { SecHead } from "../Why";
+import { SecHead, WhyGroup, WhyToggle, WhyBody } from "../Why";
 import { PhraseToggle } from "./PhraseToggle";
 import { PhraseEvidence } from "./PhraseEvidence";
 import { RewardNotice } from "./RewardNotice";
@@ -157,7 +158,8 @@ type PaneKey = TabKey | ToolKey;
 // 탭 이름만 남긴다 — 시안에는 탭 설명 문단이 없다(묶음마다 물음표가 대신한다)
 const TABS: Record<TabKey, { label: string }> = {
   body: { label: "본문" },
-  inst: { label: "종목·시세" },
+  // 위험 종목 보류는 '본문' 탭의 서브탭으로 옮겼다 (2026-08-28) — 여기는 판정 큐(시세)만
+  inst: { label: "시세" },
 };
 
 const TOOLS: Record<ToolKey, { label: string; description: string }> = {
@@ -365,13 +367,39 @@ function UrgencyLine({ overdue, attention }: { overdue: number; attention: numbe
  * 기록하는 흐름은 없앴다 — 재학습·사전 표현 등록은 창업자가 그 답을 보고 **코드로 직접**
  * 반영하기 때문. 그래서 이 패널이 하는 일은 "쌓인 질문지를 걷어 주는 것" 하나다.
  */
-function TeacherRelayPanel({ pending }: { pending: TeacherAnswerPending[] }) {
+function TeacherRelayPanel({
+  pending,
+  now,
+  recs,
+}: {
+  pending: TeacherAnswerPending[];
+  now: Date;
+  /** 검출 항목 관리의 추천 요약 — 박스에 칩으로 띄운다 (2026-08-28 창업자 지시) */
+  recs: { promote: number; graduate: number; demote: number };
+}) {
   // 쌓인 질문지가 없으면 그리지 않는다 — 0건짜리 계기판은 장식이다
   if (pending.length === 0) return null;
+
+  // (+K) — 최근 24시간에 새로 판정돼 쌓인 건 수 (2026-08-28 창업자 지시).
+  // decidedAt(운영자 판정 시각)이 곧 질문지가 생긴 시각이다
+  const recent = pending.filter(
+    (p) => p.decidedAt && now.getTime() - p.decidedAt.getTime() <= 86_400_000,
+  ).length;
+
+  // 추천 칩 — 추천이 생긴 종류만 (승격/졸업/강등). 회색이 아니라 색으로 눈에 띄게
+  const recChips = [
+    recs.promote > 0 && { label: `승격 추천 ${recs.promote}`, color: "#0e6f5c" },
+    recs.graduate > 0 && { label: `졸업 추천 ${recs.graduate}`, color: "#2a6fb0" },
+    recs.demote > 0 && { label: `강등 추천 ${recs.demote}`, color: "#bd4242" },
+  ].filter(Boolean) as { label: string; color: string }[];
 
   return (
     <section
       style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
         margin: "0 16px 12px",
         padding: "12px 14px",
         borderRadius: 10,
@@ -381,13 +409,36 @@ function TeacherRelayPanel({ pending }: { pending: TeacherAnswerPending[] }) {
         color: "var(--text-weak)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-        <div>
-          <strong style={{ color: "var(--text)" }}>재학습 논의 자료</strong>{" "}
-          <b style={{ color: "var(--text)" }}>{pending.length}건</b>
-        </div>
-        <TeacherBatchCopy />
-      </div>
+      {/* 박스(글자 영역)를 누르면 상세로 — 복사 버튼은 sibling 이라 눌러도 안 넘어간다 */}
+      <Link
+        href="/admin/compliance/teacher"
+        style={{
+          flex: 1,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          textDecoration: "none",
+          color: "inherit",
+        }}
+      >
+        <strong style={{ color: "var(--text)" }}>재학습 논의 자료</strong>{" "}
+        <b style={{ color: "var(--text)" }}>{pending.length}건</b>
+        {recent > 0 && <span style={{ color: "var(--text-dim)" }}>(+{recent})</span>}
+        {/* 검출 항목 관리의 추천 — 규칙별로 합친 승격/강등 신호를 여기 칩으로 (2026-08-28) */}
+        {recChips.map((c) => (
+          <span
+            key={c.label}
+            className={a.chip}
+            style={{ color: c.color, borderColor: c.color, fontWeight: 700 }}
+          >
+            {c.label}
+          </span>
+        ))}
+        <span className={a.go} style={{ marginLeft: "auto" }}>
+          ›
+        </span>
+      </Link>
+      <TeacherBatchCopy />
     </section>
   );
 }
@@ -570,14 +621,80 @@ function RescanRow({ hit, now }: { hit: RescanQueueRow; now: Date }) {
 }
 
 /** 묶음 머리 — 절 제목(`SecHead`)보다 한 단 작다. 같은 절 안의 갈래이기 때문 */
-function SubHead({ title, count, note }: { title: string; count: number; note: string }) {
-  return (
-    <div className={a.subhead}>
-      <div className={a.subheadTop}>
-        <b>{title}</b>
-        <span className={a.n}>{count}</span>
+// **설명은 물음표 뒤로 접는다** (2026-08-28 창업자 지적 — 산만하다). 제목·건수만 늘
+// 보이고, "왜/무엇인지"는 눌러야 뜬다. SecHead 와 같은 규칙 — 매일 보는 화면에서 같은
+// 문단을 매번 지나치게 두지 않는다. note 가 없으면 물음표를 그리지 않는다.
+function SubHead({ title, count, note }: { title: string; count: number; note?: React.ReactNode }) {
+  if (!note) {
+    return (
+      <div className={a.subhead}>
+        <div className={a.subheadTop}>
+          <b>{title}</b>
+          <span className={a.n}>{count}</span>
+        </div>
       </div>
-      <span className={a.subheadNote}>{note}</span>
+    );
+  }
+  return (
+    <WhyGroup>
+      <div className={a.subhead}>
+        <div className={a.subheadTop}>
+          <b>{title}</b>
+          <span className={a.n}>{count}</span>
+          <WhyToggle />
+        </div>
+        <WhyBody className={a.subheadNote}>{note}</WhyBody>
+      </div>
+    </WhyGroup>
+  );
+}
+
+/**
+ * 서브탭 바 — 한 묶음의 하위를 한 번에 하나씩 본다 (2026-08-28). `판매 중`(신고·재검수)과
+ * `검수 모델이 세운 것`(4그룹)이 같은 문법을 쓴다. `loud` 는 "여기 건이 있으면 눈에 띄어야
+ * 하는" 탭 — 재검수는 이미 팔린 리포트라 탭 뒤에 묻히면 안 되므로 건수를 경고색으로 세운다.
+ */
+function SubTabBar({
+  items,
+}: {
+  items: Array<{ key: string; label: string; count: number; href: string; on: boolean; loud?: boolean }>;
+}) {
+  return (
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", margin: "6px 16px 10px" }}>
+      {items.map((it) => (
+        <Link
+          key={it.key}
+          href={it.href}
+          scroll={false}
+          style={{
+            padding: "4px 11px",
+            borderRadius: 999,
+            fontSize: 12.5,
+            textDecoration: "none",
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            border: `1px solid ${it.on ? "var(--text)" : "var(--line)"}`,
+            background: it.on ? "var(--text)" : "transparent",
+            color: it.on ? "var(--surface, #fff)" : "var(--text-dim)",
+            fontWeight: it.on ? 700 : 500,
+          }}
+        >
+          {it.label}
+          <span
+            style={{
+              color: it.on
+                ? "var(--surface, #fff)"
+                : it.loud && it.count > 0
+                  ? "var(--warn)"
+                  : "var(--text-faint)",
+              fontWeight: !it.on && it.loud && it.count > 0 ? 700 : undefined,
+            }}
+          >
+            {it.count}
+          </span>
+        </Link>
+      ))}
     </div>
   );
 }
@@ -911,7 +1028,7 @@ function AccuracyPanel({ summary }: { summary: AccuracySummary }) {
 export default async function AdminCompliancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; sort?: string; open?: string; full?: string }>;
+  searchParams: Promise<{ tab?: string; sort?: string; open?: string; full?: string; hg?: string; pg?: string }>;
 }) {
   const userId = await getSessionUserId();
   if (!userId) notFound();
@@ -935,6 +1052,7 @@ export default async function AdminCompliancePage({
     regressionCases,
     rescanQueue,
     customTypes,
+    ladder,
   ] = await Promise.all([
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
@@ -952,7 +1070,16 @@ export default async function AdminCompliancePage({
     getRegressionCases(prisma),
     getRescanQueue(prisma),
     getCustomViolationTypes(prisma),
+    getDetectionLadder(prisma),
   ]);
+  // 재학습 박스에 붙일 추천 칩 — 검출 항목 관리의 추천을 승격/졸업/강등으로 접는다 (2026-08-28)
+  const ladderRecs = { promote: 0, graduate: 0, demote: 0 };
+  for (const r of ladder) {
+    if (!r.recommendation) continue;
+    if (r.recommendation.kind === "DEMOTE_IRIS") ladderRecs.demote += 1;
+    else if (r.recommendation.kind === "GRADUATE_IRIS") ladderRecs.graduate += 1;
+    else ladderRecs.promote += 1; // PROMOTE_RULE · PROMOTE_BLOCK
+  }
   // 문항은 사전 항목에 붙어 있다 — 졸업이 만든 것이라 그 항목 카드에서 닿는 것이 맞다.
   // (관찰 큐는 7일짜리 임시 자리고 문항은 영구라 수명이 안 맞는다 — 회신 4호 §4-b)
   const casesByPhrase = new Map<string, typeof regressionCases>();
@@ -981,6 +1108,45 @@ export default async function AdminCompliancePage({
   const legacy: Record<string, PaneKey> = { content: "body", instrument: "inst" };
   const tab: PaneKey = legacy[sp.tab ?? ""] ?? pane;
   const sort: SortKey = SORT_KEYS.includes(sp.sort as SortKey) ? (sp.sort as SortKey) : "wait";
+
+  // **검수 모델이 세운 것의 하위를 서브탭으로** (2026-08-28 창업자 지시) — 다 펼쳐 두면
+  // 산만하다. fail/rejected/ok(본문 소견) + risky(위험 종목)를 한 번에 하나씩 본다.
+  // 위험 종목(instrumentHolds)을 여기로 들인 이유: 종목이 본문 뷰에 실리면서(카드 값)
+  // 따로 둘 이유가 없어졌다. 시세·특이사항(판정 큐)만 '시세' 탭에 남는다
+  const holdBuckets = {
+    fail: contentHolds.filter((r) => holdGroup(r) === "fail"),
+    rejected: contentHolds.filter((r) => holdGroup(r) === "rejected"),
+    ok: contentHolds.filter((r) => holdGroup(r) === "ok"),
+    risky: instrumentHolds,
+  };
+  const HG_ORDER = ["fail", "rejected", "ok", "risky"] as const;
+  type HgKey = (typeof HG_ORDER)[number];
+  const HG_META: Record<HgKey, { label: string; note: string }> = {
+    fail: { label: "검수 실패", note: HOLD_GROUP_NOTE.fail },
+    rejected: { label: "반려 3회", note: HOLD_GROUP_NOTE.rejected },
+    ok: { label: "검수 성공", note: HOLD_GROUP_NOTE.ok },
+    risky: {
+      label: "위험 종목",
+      note: "값이 아니라 종목 자체가 문제입니다 — 거래소가 지정했거나, 거래가 멈췄거나, 기준 미만 시가총액입니다. 볼 것은 거래소 공지입니다. 위법이 아니라 위험이므로 사람이 판단합니다.",
+    },
+  };
+  // 기본 선택 = 비어 있지 않은 첫 그룹 (없으면 '검수 성공')
+  const hgDefault: HgKey = HG_ORDER.find((k) => holdBuckets[k].length > 0) ?? "ok";
+  const hg: HgKey = (HG_ORDER as readonly string[]).includes(sp.hg ?? "")
+    ? (sp.hg as HgKey)
+    : hgDefault;
+
+  // **`판매 중`(게시 후)의 하위를 서브탭으로** (2026-08-28 창업자 지시) — 신고(사용자가
+  // 잡음)와 재검수(새 학습표현이 이미 게시된 리포트를 잡음)는 둘 다 이미 팔린 리포트가
+  // 사후에 걸린 것이고 끝이 강제 철회로 같다. `검수 모델이 세운 것`(게시 전)과 시점이
+  // 정반대라 상위 묶음을 가르고, 각자 서브탭을 둔다. 기본 = 비어 있지 않은 첫 그룹.
+  const PG_ORDER = ["report", "rescan"] as const;
+  type PgKey = (typeof PG_ORDER)[number];
+  const pgCount: Record<PgKey, number> = { report: abuseGroups.length, rescan: rescanQueue.length };
+  const pgDefault: PgKey = PG_ORDER.find((k) => pgCount[k] > 0) ?? "report";
+  const pg: PgKey = (PG_ORDER as readonly string[]).includes(sp.pg ?? "")
+    ? (sp.pg as PgKey)
+    : pgDefault;
 
   // 펼친 신고 건의 재료만 읽는다 — 목록에서 전부 읽으면 리포트 20개의 본문을 매번 읽는다.
   // `?open=`이 그룹 열쇠(reportId)일 때만 부른다: 자유 입력 신고는 내릴 상품이 없어
@@ -1024,8 +1190,9 @@ export default async function AdminCompliancePage({
   const counts: Record<TabKey, number> = {
     // 신고 묶음도 함께 센다 — 탭 숫자가 "이 탭에서 내려야 할 결정 수"를 말해야
     // 대시보드에서 눌러볼지 말지가 판단된다
-    body: contentHolds.length + abuseGroups.length,
-    inst: byPrice.length + instrumentHolds.length + byOddity.length,
+    // 위험 종목(instrumentHolds)도 이제 body 하위 서브탭이라 body 로 센다
+    body: contentHolds.length + instrumentHolds.length + abuseGroups.length,
+    inst: byPrice.length + byOddity.length,
   };
 
   // 판매량 정렬용 — 보류 건은 아직 안 팔렸으므로 리서처의 누적 판매 건수를 본다
@@ -1114,7 +1281,7 @@ export default async function AdminCompliancePage({
           `검수 규칙` 줄이 말한다. 층별 통과 여부를 여섯 칸으로 늘어놓던 자리인데, 전부
           통과일 때는 초록 여섯 개가 아무 말도 하지 않고 화면만 먹었다. 실패했을 때
           어느 층인지는 그 줄이 배지로 이어 붙인다 */}
-      <TeacherRelayPanel pending={teacherPending} />
+      <TeacherRelayPanel pending={teacherPending} now={now} recs={ladderRecs} />
       {/* 정확도 카드는 2026-08-23에 IRIS 상자 안(맨 위)으로 올라갔다 — 검수하는 것이
           둘이고 그 둘이 얼마나 맞히는지는 같은 물음의 뒷면이라 한자리에 둔다 */}
 
@@ -1131,26 +1298,6 @@ export default async function AdminCompliancePage({
           여기로 올라온다: 그때는 "창업자가 진위를 가릴 차례"라는 할 일이 생기고,
           할 일은 계기판에 있어야 한다 */}
       {retrain.reached && <RetrainGauge {...retrain} />}
-
-      {/* 검출 항목 관리 — 승격/강등 사다리 대시보드 (2026-08-28). 검수 성적 옆이 자리인
-          이유: 정확도가 "얼마나 맞나"라면 이건 "어느 항목을 어느 층으로 옮길까"라, 같은
-          증거를 다른 각도로 읽는다. 추천만·읽기 전용 */}
-      <Link
-        href="/admin/detection"
-        style={{
-          display: "block",
-          margin: "0 16px 12px",
-          padding: "10px 12px",
-          borderRadius: 10,
-          border: "1px solid var(--line)",
-          fontSize: 13,
-          color: "var(--text-weak)",
-          textDecoration: "none",
-        }}
-      >
-        <strong style={{ color: "var(--text)" }}>검출 항목 관리</strong>{" "}
-        <span style={{ color: "var(--text-faint)" }}>· 승격·강등 사다리 (추천만) →</span>
-      </Link>
 
       {/* IRIS을 계속 켜 둘 것인가 (9차 G-4).
           채택선과 **같은 공식**(순이익)으로 최근 창을 다시 잰다 — 켤 때와 끌 때의
@@ -1230,25 +1377,70 @@ export default async function AdminCompliancePage({
 
       {tab === "body" && (
         <>
-          {/* **본문 탭은 두 묶음이다 — 시점이 정반대라 섞으면 안 된다** (2026-08-19).
-              위는 게시 **전**에 기계가 막은 것(아직 아무도 못 샀다), 아래는 게시 **후**에
-              사람이 잡은 것(검수가 놓쳤고 지금 팔리는 중이다).
-              재료는 둘 다 본문이라 같은 화면이 맞지만, 급함이 다르니 자리를 가른다 */}
-          <SecHead title={<>이용자가 잡은 것 <span className={a.n}>{abuseGroups.length}</span></>}>게시된 <b>뒤</b>에 신고로 들어왔습니다 — 검수가 <b>놓친 것(미탐)</b>이고 이미
-              팔린 뒤입니다. 확인하면 강제 철회로 닫히고, <b>그 판단이 그대로 검수 모델의
-              학습 자료</b>가 됩니다.
-              <br />
-              <br />
-              <b>서로 다른 신고자가 3명이 되면 판매가 저절로 멈춥니다.</b> 한 사람의 말로는
-              아무것도 멈추지 않습니다 — 신고는 공짜인데 잃은 판매 기간은 되돌릴 장치가
-              없기 때문입니다. 기계가 건 중단이라 <b>사람이 풀어야 끝납니다.</b></SecHead>
-          <AbuseUserCaught groups={abuseGroups} openId={sp.open} detail={abuseDetail} now={now} customTypes={customTypes} />
+          {/* **본문 탭은 두 상위 묶음이다 — 시점이 정반대라 섞으면 안 된다** (2026-08-28
+              재구성). `판매 중` = 게시 **후**에 걸린 것(이미 팔렸고 돈이 걸려 있다),
+              `검수 모델이 세운 것` = 게시 **전**에 막힌 것(아직 아무도 못 샀다).
+              각 묶음이 서브탭으로 하위를 하나씩 보여준다 — 다 펼치면 산만하기 때문. */}
 
+          {/* ── 판매 중 (게시 후·이미 팔림) ──────────────────────────────
+              신고(사용자가 잡음) + 재검수(새 학습표현이 이미 게시된 리포트를 잡음).
+              둘 다 이미 팔린 리포트가 사후에 걸린 것이고 끝이 강제 철회로 같아 형제다. */}
+          <SecHead title={<>판매 중{" "}
+              <span className={`${a.n} ${abuseGroups.length + rescanQueue.length === 0 ? a.nCalm : ""}`}>
+                {abuseGroups.length + rescanQueue.length}
+              </span></>}>이미 게시돼 <b>팔리는 중</b>에 사후로 걸린 것입니다 — 검수가 놓쳤거나
+              뒤늦게 새 기준에 걸렸습니다. 내리면 <b>전액 환불 + 정산 0 + 점수 0</b>이라
+              가장 무겁습니다. 아래 <b>서브탭</b>으로 하나씩 봅니다.</SecHead>
+          <SubTabBar
+            items={[
+              {
+                key: "report",
+                label: "신고",
+                count: abuseGroups.length,
+                href: `/admin/compliance?tab=body&pg=report&hg=${hg}&sort=${sort}`,
+                on: pg === "report",
+                loud: true,
+              },
+              {
+                key: "rescan",
+                label: "재검수",
+                count: rescanQueue.length,
+                href: `/admin/compliance?tab=body&pg=rescan&hg=${hg}&sort=${sort}`,
+                on: pg === "rescan",
+                loud: true,
+              },
+            ]}
+          />
+          {pg === "report" ? (
+            <>
+              <SubHead
+                title="신고 — 사용자가 잡은 것"
+                count={abuseGroups.length}
+                note={<><b>신고자 3명이 되면 판매가 자동 중단</b>됩니다 — 기계가 건 중단이라 사람이 풀어야 끝납니다.</>}
+              />
+              <AbuseUserCaught groups={abuseGroups} openId={sp.open} detail={abuseDetail} now={now} customTypes={customTypes} />
+            </>
+          ) : (
+            <>
+              <SubHead
+                title="재검수 — 새 기준에 걸린 게시물"
+                count={rescanQueue.length}
+                note="새 학습표현이 이미 게시된 리포트를 잡았습니다. 게시는 그대로 — 내릴지 확인 후 정하십시오."
+              />
+              {rescanQueue.length === 0 ? (
+                <p className={a.empty}>새 기준에 걸린 게시물이 없습니다.</p>
+              ) : (
+                rescanQueue.map((h) => <RescanRow key={h.id} hit={h} now={now} />)
+              )}
+            </>
+          )}
+
+          {/* ── 검수 모델이 세운 것 (게시 전·아직 아무도 못 삼) ──────────── */}
           <SecHead title={<>검수 모델이 세운 것{" "}
-              <span className={`${a.n} ${contentHolds.length === 0 ? a.nCalm : ""}`}>
-                {contentHolds.length}
+              <span className={`${a.n} ${contentHolds.length + instrumentHolds.length === 0 ? a.nCalm : ""}`}>
+                {contentHolds.length + instrumentHolds.length}
               </span></>}>게시되기 <b>전</b>에 규칙·AI가 막았습니다. 아직 아무도 못 샀습니다 — 판매
-              시작이 운영자 결정에 달려 있습니다.</SecHead>
+              시작이 운영자 결정에 달려 있습니다. 아래 <b>서브탭</b>으로 하나씩 봅니다.</SecHead>
           {/* **IRIS가 판정에 안 끼는 동안은 목록 머리에서 한 번만 말한다** (3회차 C-4 →
               회신 3호). 카드마다 붙이면 상시 문구가 반복돼 노이즈가 되고, IRIS가 라이브로
               돌아오는 날 전 카드의 문구를 떼야 하는 동기화 부담이 생긴다.
@@ -1260,59 +1452,45 @@ export default async function AdminCompliancePage({
               소견은 규칙 단독입니다.
             </div>
           )}
-          {sort === "wait" && <UrgencyLine {...urgencySummary(contentHolds, now)} />}
 
-          {/* **판매 중 — 새 기준에 걸린 게시물** (2026-08-25 창업자 확정).
-              맨 위인 이유: 이 묶음만 **돈이 걸려 있다.** 아래 셋은 아직 아무도 못 샀지만
-              여기는 이미 팔렸고, 내리면 전액 환불 + 정산 0 + 점수 0 이다.
-              0건이면 아무것도 그리지 않는다 — 평소 0인 자리가 매일 보이면 배경음이 된다 */}
-          {rescanQueue.length > 0 && (
-            <>
-              <SubHead
-                title="판매 중"
-                count={rescanQueue.length}
-                note="새로 등록한 학습 표현이 이미 게시된 리포트를 잡았습니다. 게시는 그대로입니다 — 내릴지는 확인하고 정하십시오."
-              />
-              {rescanQueue.map((h) => (
-                <RescanRow key={h.id} hit={h} now={now} />
-              ))}
-            </>
-          )}
-
-          {contentHolds.length === 0 && rescanQueue.length === 0 ? (
-            <p className={a.empty}>본문 검수로 보류된 건이 없습니다.</p>
+          {contentHolds.length + instrumentHolds.length === 0 ? (
+            <p className={a.empty}>검수로 보류된 건이 없습니다.</p>
           ) : (
-            /* **셋으로 나눈다** (2026-08-25 창업자 확정) — 운영자가 하는 일이 다르다.
-               순서가 곧 무게다: 검수를 못 믿는 것 → 성격이 다른 것 → 평상시 업무.
-               묶음이 비면 그리지 않는다 — 빈 제목은 정보가 아니라 장식이다 */
-            (
-              [
-                ["fail", "검수 실패"],
-                ["rejected", "반려 3회"],
-                ["ok", "검수 성공"],
-              ] as const
-            ).map(([key, label]) => {
-              const group = sortPending(contentHolds, sort, sales).filter(
-                (r) => holdGroup(r) === key,
-              );
-              if (group.length === 0) return null;
-              return (
-                <div key={key}>
-                  <SubHead title={label} count={group.length} note={HOLD_GROUP_NOTE[key]} />
-                  {group.map((review) => (
-                    <ReviewCard
-                      key={review.id}
-                      review={review}
-                      now={now}
-                      open={sp.open === review.id}
-                      tab={tab}
-                      sort={sort}
-                      customTypes={customTypes}
-                    />
-                  ))}
-                </div>
-              );
-            })
+            /* **하위를 서브탭으로** (2026-08-28 창업자 지시) — 다 펼치면 산만하다.
+               fail/rejected/ok(본문 소견) + risky(위험 종목)를 한 번에 하나씩 본다.
+               종목이 본문 뷰(카드 값)에 실리면서 위험 종목을 따로 둘 이유가 없어졌다 */
+            <>
+              <SubTabBar
+                items={HG_ORDER.map((key) => ({
+                  key,
+                  label: HG_META[key].label,
+                  count: holdBuckets[key].length,
+                  href: `/admin/compliance?tab=body&pg=${pg}&hg=${key}&sort=${sort}`,
+                  on: hg === key,
+                }))}
+              />
+              <SubHead
+                title={HG_META[hg].label}
+                count={holdBuckets[hg].length}
+                note={HG_META[hg].note}
+              />
+              {sort === "wait" && <UrgencyLine {...urgencySummary(holdBuckets[hg], now)} />}
+              {holdBuckets[hg].length === 0 ? (
+                <p className={a.empty}>이 묶음에 보류된 건이 없습니다.</p>
+              ) : (
+                sortPending(holdBuckets[hg], sort, sales).map((review) => (
+                  <ReviewCard
+                    key={review.id}
+                    review={review}
+                    now={now}
+                    open={sp.open === review.id}
+                    tab={tab}
+                    sort={sort}
+                    customTypes={customTypes}
+                  />
+                ))
+              )}
+            </>
           )}
 
           {/* 신고 확인의 후속 — 판단이 아니라 **약속을 지키는 일**이라 큐를 따로 둔다 */}
@@ -1411,31 +1589,8 @@ export default async function AdminCompliancePage({
               값을 냅니다. 볼 것은 거래소 시세입니다.</SecHead>
           <ManualQueueList entries={byPrice} empty="시세 때문에 밀린 카드가 없습니다" openId={sp.open} tab={tab} />
 
-          <SecHead title={<>종목 때문에{" "}
-              <span className={`${a.n} ${instrumentHolds.length === 0 ? a.nCalm : ""}`}>
-                {instrumentHolds.length}
-              </span></>}>값이 아니라 <b>종목 자체</b>가 문제입니다 — 거래소가 지정했거나, 거래가
-              멈췄거나, 기준 미만 시가총액입니다. 볼 것은 거래소 공지입니다. 위법이 아니라
-              위험이므로 사람이 판단합니다.</SecHead>
-          {sort === "wait" && <UrgencyLine {...urgencySummary(instrumentHolds, now)} />}
-          {instrumentHolds.length === 0 ? (
-            <div className={a.empty}>
-              <span className={a.dot} />
-              위험 종목으로 보류된 건이 없습니다
-            </div>
-          ) : (
-            sortPending(instrumentHolds, sort, sales).map((review) => (
-              <ReviewCard
-                key={review.id}
-                review={review}
-                now={now}
-                open={sp.open === review.id}
-                tab={tab}
-                sort={sort}
-                customTypes={customTypes}
-              />
-            ))
-          )}
+          {/* '종목 때문에'(위험 종목 보류)는 '본문' 탭의 서브탭으로 옮겼다 (2026-08-28) —
+             종목이 본문 뷰에 실리면서 따로 둘 이유가 없어졌다. 여기는 판정 큐(시세)만 남는다 */}
 
           <SecHead title={<>특이사항{" "}
               <span className={`${a.n} ${byOddity.length === 0 ? a.nCalm : ""}`}>

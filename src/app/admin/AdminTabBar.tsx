@@ -37,10 +37,7 @@ const TABS: Array<{
     href: "/admin/compliance",
     label: "리포트",
     icon: AdminIcon.report,
-    match: (p) =>
-      p.startsWith("/admin/compliance") ||
-      p.startsWith("/admin/judgments") ||
-      p.startsWith("/admin/detection"),
+    match: (p) => p.startsWith("/admin/compliance") || p.startsWith("/admin/judgments"),
   },
   {
     key: "money",

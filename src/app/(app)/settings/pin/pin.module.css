@@ -27,15 +27,30 @@
 .input {
   width: 100%;
   margin-top: 6px;
-  padding: 12px;
+  padding: 9px 12px;
   border: 1px solid var(--border, #d8d8de);
   border-radius: 10px;
   font: inherit;
-  font-size: 18px;
-  letter-spacing: 8px;
+  font-size: 16px;
+  /* 점 간격을 넓혀 자릿수가 또렷이 세어진다. 가운데 정렬이라 뒤 여백만큼 왼쪽에 패딩을
+     더해 균형을 맞춘다(letter-spacing 은 마지막 글자 뒤에도 붙는다) */
+  letter-spacing: 14px;
+  padding-left: 26px;
   text-align: center;
   background: var(--surface-1, #fff);
   color: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* 확인 박스 색 피드백 — 견본과 같은 색: 같으면 초록(--pos), 다르면 빨강(--neg).
+   테두리를 2px 로 올려 판단이 났음을 또렷이 한다 */
+.inputOk {
+  border: 2px solid var(--pos, #12b886);
+  box-shadow: 0 0 0 3px rgba(18, 184, 134, 0.14);
+}
+.inputBad {
+  border: 2px solid var(--neg, #f04452);
+  box-shadow: 0 0 0 3px rgba(240, 68, 82, 0.14);
 }
 
 .primary {

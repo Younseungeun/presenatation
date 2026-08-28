@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CopyIcon } from "../../(app)/brand/Icons";
 import a from "../admin.module.css";
 
 // **답을 안 걷은 질문지를 모두 이어 붙여 한 번에 복사한다** (2026-08-27 창업자 지시).
@@ -36,14 +37,41 @@ export function TeacherBatchCopy() {
 
   return (
     <>
-      <button
-        type="button"
-        className={`${a.btn} ${a.btnLine}`}
-        onClick={copyAll}
-        disabled={state === "busy"}
+      {/* **복사 이미지 자체가 버튼** (2026-08-28 창업자 지시 — 도움말 버튼과 같은 형식).
+          테두리·배경 없이 아이콘만. 이름은 aria-label·title 로, 진행/완료는 옆 작은 글자로 */}
+      <span
+        style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+        onClick={(e) => e.stopPropagation()}
       >
-        {state === "busy" ? "만드는 중…" : state === "done" ? (msg ?? "복사됨") : "일괄 복사"}
-      </button>
+        <button
+          type="button"
+          onClick={copyAll}
+          disabled={state === "busy"}
+          aria-label="재학습 논의 자료 일괄 복사"
+          title="일괄 복사"
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 30,
+            height: 30,
+            padding: 0,
+            border: "none",
+            background: "transparent",
+            cursor: state === "busy" ? "default" : "pointer",
+            color: state === "done" ? "#0e6f5c" : "var(--text-dim)",
+            borderRadius: 8,
+          }}
+        >
+          {/* 복사 = 한 장을 뒤로 겹친 그림. currentColor 라 위 color 를 따라간다 (24px) */}
+          <CopyIcon />
+        </button>
+        {(state === "busy" || state === "done") && (
+          <span style={{ fontSize: 12, color: "var(--text-faint)", whiteSpace: "nowrap" }}>
+            {state === "busy" ? "만드는 중…" : (msg ?? "복사됨")}
+          </span>
+        )}
+      </span>
       {state === "fail" && msg && <p className={a.error}>{msg}</p>}
     </>
   );
