@@ -225,8 +225,13 @@ model PredictionCard {
   direction     String // UP | DOWN
   targetType    String // TARGET_PRICE(목표가 도달) | RETURN_PCT(기준가 대비 수익률)
   targetValue   Float // 목표가 또는 목표 등락률 크기(%)
-  baseMode      String    @default("FIXED_AT_PUBLISH") // FIXED_AT_PUBLISH | PREV_CLOSE_AT_JUDGMENT (KR 단기: 개장 전 게시, 전일 종가를 판정 시 소급 확정)
-  basePrice     Float? // 기준가. FIXED_AT_PUBLISH는 게시 시 확정, AT_JUDGMENT는 판정 시 소급 기록
+  baseMode      String    @default("FIXED_AT_PUBLISH") // FIXED_AT_PUBLISH | PREV_CLOSE_AT_PUBLISH | PREV_CLOSE_AT_JUDGMENT | DAY_CLOSE_AT_JUDGMENT | DAY_CLOSE_AT_CLOSE (domain/constants.ts)
+  basePrice     Float? // 기준가. AT_PUBLISH는 게시 시, DAY_CLOSE_AT_CLOSE는 게시일 마감 종가로, AT_JUDGMENT는 판정 시 확정
+  // DAY_CLOSE_AT_CLOSE 전용 — 게시일 마감 종가로 기준가를 확정하고 **판매를 여는** 시각.
+  // 장중/장후 게시 <14일 카드는 게시 순간엔 기준가(종가)가 없어 목표가로만 쓰고, 이 시각
+  // 전에는 팔지 않는다(정확한 정보가 없으니까). 판매 기간(min(기간×⅓,30일))도 여기서부터 센다.
+  // 다른 모드는 게시 즉시 확정이라 null(= 게시 시점부터 판매).
+  baseConfirmedAt DateTime?
   deadline      DateTime // 검증 시한
   confidence    Int       @default(5) // 신뢰도 1~10 (필수) — 점수 증폭 배율 (scoring.ts)
   selfStability Int       @default(1) // (레거시) 자기 평가 안정성 — v4에서 점수·표시 모두 제거, 과거 데이터 보존용

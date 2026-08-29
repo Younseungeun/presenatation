@@ -350,30 +350,34 @@ describe('preparePublish', () => {
     expect(() => preparePublish(card, validCond, 70_000, monPreOpen)).toThrow(/목표가/);
   });
 
+  // 장중·장후·주말 게시 단기 카드는 DAY_CLOSE_AT_CLOSE — 목표가로만 쓰고 기준가는 게시일
+  // 마감 종가로 확정한다(basePrice는 게시 시점에 null). 아래 카드는 전부 목표가형.
+  const shortTargetCard: CardDraft = { ...validCard, targetType: 'TARGET_PRICE', targetValue: 80_000 };
+
   it('KR 단기 카드: 장 시작 후 게시는 당일·익일 시한 거부, +2일부터 허용 (기준가 = 게시일 종가)', () => {
     // KST 2026-07-13(월) 09:00 — 장중
     const monOpen = new Date('2026-07-13T00:00:00Z');
-    const sameDay: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') };
+    const sameDay: CardDraft = { ...shortTargetCard, deadline: new Date('2026-07-13T06:30:00Z') };
     expect(() => preparePublish(sameDay, validCond, null, monOpen)).toThrow(/2일/);
 
-    const nextDay: CardDraft = { ...validCard, deadline: new Date('2026-07-14T06:30:00Z') };
+    const nextDay: CardDraft = { ...shortTargetCard, deadline: new Date('2026-07-14T06:30:00Z') };
     expect(() => preparePublish(nextDay, validCond, null, monOpen)).toThrow(/2일/);
 
-    const twoDays: CardDraft = { ...validCard, deadline: new Date('2026-07-15T06:30:00Z') };
+    const twoDays: CardDraft = { ...shortTargetCard, deadline: new Date('2026-07-15T06:30:00Z') };
     const snap = preparePublish(twoDays, validCond, null, monOpen);
-    expect(snap.baseMode).toBe('DAY_CLOSE_AT_JUDGMENT');
+    expect(snap.baseMode).toBe('DAY_CLOSE_AT_CLOSE');
     expect(snap.basePrice).toBeNull();
   });
 
   it('KR 단기 카드: 주말 게시도 +2일부터 허용 (기준가 = 다음 거래일 종가)', () => {
     // KST 2026-07-12(일) 07:00
     const sunPreOpen = new Date('2026-07-11T22:00:00Z');
-    const monDeadline: CardDraft = { ...validCard, deadline: new Date('2026-07-13T06:30:00Z') };
+    const monDeadline: CardDraft = { ...shortTargetCard, deadline: new Date('2026-07-13T06:30:00Z') };
     expect(() => preparePublish(monDeadline, validCond, null, sunPreOpen)).toThrow(/2일/);
 
-    const tueDeadline: CardDraft = { ...validCard, deadline: new Date('2026-07-14T06:30:00Z') };
+    const tueDeadline: CardDraft = { ...shortTargetCard, deadline: new Date('2026-07-14T06:30:00Z') };
     expect(preparePublish(tueDeadline, validCond, null, sunPreOpen).baseMode).toBe(
-      'DAY_CLOSE_AT_JUDGMENT',
+      'DAY_CLOSE_AT_CLOSE',
     );
   });
 
@@ -401,12 +405,12 @@ describe('preparePublish', () => {
     ).toThrow(/2일/);
 
     const snap = preparePublish(
-      { ...us, deadline: new Date('2026-07-15T20:00:00Z') },
+      { ...us, targetType: 'TARGET_PRICE', targetValue: 200, deadline: new Date('2026-07-15T20:00:00Z') },
       validCond,
       null,
       monDayMarket,
     );
-    expect(snap.baseMode).toBe('DAY_CLOSE_AT_JUDGMENT');
+    expect(snap.baseMode).toBe('DAY_CLOSE_AT_CLOSE');
   });
 
   it('KR 장기 카드(7일 이상)는 기존대로 게시 시점 기준가 확정', () => {
@@ -421,18 +425,23 @@ describe('preparePublish', () => {
     expect(() => preparePublish(card, validCond, 70_000, NOW)).toThrow(/예측 크기 하한/);
   });
 
-  // 소급 확정은 이제 **장중·장후·주말 게시 단기 카드(DAY_CLOSE_AT_JUDGMENT)에만** 남는다.
-  // 그쪽은 기준가가 "게시 이후 첫 종가"라 게시 시점에 존재하지 않는 값이고, 그래서
-  // 목표가의 방향 정합성·크기 하한을 검증할 대상이 없다 (개장 전 카드와 갈리는 지점)
-  it('기준가 소급 확정 단기 카드는 수익률형만 허용 (목표가형 거부)', () => {
+  // 장중·장후·주말 게시 단기 카드(DAY_CLOSE_AT_CLOSE)는 게시 시점에 기준가(종가)가 없어
+  // %의 기준이 없다 → **목표가로만** 쓴다. 수익률형은 거부한다 (개장 전 카드와 갈리는 지점).
+  it('장중 게시 단기 카드는 목표가만 허용 (수익률형 거부)', () => {
     const monOpen = new Date('2026-07-13T00:00:00Z'); // KST 월 09:00 — 장중
-    const card: CardDraft = {
+    const pctCard: CardDraft = {
       ...validCard,
-      targetType: 'TARGET_PRICE',
-      targetValue: 80_000,
+      targetType: 'RETURN_PCT',
+      targetValue: 10,
       deadline: new Date('2026-07-15T06:30:00Z'), // +2일
     };
-    expect(() => preparePublish(card, validCond, null, monOpen)).toThrow(/수익률형/);
+    expect(() => preparePublish(pctCard, validCond, null, monOpen)).toThrow(/목표가/);
+
+    // 목표가형은 통과하고 기준가는 null(마감 배치가 확정)
+    const targetCard: CardDraft = { ...pctCard, targetType: 'TARGET_PRICE', targetValue: 80_000 };
+    const snap = preparePublish(targetCard, validCond, null, monOpen);
+    expect(snap.baseMode).toBe('DAY_CLOSE_AT_CLOSE');
+    expect(snap.basePrice).toBeNull();
   });
 
   it('검증 이슈는 한 번에 모아서 보고', () => {

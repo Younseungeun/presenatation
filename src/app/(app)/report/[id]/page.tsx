@@ -551,6 +551,15 @@ export default async function ReportDetail({
         <div className={styles.locked}>
           판매가 마감된 리포트입니다. 카드는 그대로 검증되어 시한에 자동 판정됩니다.
         </div>
+      ) : report.status === "PUBLISHED" &&
+        card?.baseMode === "DAY_CLOSE_AT_CLOSE" &&
+        !card?.baseConfirmedAt ? (
+        // 장중·장후 게시 <14일 주식 — 게시 순간엔 기준가(종가)가 없어 아직 팔지 않는다.
+        // 장 마감 후 마감 종가로 기준가가 확정되면(그때 목표%도 확정) 판매가 열린다.
+        <div className={styles.locked}>
+          오늘 장 마감 후 판매가 시작됩니다 — 게시 시점엔 기준가(종가)가 아직 정해지지 않아,
+          마감 종가로 기준가가 확정되면 판매가 열립니다.
+        </div>
       ) : report.status === "PUBLISHED" ? (
         <>
           <div className={styles.locked}>

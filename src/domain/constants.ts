@@ -61,13 +61,21 @@ export type UndecidableReason = (typeof UNDECIDABLE_REASONS)[number];
 //   미루면 대가가 있었다: 게시 관문이 기준가를 몰라 **크기 하한·방향 정합성을 검증하지
 //   못하고**(그래서 목표가형을 금지해야 했고), 판정 시 그 종가를 못 찾으면 이월됐다.
 //   **기존 카드는 이 값을 그대로 유지한다** — 판정 파이프라인의 소급 확정 경로도 남는다
-// - DAY_CLOSE_AT_JUDGMENT: 게시일(이후 첫 거래일) 종가를 판정 시 소급 확정 — 장중·장후·주말 게시
-//   단기 카드. 당일 실현 등락이 기준가에 흡수되므로 장중 게시여도 정보 이점이 없다
+// - DAY_CLOSE_AT_JUDGMENT: 게시일(이후 첫 거래일) 종가를 판정 시 소급 확정 — **옛 방식**.
+//   장중 게시여도 정보 이점은 없었지만, 게시 순간 기준가가 없어 목표가형을 금지하고
+//   판매 중에도 "판정 시 확정"인 채로 팔아 구매자에게 정확한 정보를 못 줬다.
+//   **기존 카드는 이 값을 유지한다** — 판정 파이프라인의 소급 확정 경로도 남는다
+// - DAY_CLOSE_AT_CLOSE: 같은 종가를 **게시일 마감 시점에** 확정하고 그때 판매를 연다
+//   (2026-08-29 확정 — 장중/장후 게시 <14일 단기 카드). 게시 순간엔 종가가 없어
+//   **목표가로만** 쓰게 하고(baseConfirmedAt 전 판매 불가), 마감 배치가 그날 종가로
+//   기준가를 확정해 판매를 시작한다. 기준가는 여전히 리서처가 고를 수 없는 종가라
+//   시각 선택 이점이 없다. 판매 기간·판정은 확정된 기준가로 이뤄진다
 export const BASE_MODES = [
   'FIXED_AT_PUBLISH',
   'PREV_CLOSE_AT_PUBLISH',
   'PREV_CLOSE_AT_JUDGMENT',
   'DAY_CLOSE_AT_JUDGMENT',
+  'DAY_CLOSE_AT_CLOSE',
 ] as const;
 export type BaseMode = (typeof BASE_MODES)[number];
 

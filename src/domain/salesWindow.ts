@@ -144,7 +144,32 @@ export function salesNoticeState(q: number): SalesNoticeState {
   return 'NONE';
 }
 
-/** 판매 마감 시각(시간 규칙) = 게시 + min(검증기간 × 1/3, 30일) */
+/**
+ * 판매가 **시작되는** 시각 — 시간 규칙(판매 기간)이 여기서부터 흐른다.
+ *
+ * 대개 게시 시각이다. 단 DAY_CLOSE_AT_CLOSE(장중·장후 게시 <14일 주식)는 게시 순간엔
+ * 기준가(종가)가 없어 팔지 않고, **게시일 마감에 기준가가 확정되는 그 시각**(baseConfirmedAt)에
+ * 판매가 열린다. 그러니 판매 기간도 그때부터 센다 — 게시~마감의 대기가 판매 기간을 갉아먹지
+ * 않는다. 아직 확정 전이면 null(= 판매 시작 전, 결제 관문이 별도로 막는다).
+ */
+export function saleStartAt(
+  publishedAt: Date | null | undefined,
+  baseMode: string | null | undefined,
+  baseConfirmedAt: Date | null | undefined,
+): Date | null | undefined {
+  if (baseMode === 'DAY_CLOSE_AT_CLOSE') return baseConfirmedAt ?? null;
+  return publishedAt;
+}
+
+/** DAY_CLOSE_AT_CLOSE 카드가 아직 기준가 확정(=판매 오픈) 전인가 */
+export function isAwaitingBaseConfirmation(
+  baseMode: string | null | undefined,
+  baseConfirmedAt: Date | null | undefined,
+): boolean {
+  return baseMode === 'DAY_CLOSE_AT_CLOSE' && !baseConfirmedAt;
+}
+
+/** 판매 마감 시각(시간 규칙) = 판매 시작 + min(검증기간 × 1/3, 30일) */
 export function salesWindowEnd(publishedAt: Date, deadline: Date): Date {
   const horizon = Math.max(0, deadline.getTime() - publishedAt.getTime());
   const window = Math.min(horizon * SALES_WINDOW_RATIO, SALES_WINDOW_MAX_DAYS * DAY_MS);

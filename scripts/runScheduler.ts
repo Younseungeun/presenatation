@@ -13,6 +13,7 @@ import { setInstrumentRisk, syncAllInstruments } from '../src/server/instrumentS
 import { judgeAndSettleDueCards } from '../src/server/judgmentBatch';
 import { runReachedJudgmentBatch } from '../src/server/reachedJudgmentBatch';
 import { runSalesCloseBatch } from '../src/server/salesCloseService';
+import { confirmDelayedBaseBatch } from '../src/server/delayedBaseService';
 import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
@@ -306,6 +307,12 @@ async function probePausedMarkets(): Promise<void> {
 
 async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Promise<void> {
 
+  // **기준가를 먼저 확정한다** (DAY_CLOSE_AT_CLOSE — 장중·장후 게시 <14일 주식).
+  // 게시일 마감 종가로 기준가를 확정해야 그 카드가 판매·판정 대상이 된다. 판정 배치보다
+  // 먼저 돌아, 방금 확정된 카드가 이후 종가로 이미 목표에 닿았으면 같은 회차의 도달 판정이
+  // 이어서 처리한다. 코인은 이 모드를 쓰지 않아 대상이 없다(장 마감이 없다).
+  const base = await confirmDelayedBaseBatch(prisma, registry, new Date(), assetClass);
+
   // **자격 검사를 쓰기마다 들려 보낸다** — 락을 뺏긴 뒤 깨어난 프로세스가 남은 카드를
   // 계속 쓰는 것을 막는 유일한 장치다 (batchLock 상단 "펜싱 토큰" 주석)
   const reached = await runReachedJudgmentBatch(prisma, registry, new Date(), assetClass, lock.fence);
@@ -376,7 +383,7 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
 
   const sales = await runSalesCloseBatch(prisma, new Date(), registry, assetClass);
   console.log(
-    `  ${assetClass}: 도달 ${reached.judged} / 기한 ${due.judged}(이월 ${due.deferred}, ${chunks}회차) / 판매마감 ${sales.closed.length}`,
+    `  ${assetClass}: 기준가확정 ${base.confirmed}(무효 ${base.invalidated}, 대기 ${base.notYet}) / 도달 ${reached.judged} / 기한 ${due.judged}(이월 ${due.deferred}, ${chunks}회차) / 판매마감 ${sales.closed.length}`,
   );
 
   // **이월이 오래된 카드는 사람이 봐야 한다.** 지금까지 이 목록은 배치 로그에만 남아

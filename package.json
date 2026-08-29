@@ -60,6 +60,7 @@
     "anchor:backfill": "tsx scripts/backfillAnchor.ts",
     "sigma:backfill": "tsx scripts/backfillSigma.ts",
     "batch:reached": "tsx scripts/runReachedJudgmentBatch.ts",
+    "batch:confirmbase": "tsx scripts/runConfirmBaseBatch.ts",
     "verify:rowlock": "tsx scripts/verifyRowLock.ts",
     "measure:contention": "tsx scripts/measureWriteContention.ts",
     "judgment:pause": "tsx scripts/bulkRevertJudgments.ts pause",

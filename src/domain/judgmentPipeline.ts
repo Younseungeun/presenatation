@@ -305,7 +305,10 @@ export async function runJudgment(
     );
   }
 
-  const retroactive = card.baseMode !== 'FIXED_AT_PUBLISH';
+  // **기준가가 아직 없는 카드만 소급 확정한다.** DAY_CLOSE_AT_CLOSE는 게시일 마감 배치가
+  // 기준가를 미리 확정하므로(basePrice 채워짐) 판정 시 저장된 값을 그대로 쓴다 — FIXED와
+  // 같다. 옛 소급 카드(PREV_CLOSE_AT_JUDGMENT·DAY_CLOSE_AT_JUDGMENT)만 여기서 계산한다.
+  const retroactive = card.basePrice == null;
   // 거래일 날짜는 자산군의 시간대 기준 (미국주식 시한이 KST 새벽이면 ET 전일로 환산)
   const publishDate = toMarketDateString(card.publishedAt, card.assetClass);
   const deadlineDate = toMarketDateString(card.deadline, card.assetClass);
@@ -369,8 +372,13 @@ export async function runJudgment(
           'DATA_NOT_AVAILABLE',
         );
       }
-    } else if (card.baseMode === 'DAY_CLOSE_AT_JUDGMENT') {
+    } else if (
+      (card.baseMode === 'DAY_CLOSE_AT_JUDGMENT' || card.baseMode === 'DAY_CLOSE_AT_CLOSE') &&
+      basePrice == null
+    ) {
       // 장중·장후·주말 게시 카드: 기준가 = 게시 이후 첫 정규장 종가.
+      // DAY_CLOSE_AT_CLOSE는 보통 마감 배치가 미리 확정해 basePrice가 있으므로 여기 안 온다 —
+      // 확정 배치를 놓쳐 basePrice가 비어 있을 때의 폴백 경로다(옛 DAY_CLOSE_AT_JUDGMENT와 동일).
       // 정규장 마감 후 게시라면 그날 종가는 이미 공개된 과거이므로(애프터마켓·시간외
       // 정보 가로채기 가능) 기준일을 다음 거래일로 굴린다.
       const closeTime = EQUITY_REGULAR_CLOSE[card.assetClass as 'KR_EQUITY' | 'US_EQUITY'];

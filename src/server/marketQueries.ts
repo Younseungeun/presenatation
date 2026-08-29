@@ -7,7 +7,7 @@ import {
   type ProfitabilityLevel,
 } from '@/domain/profitability';
 import { compositeStars } from '@/domain/ratingStars';
-import { isSalesWindowOpen, salesWindowEnd, suspendsPurchase } from '@/domain/salesWindow';
+import { isSalesWindowOpen, saleStartAt, salesWindowEnd, suspendsPurchase } from '@/domain/salesWindow';
 import { SNAPSHOT_STALE_MS } from '@/domain/quoteWatch';
 import { cardStabilityLevel, type StabilityLevel } from '@/domain/stability';
 import { cardQ } from './quoteWatchService';
@@ -75,6 +75,8 @@ type ReportWithCard = {
     confidence: number;
     sigmaDaily: number | null;
     deadline: Date;
+    baseMode: string;
+    baseConfirmedAt: Date | null;
   } | null;
   _count: { purchases: number };
 };
@@ -237,8 +239,17 @@ function buyableWhere(now: Date) {
     // 카드는 살아서 시한에 판정되지만, 이 화면들의 약속은 구매 가능성이다
     salesClosedAt: null,
     // judgment: null — 조기 판정으로 **시한 전에 결과가 나온 카드**를 거른다.
-    // 예전에는 판정이 시한 이후에만 일어나 deadline 조건이 이것까지 막아 줬다
-    predictionCard: { is: { deadline: { gt: now }, withdrawnAt: null, judgment: null } },
+    // 예전에는 판정이 시한 이후에만 일어나 deadline 조건이 이것까지 막아 줬다.
+    // NOT — 장중·장후 게시 <14일 주식(DAY_CLOSE_AT_CLOSE)은 기준가 확정 전엔 판매 시작
+    // 전이라 목록에서 뺀다("오늘 장 마감 후 판매"). 확정되면 baseConfirmedAt이 채워져 들어온다
+    predictionCard: {
+      is: {
+        deadline: { gt: now },
+        withdrawnAt: null,
+        judgment: null,
+        NOT: { baseMode: 'DAY_CLOSE_AT_CLOSE', baseConfirmedAt: null },
+      },
+    },
   } as const;
 }
 
@@ -268,7 +279,11 @@ async function buyableCardsLive(
   opts: { hide: boolean },
 ): Promise<MarketCard[]> {
   const open = reports.filter((r) =>
-    isSalesWindowOpen(r.publishedAt, r.predictionCard?.deadline, now),
+    isSalesWindowOpen(
+      saleStartAt(r.publishedAt, r.predictionCard?.baseMode, r.predictionCard?.baseConfirmedAt),
+      r.predictionCard?.deadline,
+      now,
+    ),
   );
   const suspended = await suspendedReportIds(prisma, open, now);
   const cards = open.map((r) =>

@@ -389,8 +389,9 @@ export interface BaseModePlan {
  *   기준가 = 직전 거래일 종가를 **게시 시점에 확정** (2026-08-16 변경 — 옛 방식은
  *   판정 시 소급이었고 근거는 금융위 D+1 지연이었는데, KIS 전환으로 사라졌다)
  * - KR 그 외 시각·주말, US 상시: 시한은 게시일로부터 2일 이상.
- *   기준가 = 게시 이후 첫 정규장 종가 소급 확정 — 게시 시점까지 실현된 등락이
- *   전부 기준가에 흡수되므로 게시 시각과 무관하게 정보 이점이 없다.
+ *   기준가 = 게시 이후 첫 정규장 종가를 **그 종가 시점에 확정**하고 그때 판매를 연다
+ *   (`DAY_CLOSE_AT_CLOSE`, 2026-08-29). 게시 순간엔 종가가 없어 **목표가로만** 쓰고,
+ *   확정 전에는 팔지 않는다 — 기준가는 리서처가 고를 수 없는 종가라 시각 선택 이점이 없다.
  *   (US는 애프터마켓·주간거래·프리마켓이 연속이라 '개장 전' 창구 자체가 없음)
  * 그 외(코인·장기 카드): 게시 시점 확정 (실시간가 또는 직전 종가)
  *
@@ -438,7 +439,7 @@ export function planBaseMode(
           `${assetClass} 단기 예측: 시한이 게시일로부터 ${AFTER_CUTOFF_MIN_DEADLINE_DAYS}일 이상이어야 합니다 (요청: ${diff}일). ${guide}`,
         ]
       : [];
-  return { baseMode: 'DAY_CLOSE_AT_JUDGMENT', issues };
+  return { baseMode: 'DAY_CLOSE_AT_CLOSE', issues };
 }
 
 /**
@@ -550,10 +551,14 @@ export function preparePublish(
 ): PublishSnapshot {
   const issues = [...validateCardDraft(card, now), ...validateConditions(cond)];
   const plan = planBaseMode(card.assetClass, card.deadline, now);
-  // **소급 = "게시 시점에 기준가를 모른다"**이지 "시장이 닫혀 있다"가 아니다.
-  // 개장 전 게시 카드(PREV_CLOSE_AT_PUBLISH)는 직전 거래일 종가를 지금 읽을 수 있으므로
-  // 여기 들어오지 않는다 — 그래서 크기 하한·방향 정합성 검증을 그대로 받고 목표가형도 쓴다
-  const retroactive = plan.baseMode === 'DAY_CLOSE_AT_JUDGMENT';
+  // **기준가를 게시 시점에 모르는 카드** — 게시 순간엔 종가가 없어 크기 하한·방향
+  // 정합성을 검증할 수 없다(마감 배치가 확정 시 검증한다). 개장 전 게시 카드
+  // (PREV_CLOSE_AT_PUBLISH)는 직전 거래일 종가를 지금 읽을 수 있어 여기 들어오지 않는다.
+  //   · DAY_CLOSE_AT_CLOSE (신규): 게시일 마감 종가로 확정 → **목표가로만** 쓴다
+  //   · DAY_CLOSE_AT_JUDGMENT (옛 카드): 판정 시 소급 → 수익률형만 (신규 게시엔 안 나온다)
+  const baseUnknownAtPublish =
+    plan.baseMode === 'DAY_CLOSE_AT_CLOSE' || plan.baseMode === 'DAY_CLOSE_AT_JUDGMENT';
+  const retroactive = baseUnknownAtPublish;
 
   // 동시 활성 카드 상한: 신뢰도 1 저품질 대량 게시 차단 (자산군별, 등급별 슬롯)
   const maxActive = MAX_ACTIVE_CARDS[cond.tier];
@@ -619,11 +624,18 @@ export function preparePublish(
 
   if (retroactive) {
     issues.push(...plan.issues);
-    // 소급 확정 카드는 게시 시점에 기준가가 없어 목표가의 방향 정합성·크기 하한을
-    // 검증할 수 없다 → 수익률형만 허용 (크기 하한은 초안 검증에서 이미 처리됨).
-    // **개장 전 게시 카드는 2026-08-16부터 여기 해당하지 않는다** — 기준가를 게시
-    // 시점에 확정하므로 목표가형을 쓸 수 있고 아래 정합성 검증도 그대로 받는다
-    if (card.targetType === 'TARGET_PRICE') {
+    // 게시 시점에 기준가가 없어 목표가의 방향 정합성·크기 하한을 여기서 검증할 수 없다.
+    if (plan.baseMode === 'DAY_CLOSE_AT_CLOSE') {
+      // **목표가로만** 쓴다 — 게시 순간 기준가(종가)를 몰라 %는 어느 값에 대한 %인지
+      // 정할 수 없다. 목표가는 기준가와 무관한 절대 주장이라 그대로 박히고, 마감 배치가
+      // 기준가를 확정할 때 방향 정합성·크기 하한을 검증한다.
+      if (card.targetType !== 'TARGET_PRICE') {
+        issues.push(
+          '장중·장후 게시 단기 카드는 목표가(TARGET_PRICE)로만 설정할 수 있습니다 — 게시 시점엔 기준가(종가)가 정해지지 않아 수익률(%)의 기준이 없습니다. 장 마감 후 기준가가 확정되면 판매가 시작됩니다',
+        );
+      }
+    } else if (card.targetType === 'TARGET_PRICE') {
+      // 옛 소급 카드(DAY_CLOSE_AT_JUDGMENT)는 반대로 수익률형만 — 신규 게시엔 안 나온다
       issues.push(
         '기준가를 판정 시 소급 확정하는 단기 카드는 수익률형(RETURN_PCT)만 허용됩니다',
       );

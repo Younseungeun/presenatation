@@ -74,7 +74,7 @@ describe('게시 규칙', () => {
     // 한글날 07:00 KST에 시한 3일짜리 단기 카드
     const now = new Date('2026-10-08T22:00:00Z');
     const deadline = new Date('2026-10-12T00:00:00Z');
-    expect(planBaseMode('KR_EQUITY', deadline, now).baseMode).toBe('DAY_CLOSE_AT_JUDGMENT');
+    expect(planBaseMode('KR_EQUITY', deadline, now).baseMode).toBe('DAY_CLOSE_AT_CLOSE');
   });
 
   it('평일 08:00 이전이면 종전대로 당일 종가 예측을 허용한다', () => {

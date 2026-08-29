@@ -4,8 +4,10 @@ import type { AssetClass, Direction } from '@/domain/constants';
 import {
   adverseMoveFraction,
   closesOnAdverseMove,
+  isAwaitingBaseConfirmation,
   isSalesWindowOpen,
   remainingFraction,
+  saleStartAt,
   suspendsPurchase,
 } from '@/domain/salesWindow';
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
@@ -89,6 +91,10 @@ interface PurchasableReport {
     /** 규율 상한과 대조한다 — 상한 위의 확신은 팔리면 안 된다 */
     confidence?: number;
     judgment?: { outcome: string } | null;
+    /** 기준가 확정 방식 — DAY_CLOSE_AT_CLOSE는 확정 전 판매 불가 */
+    baseMode?: string;
+    /** DAY_CLOSE_AT_CLOSE의 기준가 확정(=판매 오픈) 시각. null이면 아직 판매 시작 전 */
+    baseConfirmedAt?: Date | null;
   } | null;
 }
 
@@ -133,11 +139,23 @@ export function assertPurchasable(
   if (report.predictionCard && report.predictionCard.deadline <= now) {
     throw new Error('검증 시한이 지난 리포트는 구매할 수 없습니다');
   }
+  // **판매가 아직 시작되지 않은 카드** — 장중·장후 게시 <14일 주식(DAY_CLOSE_AT_CLOSE)은
+  // 게시 순간엔 기준가(종가)가 없어 팔지 않는다. 장 마감 후 기준가가 확정돼야 판매가
+  // 열린다 — 그전에는 구매자에게 줄 정확한 목표% 자체가 없다.
+  if (isAwaitingBaseConfirmation(report.predictionCard?.baseMode, report.predictionCard?.baseConfirmedAt)) {
+    throw new Error('아직 판매가 시작되지 않았습니다 — 장 마감 후 기준가가 확정되면 판매가 시작됩니다');
+  }
   // **시간 규칙은 플래그를 기다리지 않는다.**
   // salesClosedAt을 쓰는 것은 하루 1회 도는 배치(batch:salesclose)라, 이 검사가 없으면
-  // 판매 기간이 끝난 카드가 다음 배치까지 계속 팔린다. 시간 규칙은 게시일·시한만으로
-  // 완전히 결정되므로 여기서 바로 계산하는 것이 맞다.
-  if (!isSalesWindowOpen(report.publishedAt, report.predictionCard?.deadline, now)) {
+  // 판매 기간이 끝난 카드가 다음 배치까지 계속 팔린다. 시간 규칙은 (판매 시작)·시한만으로
+  // 완전히 결정되므로 여기서 바로 계산하는 것이 맞다. 판매 시작은 대개 게시 시각이지만
+  // DAY_CLOSE_AT_CLOSE는 기준가 확정 시각(saleStartAt)이다.
+  const saleStart = saleStartAt(
+    report.publishedAt,
+    report.predictionCard?.baseMode,
+    report.predictionCard?.baseConfirmedAt,
+  );
+  if (!isSalesWindowOpen(saleStart, report.predictionCard?.deadline, now)) {
     throw new Error('판매 기간이 끝난 리포트입니다');
   }
   // **규율 상한은 신규 게시가 아니라 팔리는 확신에 걸린다.**

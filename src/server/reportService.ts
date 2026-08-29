@@ -366,12 +366,13 @@ async function finalizePublish(
   const card = report.predictionCard!;
   const cardDraft = toCardDraft(card);
 
-  // 소급 확정 모드(DAY_CLOSE_AT_JUDGMENT — 장중·장후·주말 게시 단기 카드)는 시세 조회
-  // 없이 컷오프 규칙만 검증된다. 그 외에는 외부 시세 조회(트랜잭션 밖)로 기준가를
-  // 게시 시점에 확정한다.
+  // 게시 시점에 기준가를 모르는 모드(장중·장후·주말 게시 단기 카드)는 시세 조회 없이
+  // 컷오프 규칙만 검증된다 — basePrice는 null로 두고, DAY_CLOSE_AT_CLOSE는 마감 배치가
+  // 게시일 종가로 확정한다(DAY_CLOSE_AT_JUDGMENT는 옛 카드라 판정 시 소급). 그 외에는
+  // 외부 시세 조회(트랜잭션 밖)로 기준가를 게시 시점에 확정한다.
   const plan = planBaseMode(cardDraft.assetClass, cardDraft.deadline, now);
   const basePrice =
-    plan.baseMode === 'DAY_CLOSE_AT_JUDGMENT'
+    plan.baseMode === 'DAY_CLOSE_AT_JUDGMENT' || plan.baseMode === 'DAY_CLOSE_AT_CLOSE'
       ? null
       : await fetchBasePrice(registry, cardDraft, now, plan.baseMode);
 
