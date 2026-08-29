@@ -7,14 +7,14 @@ import {
   CANARY_STALE_MS,
   getCanaryScreen,
 } from "@/server/screeningCanaryRunner";
-import { getScreeningAccuracy } from "@/server/complianceService";
-import { countHardNegatives } from "@/server/retrainSignalService";
+import { getScreeningAccuracy, getStudentRollbackStatus } from "@/server/complianceService";
+import { isAutoShadowed } from "@/server/studentAutoShadow";
 import { AdminHead } from "../../AdminHead";
 import a from "../../admin.module.css";
 import { IrisDetail } from "./IrisDetail";
+import { StudentRollbackDetail } from "./StudentRollbackDetail";
 import { RuleDetail } from "./RuleDetail";
 import { AccuracyDetail } from "./AccuracyDetail";
-import { RetrainGauge } from "../RetrainGauge";
 
 /**
  * **검수 상세** — 계기판의 상자를 누르면 오는 자리.
@@ -40,11 +40,12 @@ export default async function IrisPage() {
   if (user?.role !== "OPERATOR") notFound();
 
   const now = new Date();
-  const [canary, schedulerBeat, accuracy, retrain] = await Promise.all([
+  const [canary, schedulerBeat, accuracy, rollback, autoShadowed] = await Promise.all([
     getCanaryScreen(prisma, now),
     readHeartbeat(prisma, now),
     getScreeningAccuracy(prisma),
-    countHardNegatives(prisma),
+    getStudentRollbackStatus(prisma),
+    isAutoShadowed(prisma),
   ]);
 
   return (
@@ -72,12 +73,13 @@ export default async function IrisPage() {
             (2026-08-23 창업자 지시로 물음표를 걷고 그 자리에 근무/결근 칩을 놓음) */}
         <IrisDetail />
 
-        {/* **재학습 신호는 여기가 집이다** (2026-08-23 창업자 지시).
-            평소 이 숫자는 며칠씩 안 움직여 계기판에서는 배경음이 된다. 되짚으러 오는
-            이 화면에서는 반대로 **찾아보는 값**이고, 위 정확도(무엇을 틀렸나)와
-            IRIS 신원(누가 틀렸나) 사이에 "다시 가르칠 때가 됐나"가 놓이는 것이 맞다.
-            문턱에 닿으면 계기판에도 함께 뜬다 — 그때는 할 일이 생기기 때문이다 */}
-        <RetrainGauge {...retrain} />
+        {/* **IRIS 순이익** — 계기판에서 이리로 내려왔다 (2026-08-29 창업자 지시).
+            켜둘 값어치를 되짚어보는 값이라 상세가 집이고, 계기판에는 정지일 때만 칩으로 남는다 */}
+        <StudentRollbackDetail rollback={rollback} autoShadowed={autoShadowed} />
+
+        {/* **재학습 신호 게이지는 걷었다** (2026-08-29 창업자 지시). 진행 중 N/50 은
+            안 변하는 숫자라 자리만 차지했다. 이제 문턱(50)을 넘는 순간에만 계기판의
+            재학습 논의 자료 박스에 "재학습 추천" 칩으로 뜬다 — 상세엔 항목을 두지 않는다 */}
 
         <RuleDetail
           screen={canary}

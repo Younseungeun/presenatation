@@ -346,7 +346,14 @@ export function StudentValvePanel({
   canaryIntervalMs,
   canaryStaleMs,
   accuracy,
+  autoShadowed = false,
 }: {
+  /**
+   * **순이익 적자로 자동 격하됐는가** (2026-08-29 창업자 지시). 순이익 상세는 검수
+   * 상세로 내려갔고, 계기판에는 정지일 때만 칩 하나로 남긴다 — "지금 규칙 단독으로
+   * 돌고 있다"는 할 일이라 곁눈질로 잡혀야 한다. 상세는 박스를 누르면 나오는 iris 화면.
+   */
+  autoShadowed?: boolean;
   canaryFailures?: { layer: string }[];
   /** 카나리아 주기 (스케줄러 `CANARY_INTERVAL_MS`) — 화면이 잰 값의 유효기간을 겸한다 */
   canaryIntervalMs: number;
@@ -555,6 +562,13 @@ export function StudentValvePanel({
             </span>
           </Link>
           <span className={`${a.rowTags} ${s.above}`}>
+            {/* **순이익 적자 · 자동 격하** — 정지일 때만 뜨는 칩 (2026-08-29 창업자 지시).
+                상세(순이익 요약·재활성 버튼)는 박스를 누르면 나오는 검수 상세에 있다 */}
+            {autoShadowed && (
+              <span className={`${a.chip} ${a.chipNeg}`} title="순이익이 적자로 돌아서 IRIS가 자동 격하됐습니다 — 지금 규칙 단독으로 검수 중. 상세는 박스를 눌러 확인">
+                순이익 적자 · 자동 격하
+              </span>
+            )}
             {tone === "warn" && board.outageSince && (
               <span className={`${a.chip} ${a.chipNeg}`}>{elapsed(board.outageSince, now)}</span>
             )}

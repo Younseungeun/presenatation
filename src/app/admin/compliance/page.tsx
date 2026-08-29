@@ -81,12 +81,10 @@ import {
   getTeacherAnswerPending,
   type TeacherAnswerPending,
 } from "@/server/teacherAnswerQueue";
-import { StudentShadowRelease } from "./StudentShadowRelease";
 import {
   getPendingComplianceReviews,
   getPublishedReportsForOversight,
   getScreeningAccuracy,
-  getStudentRollbackStatus,
   researcherSalesCounts,
 } from "@/server/complianceService";
 import { isAutoShadowed } from "@/server/studentAutoShadow";
@@ -103,7 +101,6 @@ import { getRescanQueue, type RescanQueueRow } from "@/server/phraseRescanServic
 import { GraduateButton } from "./GraduateButton";
 import { GraduationWatch } from "./GraduationWatch";
 import { RegressionCases } from "./RegressionCases";
-import { RetrainGauge } from "./RetrainGauge";
 import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
 import a from "../admin.module.css";
@@ -371,11 +368,18 @@ function TeacherRelayPanel({
   pending,
   now,
   recs,
+  retrain,
 }: {
   pending: TeacherAnswerPending[];
   now: Date;
   /** 검출 항목 관리의 추천 요약 — 박스에 칩으로 띄운다 (2026-08-28 창업자 지시) */
   recs: { promote: number; graduate: number; demote: number };
+  /**
+   * **재학습 신호 — 별도 박스에서 이 박스 안 칩으로 합쳤다** (2026-08-29 창업자 지시).
+   * IRIS와 운영자가 엇갈린 건수(하드 네거티브)/문턱. 사다리 추천(항목별 재학습)과
+   * 같은 "재학습 재료" 테마라 한 상자에 둔다. 상세 화면엔 전체 게이지(막대)가 남는다.
+   */
+  retrain: { count: number; threshold: number; reached: boolean };
 }) {
   // 쌓인 질문지가 없으면 그리지 않는다 — 0건짜리 계기판은 장식이다
   if (pending.length === 0) return null;
@@ -424,6 +428,17 @@ function TeacherRelayPanel({
         <strong style={{ color: "var(--text)" }}>재학습 논의 자료</strong>{" "}
         <b style={{ color: "var(--text)" }}>{pending.length}건</b>
         {recent > 0 && <span style={{ color: "var(--text-dim)" }}>(+{recent})</span>}
+        {/* **재학습 추천 칩 — 엇갈림이 문턱(50)을 넘을 때만** (2026-08-29 창업자 지시).
+            진행 중(N/50)은 안 띄운다: 안 변하는 숫자는 자리만 차지한다. 닿는 순간만
+            "재학습할 때다"라는 할 일로 뜬다. 상세 화면엔 게이지를 따로 두지 않는다 */}
+        {retrain.reached && (
+          <span
+            className={`${a.chip} ${a.chipWarn}`}
+            title={`IRIS와 운영자가 엇갈린 건수가 문턱(${retrain.count}/${retrain.threshold})에 닿았습니다 — 창업자가 진위를 가린 뒤 IRIS를 재학습할 때입니다.`}
+          >
+            재학습 추천
+          </span>
+        )}
         {/* 검출 항목 관리의 추천 — 규칙별로 합친 승격/강등 신호를 여기 칩으로 (2026-08-28) */}
         {recChips.map((c) => (
           <span
@@ -1039,7 +1054,6 @@ export default async function AdminCompliancePage({
     pending,
     published,
     accuracy,
-    rollback,
     autoShadowed,
     phrases,
     abuseRows,
@@ -1057,7 +1071,6 @@ export default async function AdminCompliancePage({
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
     getScreeningAccuracy(prisma),
-    getStudentRollbackStatus(prisma),
     isAutoShadowed(prisma),
     getLearnedPhraseStats(prisma),
     getAbuseReports(prisma),
@@ -1276,12 +1289,15 @@ export default async function AdminCompliancePage({
            검수하는 것이 둘이고 그 둘이 얼마나 맞히는지는 같은 물음의 뒷면이라 한 상자에
            둔다. 서버 컴포넌트를 **prop 으로 넘긴다** — 집계는 서버에서 끝나고, 클라이언트
            패널은 그 결과를 자리에만 놓는다(정확도 계산이 브라우저로 내려가지 않는다) */
-        accuracy={<AccuracyPanel summary={accuracy} />} />
+        accuracy={<AccuracyPanel summary={accuracy} />}
+        /* **정지(자동 격하)일 때만 칩** (2026-08-29 창업자 지시) — 순이익 상세는 검수
+           상세로 내려갔고, 계기판에는 "지금 규칙 단독으로 돌고 있다"는 할 일만 남긴다 */
+        autoShadowed={autoShadowed} />
       {/* 검수 규칙 띠지(CanaryPanel)는 2026-08-23에 걷었다 — 같은 사실을 위 IRIS 상자의
           `검수 규칙` 줄이 말한다. 층별 통과 여부를 여섯 칸으로 늘어놓던 자리인데, 전부
           통과일 때는 초록 여섯 개가 아무 말도 하지 않고 화면만 먹었다. 실패했을 때
           어느 층인지는 그 줄이 배지로 이어 붙인다 */}
-      <TeacherRelayPanel pending={teacherPending} now={now} recs={ladderRecs} />
+      <TeacherRelayPanel pending={teacherPending} now={now} recs={ladderRecs} retrain={retrain} />
       {/* 정확도 카드는 2026-08-23에 IRIS 상자 안(맨 위)으로 올라갔다 — 검수하는 것이
           둘이고 그 둘이 얼마나 맞히는지는 같은 물음의 뒷면이라 한자리에 둔다 */}
 
@@ -1291,63 +1307,15 @@ export default async function AdminCompliancePage({
           그대로인데, 정확도 상세가 이미 거기 있으므로 옆자리도 같이 옮겼다.
           → src/app/admin/compliance/iris/page.tsx */}
 
-      {/* **문턱에 닿았을 때만 여기 뜬다** (2026-08-23 창업자 지시).
-          평소 이 숫자는 0/50 에서 며칠씩 움직이지 않는다 — 매일 보는 화면에서
-          안 변하는 숫자는 읽히지 않고 자리만 차지하다가, 정작 47이 됐을 때도 그냥
-          지나치게 된다. 그래서 **닿기 전에는 검수 상세로 접어 두고**, 닿는 순간
-          여기로 올라온다: 그때는 "창업자가 진위를 가릴 차례"라는 할 일이 생기고,
-          할 일은 계기판에 있어야 한다 */}
-      {retrain.reached && <RetrainGauge {...retrain} />}
+      {/* **재학습 신호는 재학습 논의 자료 박스 안 칩으로 합쳤다** (2026-08-29 창업자 지시).
+          "엇갈림 N/50"은 결국 재학습 재료라, 별도 박스로 세우지 않고 같은 상자에서
+          승격/강등 추천 칩과 나란히 둔다. 전체 게이지(막대)는 검수 상세에 남는다 */}
 
-      {/* IRIS을 계속 켜 둘 것인가 (9차 G-4).
-          채택선과 **같은 공식**(순이익)으로 최근 창을 다시 잰다 — 켤 때와 끌 때의
-          잣대가 다르면 두 판단이 서로를 반박한다.
-          표본이 없을 때는 그리지 않는다: 0건짜리 계기판은 정보가 아니라 장식이고,
-          매일 보이면 곧 안 보이게 된다. */}
-      {(rollback.scored > 0 || autoShadowed) && (
-        <section
-          style={{
-            margin: "0 16px 12px",
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: `1px solid ${autoShadowed || rollback.shouldRollback ? "var(--neg)" : "var(--line)"}`,
-            background:
-              autoShadowed || rollback.shouldRollback ? "var(--neg-weak, #fff5f5)" : "transparent",
-            fontSize: 13,
-            color: "var(--text-weak)",
-          }}
-        >
-          <strong style={{ color: "var(--text)" }}>IRIS 순이익</strong>{" "}
-          <span style={{ color: "var(--text-faint)" }}>· 운영자 판정 기준</span>
-          <br />
-          {rollback.summary}
-          {/* 격하됐으면 **그 사실이 먼저다.** 위 순이익은 격하 이후로 갱신되지 않는다 —
-              IRIS가 소견을 안 내므로 잴 재료 자체가 없다. 그 사실을 말하지 않으면
-              운영자가 "숫자가 안 나빠졌으니 괜찮다"로 읽는다 (10차 I-6). */}
-          {autoShadowed ? (
-            <>
-              <br />
-              <strong style={{ color: "var(--neg)" }}>
-                자동 격하됨 — 지금 규칙 단독으로 검수 중입니다.
-              </strong>
-              <br />
-              위 수치는 격하 시점에 멈춰 있습니다(끈 동안에는 IRIS의 성적을 잴 수 없습니다).
-              재학습하고 <code>npm run eval:student</code> 로 채택선을 다시 통과시킨 뒤
-              해제하십시오.
-              <StudentShadowRelease />
-            </>
-          ) : (
-            rollback.shouldRollback && (
-              <>
-                <br />
-                <strong style={{ color: "var(--neg)" }}>
-                  적자입니다 — 다음 검수 때 자동으로 격하됩니다.
-                </strong>
-              </>
-            )
-          )}
-        </section>
-      )}
+      {/* **IRIS 순이익은 검수 상세로 내려갔다** (2026-08-29 창업자 지시).
+          평소 이 숫자는 0/50 에서 며칠씩 안 움직여 계기판에서 자리만 차지했다. 켜둘
+          값어치를 되짚어보는 값이라 상세(→ iris/StudentRollbackDetail)가 집이고,
+          계기판에는 **정지(자동 격하)일 때만 칩** 하나로 남긴다 — 그건 할 일이 생긴
+          상태라 곁눈질로 잡혀야 한다. 칩은 위 IRIS 상자(StudentValvePanel)가 그린다 */}
 
       {/* 보류 사유별로 화면을 분리한다 — 판단 기준이 다른 건을 한 화면에서 섞어 보지 않게.
           붉은 점(tdot)은 **지금 안 하면 심대한 것이 그 탭에 있다**는 뜻이다 —
