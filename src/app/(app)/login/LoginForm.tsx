@@ -27,17 +27,28 @@ const CHOICES: { key: AccountType; label: string; desc: string }[] = [
   },
 ];
 
-export function LoginForm() {
+/**
+ * mode — "signup"(기본) = 가입 겸 로그인. "reset" = 간편 비밀번호 재설정을 위한 본인 인증만.
+ * reset 은 이미 계정이 있는 사람이 들어오는 길이라 가입용 UI(가입 갈래·필명·리서처 동의)를
+ * 숨기고 휴대폰 본인 인증만 받는다. 인증 성공 후 next(=/settings/pin)에서 새 비밀번호를 정한다.
+ *
+ * ⚠ 통신사 본인 인증(PASS/NICE) 연동 자리 — 지금은 휴대폰 번호 스텁이 그 역할을 대신한다.
+ *    실공급자가 붙으면 이 폼 대신 통신사 인증 창을 띄우고, 반환된 이름·번호·CI로 곧장
+ *    /api/auth/verify 를 호출하면 된다(그때 이름·번호 입력란은 사라진다).
+ */
+export function LoginForm({ mode = "signup" }: { mode?: "signup" | "reset" } = {}) {
   const router = useRouter();
   const search = useSearchParams();
   const next = search.get("next") ?? "/";
+  const isReset = mode === "reset";
   const [busy, setBusy] = useState(false);
   const [accountType, setAccountType] = useState<AccountType>("USER");
-  const [agreed, setAgreed] = useState(false);
+  // 재설정은 이미 약관에 동의한 계정이라 재동의를 받지 않는다(체크박스 숨김, 항상 동의).
+  const [agreed, setAgreed] = useState(isReset);
   const [agreedResearcher, setAgreedResearcher] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const asResearcher = accountType === "RESEARCHER";
+  const asResearcher = !isReset && accountType === "RESEARCHER";
   const canSubmit = agreed && (!asResearcher || agreedResearcher);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
@@ -94,24 +105,26 @@ export function LoginForm() {
 
   return (
     <form className={styles.form} onSubmit={onSubmit}>
-      <div className={styles.field}>
-        <label className={styles.label}>어떻게 시작할까요?</label>
-        <div className={s.choices}>
-          {CHOICES.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => setAccountType(c.key)}
-              aria-pressed={accountType === c.key}
-              className={`${s.choice} ${accountType === c.key ? s.choiceOn : ""}`}
-            >
-              <span className={s.choiceLabel}>{c.label}</span>
-              <span className={s.choiceDesc}>{c.desc}</span>
-            </button>
-          ))}
+      {!isReset && (
+        <div className={styles.field}>
+          <label className={styles.label}>어떻게 시작할까요?</label>
+          <div className={s.choices}>
+            {CHOICES.map((c) => (
+              <button
+                key={c.key}
+                type="button"
+                onClick={() => setAccountType(c.key)}
+                aria-pressed={accountType === c.key}
+                className={`${s.choice} ${accountType === c.key ? s.choiceOn : ""}`}
+              >
+                <span className={s.choiceLabel}>{c.label}</span>
+                <span className={s.choiceDesc}>{c.desc}</span>
+              </button>
+            ))}
+          </div>
+          <span className={styles.hint}>나중에 MY에서 언제든 바꿀 수 있어요.</span>
         </div>
-        <span className={styles.hint}>나중에 MY에서 언제든 바꿀 수 있어요.</span>
-      </div>
+      )}
 
       <div className={styles.field}>
         <label className={styles.label}>이름</label>
@@ -131,41 +144,46 @@ export function LoginForm() {
       {/* **필명은 필수다** (2026-08-20 사용자 확정). 선택으로 두었더니 구매만 하는
           이용자는 대개 이름이 없었고, 그 사람이 나타나야 하는 화면마다(신고자·문의자·
           팔로워) 부를 이름이 없어 화면마다 다른 대체 표기를 지어냈다 —
-          그중 어느 것도 본인이 자기 이름으로 알아볼 수 없는 값이었다 (domain/penName.ts) */}
-      <div className={styles.field}>
-        <label className={styles.label}>필명</label>
-        <input
-          className={styles.input}
-          name="penName"
-          placeholder="공개 활동명"
-          required
-          minLength={PEN_NAME_MIN}
-          maxLength={PEN_NAME_MAX}
-        />
-        <span className={styles.hint}>
-          {asResearcher
-            ? "리포트에 표시될 이름입니다. 설정에서 나중에 바꿀 수 있어요."
-            : "앱에서 표시될 이름입니다 — 실명은 쓰지 않습니다. 설정에서 나중에 바꿀 수 있어요."}
-        </span>
-      </div>
+          그중 어느 것도 본인이 자기 이름으로 알아볼 수 없는 값이었다 (domain/penName.ts).
+          재설정은 이미 필명이 있는 계정이라 다시 받지 않는다. */}
+      {!isReset && (
+        <div className={styles.field}>
+          <label className={styles.label}>필명</label>
+          <input
+            className={styles.input}
+            name="penName"
+            placeholder="공개 활동명"
+            required
+            minLength={PEN_NAME_MIN}
+            maxLength={PEN_NAME_MAX}
+          />
+          <span className={styles.hint}>
+            {asResearcher
+              ? "리포트에 표시될 이름입니다. 설정에서 나중에 바꿀 수 있어요."
+              : "앱에서 표시될 이름입니다 — 실명은 쓰지 않습니다. 설정에서 나중에 바꿀 수 있어요."}
+          </span>
+        </div>
+      )}
 
-      <label className={styles.consent}>
-        <input
-          type="checkbox"
-          checked={agreed}
-          onChange={(e) => setAgreed(e.target.checked)}
-        />
-        <span>
-          <Link href="/terms/TERMS_OF_SERVICE" target="_blank">
-            이용약관
-          </Link>
-          {" 및 "}
-          <Link href="/terms/PRIVACY_POLICY" target="_blank">
-            개인정보처리방침
-          </Link>
-          에 동의합니다 (필수)
-        </span>
-      </label>
+      {!isReset && (
+        <label className={styles.consent}>
+          <input
+            type="checkbox"
+            checked={agreed}
+            onChange={(e) => setAgreed(e.target.checked)}
+          />
+          <span>
+            <Link href="/terms/TERMS_OF_SERVICE" target="_blank">
+              이용약관
+            </Link>
+            {" 및 "}
+            <Link href="/terms/PRIVACY_POLICY" target="_blank">
+              개인정보처리방침
+            </Link>
+            에 동의합니다 (필수)
+          </span>
+        </label>
+      )}
 
       {asResearcher && (
         <label className={styles.consent}>
@@ -188,7 +206,13 @@ export function LoginForm() {
 
       <div className={styles.formActions}>
         <button className={styles.primaryBtn} type="submit" disabled={busy || !canSubmit}>
-          {busy ? "인증 중…" : asResearcher ? "본인 인증하고 리서처로 시작" : "본인 인증하고 시작"}
+          {busy
+            ? "인증 중…"
+            : isReset
+              ? "본인 인증하고 비밀번호 재설정"
+              : asResearcher
+                ? "본인 인증하고 리서처로 시작"
+                : "본인 인증하고 시작"}
         </button>
       </div>
     </form>

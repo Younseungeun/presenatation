@@ -332,40 +332,61 @@
 }
 
 /* ── 방법 선택 (메리츠식 두 카드) ─────────────────────────── */
-.pickerTitle {
-  font-size: 18px;
+/* 브랜드 헤더 = INTOVILL 심볼(로고 마크) + '간편 로그인' 문구 (2026-08-29 사용자 확정 —
+   워드마크 글자는 빼고 로고만). 심볼과 문구를 수직 중앙 정렬. */
+.brandHead {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 6px 2px 30px;
+}
+.brandSub {
+  font-size: 22px;
   font-weight: 800;
+  letter-spacing: -0.01em;
   color: var(--text, #191f28);
-  margin: 6px 2px 16px;
+  line-height: 1;
+  /* 한글 글립 메트릭 탓에 중앙 정렬해도 살짝 아래로 보여 1px 끌어올린다 */
+  transform: translateY(-1px);
 }
 .grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
+/* 카드 = 투명 (2026-08-29 사용자 확정 — 회색 테두리·민트 틴트 제거).
+   채움 없이 부드러운 그림자로만 면을 띄운다. 선택 시에만 민트 테두리 + 링. */
 .card {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
   padding: 22px 12px;
-  border: 2px solid var(--line, #e1e4e8);
+  border: 1px solid transparent;
   border-radius: 16px;
-  background: var(--bg, #fff);
+  background: transparent;
+  box-shadow: 0 6px 18px rgba(18, 40, 36, 0.08);
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
-/* 선택된 카드 = 잉크 테두리(민트는 '검증'을 뜻해 선택 표시엔 안 쓴다) */
+/* 선택된 카드 = 브랜드 민트 테두리 (2026-08-29 사용자 확정 — 로그인은 인증 맥락) */
 .cardOn {
-  border-color: var(--text, #191f28);
-  box-shadow: 0 0 0 3px rgba(25, 31, 40, 0.06);
+  border-color: var(--brand-strong, #12b896);
+  box-shadow:
+    0 0 0 3px rgba(18, 184, 150, 0.16),
+    0 6px 18px rgba(18, 40, 36, 0.08);
 }
 .cardIcon {
-  height: 44px;
-  width: 60px;
+  height: 70px;
+  width: 70px;
   display: grid;
   place-items: center;
   color: var(--text, #191f28);
+}
+/* 두 카드 아이콘을 같은 크기로 살짝 아래로 정렬 */
+.pinImg,
+.bioImg {
+  transform: translateY(12px);
 }
 .cardLabel {
   font-size: 14.5px;
@@ -373,17 +394,54 @@
   color: var(--text, #191f28);
 }
 
+/* 로그인 버튼 = 광택 유리 민트 (2026-08-29 재작업).
+   ① 민트 세로 그라데이션 위에 ② 상단 흰 광택 반사를 겹치고, ③ 밝은 유리 테두리 +
+   ④ 다층 그림자(바깥 뜸 + 위 하이라이트 + 아래 깊이) + ⑤ 흰 글씨(그림자로 가독)로
+   유리 질감을 낸다. 순수 흰 배경이라 backdrop blur 는 거들 뿐, 광택은 자체 레이어가 낸다. */
 .primary {
+  position: relative;
   width: 100%;
-  margin-top: 16px;
-  padding: 15px 16px;
-  border: 0;
-  border-radius: 12px;
-  background: var(--accent, #1f2937);
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.5) 0%, rgba(255, 255, 255, 0) 46%),
+    linear-gradient(180deg, #3ad6b0 0%, #12b896 100%);
   color: #fff;
-  font-size: 15px;
+  text-shadow: 0 1px 1.5px rgba(4, 40, 32, 0.3);
+  font-size: 15.5px;
   font-weight: 700;
+  letter-spacing: -0.01em;
   cursor: pointer;
+  box-shadow:
+    0 10px 24px rgba(18, 184, 150, 0.32),
+    0 2px 6px rgba(18, 184, 150, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    inset 0 -8px 14px rgba(11, 122, 102, 0.22);
+  backdrop-filter: blur(8px);
+  transition: transform 0.14s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.primary:hover:not(:disabled) {
+  transform: translateY(-1.5px);
+  filter: brightness(1.05);
+  box-shadow:
+    0 14px 30px rgba(18, 184, 150, 0.4),
+    0 3px 8px rgba(18, 184, 150, 0.24),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -8px 14px rgba(11, 122, 102, 0.22);
+}
+.primary:active:not(:disabled) {
+  transform: translateY(0.5px);
+  filter: brightness(0.98);
+  box-shadow:
+    0 6px 14px rgba(18, 184, 150, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 6px 14px rgba(11, 122, 102, 0.28);
+}
+.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 .primary:disabled {
   opacity: 0.5;
@@ -408,6 +466,25 @@
   line-height: 1.6;
   color: var(--neg, #f04452);
   text-align: center;
+}
+
+/* 복구 링크 — 간편 비밀번호 분실 시 휴대폰 인증으로 재설정 (2026-08-29 사용자 확정).
+   메리츠식 가운데 회색 텍스트 링크. 주인공(로그인)과 큰 간격을 둬 보조로 읽히게 한다. */
+.recoverLink {
+  display: block;
+  width: 100%;
+  margin-top: 84px;
+  border: 0;
+  background: none;
+  text-align: center;
+  color: var(--text-faint, #8b95a1);
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+}
+.recoverLink:hover {
+  color: var(--text-weak, #4e5968);
 }
 
 @media (prefers-reduced-motion: reduce) {

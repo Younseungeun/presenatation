@@ -1,0 +1,83 @@
+/* 글래스모피즘 버튼 — 순수 CSS. 사용자 제공 스펙(2026-08-29) 반영.
+   뒤에 색/무늬가 있어야 유리감이 산다(backdrop-filter). 흰 배경에선 .mint 변형을 쓴다.
+   ※ -webkit- 접두사는 직접 쓰지 않는다 — 이 저장소는 표준 속성만 쓰고 접두사는 빌드에 맡긴다
+     (직접 쓰면 CSS 변환기가 선언을 통째로 버린다). */
+.glassButton {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  /* 상단 테두리에 빛이 맺히는 이너 섀도우 */
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  cursor: pointer;
+  border-radius: 9999px; /* 알약 */
+  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  font-weight: 500;
+  outline: none;
+}
+
+/* hover — 배경·테두리가 진해지고 살짝 떠오른다 */
+.glassButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* active — 쫀득하게 눌린다 */
+.glassButton:active {
+  transform: translateY(1px) scale(0.96);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* ── size 변형 ── */
+.sm {
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+}
+.default {
+  padding: 0.75rem 1.5rem;
+  font-size: 1rem;
+}
+.lg {
+  padding: 1rem 2.5rem;
+  font-size: 1.125rem;
+}
+.icon {
+  padding: 0.75rem;
+  border-radius: 50%;
+  aspect-ratio: 1;
+}
+
+/* ── 민트 변형 — 흰 배경에서도 보이게(로그인 버튼용). 단색 민트 + 유리 테두리·상단 하이라이트 ── */
+.mint {
+  background: var(--brand-strong, #12b896);
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #fff;
+  box-shadow:
+    0 8px 20px rgba(18, 184, 150, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+.mint:hover {
+  background: #16c6a2;
+  border-color: rgba(255, 255, 255, 0.6);
+  box-shadow:
+    0 12px 26px rgba(18, 184, 150, 0.36),
+    inset 0 1px 0 rgba(255, 255, 255, 0.45);
+}
+/* press — base .glassButton:active 의 흰 배경 덮기를 막고 민트를 유지(transform 은 base 것 사용) */
+.mint:active {
+  background: #0fa082;
+}
