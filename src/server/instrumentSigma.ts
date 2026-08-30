@@ -3,6 +3,7 @@ import type { AssetClass } from '@/domain/constants';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { fetchRealizedSigmaResult, type SigmaResult } from './realizedVolatility';
 import { recordSourceHealth } from './sourceHealthService';
+import { notifyOperators } from './opsAlert';
 
 // 종목 실현 변동성 조회 — **한 번 재서 두 곳이 읽는다.**
 //   · 안정성 별점 (domain/stability.ts)
@@ -53,6 +54,23 @@ export async function getInstrumentSigmaResult(
     sourceDown ? 'σ 조회: 공급자 응답 없음' : 'σ 조회: 소스 정상',
     now,
   ).catch(() => {});
+  // **장애면 운영자에게도 알린다** (2026-08-30) — 예전에는 헬스 도장만 찍어 띠지에는
+  // 떴지만 알람이 안 나갔다(발견 경로가 리서처 게시 실패뿐이었다). 리서처는 장이 닫혀도
+  // 초안을 쓰므로, σ 경로가 소스 장애를 **가장 먼저** 발견하는 자리일 수 있다.
+  // 뜨거운 경로가 아니라(작성 화면 종목 선택) 여유롭게 dedupe만 걸어 스팸을 막는다.
+  if (sourceDown) {
+    void notifyOperators(prisma, {
+      title: `[P1] ${assetClass} 시세 소스 응답 없음 — 리서처 게시가 막히고 있습니다`,
+      body: [
+        `종목 변동성(σ) 조회에서 시세 소스가 응답하지 않습니다 (인증 만료·HTTP 오류·타임아웃).`,
+        `σ를 못 재면 예측 크기 하한·도달 확률·안정성 별점을 낼 수 없어 해당 종목의 게시가 막힙니다.`,
+        `우리 코드 문제가 아니므로 공급자 상태를 확인하세요.`,
+      ].join('\n'),
+      dedupeKey: `sigma-source-down:${assetClass}`,
+      dedupeMs: 30 * 60_000, // 같은 자산군은 30분에 한 번
+      link: '/admin',
+    }).catch(() => {});
+  }
   if (measured.sigma === null) {
     // 실패를 캐시하지 않는다 — 다음 요청이 다시 시도해야 일시 장애가 하루 동안 굳지 않는다.
     //

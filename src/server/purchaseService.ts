@@ -12,7 +12,7 @@ import {
 } from '@/domain/salesWindow';
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isMarketOpen } from '@/domain/marketHours';
-import { recordSourceHealth } from './sourceHealthService';
+import { recordSourceHealth, reportQuoteDelay } from './sourceHealthService';
 import { isAbuseSuspended } from './abuseReportService';
 import { isFreeReport } from './freeReportService';
 import { notifyOperators } from './opsAlert';
@@ -356,6 +356,15 @@ function recordPriceGateBlock(
     ].join('\n'),
     dedupeKey: `price-gate-block:${assetClass}`,
   });
+  // **띠지의 "지연"에도 접는다** (2026-08-30) — 결제 폭주로 실시간 호출이 밀리는 것도
+  // 호출량 과다 지연의 한 형태다. 원인 불문 하나의 지연 신호로 통합한다(sourceHealth).
+  // 결제 관문은 "지금 밀렸다"만 알 뿐이라 올리기만 하고, 해제는 감시 회차가 정상을 확인할 때.
+  void reportQuoteDelay(
+    prisma,
+    assetClass,
+    'PAYMENT_SURGE',
+    `결제 관문: 최근 ${GATE_ALERT_WINDOW_MS / 60_000}분 ${hit.count}건 시세 실패`,
+  ).catch(() => {});
 }
 
 /**

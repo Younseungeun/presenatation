@@ -15,8 +15,13 @@ import { runReachedJudgmentBatch } from '../src/server/reachedJudgmentBatch';
 import { runSalesCloseBatch } from '../src/server/salesCloseService';
 import { confirmDelayedBaseBatch } from '../src/server/delayedBaseService';
 import { classifySourceHealth } from '../src/domain/sourceHealth';
-import { recordSourceHealth } from '../src/server/sourceHealthService';
+import {
+  recordSourceHealth,
+  noteQuoteRefreshHealth,
+  reportQuoteDelay,
+} from '../src/server/sourceHealthService';
 import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
+import { takeKisRateLimitHits } from '../src/infra/marketData/kisProvider';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
 import {
@@ -752,9 +757,22 @@ function tick(): void {
         if (r.watched > 0) {
           console.log(`  ${assetClass}: 감시 ${r.watched} / 갱신 ${r.refreshed} / 해제 ${r.released}`);
         }
+        // **띠지 stamp + 지연 지속 알람** (2026-08-30) — skipped>0(상한 60 초과)이면
+        // 지연으로 남기고, 6시간 이어지면 "규모가 시세 예산을 넘었다"고 알린다.
+        await noteQuoteRefreshHealth(prisma, assetClass, r, new Date());
       });
     }
   }
+
+  // ── KIS 초당 한도 초과 → 지연 신호 (2026-08-30) ─────────────
+  // 게이트(1.1초 직렬)가 못 막는 초과는 **서버·스케줄러 동시 호출**에서 난다(결제 폭주가
+  // 배치와 겹칠 때). 그게 곧 "호출량 과다"라, 이 프로세스가 겪은 초과를 세어 원인 불문
+  // 지연으로 올린다. 감시 skipped·결제 실패와 같은 하나의 지연 신호로 통합된다.
+  const rl = takeKisRateLimitHits();
+  if (rl.KR > 0)
+    void reportQuoteDelay(prisma, 'KR_EQUITY', 'RATE_LIMIT', `KIS 초당 한도 초과 ${rl.KR}건`).catch(() => {});
+  if (rl.US > 0)
+    void reportQuoteDelay(prisma, 'US_EQUITY', 'RATE_LIMIT', `KIS 초당 한도 초과 ${rl.US}건`).catch(() => {});
 
   // ── 마켓 규모 스냅샷 (매시 정각) ────────────────────────
   // 하루 여러 번짜리는 DB에 남기지 않는다 — 한 번 걸러도 다음 시각이 한 시간 뒤다

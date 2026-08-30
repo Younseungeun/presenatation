@@ -41,3 +41,50 @@ export const SOURCE_HEALTH_LABEL: Record<SourceHealth, string> = {
   slow: '시세 지연',
   down: '시세 장애',
 };
+
+// ── 지연 지속 알람 (B) — 순수 판정 ──────────────────────────
+//
+// 장중 감시 지연(slow)이 얼마나 오래 이어졌는지 세고, 문턱을 넘으면 알린다.
+// 상태는 자산군별로 하나 저장되고(server), 매 감시 회차가 이 함수로 갱신한다.
+//
+// **한 번 알리고 끝이 아니다.** slow가 계속되면 문턱마다 다시 알린다(anchor 갱신) —
+// 코인처럼 24시간 slow가 이어지는 자산군이 첫 알람 뒤 영영 침묵하지 않게. 반대로
+// slow가 풀리면 상태를 지워, 다음 지연은 처음부터 다시 센다.
+
+export interface SlowAlertState {
+  /** 이번 지연 구간 시작 (epoch ms) */
+  since: number;
+  /** 마지막 slow 관측 (epoch ms) — 구간이 끊겼는지 판단 */
+  lastSlowAt: number;
+  /** 마지막으로 알린 시각 (epoch ms) — 없으면 아직 안 알림 */
+  lastAlertAt: number | null;
+}
+
+/**
+ * 이번 회차 관측(slow 여부)으로 지속 알람 상태를 갱신하고 알릴지 정한다.
+ *
+ * · slow 아님 → 상태 없앰(구간 종료), 알람 없음
+ * · slow인데 직전 slow와의 간격이 gapResetMs 이내 → 같은 구간 이어감
+ * · slow인데 오래 끊겼(또는 처음)으면 → 새 구간 시작
+ * · (지금 − 마지막 알람 or 구간 시작) ≥ alertAfterMs 면 알린다
+ */
+export function decideSlowPersistAlert(
+  prev: SlowAlertState | null,
+  slow: boolean,
+  nowMs: number,
+  cfg: { alertAfterMs: number; gapResetMs: number },
+): { next: SlowAlertState | null; fire: boolean } {
+  if (!slow) return { next: null, fire: false };
+
+  const continued = prev !== null && nowMs - prev.lastSlowAt <= cfg.gapResetMs;
+  const since = continued ? prev!.since : nowMs;
+  const lastAlertAt = continued ? prev!.lastAlertAt : null;
+
+  const anchor = lastAlertAt ?? since;
+  const fire = nowMs - anchor >= cfg.alertAfterMs;
+
+  return {
+    next: { since, lastSlowAt: nowMs, lastAlertAt: fire ? nowMs : lastAlertAt },
+    fire,
+  };
+}

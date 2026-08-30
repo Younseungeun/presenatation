@@ -39,6 +39,26 @@ import {
 const REAL_BASE = 'https://openapi.koreainvestment.com:9443';
 const MOCK_BASE = 'https://openapivts.koreainvestment.com:29443';
 
+// ── 초당 호출 한도 초과 계수 (2026-08-30) ─────────────────────────────
+// 게이트(schedule)가 1.1초로 직렬화해 **한 프로세스 안**에서는 초과가 거의 안 난다. 그런데
+// 서버(결제·σ)와 스케줄러(배치·감시)는 **다른 프로세스**라 큐가 분리돼 있고, KIS 한도는
+// 계정 합산이다 — 둘이 동시에 부르면(결제 폭주가 배치와 겹치면) `초당 거래건수를 초과`
+// 거절이 난다. 그것이 "호출량 과다"의 가장 확실한 증거라, 세어서 지연 신호로 올린다
+// (server/sourceHealth.reportQuoteDelay). 세는 것은 이 프로세스의 호출뿐이다(모듈 전역).
+const rateLimitHits = new Map<'KR' | 'US', number>();
+
+/** KIS 거절 메시지가 초당 한도 초과인가 — '초당'은 그 메시지에만 나오는 낱말이다 */
+function isRateLimitMessage(msg: string | undefined): boolean {
+  return !!msg && msg.includes('초당');
+}
+
+/** 초당 한도 초과 거절 누적을 읽고 0으로 되돌린다 (스케줄러가 매 틱 부른다) */
+export function takeKisRateLimitHits(): { KR: number; US: number } {
+  const out = { KR: rateLimitHits.get('KR') ?? 0, US: rateLimitHits.get('US') ?? 0 };
+  rateLimitHits.clear();
+  return out;
+}
+
 /**
  * 미국 거래소 코드. KIS는 종목이 어느 거래소에 있는지를 인자로 받는데,
  * 우리 종목 마스터는 심볼만 들고 있다. 나스닥·뉴욕·아멕스를 차례로 시도한다
@@ -195,6 +215,10 @@ export class KisMarketDataProvider implements MarketDataProvider {
       const body = (await res.json()) as KisEnvelope<T>;
       // rt_cd '0'만 정상. 그 외는 메시지를 그대로 올려 원인이 드러나게 한다
       if (body.rt_cd !== '0') {
+        // 초당 한도 초과는 "호출량 과다"의 증거라 따로 센다 (지연 신호로 올라간다)
+        if (isRateLimitMessage(body.msg1)) {
+          rateLimitHits.set(this.market, (rateLimitHits.get(this.market) ?? 0) + 1);
+        }
         throw new Error(`KIS ${trId} 실패 (HTTP ${res.status}, rt_cd=${body.rt_cd}): ${body.msg1 ?? ''}`);
       }
       return body;
