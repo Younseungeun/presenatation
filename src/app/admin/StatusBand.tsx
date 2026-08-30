@@ -27,7 +27,13 @@ export function StatusBand({ ticks }: { ticks: StatusTick[] }) {
                 <span className={styles.tkLabel}>{t.label}</span>
                 <strong
                   className={`${styles.tkValue} ${
-                    t.tone === "on" ? styles.tkOn : t.tone === "off" ? styles.tkOff : ""
+                    t.tone === "on"
+                      ? styles.tkOn
+                      : t.tone === "off"
+                        ? styles.tkOff
+                        : t.tone === "idle"
+                          ? styles.tkIdle
+                          : ""
                   }`}
                 >
                   {t.value}

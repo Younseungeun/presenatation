@@ -14,6 +14,8 @@ import { judgeAndSettleDueCards } from '../src/server/judgmentBatch';
 import { runReachedJudgmentBatch } from '../src/server/reachedJudgmentBatch';
 import { runSalesCloseBatch } from '../src/server/salesCloseService';
 import { confirmDelayedBaseBatch } from '../src/server/delayedBaseService';
+import { classifySourceHealth } from '../src/domain/sourceHealth';
+import { recordSourceHealth } from '../src/server/sourceHealthService';
 import { refreshWatchedQuotes } from '../src/server/quoteWatchService';
 import { takeMarketSnapshot } from '../src/server/marketStats';
 import { runComplianceOps } from '../src/server/complianceOpsService';
@@ -385,6 +387,29 @@ async function judgeMarketLocked(assetClass: AssetClass, lock: BatchFence): Prom
   console.log(
     `  ${assetClass}: 기준가확정 ${base.confirmed}(무효 ${base.invalidated}, 대기 ${base.notYet}) / 도달 ${reached.judged} / 기한 ${due.judged}(이월 ${due.deferred}, ${chunks}회차) / 판매마감 ${sales.closed.length}`,
   );
+
+  // **시세 소스 헬스 도장** (2026-08-29) — 이미 돈 이 회차의 결과를 세 상태(정상/지연/장애)로
+  // 접어 남긴다. 관리자 홈 띠지가 읽어 "소스 죽음 vs 그냥 붐빔"을 판정 정지와 함께 보여준다.
+  // 새로 시세를 부르지 않는다 — 이미 나온 providerDown·emptyRange·hasMore를 접을 뿐.
+  const providerDownCount = [...due.providerDown.values()].reduce((a, b) => a + b, 0);
+  const emptyBulk = emptyRangeAlerts(due.emptyRange).some((a) => a.bulk);
+  const health = classifySourceHealth({
+    providerDownCount,
+    emptyRangeBulk: emptyBulk,
+    hasMore: due.hasMore,
+    touched: due.judged + due.deferred + due.failed > 0,
+  });
+  if (health) {
+    const detail =
+      health === 'down'
+        ? providerDownCount > 0
+          ? `공급자 응답 없음 ${providerDownCount}건`
+          : '빈 시세 대량'
+        : health === 'slow'
+          ? '회차 상한 — 다음 창구로 이월'
+          : `판정 ${due.judged}건 정상`;
+    await recordSourceHealth(prisma, assetClass, health, detail);
+  }
 
   // **이월이 오래된 카드는 사람이 봐야 한다.** 지금까지 이 목록은 배치 로그에만 남아
   // 아무도 읽지 않았다 — 돈이 묶인 카드가 조용히 방치되는 경로다

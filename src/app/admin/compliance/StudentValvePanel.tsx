@@ -297,7 +297,7 @@ function RuleRow({
         </span>
       ) : (
         <span
-          className={`${s.dot} ${measurementStale ? s.dotIdle : ""}`}
+          className={`${s.dot} ${measurementStale || schedulerOff ? s.dotIdle : ""}`}
           aria-hidden="true"
         />
       )}
@@ -429,6 +429,9 @@ export function StudentValvePanel({
   if (!board) return null;
 
   const { student, bypass } = board;
+  // 스케줄러가 꺼져 있으면 IRIS·검수 규칙의 점검이 안 돌아 상태를 제대로 확인할 수 없다 —
+  // 그때는 초록(정상)으로 두지 않고 회색(확인 불가)으로 둔다 (2026-08-29 사용자 지시).
+  const schedulerOff = board.attendance?.schedulerOff ?? board.canary?.schedulerOff ?? false;
   const left = bypass.active ? countdown(bypass.until, now) : null;
   const bypassing = bypass.active && left !== null;
   const outageMs = board.outageSince ? now - new Date(board.outageSince).getTime() : 0;
@@ -509,7 +512,7 @@ export function StudentValvePanel({
               </span>
             ) : (
               <span
-                className={`${s.dot} ${tone === "ok" ? "" : s.dotIdle}`}
+                className={`${s.dot} ${tone === "ok" && !schedulerOff ? "" : s.dotIdle}`}
                 aria-hidden="true"
               />
             )}

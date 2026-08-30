@@ -1399,6 +1399,11 @@
 .tkOff {
   color: #c4303b;
 }
+/* 비활성(확인 불가) — 회색. 고장이 아니라 "지금은 잴 수 없다"라 무채색으로 둔다 */
+.tkIdle {
+  color: var(--text-faint);
+  font-weight: 700;
+}
 @media (prefers-reduced-motion: reduce) {
   .band {
     mask-image: none;
