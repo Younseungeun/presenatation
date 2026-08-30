@@ -150,12 +150,24 @@ function AuthoredCard({ r, now }: { r: DashboardReport; now: Date }) {
   const judgment = card?.judgment;
   const status: StatusKind =
     r.status === "DRAFT" ? "DRAFT" : r.status === "PUBLISHED" ? "SELLING" : "ENDED";
+  // 장중·장후 게시 <14일 주식 — 게시됐지만 기준가 확정 전이라 아직 판매 시작 전
+  const awaitingBase =
+    r.status === "PUBLISHED" &&
+    card?.baseMode === "DAY_CLOSE_AT_CLOSE" &&
+    !card?.baseConfirmedAt &&
+    !card?.withdrawnAt;
 
   return (
     <Link href={`/report/${r.id}`} className={styles.reportCard}>
       <div className={styles.reportTitle}>
         {r.title}
-        {judgment ? outcomeBadge(judgment.outcome) : <StatusChip status={status} />}
+        {judgment ? (
+          outcomeBadge(judgment.outcome)
+        ) : awaitingBase ? (
+          <StatusChip status="VERIFYING" label="장 마감 후 판매" />
+        ) : (
+          <StatusChip status={status} />
+        )}
       </div>
       <div className={styles.meta}>
         {card ? <span>{cardLine(card)}</span> : <span>예측 카드 없음</span>}

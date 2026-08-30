@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { ASSET_CLASSES, ASSET_CLASS_LABEL, PREPAYMENT_RATIOS, type AssetClass } from "@/domain/constants";
-import { PRICE_GUIDE_KRW, REPORT_TEXT_LIMITS } from "@/domain/publishReport";
+import { PRICE_GUIDE_KRW, REPORT_TEXT_LIMITS, planBaseMode } from "@/domain/publishReport";
 import {
   instrumentRiskReasons,
   RISK_LEVEL_LABEL,
@@ -36,6 +36,23 @@ const RATING = Array.from(
 const toNumber = (v: string): number | null => {
   const n = Number(v);
   return v.trim() && Number.isFinite(n) ? n : null;
+};
+
+/**
+ * 지금 게시하면 이 카드가 목표가로만 써야 하는가 (DAY_CLOSE_AT_CLOSE) — 장중·장후·주말
+ * 게시 <14일 주식은 게시 순간 기준가(종가)가 없어 %의 기준이 없다. 게시 관문(preparePublish)이
+ * 실제로 강제하는 규칙과 같은 함수(planBaseMode)로 미리 알려, 제출 후 거절되는 대신
+ * 작성 중에 목표가로 고정한다. now는 대략 게시 시각이라 미리보기이고, 진짜 판정은 게시 시점.
+ */
+const mustTargetPrice = (ac: AssetClass, deadlineStr: string): boolean => {
+  if (!deadlineStr || ac === "CRYPTO") return false;
+  const d = new Date(deadlineStr);
+  if (Number.isNaN(d.getTime())) return false;
+  try {
+    return planBaseMode(ac, d, new Date()).baseMode === "DAY_CLOSE_AT_CLOSE";
+  } catch {
+    return false;
+  }
 };
 
 /** 검증 시한까지 남은 일수 — 크기 상한은 기간과 함께 봐야 판단된다 */
@@ -72,6 +89,8 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
   const [assetClass, setAssetClassState] = useState<AssetClass>("KR_EQUITY");
   const [direction, setDirection] = useState("UP");
   const [targetType, setTargetType] = useState("RETURN_PCT");
+  // 장중·장후 게시 <14일 주식이면 목표가로만 — 자산군/시한이 바뀔 때(이벤트) 다시 잰다
+  const [forceTargetPrice, setForceTargetPrice] = useState(false);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
@@ -157,9 +176,16 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
     setHits([]);
     setSigmaDaily(null);
   }
+  // 자산군·시한이 바뀔 때 "목표가만" 여부를 다시 잰다(렌더가 아니라 이벤트에서).
+  function refreshBaseModeHint(ac: AssetClass, deadlineStr: string) {
+    const force = mustTargetPrice(ac, deadlineStr);
+    setForceTargetPrice(force);
+    if (force) setTargetType("TARGET_PRICE");
+  }
   function setAssetClass(next: AssetClass) {
     setAssetClassState(next);
     if (next !== assetClass) clearSelection();
+    refreshBaseModeHint(next, deadline);
   }
   function onDirectionChange(next: string) {
     setDirection(next);
@@ -392,10 +418,18 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
             className={styles.select}
             value={targetType}
             onChange={(e) => setTargetType(e.target.value)}
+            disabled={forceTargetPrice}
           >
-            <option value="RETURN_PCT">목표 등락률(%)</option>
+            {!forceTargetPrice && <option value="RETURN_PCT">목표 등락률(%)</option>}
             <option value="TARGET_PRICE">목표가</option>
           </select>
+          {forceTargetPrice && (
+            <span className={styles.hint}>
+              장중·장후 게시 단기(14일 미만) 주식은 <strong>목표가로만</strong> 씁니다 — 게시
+              순간엔 기준가(종가)가 없어 수익률(%)의 기준이 없습니다. 장 마감 후 종가로
+              기준가가 확정되면 목표%가 정해지고 그때 판매가 시작됩니다.
+            </span>
+          )}
         </div>
         <div className={styles.field}>
           <label className={styles.label}>
@@ -432,6 +466,7 @@ export function ReportForm({ researcherId }: { researcherId: string }) {
           onChange={(e) => {
             setDeadline(e.target.value);
             setWindowLabel(salesWindowLabel(e.target.value));
+            refreshBaseModeHint(assetClass, e.target.value);
           }}
         />
         <span className={styles.hint}>
