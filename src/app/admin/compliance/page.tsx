@@ -143,31 +143,36 @@ const URGENCY_STYLE: Record<HoldUrgency, { accent: string; label: string }> = {
 
 // 화면 분리: 판단 기준이 다른 건을 한 화면에서 섞어 보면 매번 "무엇을 봐야 하는 건인지"를
 // 다시 파악해야 한다. 탭 상태는 URL(?tab=)에 두어 새로고침·공유·뒤로가기가 자연스럽게 동작한다.
-// **탭은 재료로 가른다** (시안 v3 rp-body / rp-inst): 본문은 '글', 종목·시세는 '숫자'.
-// 전에는 넷이었는데(본문·위험 종목·판매 중·학습 표현) 뒤의 둘은 큐가 아니라 **도구**라
-// 매일 세어야 할 것과 가끔 여는 것이 같은 줄에 섞여 있었다. 도구는 본문 탭 아래
-// '도구' 묶음의 문으로 내려가고, 탭은 오늘 처리할 두 재료만 남는다.
-const TAB_KEYS = ["body", "inst"] as const;
+// **탭은 처리 종류로 가른다** (2026-08-31 창업자 지시): 판매 중 / 검수모델 / 시세 / 되돌림.
+// 판단 기준이 다른 넷을 한 줄에 세운다 — 판매 중(강제 철회 진입점)·검수모델(게시 전 검수:
+// 본문 소견·어뷰징·위험 종목)·시세(판정 큐)·되돌림(되돌린 카드 재판정).
+// **되돌림을 시세에서 뗀 이유**: 볼 곳은 같은 거래소지만 이미 한 번 판정된 카드라
+// 성격이 다르다(기계 판정 이력이 있어 2인 승인이 필요 없다).
+// 운영자 사전(학습 표현)만 큐가 아닌 **도구**라 검수모델 탭 아래 문으로 남긴다.
+const TAB_KEYS = ["published", "body", "inst", "reverted"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
-/** 도구는 탭이 아니라 문이다 — URL은 유지해 링크·북마크가 깨지지 않는다 */
-const TOOL_KEYS = ["published", "phrases"] as const;
+/** 도구는 탭이 아니라 문이다 — URL은 유지해 링크·북마크가 깨지지 않는다.
+ *  판매 중은 2026-08-31에 탭으로 승격했다 — 남는 도구는 운영자 사전 하나다. */
+const TOOL_KEYS = ["phrases"] as const;
 type ToolKey = (typeof TOOL_KEYS)[number];
 type PaneKey = TabKey | ToolKey;
 
 // 탭 이름만 남긴다 — 시안에는 탭 설명 문단이 없다(묶음마다 물음표가 대신한다)
 const TABS: Record<TabKey, { label: string }> = {
-  body: { label: "본문" },
-  // 위험 종목 보류는 '본문' 탭의 서브탭으로 옮겼다 (2026-08-28) — 여기는 판정 큐(시세)만
+  published: { label: "판매 중" },
+  // '본문' → '검수모델' (2026-08-31) — 게시 전 검수(본문 소견·어뷰징·위험 종목)를 한 탭에.
+  // 위험 종목 보류는 이 탭의 서브탭이다 (2026-08-28)
+  body: { label: "검수모델" },
   inst: { label: "시세" },
+  reverted: { label: "되돌림" },
 };
 
+/** 판매 중 탭 머리말 — 도구였을 때의 설명을 그대로 옮긴다 (강제 철회 진입점) */
+const PUBLISHED_DESC =
+  "검토를 통과해 판매 중인 리포트입니다. 사후에 위반이 확인되면 강제 철회로 게시를 중단하고 구매자에게 전액 환불할 수 있습니다. 신고로 들어온 건은 검수모델 탭에서 처리하고, 여기는 신고 없이 직접 내려야 할 때의 문입니다.";
+
 const TOOLS: Record<ToolKey, { label: string; description: string }> = {
-  published: {
-    label: "판매 중 리포트",
-    description:
-      "검토를 통과해 판매 중인 리포트입니다. 사후에 위반이 확인되면 강제 철회로 게시를 중단하고 구매자에게 전액 환불할 수 있습니다. 신고로 들어온 건은 본문 탭에서 처리하고, 여기는 신고 없이 직접 내려야 할 때의 문입니다.",
-  },
   // **화면 문구는 `운영자 사전`, URL은 `phrases`** (3회차 C-1 → 회신 3호 확정).
   // 코드 식별자와 화면 이름을 분리하는 것은 이 저장소의 관례다 (카드지갑/cart 와 같은 결정) —
   // 북마크·링크가 깨지지 않는 쪽이 이름을 맞추는 것보다 값어치가 크다
@@ -1184,23 +1189,21 @@ export default async function AdminCompliancePage({
   // **수동 판정 큐를 여기로 들인다** (시안 v3): "시세를 못 구했다"와 "종목이 위험하다"는
   // 둘 다 숫자를 봐야 끝나는 일이라 같은 화면에 있어야 한다. 전에는 /admin/judgments가
   // 따로 있어 리포트를 보다 판정하러 화면을 옮겨야 했다.
-  //   시세 때문에 = 값을 못 구했거나(null) · 두 소스가 다른 값(CROSS_CHECK) ·
-  //                 되돌린 카드(REVERTED_SOURCE)
-  //   특이사항   = 값은 왔는데 믿을 근거가 없다(IMPLAUSIBLE_QUOTE)
+  //   시세 탭 = 값이 없나 vs 값이 있는데 못 믿나 (2026-08-31 단순화):
+  //     못 구함  = 시세를 못 받아 이월(null) → 거래소에서 찾아 입력
+  //     못 믿음  = 두 소스가 다른 값(CROSS_CHECK) · 불가능한 일봉(IMPLAUSIBLE_QUOTE)
+  //               → 값은 있으나 검증이 필요. 카드마다 어느 쪽인지 칩으로 갈린다
+  //   되돌림 탭 = 되돌린 카드(REVERTED_SOURCE) → 거래소 시세로 재판정
   //
-  // **되돌린 카드가 여기 있는 이유** (2026-08-19 사용자 확인): 되돌리기는 원인을
-  // 반드시 고르게 하는데(`--source` / `--logic`), 수동 큐에 남는 것은 **시세 소스가
-  // 원인일 때뿐**이다 — 로직 버그면 고친 코드로 자동 재판정하는 것이 맞아 플래그를
-  // 세우지 않는다(judgmentRevertService). 즉 이 카드도 볼 곳은 거래소 시세다.
-  // 처음엔 특이사항으로 보냈는데, 그건 "왜 큐에 왔나"가 아니라 "특이해 보인다"로
-  // 가른 것이라 틀렸다.
-  const byPrice = manualQueue.filter(
-    (e) =>
-      e.manualReason === null ||
-      e.manualReason === "CROSS_CHECK" ||
-      e.manualReason === "REVERTED_SOURCE",
+  // **되돌림을 시세에서 뗀 이유** (2026-08-31 창업자 지시): 볼 곳은 같은 거래소지만
+  // 이미 한 번 판정된 카드라(기계 판정 이력 있음) 2인 승인이 필요 없어, 처리 성격이
+  // 다르다. 되돌리기는 원인이 **시세 소스일 때만** 큐에 남긴다(judgmentRevertService) —
+  // 로직 버그면 고친 코드로 자동 재판정하므로 플래그를 안 세운다.
+  const byMissing = manualQueue.filter((e) => e.manualReason === null);
+  const byDistrust = manualQueue.filter(
+    (e) => e.manualReason === "CROSS_CHECK" || e.manualReason === "IMPLAUSIBLE_QUOTE",
   );
-  const byOddity = manualQueue.filter((e) => e.manualReason === "IMPLAUSIBLE_QUOTE");
+  const byReverted = manualQueue.filter((e) => e.manualReason === "REVERTED_SOURCE");
   const pausedClasses = ASSET_CLASSES.filter(
     (c) => pause.global || (pause.byAssetClass[c] ?? false),
   );
@@ -1217,8 +1220,10 @@ export default async function AdminCompliancePage({
     // 신고 묶음도 함께 센다 — 탭 숫자가 "이 탭에서 내려야 할 결정 수"를 말해야
     // 대시보드에서 눌러볼지 말지가 판단된다
     // 위험 종목(instrumentHolds)도 이제 body 하위 서브탭이라 body 로 센다
+    published: published.length,
     body: contentHolds.length + instrumentHolds.length + abuseGroups.length,
-    inst: byPrice.length + byOddity.length,
+    inst: byMissing.length + byDistrust.length,
+    reverted: byReverted.length,
   };
 
   // 판매량 정렬용 — 보류 건은 아직 안 팔렸으므로 리서처의 누적 판매 건수를 본다
@@ -1354,7 +1359,7 @@ export default async function AdminCompliancePage({
 
       {/* 정렬은 **본문 탭에만** 있다 (시안) — 종목·시세는 상한까지 남은 날이 순서를
           정하므로 사람이 고를 축이 없다 */}
-      {tab === "body" && <SortBar tab={tab} sort={sort} />}
+      {(tab === "body" || tab === "published") && <SortBar tab={tab} sort={sort} />}
 
       {tab === "body" && (
         <>
@@ -1528,13 +1533,7 @@ export default async function AdminCompliancePage({
             </span>
             <span className={a.go}>›</span>
           </Link>
-          <Link href="/admin/compliance?tab=published" className={a.xref}>
-            <span>
-              판매 중 리포트 {published.length}건{" "}
-              <small>— 신고 없이 직접 내려야 할 때</small>
-            </span>
-            <span className={a.go}>›</span>
-          </Link>
+          {/* '판매 중'은 2026-08-31에 상단 탭으로 승격했다 — 여기 문은 없앴다 */}
         </>
       )}
 
@@ -1563,30 +1562,42 @@ export default async function AdminCompliancePage({
             </div>
           )}
 
-          <SecHead title={<>시세 때문에{" "}
-              <span className={`${a.n} ${byPrice.length === 0 ? a.nCalm : ""}`}>
-                {byPrice.length}
-              </span></>}>종목은 멀쩡한데 <b>값</b>이 문제입니다 — 값을 못 구했거나, 두 소스가 서로 다른
-              값을 냅니다. 볼 것은 거래소 시세입니다.</SecHead>
-          <ManualQueueList entries={byPrice} empty="시세 때문에 밀린 카드가 없습니다" openId={sp.open} tab={tab} />
+          {/* **값이 없나 vs 값이 있는데 못 믿나** (2026-08-31 단순화). 되돌림은 별도 탭 */}
+          <SecHead title={<>값 못 구함{" "}
+              <span className={`${a.n} ${byMissing.length === 0 ? a.nCalm : ""}`}>
+                {byMissing.length}
+              </span></>}>시세를 <b>못 받아</b> 판정이 밀렸습니다 — 거래소에서 그날 종가·고저를
+              찾아 넣거나, 상폐 등이면 판정 불가로 처리하세요.</SecHead>
+          <ManualQueueList entries={byMissing} empty="시세를 못 구해 밀린 카드가 없습니다" openId={sp.open} tab={tab} />
 
-          {/* '종목 때문에'(위험 종목 보류)는 '본문' 탭의 서브탭으로 옮겼다 (2026-08-28) —
-             종목이 본문 뷰에 실리면서 따로 둘 이유가 없어졌다. 여기는 판정 큐(시세)만 남는다 */}
+          {/* '종목 때문에'(위험 종목 보류)는 '검수모델' 탭의 서브탭으로 옮겼다 (2026-08-28) */}
 
-          <SecHead title={<>특이사항{" "}
-              <span className={`${a.n} ${byOddity.length === 0 ? a.nCalm : ""}`}>
-                {byOddity.length}
-              </span></>}>값은 왔는데 <b>믿을 근거가 없어</b> 규칙이 세운 것들입니다 — 하루 등락이
-              가격제한폭을 넘거나, 거래량은 평소인데 값만 튄 일봉. 자동으로 통과시키면
-              그 한 줄로 돈이 갈립니다.</SecHead>
-          <ManualQueueList entries={byOddity} empty="규칙이 세운 카드가 없습니다" openId={sp.open} tab={tab} />
+          <SecHead title={<>값 못 믿음{" "}
+              <span className={`${a.n} ${byDistrust.length === 0 ? a.nCalm : ""}`}>
+                {byDistrust.length}
+              </span></>}>값은 왔는데 <b>믿을 근거가 부족</b>합니다 — 두 소스가 서로 다른 값을 내거나
+              (칩 <b>두 소스가 다른 값</b>), 하루 등락이 불가능해 보입니다(칩 <b>이상값 필터</b>).
+              카드마다 어느 쪽인지 칩으로 갈립니다.</SecHead>
+          <ManualQueueList entries={byDistrust} empty="검증할 카드가 없습니다" openId={sp.open} tab={tab} />
         </>
       )}
 
-      {/* 도구 두 화면은 시안의 5화면에 없다 — 가끔 여는 곳이라 무엇을 하는 곳인지가
-          매번 필요하다. 그래도 같은 문법으로 접어 둔다 */}
-      {(tab === "phrases" || tab === "published") && (
-        <SecHead title={TOOLS[tab as ToolKey].label}>{TOOLS[tab as ToolKey].description}</SecHead>
+      {tab === "reverted" && (
+        <>
+          <SecHead title={<>되돌림{" "}
+              <span className={`${a.n} ${byReverted.length === 0 ? a.nCalm : ""}`}>
+                {byReverted.length}
+              </span></>}>시세 소스가 원인이라 <b>판정을 되돌린</b> 카드입니다 — 거래소 시세로 다시
+              판정하세요. 이미 한 번 판정된 이력이 있어 <b>2인 승인 없이</b> 처리됩니다.</SecHead>
+          <ManualQueueList entries={byReverted} empty="되돌린 카드가 없습니다" openId={sp.open} tab={tab} />
+        </>
+      )}
+
+      {/* 판매 중은 탭으로 승격했지만(2026-08-31) 머리말은 그대로 — 무엇을 하는 곳인지가
+          매번 필요하다. 운영자 사전(도구)도 같은 문법으로 접어 둔다 */}
+      {tab === "published" && <SecHead title="판매 중">{PUBLISHED_DESC}</SecHead>}
+      {tab === "phrases" && (
+        <SecHead title={TOOLS.phrases.label}>{TOOLS.phrases.description}</SecHead>
       )}
 
       {/* **졸업 직후 7일이 가장 위험하다** — 사전 보호가 꺼지고 IRIS만 남는 창이다.
