@@ -21,7 +21,9 @@ export const dynamic = "force-dynamic";
 
 const FEATURES = [
   {
-    icon: "🛡️",
+    // 브랜드 방패 글리프(intovill-brand/icons/shield.svg 렌더) — 이모지 🛡️ 대체
+    // eslint-disable-next-line @next/next/no-img-element
+    icon: <img src="/feature/shield.png" alt="" width={24} height={24} />,
     title: "무위험 진입",
     text: "신규 리서처 리포트는 100% 성과 연동. 예측이 틀리면 전액 현금으로 환불됩니다.",
   },
