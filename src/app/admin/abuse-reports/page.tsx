@@ -61,7 +61,7 @@ export default async function AdminAbuseReportsPage() {
             <p className={a.hint} style={{ marginBottom: 0 }}>
               판단은 <b>리포트 검수 · 본문 탭</b>의 &ldquo;이용자가 잡은 것&rdquo;에서 합니다 —
               신고를 끝내려면 그 리포트의 본문을 읽어야 하기 때문입니다.{" "}
-              <Link href="/admin/compliance?tab=content">본문 탭으로 →</Link>
+              <Link href="/admin/compliance?tab=sale">판매 중 탭으로 →</Link>
             </p>
           </div>
         )}

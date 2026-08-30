@@ -75,7 +75,7 @@ export function AbuseUserCaught({
           return (
             <Link
               key={key}
-              href={`/admin/compliance?tab=body&open=${key}`}
+              href={`/admin/compliance?tab=sale&open=${key}`}
               className={`${a.lite} ${g.suspended ? a.stripeNeg : a.stripeWarn}`}
               scroll={false}
             >
@@ -151,7 +151,7 @@ export function AbuseUserCaught({
                   reportId={detail.reportId}
                   title={detail.title}
                   content={detail.body}
-                  detailHref={`/admin/compliance?tab=body&open=${detail.reportId}&full=${detail.reportId}`}
+                  detailHref={`/admin/compliance?tab=sale&open=${detail.reportId}&full=${detail.reportId}`}
                   findings={detail.reporterFindings.map(
                     (f): FlaggedFinding => ({
                       quote: f.quote,
@@ -205,7 +205,7 @@ export function AbuseUserCaught({
             {/* 접기 — 검수 카드와 같은 자리, 같은 모양 (2026-08-20 사용자 지시).
                 펼친 카드를 줄로 되돌릴 길이 없으면 목록으로 돌아가려고 다른 줄을
                 누르게 되고, 그러면 접는 대신 **다른 것이 펼쳐진다** */}
-            <Link href="/admin/compliance?tab=body" className={a.fold} scroll={false}>
+            <Link href="/admin/compliance?tab=sale" className={a.fold} scroll={false}>
               접기 ⌃
             </Link>
           </div>

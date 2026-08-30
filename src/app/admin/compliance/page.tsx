@@ -144,35 +144,38 @@ const URGENCY_STYLE: Record<HoldUrgency, { accent: string; label: string }> = {
 // 화면 분리: 판단 기준이 다른 건을 한 화면에서 섞어 보면 매번 "무엇을 봐야 하는 건인지"를
 // 다시 파악해야 한다. 탭 상태는 URL(?tab=)에 두어 새로고침·공유·뒤로가기가 자연스럽게 동작한다.
 // **탭은 처리 종류로 가른다** (2026-08-31 창업자 지시): 판매 중 / 검수모델 / 시세 / 되돌림.
-// 판단 기준이 다른 넷을 한 줄에 세운다 — 판매 중(강제 철회 진입점)·검수모델(게시 전 검수:
-// 본문 소견·어뷰징·위험 종목)·시세(판정 큐)·되돌림(되돌린 카드 재판정).
+// 앞의 둘은 **시점**으로 갈린다 — 판매 중 = 게시 **후** 신고·재검수로 걸린 것(이미
+// 팔렸고 돈이 걸림), 검수모델 = 게시 **전** 검수(본문 소견·위험 종목, 아직 아무도 못 삼).
+// 시세(판정 큐)·되돌림(되돌린 카드 재판정)이 뒤를 잇는다.
 // **되돌림을 시세에서 뗀 이유**: 볼 곳은 같은 거래소지만 이미 한 번 판정된 카드라
 // 성격이 다르다(기계 판정 이력이 있어 2인 승인이 필요 없다).
-// 운영자 사전(학습 표현)만 큐가 아닌 **도구**라 검수모델 탭 아래 문으로 남긴다.
-const TAB_KEYS = ["published", "body", "inst", "reverted"] as const;
+// 큐가 아닌 **도구**는 문으로 남긴다 — 운영자 사전, 그리고 '판매 중 전체'(신고 없이
+// 직접 철회할 때의 전체 목록). 판매 중 탭은 이미 걸린 것만, 이 도구는 전체 훑기다.
+const TAB_KEYS = ["sale", "body", "inst", "reverted"] as const;
 type TabKey = (typeof TAB_KEYS)[number];
 
 /** 도구는 탭이 아니라 문이다 — URL은 유지해 링크·북마크가 깨지지 않는다.
- *  판매 중은 2026-08-31에 탭으로 승격했다 — 남는 도구는 운영자 사전 하나다. */
-const TOOL_KEYS = ["phrases"] as const;
+ *  published = 판매 중 전체(직접 철회) / phrases = 운영자 사전. 둘 다 큐가 아니라 훑는 곳. */
+const TOOL_KEYS = ["published", "phrases"] as const;
 type ToolKey = (typeof TOOL_KEYS)[number];
 type PaneKey = TabKey | ToolKey;
 
 // 탭 이름만 남긴다 — 시안에는 탭 설명 문단이 없다(묶음마다 물음표가 대신한다)
 const TABS: Record<TabKey, { label: string }> = {
-  published: { label: "판매 중" },
-  // '본문' → '검수모델' (2026-08-31) — 게시 전 검수(본문 소견·어뷰징·위험 종목)를 한 탭에.
-  // 위험 종목 보류는 이 탭의 서브탭이다 (2026-08-28)
+  sale: { label: "판매 중" },
+  // '본문' → '검수모델' (2026-08-31) — 게시 **전** 검수(본문 소견·위험 종목)만.
+  // 신고·재검수(게시 후)는 '판매 중' 탭으로 나갔다. 위험 종목 보류는 이 탭의 서브탭 (2026-08-28)
   body: { label: "검수모델" },
   inst: { label: "시세" },
   reverted: { label: "되돌림" },
 };
 
-/** 판매 중 탭 머리말 — 도구였을 때의 설명을 그대로 옮긴다 (강제 철회 진입점) */
-const PUBLISHED_DESC =
-  "검토를 통과해 판매 중인 리포트입니다. 사후에 위반이 확인되면 강제 철회로 게시를 중단하고 구매자에게 전액 환불할 수 있습니다. 신고로 들어온 건은 검수모델 탭에서 처리하고, 여기는 신고 없이 직접 내려야 할 때의 문입니다.";
-
 const TOOLS: Record<ToolKey, { label: string; description: string }> = {
+  published: {
+    label: "판매 중 전체",
+    description:
+      "지금 판매 중인 리포트 전체입니다. 신고·재검수로 이미 걸린 건은 '판매 중' 탭에서 처리하고, 여기는 그런 신호 없이 운영자가 직접 훑어 강제 철회할 때의 문입니다.",
+  },
   // **화면 문구는 `운영자 사전`, URL은 `phrases`** (3회차 C-1 → 회신 3호 확정).
   // 코드 식별자와 화면 이름을 분리하는 것은 이 저장소의 관례다 (카드지갑/cart 와 같은 결정) —
   // 북마크·링크가 깨지지 않는 쪽이 이름을 맞추는 것보다 값어치가 크다
@@ -1184,7 +1187,7 @@ export default async function AdminCompliancePage({
   // 본문도 카드도 없다
   const openIsGroup = abuseGroups.some((g) => g.reportId && g.reportId === sp.open);
   const abuseDetail =
-    tab === "body" && openIsGroup ? await getAbuseGroupDetail(prisma, sp.open!) : null;
+    tab === "sale" && openIsGroup ? await getAbuseGroupDetail(prisma, sp.open!) : null;
 
   // **수동 판정 큐를 여기로 들인다** (시안 v3): "시세를 못 구했다"와 "종목이 위험하다"는
   // 둘 다 숫자를 봐야 끝나는 일이라 같은 화면에 있어야 한다. 전에는 /admin/judgments가
@@ -1217,11 +1220,10 @@ export default async function AdminCompliancePage({
   const rewardGroups = groupRewardPending(rewardPending, now);
 
   const counts: Record<TabKey, number> = {
-    // 신고 묶음도 함께 센다 — 탭 숫자가 "이 탭에서 내려야 할 결정 수"를 말해야
-    // 대시보드에서 눌러볼지 말지가 판단된다
-    // 위험 종목(instrumentHolds)도 이제 body 하위 서브탭이라 body 로 센다
-    published: published.length,
-    body: contentHolds.length + instrumentHolds.length + abuseGroups.length,
+    // 탭 숫자 = "이 탭에서 내려야 할 결정 수". 시점으로 갈린다:
+    // 판매 중(게시 후) = 신고 + 재검수 / 검수모델(게시 전) = 본문 소견 + 위험 종목
+    sale: abuseGroups.length + rescanQueue.length,
+    body: contentHolds.length + instrumentHolds.length,
     inst: byMissing.length + byDistrust.length,
     reverted: byReverted.length,
   };
@@ -1257,7 +1259,7 @@ export default async function AdminCompliancePage({
                 ).getDate()} 게시`
               : ""
           } · 판매 ${abuseDetail.salesCount}건`}
-          backHref={`/admin/compliance?tab=body&open=${abuseDetail.reportId}`}
+          backHref={`/admin/compliance?tab=sale&open=${abuseDetail.reportId}`}
           inbox={q.inbox}
         />
         <main className={a.page}>
@@ -1347,7 +1349,7 @@ export default async function AdminCompliancePage({
           >
             {TABS[key].label}
             {counts[key] > 0 && ` ${counts[key]}`}
-            {key === "body" && abuseGroups.some((g) => g.suspended) && <span className={a.tdot} />}
+            {key === "sale" && abuseGroups.some((g) => g.suspended) && <span className={a.tdot} />}
             {key === "inst" && pausedClasses.length > 0 && <span className={a.tdot} />}
           </Link>
         ))}
@@ -1359,14 +1361,13 @@ export default async function AdminCompliancePage({
 
       {/* 정렬은 **본문 탭에만** 있다 (시안) — 종목·시세는 상한까지 남은 날이 순서를
           정하므로 사람이 고를 축이 없다 */}
-      {(tab === "body" || tab === "published") && <SortBar tab={tab} sort={sort} />}
+      {tab === "body" && <SortBar tab={tab} sort={sort} />}
 
-      {tab === "body" && (
+      {tab === "sale" && (
         <>
-          {/* **본문 탭은 두 상위 묶음이다 — 시점이 정반대라 섞으면 안 된다** (2026-08-28
-              재구성). `판매 중` = 게시 **후**에 걸린 것(이미 팔렸고 돈이 걸려 있다),
-              `검수 모델이 세운 것` = 게시 **전**에 막힌 것(아직 아무도 못 샀다).
-              각 묶음이 서브탭으로 하위를 하나씩 보여준다 — 다 펼치면 산만하기 때문. */}
+          {/* **판매 중 탭 = 게시 후에 걸린 것** (2026-08-31 재배치) — 이미 팔린 리포트가
+              신고·재검수로 사후에 걸린 것. 게시 전(검수모델)과 시점이 정반대라 탭을 갈랐다.
+              서브탭으로 신고/재검수를 하나씩 본다. */}
 
           {/* ── 판매 중 (게시 후·이미 팔림) ──────────────────────────────
               신고(사용자가 잡음) + 재검수(새 학습표현이 이미 게시된 리포트를 잡음).
@@ -1383,7 +1384,7 @@ export default async function AdminCompliancePage({
                 key: "report",
                 label: "신고",
                 count: abuseGroups.length,
-                href: `/admin/compliance?tab=body&pg=report&hg=${hg}&sort=${sort}`,
+                href: `/admin/compliance?tab=sale&pg=report&hg=${hg}&sort=${sort}`,
                 on: pg === "report",
                 loud: true,
               },
@@ -1391,7 +1392,7 @@ export default async function AdminCompliancePage({
                 key: "rescan",
                 label: "재검수",
                 count: rescanQueue.length,
-                href: `/admin/compliance?tab=body&pg=rescan&hg=${hg}&sort=${sort}`,
+                href: `/admin/compliance?tab=sale&pg=rescan&hg=${hg}&sort=${sort}`,
                 on: pg === "rescan",
                 loud: true,
               },
@@ -1420,8 +1421,13 @@ export default async function AdminCompliancePage({
               )}
             </>
           )}
+        </>
+      )}
 
-          {/* ── 검수 모델이 세운 것 (게시 전·아직 아무도 못 삼) ──────────── */}
+      {tab === "body" && (
+        <>
+          {/* ── 검수모델 탭 = 검수 모델이 세운 것 (게시 전·아직 아무도 못 삼) ──
+              신고 보상 지급·운영자 사전·'판매 중 전체' 도구가 이 아래로 이어진다 */}
           <SecHead title={<>검수 모델이 세운 것{" "}
               <span className={`${a.n} ${contentHolds.length + instrumentHolds.length === 0 ? a.nCalm : ""}`}>
                 {contentHolds.length + instrumentHolds.length}
@@ -1533,7 +1539,15 @@ export default async function AdminCompliancePage({
             </span>
             <span className={a.go}>›</span>
           </Link>
-          {/* '판매 중'은 2026-08-31에 상단 탭으로 승격했다 — 여기 문은 없앴다 */}
+          {/* '판매 중 전체'(직접 철회)는 도구다 — 판매 중 탭(이미 걸린 것)과 달리 신고 없이
+              전체를 훑어 내릴 때. 게시 후 처분이라 검수모델이 아니라 판매 흐름에 얹는다 */}
+          <Link href="/admin/compliance?tab=published" className={a.xref}>
+            <span>
+              판매 중 전체 {published.length}건{" "}
+              <small>— 신고 없이 직접 내려야 할 때</small>
+            </span>
+            <span className={a.go}>›</span>
+          </Link>
         </>
       )}
 
@@ -1593,11 +1607,10 @@ export default async function AdminCompliancePage({
         </>
       )}
 
-      {/* 판매 중은 탭으로 승격했지만(2026-08-31) 머리말은 그대로 — 무엇을 하는 곳인지가
-          매번 필요하다. 운영자 사전(도구)도 같은 문법으로 접어 둔다 */}
-      {tab === "published" && <SecHead title="판매 중">{PUBLISHED_DESC}</SecHead>}
-      {tab === "phrases" && (
-        <SecHead title={TOOLS.phrases.label}>{TOOLS.phrases.description}</SecHead>
+      {/* 도구 두 화면(판매 중 전체·운영자 사전)은 문으로 접어 둔다 — 가끔 여는 곳이라
+          무엇을 하는 곳인지가 매번 필요하다 */}
+      {(tab === "published" || tab === "phrases") && (
+        <SecHead title={TOOLS[tab as ToolKey].label}>{TOOLS[tab as ToolKey].description}</SecHead>
       )}
 
       {/* **졸업 직후 7일이 가장 위험하다** — 사전 보호가 꺼지고 IRIS만 남는 창이다.
