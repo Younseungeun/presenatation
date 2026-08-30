@@ -12,6 +12,7 @@ import {
 } from '@/domain/salesWindow';
 import { magnitudePctToTargetPrice } from '@/domain/scoring';
 import { isMarketOpen } from '@/domain/marketHours';
+import { recordSourceHealth } from './sourceHealthService';
 import { isAbuseSuspended } from './abuseReportService';
 import { isFreeReport } from './freeReportService';
 import { notifyOperators } from './opsAlert';
@@ -241,6 +242,8 @@ async function assertNotSuspendedIntraday(
   //     방어 없이 파는 것은 똑같다**. 막으면 판매가 멈춰 사고가 즉시 드러난다)
   if (unchecked) {
     await alertMissingProvider(prisma, assetClass);
+    // 실사용 헬스 도장 — 공급자 미설정은 명백한 소스 문제라 장애로 남긴다
+    await recordSourceHealth(prisma, assetClass, 'down', '결제 관문: 공급자 미설정').catch(() => {});
     throw new Error(
       '시세 확인 경로가 준비되지 않아 구매가 일시 중단되었습니다. 잠시 후 다시 시도해주세요.',
     );
@@ -259,6 +262,9 @@ async function assertNotSuspendedIntraday(
     if (price === null) return 'MARKET_CLOSED';
   }
   const gate: PriceGate = live ? 'LIVE' : 'MARKET_CLOSED';
+  // 실사용 헬스 도장 — 실시간 시세를 받았으면 소스가 살아 있다는 뜻이라 정상으로 남긴다
+  // (null/낡음은 한 종목 문제인지 소스 문제인지 애매해 도장을 찍지 않는다).
+  if (live) await recordSourceHealth(prisma, assetClass, 'ok', '결제 관문: 실시간 시세 정상').catch(() => {});
 
   // **이 호출이 감시 대상을 발굴한다** (2026-08-12 사용자 확정).
   // 문턱에서 먼 종목은 장중에 갱신하지 않으므로, 그 사이 문턱으로 다가온 것을 아무도

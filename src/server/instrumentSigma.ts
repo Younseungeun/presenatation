@@ -2,6 +2,7 @@ import type { PrismaClient } from '@prisma/client';
 import type { AssetClass } from '@/domain/constants';
 import type { ProviderRegistry } from '@/domain/marketData';
 import { fetchRealizedSigmaResult, type SigmaResult } from './realizedVolatility';
+import { recordSourceHealth } from './sourceHealthService';
 
 // 종목 실현 변동성 조회 — **한 번 재서 두 곳이 읽는다.**
 //   · 안정성 별점 (domain/stability.ts)
@@ -40,6 +41,18 @@ export async function getInstrumentSigmaResult(
   if (fresh && row?.sigmaDaily != null) return { sigma: row.sigmaDaily };
 
   const measured = await fetchRealizedSigmaResult(registry, assetClass, ticker, now);
+  // **실사용 헬스 도장** (2026-08-30) — σ 조회가 캐시 미스라 소스를 실제로 때렸으니,
+  // 응답 여부로 헬스를 남긴다(전용 감시 없이 "쓰는 사람이 관측해 준다"). 공급자 예외
+  // (UNAVAILABLE)만 장애다 — 표본 부족·빈 응답은 소스가 답한 것이라 정상으로 본다.
+  const sourceDown =
+    measured.sigma === null && (measured as { reason?: string }).reason === 'UNAVAILABLE';
+  await recordSourceHealth(
+    prisma,
+    assetClass,
+    sourceDown ? 'down' : 'ok',
+    sourceDown ? 'σ 조회: 공급자 응답 없음' : 'σ 조회: 소스 정상',
+    now,
+  ).catch(() => {});
   if (measured.sigma === null) {
     // 실패를 캐시하지 않는다 — 다음 요청이 다시 시도해야 일시 장애가 하루 동안 굳지 않는다.
     //
