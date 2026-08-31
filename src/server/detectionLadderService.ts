@@ -6,6 +6,7 @@ import {
   type DetectionLayer,
   type LadderRecommendation,
 } from '@/domain/detectionLadder';
+import { GRADUATION_WATCH_DAYS } from './phraseGraduationService';
 
 // 검출 항목 관리 — 승격/강등 사다리 대시보드의 **집계**.
 //
@@ -55,7 +56,9 @@ export async function getDetectionLadder(
   }
 
   // 2) 학습표현 메타 + hit 집계 (형태 안정성·리서처·부정 — 5조건과 판별자)
-  const [phrases, hits] = await Promise.all([
+  //    + 졸업 관찰 창 안의 졸업 표현 — IRIS 층 행이 되어 졸업 강등 추천의 재료가 된다
+  const watchCutoff = new Date(now.getTime() - GRADUATION_WATCH_DAYS * DAY);
+  const [phrases, hits, graduated] = await Promise.all([
     prisma.learnedPhrase.findMany({
       where: { active: true },
       select: { id: true, phrase: true, createdAt: true },
@@ -63,7 +66,18 @@ export async function getDetectionLadder(
     prisma.learnedPhraseHit.findMany({
       select: { phraseId: true, matchedSurface: true, researcherId: true, negation: true },
     }),
+    prisma.learnedPhrase.findMany({
+      where: { active: false, graduatedAt: { gte: watchCutoff } },
+      select: { id: true, phrase: true, createdAt: true, graduatedAt: true },
+    }),
   ]);
+  const watchHits =
+    graduated.length > 0
+      ? await prisma.graduationWatchHit.findMany({
+          where: { phraseId: { in: graduated.map((p) => p.id) } },
+          select: { phraseId: true, studentFlagged: true },
+        })
+      : [];
   const hitAgg = new Map<
     string,
     { surfaces: Map<string, number>; researchers: Set<string>; negation: number }
@@ -101,6 +115,30 @@ export async function getDetectionLadder(
       negationHits: agg?.negation ?? 0,
       distinctSurfaces: surfaces.size,
       topSurfaceShare: surfaceTotal > 0 ? topSurface / surfaceTotal : 0,
+    };
+    rows.push({ ...stats, recommendation: recommendMigration(stats) });
+  }
+
+  // 졸업 표현 행 (IRIS 층) — 관찰 창(7일) 안에서만 잰다. 창이 닫히면 감시 기록이 더
+  // 안 쌓여 미탐 수가 그대로 얼어붙는데, 그 얼어붙은 수로 언제까지나 강등을 추천하면
+  // "한 번 놓친 졸업"이 영구 낙인이 된다. 창 밖의 미탐은 신고 경로(미탐 재활성화)가 잡는다
+  for (const p of graduated) {
+    const mine = watchHits.filter((h) => h.phraseId === p.id);
+    const agg = hitAgg.get(p.id);
+    const surfaces = agg?.surfaces ?? new Map<string, number>();
+    const surfaceTotal = [...surfaces.values()].reduce((a, b) => a + b, 0);
+    const topSurface = surfaces.size > 0 ? Math.max(...surfaces.values()) : 0;
+    const stats: DetectionItemStats = {
+      id: `learned:${p.id}`,
+      label: p.phrase,
+      layer: 'IRIS',
+      matched: mine.length, // 관찰 창에서 나타난 횟수 (소견은 안 냈다 — 감시 전용)
+      truePos: 0,
+      falsePos: 0,
+      ageDays: Math.floor((now.getTime() - p.createdAt.getTime()) / DAY),
+      distinctSurfaces: surfaces.size,
+      topSurfaceShare: surfaceTotal > 0 ? topSurface / surfaceTotal : 0,
+      studentMissCount: mine.filter((h) => !h.studentFlagged).length,
     };
     rows.push({ ...stats, recommendation: recommendMigration(stats) });
   }

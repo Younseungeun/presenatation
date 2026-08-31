@@ -19,7 +19,7 @@ export interface DetectionItemStats {
   matched: number;
   /** 정탐 — 걸렸고 운영자가 반려·철회로 확정 */
   truePos: number;
-  /** 오탐 — 걸렸는데 운영자가 "오탐"으로 승인 (강등의 이유이자 IRIS 에게 가르칠 것) */
+  /** 오탐 — 걸렸는데 운영자가 "오탐"으로 승인 (위임의 이유이자 IRIS 에게 가르칠 것) */
   falsePos: number;
   /** 항목 나이(일) — 학습표현 등록일 / 규칙은 미측정이면 undefined */
   ageDays?: number;
@@ -31,13 +31,26 @@ export interface DetectionItemStats {
   distinctSurfaces?: number;
   /** 최빈 표면형 점유율 0~1 (형태 안정성 판별자) — 학습표현만 */
   topSurfaceShare?: number;
+  /**
+   * 졸업 관찰에서 IRIS 가 놓친 횟수 — **layer='IRIS'(졸업한 표현)만.**
+   * `GraduationWatchHit.studentFlagged=false` 의 집계다: 졸업한 표현이 나타났는데
+   * 학생이 같은 유형을 못 잡았다 = 졸업이 성급했다는 증거 (졸업 강등의 재료).
+   */
+  studentMissCount?: number;
 }
 
+/**
+ * 이동의 두 축 (2026-08-31 창업자 어휘 확정):
+ *  · **축 내(승격)** — 같은 입력 매칭 축 안에서 위로. 조건 = 문맥 조건 코드화의 완결성
+ *  · **축 간(졸업/졸업 강등)** — 매칭 축 ↔ IRIS(의미 추론). 상하가 아니라 **방식 교체**다:
+ *    형태 매칭과 의미 추론은 잡는 원리가 달라, 어느 쪽이 이 항목에 효과적인가로 정한다
+ */
 export type LadderRecommendationKind =
-  | 'PROMOTE_RULE' // 학습표현 → 규칙 WARN (형태 굳음)
-  | 'GRADUATE_IRIS' // 학습표현 → IRIS 졸업 (형태 다양 = 뜻으로)
-  | 'PROMOTE_BLOCK' // 규칙 WARN → BLOCK (관찰 자격 충족 — 스트레스 시험·승인은 사람)
-  | 'DEMOTE_IRIS'; // 규칙 → IRIS 강등 (문맥 못 가름)
+  | 'PROMOTE_RULE' // [축 내 승격] 학습표현 → 규칙 WARN (형태 굳음 = 코드화 가능)
+  | 'PROMOTE_BLOCK' // [축 내 승격] 규칙 WARN → BLOCK (관찰 자격 충족 — 스트레스 시험·승인은 사람)
+  | 'GRADUATE_IRIS' // [축 간 졸업] 학습표현 → IRIS (실적 통과 + 형태 다양 = 뜻으로 잡아야)
+  | 'DELEGATE_IRIS' // [축 간 졸업 — 문맥 위임] 규칙 → IRIS (오탐 = 형태는 맞는데 문맥을 못 가름)
+  | 'UNGRADUATE'; // [축 간 졸업 강등] IRIS → 사전/규칙 (졸업 관찰에서 미탐 누적)
 
 export interface LadderRecommendation {
   kind: LadderRecommendationKind;
@@ -50,7 +63,9 @@ export interface LadderRecommendation {
  *  · 5조건(걸림30·정탐100%·30일·리서처5·부정0) = 졸업 후보와 동일 잣대(두 출구가 같아야)
  *  · 형태 안정(≤3종·최빈≥80%) = "늘 같은 꼴로 온다"의 초안 경계
  *  · BLOCK 관찰(100건·90일) = rule of three 로 오탐률 상한 ~3% (필요조건, 충분조건은 사람)
- *  · 강등 표본 하한 20 = IRIS 가 무엇을 이어받는지조차 실측 못 하는 규칙은 강등감 아님
+ *  · 위임 표본 하한 20 = IRIS 가 무엇을 이어받는지조차 실측 못 하는 규칙은 위임감 아님
+ *  · 졸업 강등 미탐 하한 2 = 관찰 미탐 1건은 그 신고·판정 자체가 오판일 수 있다
+ *    (재활성화가 "미탐 신고 하나로 사전이 스스로 자라는 경로"가 되지 않게 — X-5 원칙)
  */
 export const LADDER_THRESHOLDS = {
   phraseMinMatched: 30,
@@ -60,7 +75,8 @@ export const LADDER_THRESHOLDS = {
   formMinTopShare: 0.8,
   blockMinMatched: 100,
   blockMinAgeDays: 90,
-  demoteMinMatched: 20,
+  delegateMinMatched: 20,
+  ungraduateMinMisses: 2,
 } as const;
 
 const pct = (v: number) => Math.round(v * 100);
@@ -97,11 +113,13 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
   }
 
   if (s.layer === 'RULE_WARN') {
-    // 오탐이 있으면 승격 자격 소멸 — 그건 "형태는 맞는데 문맥을 못 가른다" = IRIS감
+    // 오탐이 있으면 승격 자격 소멸 — 그건 "형태는 맞는데 문맥을 못 가른다" = IRIS감.
+    // 실패가 아니라 **관할 이전**이다(축 간 이동 = 졸업 계열) — 형태 매칭이 못 가르는
+    // 문맥은 의미 추론의 몫이라, 위로 못 간 것이 아니라 옆 축으로 보낼 때가 된 것이다
     if (s.falsePos > 0) {
-      return s.matched >= T.demoteMinMatched
-        ? { kind: 'DEMOTE_IRIS', reason: `오탐 ${s.falsePos}건 — 문맥 못 가름, IRIS 위임 검토` }
-        : null; // 표본 하한 미달 — 강등 논의도 이르다
+      return s.matched >= T.delegateMinMatched
+        ? { kind: 'DELEGATE_IRIS', reason: `오탐 ${s.falsePos}건 — 문맥 못 가름, IRIS 위임(졸업) 검토` }
+        : null; // 표본 하한 미달 — 위임 논의도 이르다
     }
     // 오탐 0 — BLOCK 관찰 자격(문·자격·승인 중 관찰 몫만). 스트레스 시험·승인은 사람
     if (s.matched >= T.blockMinMatched && (s.ageDays ?? 0) >= T.blockMinAgeDays) {
@@ -113,6 +131,29 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
     return null;
   }
 
-  // RULE_BLOCK·IRIS 는 이 화면에서 더 올릴 곳이 없다(BLOCK 은 최상단, IRIS 강등은 규칙 쪽에서 본다)
+  if (s.layer === 'IRIS') {
+    // **졸업 강등** (2026-08-31) — 졸업 관찰(recordGraduationWatch)이 남긴 미탐이 문턱에
+    // 닿으면 IRIS 관할을 거둘 때다. 내릴 곳은 올라갈 때와 같은 판별자(형태 안정성)로 가른다:
+    //   형태 안정 → 코드 규칙 이식 검토 (문맥 조건을 코드로 — 이식되면 사전 항목이 아니다)
+    //   형태 다양/미상 → 재활성화 (사전 복귀 — reactivatePhrase, 실행은 사람의 한 클릭)
+    // 대칭이 곧 원칙이다: 축 간 이동은 상하가 아니라 "어느 방식이 효과적인가"이므로,
+    // 판별자도 방향과 무관하게 하나여야 한다.
+    if ((s.studentMissCount ?? 0) >= T.ungraduateMinMisses) {
+      const formStable =
+        (s.distinctSurfaces ?? 99) <= T.formMaxSurfaces &&
+        (s.topSurfaceShare ?? 0) >= T.formMinTopShare;
+      return {
+        kind: 'UNGRADUATE',
+        reason: formStable
+          ? `졸업 관찰 미탐 ${s.studentMissCount}건 · 형태 안정 — 코드 규칙 이식 검토 (졸업 강등)`
+          : `졸업 관찰 미탐 ${s.studentMissCount}건 — 재활성화(사전 복귀) 검토 (졸업 강등)`,
+      };
+    }
+    return null;
+  }
+
+  // RULE_BLOCK 은 이 화면에서 더 올릴 곳이 없다 (BLOCK 은 축 내 최상단.
+  // BLOCK→WARN 하강은 자동 추천이 원리적으로 불가능하다 — 즉시 거절은 큐에 안 남아
+  // 오탐 증거 채널이 없다. 리서처 이의·평가셋 회귀로 사람이 코드 리뷰에서 판단한다)
   return null;
 }

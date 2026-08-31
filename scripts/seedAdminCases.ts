@@ -3,6 +3,7 @@ import { PrismaClient, type Prisma } from '@prisma/client';
 import type { Finding } from '../src/domain/compliance';
 import type { ApprovalAction } from '../src/domain/operatorApproval';
 import { encryptField } from '../src/server/fieldCrypto';
+import { storeTeacherPackForReport } from '../src/server/teacherPackStore';
 
 // 관리자 화면의 **모든 상태를 한 번에 띄우는 시드** — npm run seed:admin
 //
@@ -326,21 +327,28 @@ async function main() {
       status: 'DRAFT',
       deadline: ahead(30 * DAY),
     });
+    // **ruleId 를 실은 규칙 소견으로 만든다** (2026-08-31). ruleId 가 있어야 검출 항목
+    // 관리가 항목별 정탐/오탐을 집계하고, 질문지의 "검출 항목 이력" 절이 그려진다 —
+    // 이 두 화면이 이 라벨 표본의 존재 이유다. 기존 행도 소견만 같은 모양으로 맞춘다
+    // (덧붙이기 규칙의 예외가 아니다 — [案] 표본 자신의 모양 교정이라 남의 시나리오를 안 밟는다)
+    const labFindings = findings([
+      {
+        category: 'PROFIT_GUARANTEE',
+        severity: 'WARN',
+        quote: '수익이 날 수밖에 없는 구조',
+        reason: '수익 보장으로 읽힙니다.',
+        source: 'rule',
+        ruleId: 'PROFIT_PROMISE',
+        layer: 'L1_RAW',
+      },
+    ]);
     if (!before) {
       await prisma.complianceReview.create({
         data: {
           reportId: rep.id,
           decision: 'WARN',
           reviewer: 'rule+claude:claude-opus-5',
-          findingsJson: findings([
-            {
-              category: 'PROFIT_GUARANTEE',
-              severity: 'WARN',
-              quote: '수익이 날 수밖에 없는 구조',
-              reason: '수익 보장으로 읽힙니다.',
-              source: 'ai',
-            },
-          ]),
+          findingsJson: labFindings,
           needsOperatorReview: false,
           operatorReviewedAt: ago(2 * DAY),
           operatorReviewedBy: operator.id,
@@ -351,7 +359,18 @@ async function main() {
           createdAt: ago(3 * DAY),
         },
       });
+    } else {
+      await prisma.complianceReview.update({
+        where: { id: before.id },
+        data: { findingsJson: labFindings },
+      });
     }
+    // **재학습 논의 자료(질문지)를 운영 경로 그대로 저장한다** (2026-08-31).
+    // 손으로 질문지 문자열을 짓지 않는다 — 실제 조립기(buildTeacherPack)가 케이스별
+    // 논의 방향·검출 항목 이력까지 만든 것을 박아야, 박스와 상세 화면이 운영과 같은
+    // 모양으로 그려진다. verdictNeedsTeacherPack 판단(논의 불필요 케이스 제외)도
+    // 이 함수가 스스로 한다. 매 실행 재생성되지만 내용이 같아 여러 번 돌려도 안전하다
+    await storeTeacherPackForReport(prisma, rep.id);
     log(c.label, !before);
   }
 
@@ -399,6 +418,47 @@ async function main() {
       });
     }
     log(`${p.phrase} (${p.active ? '활성' : '비활성'} ${p.confirmedCount}/${p.matchCount})`, !before);
+  }
+
+  // ── ④-a 졸업 관찰 + 졸업 강등 추천 표본 (2026-08-31) ────────────────────
+  //
+  // 졸업(IRIS 위임) 직후 7일 관찰 창의 세 상태를 한 항목으로 만든다: 사전 탭의
+  // "졸업 — IRIS가 맡음" 칩 · 졸업 관찰 박스 · 그리고 관찰 미탐이 문턱(2)에 닿아
+  // 검출 항목 관리에 "↙ 졸업 강등" 추천이 뜨는 상태. 이 표본이 없으면 졸업 강등
+  // 추천 경로는 코드에는 있는데 화면으로는 한 번도 그려지지 않는다.
+  {
+    const phrase = `${MARK} 확정 수익 구간입니다`;
+    const before = await prisma.learnedPhrase.findFirst({ where: { phrase } });
+    if (!before) {
+      const grad = await prisma.learnedPhrase.create({
+        data: {
+          phrase,
+          normalized: phrase.replace(/\s+/g, ''),
+          category: 'PROFIT_GUARANTEE',
+          matchCount: 31,
+          confirmedCount: 31,
+          active: false, // 졸업 = active false + graduatedAt 있음 (비활성과 다른 얼굴)
+          graduatedAt: ago(2 * DAY),
+          note: `${MARK} 졸업 관찰 표본 — 5조건 통과 후 IRIS에 위임`,
+          createdBy: operator.id,
+          createdAt: ago(40 * DAY),
+          lastMatchedAt: ago(3 * DAY),
+        },
+      });
+      // 관찰 기록 3건 — 그중 IRIS 미탐 2건 = 졸업 강등 문턱(ungraduateMinMisses)에 닿는다.
+      // complianceReviewId 는 실제 검수 건을 물린다 (관찰은 검수 커밋 뒤에 남는 기록이라)
+      const anyReview = await prisma.complianceReview.findFirst({ select: { id: true } });
+      if (anyReview) {
+        await prisma.graduationWatchHit.createMany({
+          data: [
+            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: false, createdAt: ago(DAY) },
+            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: false, createdAt: ago(10 * HOUR) },
+            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: true, createdAt: ago(2 * HOUR) },
+          ],
+        });
+      }
+    }
+    log(`졸업 관찰 — ${phrase} (IRIS 미탐 2/3 → 졸업 강등 추천)`, !before);
   }
 
   // ── ④-b 출처 3종이 한 카드에 모인 보류 (인계 2호 §4) ──────────────────

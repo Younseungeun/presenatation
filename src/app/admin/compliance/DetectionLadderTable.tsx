@@ -14,11 +14,15 @@ const LAYER_LABEL: Record<DetectionLadderRow["layer"], string> = {
   IRIS: "IRIS",
 };
 
+// 축 내 이동(승격 ▲)과 축 간 이동(졸업 ↗ / 졸업 강등 ↙)을 화살표로 가른다 (2026-08-31 어휘).
+// 규칙→IRIS 위임도 하강(▼)이 아니라 관할 이전(↗ 졸업 계열)이다 — 형태 매칭이 못 가르는
+// 문맥은 의미 추론의 몫이라, 실패가 아니라 "어느 방식이 효과적인가"의 답이 바뀐 것이다
 const REC: Record<LadderRecommendationKind, { label: string; color: string }> = {
   PROMOTE_RULE: { label: "▲ 규칙 WARN 승격", color: "#0e6f5c" },
-  GRADUATE_IRIS: { label: "↗ IRIS 졸업", color: "#2a6fb0" },
   PROMOTE_BLOCK: { label: "▲ BLOCK 승격 자격", color: "#0e6f5c" },
-  DEMOTE_IRIS: { label: "▼ IRIS 강등", color: "#bd4242" },
+  GRADUATE_IRIS: { label: "↗ IRIS 졸업 (실적)", color: "#2a6fb0" },
+  DELEGATE_IRIS: { label: "↗ IRIS 졸업 (문맥 위임)", color: "#2a6fb0" },
+  UNGRADUATE: { label: "↙ 졸업 강등 (사전·규칙 복귀)", color: "#bd4242" },
 };
 
 const th: React.CSSProperties = { padding: "8px 10px", fontWeight: 600, whiteSpace: "nowrap" };
@@ -31,12 +35,15 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
 
   return (
     <section style={{ marginTop: 8 }}>
-      <SecHead title="검출 항목 관리 — 승격·강등 사다리">
+      <SecHead title="검출 항목 관리 — 승격·졸업 사다리">
         같은 판정 데이터를 <b>규칙·표현별로 합쳐</b> 봅니다(위 질문지는 사건별). 어느 항목이
         어느 관문 조건에 닿았는지 <b>추천만</b> 냅니다 — 실제 층 이동은 각각 게이트를 타는
-        사람의 일입니다. 문턱 숫자(걸림 {LADDER_THRESHOLDS.phraseMinMatched}·형태 ≤
-        {LADDER_THRESHOLDS.formMaxSurfaces}종·BLOCK {LADDER_THRESHOLDS.blockMinMatched}건 등)는{" "}
-        <b>전부 초안</b>이라 운영 표본이 쌓이면 재보정합니다.
+        사람의 일입니다. ▲승격은 축 안(사전→WARN→BLOCK)에서 <b>문맥 조건을 코드로 적을 수
+        있을 때</b>, ↗졸업·↙졸업 강등은 <b>형태 매칭 ↔ 의미 추론(IRIS) 중 어느 쪽이
+        효과적인가</b>로 정합니다. 문턱 숫자(걸림 {LADDER_THRESHOLDS.phraseMinMatched}·형태 ≤
+        {LADDER_THRESHOLDS.formMaxSurfaces}종·BLOCK {LADDER_THRESHOLDS.blockMinMatched}건·관찰
+        미탐 {LADDER_THRESHOLDS.ungraduateMinMisses}건 등)는 <b>전부 초안</b>이라 운영 표본이
+        쌓이면 재보정합니다.
       </SecHead>
 
       {rows.length === 0 ? (
@@ -76,7 +83,10 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
                     <td style={{ ...td, color: "var(--text-faint)" }}>
                       {r.layer === "PHRASE" && r.distinctSurfaces != null
                         ? `${r.distinctSurfaces}종·최빈 ${Math.round((r.topSurfaceShare ?? 0) * 100)}%`
-                        : "—"}
+                        : r.layer === "IRIS"
+                          ? // 졸업 관찰 중인 표현 — 이 행의 핵심 숫자는 형태가 아니라 IRIS 의 미탐이다
+                            `관찰 미탐 ${r.studentMissCount ?? 0}건`
+                          : "—"}
                     </td>
                     <td style={td}>
                       {r.recommendation ? (

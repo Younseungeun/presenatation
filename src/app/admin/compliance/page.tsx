@@ -373,7 +373,7 @@ function TeacherRelayPanel({
   pending: TeacherAnswerPending[];
   now: Date;
   /** 검출 항목 관리의 추천 요약 — 박스에 칩으로 띄운다 (2026-08-28 창업자 지시) */
-  recs: { promote: number; graduate: number; demote: number };
+  recs: { promote: number; graduate: number; ungraduate: number };
   /**
    * **재학습 신호 — 별도 박스에서 이 박스 안 칩으로 합쳤다** (2026-08-29 창업자 지시).
    * IRIS와 운영자가 엇갈린 건수(하드 네거티브)/문턱. 사다리 추천(항목별 재학습)과
@@ -390,11 +390,13 @@ function TeacherRelayPanel({
     (p) => p.decidedAt && now.getTime() - p.decidedAt.getTime() <= 86_400_000,
   ).length;
 
-  // 추천 칩 — 추천이 생긴 종류만 (승격/졸업/강등). 회색이 아니라 색으로 눈에 띄게
+  // 추천 칩 — 추천이 생긴 종류만 (승격/졸업/졸업 강등). 회색이 아니라 색으로 눈에 띄게.
+  // 졸업 칩은 실적 졸업(GRADUATE_IRIS)과 문맥 위임(DELEGATE_IRIS)을 함께 센다 — 둘 다
+  // 축 간 이동(→IRIS)이고, 증거만 다르다 (상세 화면의 사유가 그 구분을 말한다)
   const recChips = [
     recs.promote > 0 && { label: `승격 추천 ${recs.promote}`, color: "#0e6f5c" },
     recs.graduate > 0 && { label: `졸업 추천 ${recs.graduate}`, color: "#2a6fb0" },
-    recs.demote > 0 && { label: `강등 추천 ${recs.demote}`, color: "#bd4242" },
+    recs.ungraduate > 0 && { label: `졸업 강등 추천 ${recs.ungraduate}`, color: "#bd4242" },
   ].filter(Boolean) as { label: string; color: string }[];
 
   return (
@@ -1085,12 +1087,15 @@ export default async function AdminCompliancePage({
     getCustomViolationTypes(prisma),
     getDetectionLadder(prisma),
   ]);
-  // 재학습 박스에 붙일 추천 칩 — 검출 항목 관리의 추천을 승격/졸업/강등으로 접는다 (2026-08-28)
-  const ladderRecs = { promote: 0, graduate: 0, demote: 0 };
+  // 재학습 박스에 붙일 추천 칩 — 검출 항목 관리의 추천을 축으로 접는다 (2026-08-31 어휘 확정):
+  //   승격(축 내 상향) / 졸업(축 간 → IRIS: 실적 졸업 + 문맥 위임) / 졸업 강등(축 간 ← IRIS).
+  // 예전의 "강등" 칩은 규칙→IRIS 위임이었는데, 그건 하강이 아니라 관할 이전이라 졸업으로 접는다
+  const ladderRecs = { promote: 0, graduate: 0, ungraduate: 0 };
   for (const r of ladder) {
     if (!r.recommendation) continue;
-    if (r.recommendation.kind === "DEMOTE_IRIS") ladderRecs.demote += 1;
-    else if (r.recommendation.kind === "GRADUATE_IRIS") ladderRecs.graduate += 1;
+    if (r.recommendation.kind === "UNGRADUATE") ladderRecs.ungraduate += 1;
+    else if (r.recommendation.kind === "GRADUATE_IRIS" || r.recommendation.kind === "DELEGATE_IRIS")
+      ladderRecs.graduate += 1;
     else ladderRecs.promote += 1; // PROMOTE_RULE · PROMOTE_BLOCK
   }
   // 문항은 사전 항목에 붙어 있다 — 졸업이 만든 것이라 그 항목 카드에서 닿는 것이 맞다.

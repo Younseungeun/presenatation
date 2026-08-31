@@ -12,6 +12,7 @@ import type { RiskLevel } from '@/domain/instrumentRisk';
 import { buildUserMessage, SYSTEM_PROMPT } from '@/infra/compliance/claudeScreener';
 import type { CalibrationExample } from '@/domain/screeningAccuracy';
 import { targetPriceToMagnitudePct } from '@/domain/scoring';
+import { getDetectionLadder } from './detectionLadderService';
 
 // **2차를 사람이 나른다** (2026-08-21 사용자 확정).
 //
@@ -65,6 +66,28 @@ export interface TeacherPackDeps {
    * **사람이 방향을 튼 지점**만 남는다.
    */
   corrections: CalibrationExample[];
+}
+
+/**
+ * 이 건의 소견을 낸 검출 항목의 **누적 성적** — 사다리 논의의 객관 재료 (2026-08-31).
+ *
+ * 질문지의 3·4번(코드화 사다리·관할 재검토)은 항목의 실적으로 판단해야 하는 논의인데,
+ * 예전 질문지에는 그 숫자가 없었다 — 검출 항목 관리가 집계해 둔 값이 화면(상세)에는
+ * 있고 정작 논의장으로 들고 가는 문서에는 빠져 있었다. 걸림/정탐/오탐과 층·추천을
+ * 소견 옆에 실어, 창업자가 화면을 오가지 않고 문서 하나로 사다리를 논의할 수 있게 한다.
+ */
+export interface LadderHistoryLine {
+  /** 항목 표시명 — 사전 표현 원문 또는 코드 규칙 id */
+  label: string;
+  /** 지금 있는 층 (학습표현 / 규칙 WARN / 규칙 BLOCK / IRIS=졸업 관찰 중) */
+  layer: 'PHRASE' | 'RULE_WARN' | 'RULE_BLOCK' | 'IRIS';
+  matched: number;
+  truePos: number;
+  falsePos: number;
+  /** 졸업 관찰의 IRIS 미탐 수 — IRIS 층(졸업 표현)만 */
+  studentMissCount?: number;
+  /** 검출 항목 관리의 추천 이동 — 있으면 그대로 싣는다 (사유 포함) */
+  recommendation?: string | null;
 }
 
 export async function buildTeacherPack(
@@ -139,13 +162,38 @@ export async function buildTeacherPack(
     confidence: card?.confidence ?? null,
   };
 
+  const findings = parseFindings(review.findingsJson);
+
+  // 사다리 이력 — 이 건의 소견을 낸 항목만 골라 싣는다. 집계 실패는 결측이지 사고가
+  // 아니다(질문지는 이력 없이도 나가야 한다 — 교사에게 못 묻는 것보다 낫다)
+  const findingIds = new Set(findings.map((f) => f.ruleId).filter(Boolean) as string[]);
+  const itemHistory: LadderHistoryLine[] =
+    findingIds.size === 0
+      ? []
+      : await getDetectionLadder(prisma)
+          .then((rows) =>
+            rows
+              .filter((row) => findingIds.has(row.id))
+              .map((row) => ({
+                label: row.label,
+                layer: row.layer,
+                matched: row.matched,
+                truePos: row.truePos,
+                falsePos: row.falsePos,
+                studentMissCount: row.studentMissCount,
+                recommendation: row.recommendation?.reason ?? null,
+              })),
+          )
+          .catch(() => []);
+
   return {
     ...assembleTeacherPack({
       packId: teacherPackId(review.id),
       input,
-      findings: parseFindings(review.findingsJson),
+      findings,
       corrections: deps.corrections,
       humanVerdict: readHumanVerdict(review),
+      itemHistory,
     }),
     reportTitle: r.title,
   };
@@ -202,6 +250,8 @@ export function assembleTeacherPack(args: {
   corrections: CalibrationExample[];
   /** 사람 판정 — 이 자료의 절반. 없으면(판정 전) 비교가 성립하지 않는다 */
   humanVerdict?: HumanVerdict | null;
+  /** 소견을 낸 항목들의 누적 성적 — 사다리 논의 재료 (없으면 그 절만 빠진다) */
+  itemHistory?: LadderHistoryLine[];
   /** 시험이 고정값을 넣는다. 운영에서는 비워 두어 **부를 때마다 새로** 만든다 */
   boundary?: string;
 }): { text: string; packId: string } {
@@ -230,6 +280,7 @@ export function assembleTeacherPack(args: {
     '',
     ...firstTierBlock(args.findings),
     '',
+    ...ladderHistoryBlock(args.itemHistory ?? []),
     '---',
     '',
     `<규정>\n${SYSTEM_PROMPT}\n</규정>`,
@@ -390,6 +441,39 @@ function firstTierBlock(findings: Finding[]): string[] {
 }
 
 /**
+ * 소견을 낸 항목들의 **누적 성적** — 사다리 논의(3·4번)의 객관 재료 (2026-08-31).
+ *
+ * 재학습 라벨이 아니라 **논의 맥락**이다 — 읽기 전용 문맥과 같은 규율로, 라벨에 넣지
+ * 말라고 명시한다. 이력이 없으면(집계 실패·소견 무 ruleId) 절 자체가 빠진다.
+ */
+function ladderHistoryBlock(history: LadderHistoryLine[]): string[] {
+  if (history.length === 0) return [];
+  const layerLabel: Record<LadderHistoryLine['layer'], string> = {
+    PHRASE: '학습표현',
+    RULE_WARN: '규칙 WARN',
+    RULE_BLOCK: '규칙 BLOCK',
+    IRIS: 'IRIS (졸업 관찰 중)',
+  };
+  const line = (h: LadderHistoryLine) => {
+    const parts = [
+      `- **${h.label}** [${layerLabel[h.layer]}] — 걸림 ${h.matched} · 정탐 ${h.truePos} · 오탐 ${h.falsePos}`,
+    ];
+    if (h.layer === 'IRIS') parts.push(`  · 졸업 관찰 미탐 ${h.studentMissCount ?? 0}건`);
+    if (h.recommendation) parts.push(`  · 검출 항목 관리 추천: ${h.recommendation}`);
+    return parts.join('\n');
+  };
+  return [
+    '### 검출 항목 이력 — 사다리 논의 재료 (재학습 라벨에 넣지 마세요)',
+    '',
+    '이 건의 소견을 낸 항목들이 지금까지 쌓은 성적입니다. 3·4번(코드화 사다리·관할',
+    '재검토)은 이 숫자로 논의해 주세요 — 정탐/오탐은 운영자 판정으로 확정된 값입니다.',
+    '',
+    history.map(line).join('\n'),
+    '',
+  ];
+}
+
+/**
  * **케이스별 논의 방향** (2026-08-27 창업자 지시). 사람이 무슨 판정을 내렸는지에 따라
  * 물어볼 것이 다르다:
  *   반려          → 모델이 놓쳤거나 약하게 봤다 → 학습 표현 등록 + 재학습 + (필요시) BLOCK 승격
@@ -405,11 +489,23 @@ function caseGuide(v: HumanVerdict | null): { headline: string; points: string[]
     points: [
       '1. **왜 갈렸나** — 사람은 위반으로 봤는데 자동 검수는 어디서 놓쳤나 (본문의 어느 표현/문맥)',
       '2. **IRIS 재학습** — 비슷한 표현을 앞으로 맞히려면 학생 모델이 어떤 특징을 잡아야 하나',
-      '3. **학습 표현 등록** — 사전에 남긴다면 어떤 표현이 재사용 가능한가 (종목명·숫자를 뺀,',
-      '   너무 넓지 않은 형태). 등록하면 **항상 WARN** 으로 동작합니다',
-      '4. **BLOCK 승격(코드로만)** — 즉시 거절이 필요하면 사전 항목을 BLOCK 으로 켜는 게 아니라',
-      '   **코드 레벨 규칙**에 어떤 문맥 조건을 적어야 오탐 없이 BLOCK 할 수 있을지 (넓으면',
-      '   정상 리포트가 사람 확인 없이 죽습니다 — 그래서 코드로만 엽니다)',
+      // 3~4번은 별개 선택지가 아니라 **한 사다리의 눈금**이다 (2026-08-31 창업자 확정 어휘).
+      // 갈림의 기준은 "이 표현의 문맥 조건을 코드로 얼마나 완결되게 적을 수 있는가" —
+      // 위로 갈수록(등록→WARN→BLOCK) 완결성 요구가 높아지고, BLOCK 은 오탐 0 이 측정돼야 한다
+      '3. **코드화 사다리 — 어느 눈금까지 올릴 수 있나** — 이 표현을 잡는 자리는 세 눈금 중',
+      '   하나입니다. 기준은 **문맥 조건을 코드로 적을 수 있는 완결성**입니다:',
+      '   · **학습 표현 등록** (완결성 최소) — 문자열 하나. 재사용 가능한 형태로(종목명·숫자를',
+      '     뺀, 너무 넓지 않게). 등록하면 **항상 WARN** 으로 동작합니다',
+      '   · **코드 규칙 WARN** — "어떤 문맥에서만"(약속 어미·유도 어휘·부정 범위)을 코드로',
+      '     적을 수 있을 때. 형태가 굳어 있어야(늘 같은 꼴) 패턴이 성립합니다',
+      '   · **코드 규칙 BLOCK** (완결성 최대, 코드로만) — 즉시 거절이라 되돌릴 사람이 없으므로',
+      '     평가셋에서 **오탐 0 이 측정**돼야 합니다. 넓으면 정상 리포트가 사람 확인 없이 죽습니다',
+      '4. **관할 재검토 — 형태 매칭인가, 의미 추론(IRIS)인가** — 위 사다리와 별개의 축입니다.',
+      '   같은 뜻이 늘 다른 꼴로 오면(패러프레이즈) 사다리 어느 눈금도 못 잡습니다 — 그때는',
+      '   IRIS 관할(졸업)입니다. 반대로 이 건이 **IRIS 가 맡던 것을 놓친 것**(졸업 이력 있는',
+      '   표현·IRIS 미탐)이면 **졸업 강등**을 논의해 주세요: 형태가 굳어 있으면 위 사다리의',
+      '   어느 눈금으로 내릴지(재활성화=사전 / 규칙 WARN / BLOCK 은 코드로만), 형태가 다양하면',
+      '   IRIS 에 남기고 재학습으로 고칠지',
     ],
   };
   if (!v) return rejectLike;
@@ -502,8 +598,8 @@ function discussionFormat(packId: string, verdict: HumanVerdict | null): string[
     '이 한 줄이 **규칙을 고칠 일**과 **심각도를 고칠 일**을 가릅니다. 없으면 재학습에',
     '기록되지 않습니다.',
     '',
-    '위 결론은 재학습용 라벨일 뿐이고, 학습 표현 등록·BLOCK 승격(위 3·4번)은 창업자가',
-    '이 논의를 읽고 코드로 판단합니다 — JSON 에 넣지 마세요.',
+    '위 결론은 재학습용 라벨일 뿐이고, 사다리 이동(학습 표현 등록·승격·졸업·졸업 강등 —',
+    '위 3·4번)은 창업자가 이 논의를 읽고 코드로 판단합니다 — JSON 에 넣지 마세요.',
   ];
 }
 
