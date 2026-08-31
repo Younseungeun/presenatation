@@ -1589,8 +1589,9 @@ export default async function AdminCompliancePage({
               <span className={`${a.n} ${graduationWatch.some((r) => r.studentMissCount > 0) ? "" : a.nCalm}`}>
                 {graduationWatch.length}
               </span></>}>사전에서 <b>내린 지 {GRADUATION_WATCH_DAYS}일 안</b>인 표현입니다. 지금은 IRIS만 이
-              표현을 맡고 있어, IRIS가 놓치면 <b>아무도 막지 않습니다.</b> 놓친 것이 쌓이면
-              졸업이 성급했다는 증거이므로 되살리십시오.</SecHead>
+              표현을 맡고 있어, IRIS가 놓치면 <b>아무도 막지 않습니다.</b> 놓치는 동안의 보호는
+              <b> 되살리기(응급 조치)</b>로 즉시 복구하고, 놓쳤다는 사실 자체는 <b>재학습 재료</b>로
+              보내십시오 — 미탐은 IRIS를 고칠 일이지, 그것만으로 관할을 옮길 일이 아닙니다.</SecHead>
           {/* `getGraduationWatch` 는 `graduatedAt: { gte: cutoff }` 로 이미 걸렀지만
               프리즈마 타입은 여전히 nullable 이다. 있을 수 없는 행을 위한 빈 화면을
               그리느니 여기서 좁힌다 — 걸러진 행이 생기면 안 보일 뿐 터지지 않는다 */}

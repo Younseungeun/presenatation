@@ -27,14 +27,21 @@ export interface DetectionItemStats {
   distinctResearchers?: number;
   /** 부정 문맥에서 걸린 hit 수 (5조건: 0이어야) — 학습표현만 */
   negationHits?: number;
-  /** 고유 표면형 수 (형태 안정성 판별자) — 학습표현만 */
+  /**
+   * 고유 표면형 수 (형태 안정성 판별자).
+   * PHRASE 층은 등록 후 hit 의 표면형, **IRIS 층(졸업 표현)은 졸업 후 관찰의 표면형**이다 —
+   * 졸업 전 표면형은 졸업의 근거(형태 다양)라 반대 방향(강등)의 증거로 못 쓴다.
+   */
   distinctSurfaces?: number;
-  /** 최빈 표면형 점유율 0~1 (형태 안정성 판별자) — 학습표현만 */
+  /** 최빈 표면형 점유율 0~1 (형태 안정성 판별자) — distinctSurfaces 와 같은 출처 */
   topSurfaceShare?: number;
   /**
    * 졸업 관찰에서 IRIS 가 놓친 횟수 — **layer='IRIS'(졸업한 표현)만.**
-   * `GraduationWatchHit.studentFlagged=false` 의 집계다: 졸업한 표현이 나타났는데
-   * 학생이 같은 유형을 못 잡았다 = 졸업이 성급했다는 증거 (졸업 강등의 재료).
+   * `GraduationWatchHit.studentFlagged=false` 의 집계다.
+   *
+   * ⚠ **이동(졸업 강등)의 트리거가 아니다** (2026-08-31 창업자 확정). IRIS 의 실패는
+   * 학습적이라 처방이 재학습(가중치·로직)이고, 뚫리는 동안의 보호는 응급 재활성화가
+   * 맡는다(X-5). 여기 실리는 이유는 표시·재학습 재료 집계뿐이다.
    */
   studentMissCount?: number;
 }
@@ -50,7 +57,7 @@ export type LadderRecommendationKind =
   | 'PROMOTE_BLOCK' // [축 내 승격] 규칙 WARN → BLOCK (관찰 자격 충족 — 스트레스 시험·승인은 사람)
   | 'GRADUATE_IRIS' // [축 간 졸업] 학습표현 → IRIS (실적 통과 + 형태 다양 = 뜻으로 잡아야)
   | 'DELEGATE_IRIS' // [축 간 졸업 — 문맥 위임] 규칙 → IRIS (오탐 = 형태는 맞는데 문맥을 못 가름)
-  | 'UNGRADUATE'; // [축 간 졸업 강등] IRIS → 사전/규칙 (졸업 관찰에서 미탐 누적)
+  | 'UNGRADUATE'; // [축 간 졸업 강등] IRIS → 사전/규칙 (졸업 후 출현이 굳은 형태 = 코드가 완전히 잡음)
 
 export interface LadderRecommendation {
   kind: LadderRecommendationKind;
@@ -64,8 +71,8 @@ export interface LadderRecommendation {
  *  · 형태 안정(≤3종·최빈≥80%) = "늘 같은 꼴로 온다"의 초안 경계
  *  · BLOCK 관찰(100건·90일) = rule of three 로 오탐률 상한 ~3% (필요조건, 충분조건은 사람)
  *  · 위임 표본 하한 20 = IRIS 가 무엇을 이어받는지조차 실측 못 하는 규칙은 위임감 아님
- *  · 졸업 강등 미탐 하한 2 = 관찰 미탐 1건은 그 신고·판정 자체가 오판일 수 있다
- *    (재활성화가 "미탐 신고 하나로 사전이 스스로 자라는 경로"가 되지 않게 — X-5 원칙)
+ *  · 졸업 강등 관찰 하한 3 = 표면형 안정은 분포 주장이라 출현 1~2건으로는 "굳었다"를
+ *    말할 수 없다 (1건이면 최빈 100%가 자동으로 성립해 버린다)
  */
 export const LADDER_THRESHOLDS = {
   phraseMinMatched: 30,
@@ -76,7 +83,7 @@ export const LADDER_THRESHOLDS = {
   blockMinMatched: 100,
   blockMinAgeDays: 90,
   delegateMinMatched: 20,
-  ungraduateMinMisses: 2,
+  ungraduateMinObserved: 3,
 } as const;
 
 const pct = (v: number) => Math.round(v * 100);
@@ -132,21 +139,26 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
   }
 
   if (s.layer === 'IRIS') {
-    // **졸업 강등** (2026-08-31) — 졸업 관찰(recordGraduationWatch)이 남긴 미탐이 문턱에
-    // 닿으면 IRIS 관할을 거둘 때다. 내릴 곳은 올라갈 때와 같은 판별자(형태 안정성)로 가른다:
-    //   형태 안정 → 코드 규칙 이식 검토 (문맥 조건을 코드로 — 이식되면 사전 항목이 아니다)
-    //   형태 다양/미상 → 재활성화 (사전 복귀 — reactivatePhrase, 실행은 사람의 한 클릭)
-    // 대칭이 곧 원칙이다: 축 간 이동은 상하가 아니라 "어느 방식이 효과적인가"이므로,
-    // 판별자도 방향과 무관하게 하나여야 한다.
-    if ((s.studentMissCount ?? 0) >= T.ungraduateMinMisses) {
-      const formStable =
-        (s.distinctSurfaces ?? 99) <= T.formMaxSurfaces &&
-        (s.topSurfaceShare ?? 0) >= T.formMinTopShare;
+    // **졸업 강등 = 졸업의 거울** (2026-08-31 창업자 확정 — 실패 트리거에서 적합성
+    // 트리거로 재정의). 축 간 이동의 트리거는 양방향 모두 "어느 방식이 이 표현에
+    // 구조적으로 우위인가"다: 졸업이 형태 다양(뜻으로 잡아야)이었듯, 졸업 강등은
+    // **졸업 후 출현이 굳은 형태로 반복**되어 형태 매칭이 완전히 잡는다는 실측이다.
+    // 이때 내리는 것은 강등이 아니라 집행력 승급이다 — 코드만이 즉시 거절 권한과
+    // 추론 비용 0·장애 무관을 가지며, BLOCK 까지는 내려온 뒤 축 내 관문을 그대로 탄다.
+    //
+    // **IRIS 의 미탐은 여기 안 낀다.** 규칙의 실패는 구조적(형태로는 문맥을 못 가른다 —
+    // 고칠 수 없음)이라 이동 사유가 되지만, IRIS 의 실패는 학습적(재학습으로 고침)이다.
+    // 뚫리는 동안의 보호는 응급 재활성화(X-5, 사람 한 클릭)가 맡는다 — 그건 이동 결정이
+    // 아니라 사고 대응이고, 관찰 박스가 그 길을 안내한다.
+    const formStable =
+      (s.distinctSurfaces ?? 99) <= T.formMaxSurfaces &&
+      (s.topSurfaceShare ?? 0) >= T.formMinTopShare;
+    if (s.matched >= T.ungraduateMinObserved && formStable) {
       return {
         kind: 'UNGRADUATE',
-        reason: formStable
-          ? `졸업 관찰 미탐 ${s.studentMissCount}건 · 형태 안정 — 코드 규칙 이식 검토 (졸업 강등)`
-          : `졸업 관찰 미탐 ${s.studentMissCount}건 — 재활성화(사전 복귀) 검토 (졸업 강등)`,
+        reason:
+          `졸업 후 출현 ${s.matched}건이 굳은 형태(표면형 ${s.distinctSurfaces ?? '—'}종·최빈 ` +
+          `${pct(s.topSurfaceShare ?? 0)}%) — 코드가 완전히 잡음: 재활성화 후 축 내 승강 검토 (졸업 강등)`,
       };
     }
     return null;

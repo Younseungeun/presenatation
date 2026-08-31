@@ -41,8 +41,8 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
         사람의 일입니다. ▲승격은 축 안(사전→WARN→BLOCK)에서 <b>문맥 조건을 코드로 적을 수
         있을 때</b>, ↗졸업·↙졸업 강등은 <b>형태 매칭 ↔ 의미 추론(IRIS) 중 어느 쪽이
         효과적인가</b>로 정합니다. 문턱 숫자(걸림 {LADDER_THRESHOLDS.phraseMinMatched}·형태 ≤
-        {LADDER_THRESHOLDS.formMaxSurfaces}종·BLOCK {LADDER_THRESHOLDS.blockMinMatched}건·관찰
-        미탐 {LADDER_THRESHOLDS.ungraduateMinMisses}건 등)는 <b>전부 초안</b>이라 운영 표본이
+        {LADDER_THRESHOLDS.formMaxSurfaces}종·BLOCK {LADDER_THRESHOLDS.blockMinMatched}건·졸업 후
+        관찰 {LADDER_THRESHOLDS.ungraduateMinObserved}건 등)는 <b>전부 초안</b>이라 운영 표본이
         쌓이면 재보정합니다.
       </SecHead>
 
@@ -84,8 +84,9 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
                       {r.layer === "PHRASE" && r.distinctSurfaces != null
                         ? `${r.distinctSurfaces}종·최빈 ${Math.round((r.topSurfaceShare ?? 0) * 100)}%`
                         : r.layer === "IRIS"
-                          ? // 졸업 관찰 중인 표현 — 이 행의 핵심 숫자는 형태가 아니라 IRIS 의 미탐이다
-                            `관찰 미탐 ${r.studentMissCount ?? 0}건`
+                          ? // 졸업 관찰 중인 표현 — 형태(졸업 후 표면형)가 강등의 트리거,
+                            // 미탐은 재학습 신호다 (이동 사유 아님 — 2026-08-31 확정)
+                            `${r.distinctSurfaces ?? 0}종·최빈 ${Math.round((r.topSurfaceShare ?? 0) * 100)}% · 미탐 ${r.studentMissCount ?? 0}`
                           : "—"}
                     </td>
                     <td style={td}>

@@ -422,12 +422,14 @@ async function main() {
 
   // ── ④-a 졸업 관찰 + 졸업 강등 추천 표본 (2026-08-31) ────────────────────
   //
-  // 졸업(IRIS 위임) 직후 7일 관찰 창의 세 상태를 한 항목으로 만든다: 사전 탭의
-  // "졸업 — IRIS가 맡음" 칩 · 졸업 관찰 박스 · 그리고 관찰 미탐이 문턱(2)에 닿아
-  // 검출 항목 관리에 "↙ 졸업 강등" 추천이 뜨는 상태. 이 표본이 없으면 졸업 강등
-  // 추천 경로는 코드에는 있는데 화면으로는 한 번도 그려지지 않는다.
+  // 졸업(IRIS 위임) 직후 7일 관찰 창의 상태들을 한 항목으로 만든다: 사전 탭의
+  // "졸업 — IRIS가 맡음" 칩 · 졸업 관찰 박스(미탐 → 응급 재활성화 + 재학습 안내) ·
+  // 그리고 **졸업 후 출현이 굳은 형태로 반복**(같은 표면형 3건 = 관찰 하한)되어
+  // 검출 항목 관리에 "↙ 졸업 강등" 추천이 뜨는 상태. 트리거는 미탐(실패)이 아니라
+  // 형태 안정(적합성)이다 — 미탐 2건은 재학습 신호가 공존하는 모양을 함께 보여준다.
   {
     const phrase = `${MARK} 확정 수익 구간입니다`;
+    const surface = '확정 수익 구간'; // 관찰 3건이 전부 이 한 꼴 → 1종·최빈 100% (굳음)
     const before = await prisma.learnedPhrase.findFirst({ where: { phrase } });
     if (!before) {
       const grad = await prisma.learnedPhrase.create({
@@ -445,20 +447,26 @@ async function main() {
           lastMatchedAt: ago(3 * DAY),
         },
       });
-      // 관찰 기록 3건 — 그중 IRIS 미탐 2건 = 졸업 강등 문턱(ungraduateMinMisses)에 닿는다.
-      // complianceReviewId 는 실제 검수 건을 물린다 (관찰은 검수 커밋 뒤에 남는 기록이라)
+      // 관찰 기록 3건 — 전부 같은 표면형(굳은 형태 = 졸업 강등 트리거), 그중 미탐 2건
+      // (재학습 재료). complianceReviewId 는 실제 검수 건을 물린다
       const anyReview = await prisma.complianceReview.findFirst({ select: { id: true } });
       if (anyReview) {
         await prisma.graduationWatchHit.createMany({
           data: [
-            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: false, createdAt: ago(DAY) },
-            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: false, createdAt: ago(10 * HOUR) },
-            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: true, createdAt: ago(2 * HOUR) },
+            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: false, matchedSurface: surface, createdAt: ago(DAY) },
+            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: false, matchedSurface: surface, createdAt: ago(10 * HOUR) },
+            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: true, matchedSurface: surface, createdAt: ago(2 * HOUR) },
           ],
         });
       }
+    } else {
+      // 표면형 컬럼이 생기기 전에 만든 관찰 기록의 모양 교정 — [案] 표본 자신에게만
+      await prisma.graduationWatchHit.updateMany({
+        where: { phraseId: before.id, matchedSurface: null },
+        data: { matchedSurface: surface },
+      });
     }
-    log(`졸업 관찰 — ${phrase} (IRIS 미탐 2/3 → 졸업 강등 추천)`, !before);
+    log(`졸업 관찰 — ${phrase} (같은 꼴 3건 → 졸업 강등 추천 · 미탐 2건 → 재학습 재료)`, !before);
   }
 
   // ── ④-b 출처 3종이 한 카드에 모인 보류 (인계 2호 §4) ──────────────────

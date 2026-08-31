@@ -1,6 +1,12 @@
 import type { PrismaClient } from '@prisma/client';
 import { isStudentLabel } from '@/domain/studentText';
-import { applyRules, type Finding, type RiskCategory, type ScreeningInput } from '@/domain/compliance';
+import {
+  applyRules,
+  screeningText,
+  type Finding,
+  type RiskCategory,
+  type ScreeningInput,
+} from '@/domain/compliance';
 import { charBigramJaccard } from '@/domain/textSimilarity';
 import {
   ApprovalError,
@@ -295,6 +301,10 @@ export async function recordGraduationWatch(
     }
   }
 
+  // 표면형 = 실제로 걸린 구간 그대로 (span 이 가리키는 원문 조각). 졸업 강등의 증거다 —
+  // 굳은 형태로 반복 출현하면 형태 매칭이 이 표현을 완전히 잡는다는 실측이 된다.
+  // quote 는 앞뒤 문맥이 붙은 인용문이라 표면형 집계에 못 쓴다(같은 매칭도 문맥마다 다르다)
+  const text = screeningText(input);
   const seen = new Set<string>();
   const data = watchFindings.flatMap((f) => {
     const key = `${f.phraseId}:${f.category}`;
@@ -306,6 +316,7 @@ export async function recordGraduationWatch(
         complianceReviewId,
         category: f.category,
         studentFlagged: studentCategories.has(f.category),
+        matchedSurface: f.span ? text.slice(f.span[0], f.span[1]) : null,
         createdAt: now,
       },
     ];

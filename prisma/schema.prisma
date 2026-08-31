@@ -1174,8 +1174,16 @@ model GraduationWatchHit {
   phraseId           String
   complianceReviewId String
   category           String
-  /// 같은 건에서 학생도 같은 유형을 냈는가 — false 가 쌓이면 졸업이 성급했다는 증거다
+  /// 같은 건에서 학생도 같은 유형을 냈는가 — false 가 쌓이면 졸업이 성급했다는 증거다.
+  /// **이동 사유는 아니다** (2026-08-31 확정): IRIS 의 실패는 학습적이라 처방이
+  /// 재학습(+응급 재활성화)이다. 이동(졸업 강등)은 아래 matchedSurface 가 정한다
   studentFlagged     Boolean
+  /// 졸업 표현이 실제로 걸린 표면형 — **졸업 강등의 증거** (2026-08-31).
+  /// 졸업 후 출현이 굳은 형태로 반복되면(표면형 소수·최빈 집중) 형태 매칭이 이 표현을
+  /// 완전히 잡는다는 뜻이고, 그때가 코드 쪽으로 되돌릴(졸업 강등) 때다. 졸업 전
+  /// LearnedPhraseHit 의 표면형은 졸업 **근거**(형태 다양)라 반대 방향 증거로 못 쓴다 —
+  /// 강등은 졸업 후의 실측이어야 한다. 컬럼이 생기기 전 기록은 null(측정 불가)로 남는다
+  matchedSurface     String?
   createdAt          DateTime @default(now())
 
   @@index([phraseId, createdAt])

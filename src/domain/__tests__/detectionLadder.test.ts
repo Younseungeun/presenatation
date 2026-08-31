@@ -86,44 +86,63 @@ describe('규칙 WARN → BLOCK / IRIS 위임(졸업)', () => {
   });
 });
 
-describe('IRIS → 사전/규칙 (졸업 강등)', () => {
-  // 졸업 관찰 중인 표현 — 관찰 창에서 나타났고 IRIS 가 놓친 횟수가 studentMissCount
+describe('IRIS → 사전/규칙 (졸업 강등 — 적합성 트리거)', () => {
+  // 졸업 관찰 중인 표현. 표면형은 **졸업 후 관찰**에서 잰 것이다(졸업 전 표면형은
+  // 졸업의 근거라 반대 방향 증거로 못 쓴다). 기본값 = 굳은 형태로 3건(관찰 하한) 출현
   function graduatedPhrase(over: Partial<DetectionItemStats> = {}): DetectionItemStats {
     return {
       id: 'learned:g1',
       label: '수익 확실 세팅',
       layer: 'IRIS',
-      matched: 3,
+      matched: T.ungraduateMinObserved,
       truePos: 0,
       falsePos: 0,
-      distinctSurfaces: 2,
-      topSurfaceShare: 0.9,
-      studentMissCount: T.ungraduateMinMisses,
+      distinctSurfaces: 1,
+      topSurfaceShare: 1,
+      studentMissCount: 0,
       ...over,
     };
   }
 
-  it('관찰 미탐이 문턱(2)에 닿으면 → 졸업 강등 추천', () => {
+  it('졸업 후 출현이 굳은 형태로 반복되면 → 졸업 강등 추천 (코드가 완전히 잡음)', () => {
     expect(recommendMigration(graduatedPhrase())?.kind).toBe('UNGRADUATE');
   });
 
-  it('미탐 1건은 추천 없음 — 신고·판정 하나가 오판일 수 있다 (X-5 원칙)', () => {
+  it('형태가 다양하면 추천 없음 — 뜻으로 잡아야 하는 표현이라 IRIS 관할이 맞다', () => {
     expect(
-      recommendMigration(graduatedPhrase({ studentMissCount: T.ungraduateMinMisses - 1 })),
+      recommendMigration(graduatedPhrase({ distinctSurfaces: 8, topSurfaceShare: 0.3 })),
     ).toBeNull();
   });
 
-  it('형태 안정 → 사유가 코드 규칙 이식을 가리킨다 (올라갈 때와 같은 판별자)', () => {
-    expect(recommendMigration(graduatedPhrase())?.reason).toContain('코드 규칙 이식');
-  });
-
-  it('형태 다양 → 사유가 재활성화(사전 복귀)를 가리킨다', () => {
+  it('출현이 관찰 하한(3) 미만이면 추천 없음 — 1~2건으로는 "굳었다"를 말할 수 없다', () => {
     expect(
-      recommendMigration(graduatedPhrase({ distinctSurfaces: 8, topSurfaceShare: 0.3 }))?.reason,
-    ).toContain('재활성화');
+      recommendMigration(graduatedPhrase({ matched: T.ungraduateMinObserved - 1 })),
+    ).toBeNull();
   });
 
-  it('IRIS 가 잘 잡고 있으면(미탐 0) → 추천 없음', () => {
-    expect(recommendMigration(graduatedPhrase({ studentMissCount: 0 }))).toBeNull();
+  it('표면형 미기록(0종)이면 추천 없음 — 분포를 모르면 판정하지 않는다', () => {
+    expect(
+      recommendMigration(graduatedPhrase({ distinctSurfaces: 0, topSurfaceShare: 0 })),
+    ).toBeNull();
+  });
+
+  it('**미탐은 트리거가 아니다** — IRIS 의 실패는 재학습으로 고친다 (이동은 적합성으로만)', () => {
+    // 미탐이 아무리 쌓여도 형태가 다양하면 추천 없음 — 처방은 재학습 + 응급 재활성화
+    expect(
+      recommendMigration(
+        graduatedPhrase({ distinctSurfaces: 8, topSurfaceShare: 0.3, studentMissCount: 5 }),
+      ),
+    ).toBeNull();
+  });
+
+  it('미탐이 있어도 형태가 굳어 있으면 졸업 강등 — 두 신호는 독립이다', () => {
+    expect(recommendMigration(graduatedPhrase({ studentMissCount: 2 }))?.kind).toBe('UNGRADUATE');
+  });
+
+  it('사유가 적합성을 말한다 — 실패(미탐)가 아니라 "코드가 완전히 잡음"', () => {
+    const reason = recommendMigration(graduatedPhrase())?.reason ?? '';
+    expect(reason).toContain('굳은 형태');
+    expect(reason).toContain('코드가 완전히 잡음');
+    expect(reason).not.toContain('미탐');
   });
 });
