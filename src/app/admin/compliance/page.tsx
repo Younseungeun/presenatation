@@ -479,19 +479,27 @@ const HIT_LOG_SINCE = "2026-08-22";
  * (같은 5조건은 훗날 재검토 조건 — 보류 큐 7일 연속 하루 30건 초과 — 이 발동할 때에만
  *  BLOCK 코드 이식을 외부 검토 안건으로 올리는 문턱으로도 쓴다. 회신 21호)
  *
- * ── 다섯 조건을 모두 그린다 (하나만 빠져도 배지가 거짓말이 된다) ──
+ * ── 여섯 조건을 모두 그린다 (하나만 빠져도 배지가 거짓말이 된다) ──
  * 특히 **서로 다른 리서처 수**가 이 배지의 값어치다. 그것 없이 "30회 · 100%" 만 보면
  * 한 사람이 같은 문구를 30번 써서 만든 30회가 후보로 뜨는데, 심사가 지키는 상대는
  * "지금 리서처"가 아니라 "아직 안 온 정상 문장"이다. **부정 문맥 0**(회신 20호 요청 2)은
  * IRIS 가 넘겨받아도 헷지·부정 문장을 위반으로 오인하지 않을지의 신호다.
  *
+ * ── 여섯째: IRIS 동반 검출 실증 (2026-08-31 창업자 확정 — 졸업 요건 교체의 반영) ──
+ * 졸업의 트리거가 "형태 다양"에서 **동반 실증**(이 항목이 걸린 확정 건마다 IRIS 도 같은
+ * 유형을 냈는가)으로 바뀌었는데, 이 배지가 5조건만 세면 사다리 표(추천 없음)와 사전
+ * 탭(졸업 후보 ✓)이 **같은 항목에 다른 답**을 하게 된다 — 실행(graduatePhrase)이 조건을
+ * 검증하지 않아 이 배지가 유일한 안내판이므로, 배지가 틀리면 성급한 졸업을 배지가 부추긴다.
+ * 숫자는 사다리와 같은 집계(getDetectionLadder)에서 온다 — 두 화면이 갈라질 수 없다.
+ *
  * ── 못 채운 조건을 감추지 않는다 ──
- * 채운 것만 보여주면 "거의 다 됐다"로 읽힌다. 다섯을 다 늘어놓고 못 채운 것을 흐리게
+ * 채운 것만 보여주면 "거의 다 됐다"로 읽힌다. 여섯을 다 늘어놓고 못 채운 것을 흐리게
  * 그린다 — 무엇이 남았는지가 이 줄의 정보다.
  */
 function PromotionCandidate({
   p,
   now,
+  coDetection,
 }: {
   p: {
     matchCount: number;
@@ -501,6 +509,8 @@ function PromotionCandidate({
     negationHitCount: number;
   };
   now: Date;
+  /** 사다리와 같은 집계의 동반/미동반 — 확정 건에서 IRIS 가 같은 유형을 냈는가 */
+  coDetection: { co: number; missed: number };
 }) {
   const ageDays = Math.floor((now.getTime() - p.createdAt.getTime()) / 86_400_000);
   const checks = [
@@ -517,6 +527,12 @@ function PromotionCandidate({
     // 다섯째 조건 (회신 20호 요청 2) — 부정·헷지 문맥 출현 0. BLOCK 승격의 최대 위험이
     // 부정문 오거절이라, 이 표현이 부정 문맥에서 쓰인 실적이 있으면 후보에서 뺀다
     { ok: p.negationHitCount === 0, label: `부정 ${p.negationHitCount}건` },
+    // 여섯째 조건 (2026-08-31) — IRIS 동반 검출 실증. 미동반이 하나라도 있으면 사전이
+    // 하중을 지는 것이고, 실증이 아예 없으면(0/0) 모르는 것 — 어느 쪽도 내리면 안 된다
+    {
+      ok: coDetection.missed === 0 && coDetection.co > 0,
+      label: `IRIS 동반 ${coDetection.co}·미동반 ${coDetection.missed}`,
+    },
   ];
   const done = checks.every((c) => c.ok);
 
@@ -1098,6 +1114,9 @@ export default async function AdminCompliancePage({
       ladderRecs.graduate += 1;
     else ladderRecs.promote += 1; // PROMOTE_RULE · PROMOTE_BLOCK
   }
+  // 졸업 후보 배지의 여섯째 조건(IRIS 동반 실증)이 **사다리와 같은 집계**를 읽게 하는
+  // 다리 — 배지가 따로 세면 두 화면이 같은 항목에 다른 답을 한다 (2026-08-31)
+  const ladderByItem = new Map(ladder.map((r) => [r.id, r]));
   // 문항은 사전 항목에 붙어 있다 — 졸업이 만든 것이라 그 항목 카드에서 닿는 것이 맞다.
   // (관찰 큐는 7일짜리 임시 자리고 문항은 영구라 수명이 안 맞는다 — 회신 4호 §4-b)
   const casesByPhrase = new Map<string, typeof regressionCases>();
@@ -1679,7 +1698,16 @@ export default async function AdminCompliancePage({
                 {!p.phoneticEligible && <span>근사 표기 제외 — 등록 시 충돌</span>}
                 {p.capExempt && <span>밀어내기 면제</span>}
               </div>
-              {p.active && <PromotionCandidate p={p} now={now} />}
+              {p.active && (
+                <PromotionCandidate
+                  p={p}
+                  now={now}
+                  coDetection={{
+                    co: ladderByItem.get(`learned:${p.id}`)?.studentCoDetected ?? 0,
+                    missed: ladderByItem.get(`learned:${p.id}`)?.studentMissed ?? 0,
+                  }}
+                />
+              )}
               {/* 승격·졸업 심사의 재료 — 걸린 문장·출현형·부정·판정 (회신 20호 요청 2) */}
               <PhraseEvidence phraseId={p.id} count={p.matchCount} />
               {p.note && <p className={a.hint}>{p.note}</p>}
