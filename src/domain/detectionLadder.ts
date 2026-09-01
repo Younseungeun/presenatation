@@ -30,11 +30,30 @@ export interface DetectionItemStats {
   /**
    * 고유 표면형 수 (형태 안정성 판별자).
    * PHRASE 층은 등록 후 hit 의 표면형, **IRIS 층(졸업 표현)은 졸업 후 관찰의 표면형**이다 —
-   * 졸업 전 표면형은 졸업의 근거(형태 다양)라 반대 방향(강등)의 증거로 못 쓴다.
+   * 졸업 전 표면형은 사전이 이미 흡수하던 variation 이라 반대 방향(강등)의 증거로 못 쓴다.
    */
   distinctSurfaces?: number;
   /** 최빈 표면형 점유율 0~1 (형태 안정성 판별자) — distinctSurfaces 와 같은 출처 */
   topSurfaceShare?: number;
+  /**
+   * IRIS 동반 검출 — **layer='PHRASE'만.** 이 항목이 걸린 확정 검수 건 중 IRIS(학생 —
+   * 라이브 또는 그림자)도 같은 유형 소견을 낸 건수. 졸업(사전→IRIS)의 실증이다:
+   * 내려도 잃는 것이 없으려면 IRIS 가 이미 잡고 있다는 영수증이 있어야 한다.
+   */
+  studentCoDetected?: number;
+  /**
+   * IRIS 미동반 — 이 항목이 걸린 확정 건 중 IRIS 가 같은 유형을 못 낸 건수.
+   * 하나라도 있으면 사전이 하중을 지는 것이라 졸업 불가. 학생 기록이 아예 없어
+   * 알 수 없는 건도 여기로 센다(모르면 내리지 않는다 — 보수 방향).
+   */
+  studentMissed?: number;
+  /**
+   * 그림자 정탐 중 **IRIS 는 놓친** 건수 — **layer='IRIS'(졸업 표현)만.**
+   * 복귀(IRIS→사전)의 실증이다: 옛 항목이 잡는다는 것만으로는 부족하고(IRIS 도 잡으면
+   * 중복이라 되살릴 이유가 없다), IRIS 가 놓친 확정 위반을 옛 항목이 잡았을 때만
+   * 복귀가 실제 보호 구멍을 메운다 (2026-08-31 창업자 지적).
+   */
+  missTruePos?: number;
   /**
    * 관찰된 표면형 예시 (빈도 상위 몇 개) — **layer='IRIS'(졸업 표현)만.**
    * 졸업 강등 추천의 사유에 "이 표현이 어떤 형태들로 나타났는가"를 그대로 싣기 위한
@@ -43,12 +62,12 @@ export interface DetectionItemStats {
    */
   surfaceExamples?: string[];
   /**
-   * 졸업 관찰에서 IRIS 가 놓친 횟수 — **layer='IRIS'(졸업한 표현)만.**
-   * `GraduationWatchHit.studentFlagged=false` 의 집계다.
+   * 졸업 관찰에서 IRIS 가 놓친 **총** 횟수 — **layer='IRIS'(졸업한 표현)만.**
+   * `GraduationWatchHit.studentFlagged=false` 의 집계다 (판정 유무 무관).
    *
-   * ⚠ **이동(졸업 강등)의 트리거가 아니다** (2026-08-31 창업자 확정). IRIS 의 실패는
-   * 학습적이라 처방이 재학습(가중치·로직)이고, 뚫리는 동안의 보호는 응급 재활성화가
-   * 맡는다(X-5). 여기 실리는 이유는 표시·재학습 재료 집계뿐이다.
+   * ⚠ 미탐 총수 자체는 트리거가 아니다 — IRIS 의 실패는 재학습(수리)의 신호이고, 여기
+   * 실리는 이유는 표시·재학습 재료 집계다. 복귀 트리거는 이 중 **사람이 위반으로 확정한
+   * 부분집합**(missTruePos)만 쓴다 — 미탐이 "확정 위반의 미탐"일 때만 구멍의 실증이다.
    */
   studentMissCount?: number;
 }
@@ -62,7 +81,7 @@ export interface DetectionItemStats {
 export type LadderRecommendationKind =
   | 'PROMOTE_RULE' // [축 내 승격] 학습표현 → 규칙 WARN (형태 굳음 = 코드화 가능)
   | 'PROMOTE_BLOCK' // [축 내 승격] 규칙 WARN → BLOCK (관찰 자격 충족 — 스트레스 시험·승인은 사람)
-  | 'GRADUATE_IRIS' // [축 간 졸업] 학습표현 → IRIS (실적 통과 + 형태 다양 = 뜻으로 잡아야)
+  | 'GRADUATE_IRIS' // [축 간 졸업] 학습표현 → IRIS (5조건 + IRIS 동반 검출 실증 = 중복이라 내려도 안전)
   | 'DELEGATE_IRIS' // [축 간 졸업 — 문맥 위임] 규칙 → IRIS (오탐 = 형태는 맞는데 문맥을 못 가름)
   | 'UNGRADUATE'; // [축 간 졸업 강등 — 복귀 지름길만] 졸업했던 사전 항목의 재활성 후보 (그림자 실적).
 //                    졸업 강등의 본선(아직 코드화 안 된 것을 논의로 설계해 내리기)은 자동 추천이
@@ -81,9 +100,8 @@ export interface LadderRecommendation {
  *  · 형태 안정(≤3종·최빈≥80%) = "늘 같은 꼴로 온다"의 초안 경계
  *  · BLOCK 관찰(100건·90일) = rule of three 로 오탐률 상한 ~3% (필요조건, 충분조건은 사람)
  *  · 위임 표본 하한 20 = IRIS 가 무엇을 이어받는지조차 실측 못 하는 규칙은 위임감 아님
- *  · 졸업 강등 그림자 정탐 하한 3 = 승격 잣대(정탐 실적)와 같은 계열 — 그림자 재생이
- *    사람 판정과 일치한 위반이 3건은 있어야 "코드가 이 variation 을 서술한다"를
- *    실적으로 말할 수 있다 (관찰 창 7일 안이라 빡빡한 값 — 운영 실측 후 재보정)
+ *  · 복귀 미탐-정탐 하한 2 = "IRIS 가 놓친 확정 위반을 옛 항목이 잡음"이 2건은 있어야
+ *    패턴이다 — 1건은 그 판정·신고 자체가 오판일 수 있다 (X-5 원칙과 같은 이유)
  */
 export const LADDER_THRESHOLDS = {
   phraseMinMatched: 30,
@@ -94,7 +112,7 @@ export const LADDER_THRESHOLDS = {
   blockMinMatched: 100,
   blockMinAgeDays: 90,
   delegateMinMatched: 20,
-  ungraduateMinShadowTruePos: 3,
+  ungraduateMinMissTruePos: 2,
 } as const;
 
 const pct = (v: number) => Math.round(v * 100);
@@ -115,19 +133,38 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
       (s.distinctResearchers ?? 0) >= T.phraseMinResearchers &&
       (s.negationHits ?? 0) === 0;
     if (!fiveConditions) return null;
-    // 갈림길 판별자 = 형태 안정성. 굳었으면 규칙, 다양하면 IRIS(뜻)
+    // 형태가 굳었으면 규칙 승격이 우선이다 — 규칙(→BLOCK)은 IRIS 가 절대 갖지 못하는
+    // 즉시 거절로 가는 유일한 길이라, IRIS 가 중복으로 잡고 있더라도 이 길이 더 값지다
     const formStable =
       (s.distinctSurfaces ?? 99) <= T.formMaxSurfaces &&
       (s.topSurfaceShare ?? 0) >= T.formMinTopShare;
-    return formStable
-      ? {
-          kind: 'PROMOTE_RULE',
-          reason: `5조건 통과 · 형태 안정(표면형 ${s.distinctSurfaces ?? '—'}종·최빈 ${pct(s.topSurfaceShare ?? 0)}%)`,
-        }
-      : {
-          kind: 'GRADUATE_IRIS',
-          reason: `5조건 통과 · 형태 다양(표면형 ${s.distinctSurfaces ?? '—'}종) — 뜻으로 잡아야`,
-        };
+    if (formStable) {
+      return {
+        kind: 'PROMOTE_RULE',
+        reason: `5조건 통과 · 형태 안정(표면형 ${s.distinctSurfaces ?? '—'}종·최빈 ${pct(s.topSurfaceShare ?? 0)}%)`,
+      };
+    }
+    // **졸업의 판별자는 "형태 다양"이 아니라 "IRIS 동반 검출 실증"이다** (2026-08-31
+    // 창업자 지적으로 교체). 사전 hit 에 남는 다양한 표면형은 전부 **엔진이 잡은**
+    // 형태라, 다양성은 "뜻으로 잡아야"의 증거가 아니라 사전 항목 하나가 그 variation 을
+    // 이미 서술한다는 증거다 — 옛 판별자는 사전이 가장 잘 작동하는 순간에 그 사전을
+    // 껐고, 그렇게 내려간 항목이 그림자 실적으로 되돌아오는 왕복을 만들었다.
+    //
+    // 사전 항목을 내리는 것은 보호를 하나 빼는 결정이므로, 정당하려면 **잃는 것이
+    // 없다는 영수증**이 필요하다: 이 항목이 잡은 확정 건들에서 IRIS 도 같은 유형을
+    // 냈는가(동반 검출). 미동반이 하나라도 있으면 사전이 하중을 지고 있는 것이고,
+    // 실증이 아예 없으면(동반 0·미동반 0) 모르는 것이므로 내리지 않는다.
+    if ((s.studentMissed ?? 1) === 0 && (s.studentCoDetected ?? 0) > 0) {
+      return {
+        kind: 'GRADUATE_IRIS',
+        reason:
+          `5조건 통과 · IRIS 동반 검출 ${s.studentCoDetected}건/미동반 0 — 중복 실증, ` +
+          `내려도 잃는 것 없음 (사전 슬림화)`,
+      };
+    }
+    // 형태 다양 + IRIS 미커버(또는 미실증): 이 variation 을 잡는 유일한/실증된 층이
+    // 사전이다 — 이동할 이유가 없다. 미동반 건은 IRIS 재학습 재료가 된다
+    return null;
   }
 
   if (s.layer === 'RULE_WARN') {
@@ -153,8 +190,8 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
     // **여기서 자동 추천이 다루는 것은 졸업 강등의 좁은 지름길 하나뿐이다** (2026-08-31
     // 창업자 지적으로 범위 정정): **졸업했던 사전 항목의 복귀(재활성)**. 이 케이스만
     // 코드화(사전 항목)가 이미 존재해서 잴 것이 있다 — 그림자 재생(recordGraduationWatch
-    // 가 applyRules 를 재생해 남기는 관찰)으로 "옛 항목이 지금도 잡고, 잡은 것이 사람
-    // 판정과 일치하는가"를 실적으로 확인한다.
+    // 가 applyRules 를 재생해 남기는 관찰)으로 "IRIS 가 놓친 확정 위반을 옛 항목이
+    // 잡는가"를 실적으로 확인한다 — 잡는 것만으로는 부족하다(IRIS 도 잡으면 중복이다).
     //
     // **졸업 강등의 본선은 여기 없다.** 본선 = 아직 코드화 안 된 표현(IRIS 가 잡거나
     // 놓치는 것)을 "이 variation 들을 이런 표현·문맥 조건으로 적으면 규칙이 잡는다"고
@@ -162,16 +199,17 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
     // 원리적으로 불가능하고, 그 설계는 재학습 질문지의 관할 재검토 논의가 맡는다
     // (teacherPack.caseGuide). 실행은 학습 표현 등록 또는 코드 규칙 작성이다.
     //
-    // 복귀 실적의 잣대는 승격과 같은 계열이다:
-    //   · 그림자 정탐 ≥ 하한 — 옛 항목이 잡은 문서를 사람도 위반으로 확정했다
-    //   · 그림자 오탐 = 0 — 되살려도 정상 리포트를 잡지 않는다
-    // 표면형 종수·예시는 트리거가 아니라 근거 표시다(관찰은 엔진이 잡은 출현만 남으므로
-    // 종수가 많아도 옛 항목 하나가 흡수한 variation 이라는 뜻이다).
+    // 복귀의 실증은 두 사실의 **교집합**이다 (2026-08-31 창업자 지적 — 한쪽만으로는
+    // 안 된다):
+    //   · 옛 항목이 잡는다 — 그림자 재생이 확정 위반을 잡았다 (잡는 쪽 실증)
+    //   · **IRIS 는 그걸 놓쳤다** — 같은 건에서 학생이 침묵했다 (구멍 실증)
+    // IRIS 도 다 잡고 있으면(미탐 0) 옛 항목은 중복이라 되살릴 이유가 없다 — 그건
+    // 졸업이 옳았다는 증거다. 반대로 미탐-정탐이 쌓이면, 복귀가 실제 보호 구멍을 메운다.
+    //   · 그림자 오탐 = 0 은 그대로 요구한다 — 되살려도 정상 리포트를 잡지 않아야 한다
     //
-    // IRIS 의 미탐은 트리거가 아니다(실패의 처방은 재학습, 뚫리는 동안은 응급 재활성화
-    // X-5). 엔진이 못 잡은 variation 은 관찰에 안 남아 이 실적에 안 보인다 — 그 확인과
-    // 신규 코드화는 전부 논의(사람) 몫이다.
-    if (s.truePos >= T.ungraduateMinShadowTruePos && s.falsePos === 0) {
+    // 미탐 "자체"는 여전히 재학습 신호이기도 하다 — 복귀는 즉시 보호를 복구하는 처방,
+    // 재학습은 IRIS 를 고치는 처방으로 병행된다(둘은 배타가 아니다).
+    if ((s.missTruePos ?? 0) >= T.ungraduateMinMissTruePos && s.falsePos === 0) {
       const examples = (s.surfaceExamples ?? [])
         .slice(0, 3)
         .map((x) => `“${x}”`)
@@ -180,9 +218,9 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
       return {
         kind: 'UNGRADUATE',
         reason:
-          `옛 사전 항목의 그림자 재생 — 표면형 ${s.distinctSurfaces ?? 0}종${examples ? `(${examples}${more})` : ''}이 ` +
-          `지금도 잡히고 사람 판정과 일치(정탐 ${s.truePos}·오탐 0) — 복귀(재활성) 후보, 확정은 사람. ` +
-          `신규 코드화 강등은 질문지 논의의 몫 (졸업 강등)`,
+          `IRIS 가 놓친 확정 위반 ${s.missTruePos}건을 옛 사전 항목이 잡음(그림자 오탐 0` +
+          `${examples ? ` · 표면형 ${s.distinctSurfaces ?? 0}종: ${examples}${more}` : ''}) — ` +
+          `복귀하면 이 구멍이 메워짐, 확정은 사람. 신규 코드화 강등은 질문지 논의의 몫 (졸업 강등)`,
       };
     }
     return null;

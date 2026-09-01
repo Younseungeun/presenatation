@@ -26,12 +26,23 @@ export async function getDetectionLadder(
   // 1) 판정된 검수 건에서 항목(ruleId)별 성적 — findingsJson × verdict (새 스키마 불요, 회신 25호 Q-C)
   const reviews = await prisma.complianceReview.findMany({
     where: { operatorVerdict: { not: null } },
-    select: { findingsJson: true, operatorVerdict: true, aiFindingsValid: true, createdAt: true },
+    select: {
+      id: true,
+      findingsJson: true,
+      operatorVerdict: true,
+      aiFindingsValid: true,
+      createdAt: true,
+    },
   });
   const perItem = new Map<
     string,
     { matched: number; truePos: number; falsePos: number; firstSeen: Date }
   >();
+  // 사전 항목의 **IRIS 동반 검출** 재료 (졸업의 실증 — 2026-08-31): 사전 소견이 걸린
+  // 확정 건마다 "같은 건에서 학생도 같은 유형을 냈는가"를 대조해야 한다. 학생이 그림자
+  // 모드였던 건은 소견이 본 기록에 없어 그림자 표를 나중에 배치로 대조한다.
+  const phraseHitRows: Array<{ reviewId: string; phraseRuleId: string; category: string }> = [];
+  const studentCatsByReview = new Map<string, Set<string>>();
   for (const r of reviews) {
     let findings: Finding[] = [];
     try {
@@ -40,9 +51,19 @@ export async function getDetectionLadder(
       continue;
     }
     const ids = new Set<string>();
-    for (const f of findings) if (f.ruleId) ids.add(f.ruleId);
+    for (const f of findings) {
+      if (f.ruleId) ids.add(f.ruleId);
+      if (f.source === 'student') {
+        const set = studentCatsByReview.get(r.id) ?? new Set<string>();
+        set.add(f.category);
+        studentCatsByReview.set(r.id, set);
+      }
+      if (f.ruleId?.startsWith('learned:')) {
+        phraseHitRows.push({ reviewId: r.id, phraseRuleId: f.ruleId, category: f.category });
+      }
+    }
     if (ids.size === 0) continue;
-    // 정탐 = 반려·철회로 확정 / 오탐 = "오탐"으로 명시 승인 (강등의 이유)
+    // 정탐 = 반려·철회로 확정 / 오탐 = "오탐"으로 명시 승인 (위임의 이유)
     const isTP = r.operatorVerdict === 'REJECTED' || r.operatorVerdict === 'TAKEDOWN';
     const isFP = r.operatorVerdict === 'APPROVED' && r.aiFindingsValid === false;
     for (const id of ids) {
@@ -53,6 +74,39 @@ export async function getDetectionLadder(
       if (r.createdAt < cur.firstSeen) cur.firstSeen = r.createdAt;
       perItem.set(id, cur);
     }
+  }
+
+  // 학생이 그림자 모드였던 건의 유형 보충 — recordGraduationWatch 와 같은 폴백 규칙.
+  // 본 기록에 학생 소견이 없다고 "안 잡았다"로 단정하면, 그림자 시절의 동반 검출이
+  // 전부 미동반으로 세져 졸업이 영영 불가능해진다
+  const needShadow = [
+    ...new Set(
+      phraseHitRows.filter((h) => !studentCatsByReview.has(h.reviewId)).map((h) => h.reviewId),
+    ),
+  ];
+  if (needShadow.length > 0) {
+    const shadows = await prisma.shadowComplianceReview.findMany({
+      where: { complianceReviewId: { in: needShadow } },
+      select: { complianceReviewId: true, findingsJson: true },
+    });
+    for (const sh of shadows) {
+      try {
+        const set = studentCatsByReview.get(sh.complianceReviewId) ?? new Set<string>();
+        for (const f of JSON.parse(sh.findingsJson) as Finding[]) set.add(f.category);
+        studentCatsByReview.set(sh.complianceReviewId, set);
+      } catch {
+        // 깨진 그림자 기록은 "학생 침묵"으로 남는다 — 미동반(보수 방향)
+      }
+    }
+  }
+  // 사전 항목별 동반/미동반 집계 — 알 수 없는 건(학생 기록 전무)은 미동반으로 센다
+  // (모르면 내리지 않는다)
+  const coAgg = new Map<string, { co: number; missed: number }>();
+  for (const h of phraseHitRows) {
+    const agg = coAgg.get(h.phraseRuleId) ?? { co: 0, missed: 0 };
+    if (studentCatsByReview.get(h.reviewId)?.has(h.category)) agg.co++;
+    else agg.missed++;
+    coAgg.set(h.phraseRuleId, agg);
   }
 
   // 2) 학습표현 메타 + hit 집계 (형태 안정성·리서처·부정 — 5조건과 판별자)
@@ -138,6 +192,8 @@ export async function getDetectionLadder(
       negationHits: agg?.negation ?? 0,
       distinctSurfaces: surfaces.size,
       topSurfaceShare: surfaceTotal > 0 ? topSurface / surfaceTotal : 0,
+      studentCoDetected: coAgg.get(`learned:${p.id}`)?.co ?? 0,
+      studentMissed: coAgg.get(`learned:${p.id}`)?.missed ?? 0,
     };
     rows.push({ ...stats, recommendation: recommendMigration(stats) });
   }
@@ -168,6 +224,10 @@ export async function getDetectionLadder(
       matched: mine.length, // 관찰 창에서 나타난 횟수 (소견은 안 냈다 — 감시 전용)
       truePos: mine.filter((h) => watchVerdicts.get(h.complianceReviewId)?.tp).length,
       falsePos: mine.filter((h) => watchVerdicts.get(h.complianceReviewId)?.fp).length,
+      // 복귀의 실증 = 그림자 정탐 ∩ IRIS 미탐 — "IRIS 가 놓친 확정 위반을 옛 항목이 잡음"
+      missTruePos: mine.filter(
+        (h) => !h.studentFlagged && watchVerdicts.get(h.complianceReviewId)?.tp,
+      ).length,
       ageDays: Math.floor((now.getTime() - p.createdAt.getTime()) / DAY),
       distinctSurfaces: surfaces.size,
       topSurfaceShare: surfaceTotal > 0 ? topSurface / surfaceTotal : 0,
