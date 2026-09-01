@@ -99,6 +99,7 @@ describe('IRIS → 사전/규칙 (졸업 강등 — 적합성 트리거)', () =>
       falsePos: 0,
       distinctSurfaces: 1,
       topSurfaceShare: 1,
+      surfaceSampleCount: T.ungraduateMinObserved,
       studentMissCount: 0,
       ...over,
     };
@@ -116,7 +117,12 @@ describe('IRIS → 사전/규칙 (졸업 강등 — 적합성 트리거)', () =>
 
   it('출현이 관찰 하한(3) 미만이면 추천 없음 — 1~2건으로는 "굳었다"를 말할 수 없다', () => {
     expect(
-      recommendMigration(graduatedPhrase({ matched: T.ungraduateMinObserved - 1 })),
+      recommendMigration(
+        graduatedPhrase({
+          matched: T.ungraduateMinObserved - 1,
+          surfaceSampleCount: T.ungraduateMinObserved - 1,
+        }),
+      ),
     ).toBeNull();
   });
 
@@ -139,10 +145,20 @@ describe('IRIS → 사전/규칙 (졸업 강등 — 적합성 트리거)', () =>
     expect(recommendMigration(graduatedPhrase({ studentMissCount: 2 }))?.kind).toBe('UNGRADUATE');
   });
 
-  it('사유가 적합성을 말한다 — 실패(미탐)가 아니라 "코드가 완전히 잡음"', () => {
+  it('사유가 2단 구조를 말한다 — 형태 안정은 후보 신호, 서술 가능성 확정은 사람', () => {
     const reason = recommendMigration(graduatedPhrase())?.reason ?? '';
     expect(reason).toContain('굳은 형태');
-    expect(reason).toContain('코드가 완전히 잡음');
+    expect(reason).toContain('확정은 사람');
     expect(reason).not.toContain('미탐');
+  });
+
+  it('표면형 미기록 관찰은 하한의 분모에 못 낀다 — 기록 1건이 미기록 2건을 업고 못 넘는다', () => {
+    // 전환기(컬럼 이전 기록 혼재): 관찰 3건이지만 분포를 잰 표본은 1건뿐 —
+    // 1건짜리 분포는 최빈 100%가 자동 성립하므로, 하한은 잰 표본으로 세야 한다
+    expect(
+      recommendMigration(
+        graduatedPhrase({ matched: 3, surfaceSampleCount: 1, distinctSurfaces: 1, topSurfaceShare: 1 }),
+      ),
+    ).toBeNull();
   });
 });

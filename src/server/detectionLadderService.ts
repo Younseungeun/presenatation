@@ -142,10 +142,12 @@ export async function getDetectionLadder(
       truePos: 0,
       falsePos: 0,
       ageDays: Math.floor((now.getTime() - p.createdAt.getTime()) / DAY),
-      // 표면형 미기록(컬럼 생기기 전) 관찰이 섞이면 분포를 알 수 없다 — 99종(불안정)으로
-      // 두는 대신 기록된 것만으로 재되, 기록이 하나도 없으면 0종(= 판정 불가 → 추천 없음)
+      // 표면형 미기록(컬럼 생기기 전) 관찰이 섞이면 분포를 알 수 없다 — 기록된 것만으로
+      // 재고, 하한 검사의 분모도 같은 표본(surfaceSampleCount)이어야 한다. 기록 1건이
+      // 미기록 2건을 업고 하한 3을 넘는 것이 이 분리가 막는 결함이다
       distinctSurfaces: surfaces.size,
       topSurfaceShare: surfaceTotal > 0 ? topSurface / surfaceTotal : 0,
+      surfaceSampleCount: surfaceTotal,
       studentMissCount: mine.filter((h) => !h.studentFlagged).length,
     };
     rows.push({ ...stats, recommendation: recommendMigration(stats) });

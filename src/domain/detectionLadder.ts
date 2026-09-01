@@ -36,6 +36,15 @@ export interface DetectionItemStats {
   /** 최빈 표면형 점유율 0~1 (형태 안정성 판별자) — distinctSurfaces 와 같은 출처 */
   topSurfaceShare?: number;
   /**
+   * 표면형 분포를 **실제로 잰 표본 수** — 표면형이 기록된 관찰만 센다.
+   *
+   * matched 와 갈라 둔 이유(2026-08-31 결함 수정): 표면형 컬럼이 생기기 전의 관찰은
+   * 분포를 잴 수 없는데, 하한 검사를 matched(전체 관찰)로 하면 미기록 2건 + 기록 1건이
+   * 하한 3을 통과하고 분포는 1건짜리(자동 100%)로 재진다 — 하한을 둔 이유가 정확히
+   * 그걸 막는 것이었다. 분포 주장과 하한 검사는 **같은 분모**를 써야 한다.
+   */
+  surfaceSampleCount?: number;
+  /**
    * 졸업 관찰에서 IRIS 가 놓친 횟수 — **layer='IRIS'(졸업한 표현)만.**
    * `GraduationWatchHit.studentFlagged=false` 의 집계다.
    *
@@ -150,15 +159,28 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
     // 고칠 수 없음)이라 이동 사유가 되지만, IRIS 의 실패는 학습적(재학습으로 고침)이다.
     // 뚫리는 동안의 보호는 응급 재활성화(X-5, 사람 한 클릭)가 맡는다 — 그건 이동 결정이
     // 아니라 사고 대응이고, 관찰 박스가 그 길을 안내한다.
+    // **형태 안정은 확정 기준이 아니라 후보 탐지기다** (2026-08-31 창업자 확정).
+    // 진짜 요건은 "이 표현의 variation 을 코드로 정확히 서술할 수 있는가"인데, 그건
+    // 코드를 써 보는 사람의 판단이라 데이터에서 계산되는 술어가 아니다 — 기계가 변형
+    // 규칙을 유도하는 것은 회피 탐지가 기각한 접근과 같은 함정이다("해독하지 않는다:
+    // 표는 항상 한 수 뒤"). 그래서 PROMOTE_BLOCK 과 같은 2단이다: 기계는 측정 가능한
+    // 근사(형태 안정)로 후보만 올리고, 서술 가능성의 확정은 질문지의 코드화 사다리
+    // 논의에서 사람이 한다. 형태가 다양해도 variation 이 규칙적이면 사람이 추천 없이
+    // 이동시킬 수 있다 — 추천은 필요조건이 아니다.
+    //
+    // 하한 비교의 분모는 **분포를 실제로 잰 표본**(surfaceSampleCount)이다 — 표면형
+    // 미기록 관찰(컬럼 이전)을 matched 로 섞어 세면 기록 1건짜리 분포가 하한을 업혀
+    // 넘는다. 값이 없으면(시험·구버전 호출) matched 로 폴백한다.
+    const sample = s.surfaceSampleCount ?? s.matched;
     const formStable =
       (s.distinctSurfaces ?? 99) <= T.formMaxSurfaces &&
       (s.topSurfaceShare ?? 0) >= T.formMinTopShare;
-    if (s.matched >= T.ungraduateMinObserved && formStable) {
+    if (sample >= T.ungraduateMinObserved && formStable) {
       return {
         kind: 'UNGRADUATE',
         reason:
-          `졸업 후 출현 ${s.matched}건이 굳은 형태(표면형 ${s.distinctSurfaces ?? '—'}종·최빈 ` +
-          `${pct(s.topSurfaceShare ?? 0)}%) — 코드가 완전히 잡음: 재활성화 후 축 내 승강 검토 (졸업 강등)`,
+          `졸업 후 굳은 형태 출현 ${sample}건(표면형 ${s.distinctSurfaces ?? '—'}종·최빈 ` +
+          `${pct(s.topSurfaceShare ?? 0)}%) — 코드로 잡을 후보: variation 서술 가능성 확정은 사람 (졸업 강등)`,
       };
     }
     return null;
