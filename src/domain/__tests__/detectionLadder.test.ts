@@ -138,12 +138,17 @@ describe('IRIS → 사전/규칙 (졸업 강등 — 그림자 재생 증거)', (
     expect(recommendMigration(graduatedPhrase({ studentMissCount: 2 }))?.kind).toBe('UNGRADUATE');
   });
 
-  it('사유가 "어떤 형태들을 코드가 서술하는가"를 말한다 — 표면형 예시 + 사람 판정 일치, 확정은 사람', () => {
+  it('사유가 범위를 정직하게 말한다 — 복귀 후보일 뿐, 신규 코드화 강등은 논의의 몫', () => {
+    // 자동 추천은 졸업 강등의 좁은 지름길(옛 사전 항목의 복귀)만 다룬다 (2026-08-31
+    // 창업자 지적) — 본선(코드화 설계)은 질문지 논의가 맡고, 사유가 그 경계를 말해야
+    // 이 추천이 졸업 강등 전체의 메커니즘인 양 읽히지 않는다
     const reason = recommendMigration(graduatedPhrase())?.reason ?? '';
     expect(reason).toContain('표면형 4종');
     expect(reason).toContain('수익 확실 세팅');
     expect(reason).toContain(`정탐 ${T.ungraduateMinShadowTruePos}`);
+    expect(reason).toContain('복귀');
     expect(reason).toContain('확정은 사람');
+    expect(reason).toContain('논의의 몫');
     expect(reason).not.toContain('미탐');
   });
 });

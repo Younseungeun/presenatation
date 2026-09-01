@@ -22,7 +22,9 @@ const REC: Record<LadderRecommendationKind, { label: string; color: string }> = 
   PROMOTE_BLOCK: { label: "▲ BLOCK 승격 자격", color: "#0e6f5c" },
   GRADUATE_IRIS: { label: "↗ IRIS 졸업 (실적)", color: "#2a6fb0" },
   DELEGATE_IRIS: { label: "↗ IRIS 졸업 (문맥 위임)", color: "#2a6fb0" },
-  UNGRADUATE: { label: "↙ 졸업 강등 (사전·규칙 복귀)", color: "#bd4242" },
+  // UNGRADUATE 자동 추천은 졸업 강등의 좁은 지름길(졸업했던 사전 항목의 복귀)만 다룬다 —
+  // 본선(신규 코드화 설계)은 재학습 질문지의 관할 재검토 논의 몫이라 표에 안 뜬다
+  UNGRADUATE: { label: "↙ 졸업 강등 (복귀 후보)", color: "#bd4242" },
 };
 
 const th: React.CSSProperties = { padding: "8px 10px", fontWeight: 600, whiteSpace: "nowrap" };
