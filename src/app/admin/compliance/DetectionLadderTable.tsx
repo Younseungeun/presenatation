@@ -41,9 +41,10 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
         사람의 일입니다. ▲승격은 축 안(사전→WARN→BLOCK)에서 <b>문맥 조건을 코드로 적을 수
         있을 때</b>, ↗졸업·↙졸업 강등은 <b>형태 매칭 ↔ 의미 추론(IRIS) 중 어느 쪽이
         효과적인가</b>로 정합니다. 문턱 숫자(걸림 {LADDER_THRESHOLDS.phraseMinMatched}·형태 ≤
-        {LADDER_THRESHOLDS.formMaxSurfaces}종·BLOCK {LADDER_THRESHOLDS.blockMinMatched}건·졸업 후
-        관찰 {LADDER_THRESHOLDS.ungraduateMinObserved}건 등)는 <b>전부 초안</b>이라 운영 표본이
-        쌓이면 재보정합니다.
+        {LADDER_THRESHOLDS.formMaxSurfaces}종·BLOCK {LADDER_THRESHOLDS.blockMinMatched}건·그림자
+        정탐 {LADDER_THRESHOLDS.ungraduateMinShadowTruePos}건 등)는 <b>전부 초안</b>이라 운영
+        표본이 쌓이면 재보정합니다. IRIS 층 행의 정탐/오탐은 <b>그림자 값</b>입니다 — 관찰이
+        소견을 내지 않았으므로, 그림자가 잡은 문서를 사람이 어떻게 판정했는지의 사후 대조입니다.
       </SecHead>
 
       {rows.length === 0 ? (

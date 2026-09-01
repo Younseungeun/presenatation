@@ -86,79 +86,64 @@ describe('규칙 WARN → BLOCK / IRIS 위임(졸업)', () => {
   });
 });
 
-describe('IRIS → 사전/규칙 (졸업 강등 — 적합성 트리거)', () => {
-  // 졸업 관찰 중인 표현. 표면형은 **졸업 후 관찰**에서 잰 것이다(졸업 전 표면형은
-  // 졸업의 근거라 반대 방향 증거로 못 쓴다). 기본값 = 굳은 형태로 3건(관찰 하한) 출현
+describe('IRIS → 사전/규칙 (졸업 강등 — 그림자 재생 증거)', () => {
+  // 졸업 관찰 중인 표현. 관찰(watch hit)은 **기존 엔진이 잡은 출현만** 남고, 정탐/오탐은
+  // 그 관찰이 붙은 문서의 사람 판정과의 사후 대조(그림자 값)다. 기본값 = 그림자 정탐이
+  // 하한(3)에 닿고 오탐 0 — 표면형은 여러 종(엔진이 variation 을 흡수했다는 뜻)
   function graduatedPhrase(over: Partial<DetectionItemStats> = {}): DetectionItemStats {
     return {
       id: 'learned:g1',
       label: '수익 확실 세팅',
       layer: 'IRIS',
-      matched: T.ungraduateMinObserved,
-      truePos: 0,
+      matched: 4,
+      truePos: T.ungraduateMinShadowTruePos,
       falsePos: 0,
-      distinctSurfaces: 1,
-      topSurfaceShare: 1,
-      surfaceSampleCount: T.ungraduateMinObserved,
+      distinctSurfaces: 4,
+      topSurfaceShare: 0.4,
+      surfaceExamples: ['수익 확실 세팅', '수 익 확 실 세팅', '수익확실 셰팅'],
       studentMissCount: 0,
       ...over,
     };
   }
 
-  it('졸업 후 출현이 굳은 형태로 반복되면 → 졸업 강등 추천 (코드가 완전히 잡음)', () => {
+  it('그림자 정탐 ≥3 · 오탐 0 → 졸업 강등 추천 (코드가 이 variation 을 서술한다)', () => {
     expect(recommendMigration(graduatedPhrase())?.kind).toBe('UNGRADUATE');
   });
 
-  it('형태가 다양하면 추천 없음 — 뜻으로 잡아야 하는 표현이라 IRIS 관할이 맞다', () => {
+  it('**표면형 다양성은 트리거가 아니다** — 여러 꼴이어도 전부 엔진이 잡은 것이면 서술 가능', () => {
+    // 굳음(≤3종·최빈 80%) 조건은 폐기됐다 (2026-08-31 창업자 지적: 굳음은 서술 가능성의
+    // 하위 사례일 뿐이다). "원금 보장/원 금 보 장/원금보쟝"이 4종이어도 사전 항목 하나가
+    // 전부 잡는다 — 관찰 기록의 존재 자체가 그 증거다
     expect(
-      recommendMigration(graduatedPhrase({ distinctSurfaces: 8, topSurfaceShare: 0.3 })),
+      recommendMigration(graduatedPhrase({ distinctSurfaces: 9, topSurfaceShare: 0.15 }))?.kind,
+    ).toBe('UNGRADUATE');
+  });
+
+  it('그림자 정탐이 하한 미만이면 추천 없음 — 실적 없이 서술을 주장할 수 없다', () => {
+    expect(
+      recommendMigration(graduatedPhrase({ truePos: T.ungraduateMinShadowTruePos - 1 })),
     ).toBeNull();
   });
 
-  it('출현이 관찰 하한(3) 미만이면 추천 없음 — 1~2건으로는 "굳었다"를 말할 수 없다', () => {
-    expect(
-      recommendMigration(
-        graduatedPhrase({
-          matched: T.ungraduateMinObserved - 1,
-          surfaceSampleCount: T.ungraduateMinObserved - 1,
-        }),
-      ),
-    ).toBeNull();
+  it('그림자 오탐이 하나라도 있으면 추천 없음 — 정상 글을 잡는 서술은 서술이 아니라 과매칭', () => {
+    expect(recommendMigration(graduatedPhrase({ falsePos: 1 }))).toBeNull();
   });
 
-  it('표면형 미기록(0종)이면 추천 없음 — 분포를 모르면 판정하지 않는다', () => {
-    expect(
-      recommendMigration(graduatedPhrase({ distinctSurfaces: 0, topSurfaceShare: 0 })),
-    ).toBeNull();
+  it('**미탐은 트리거가 아니다** — IRIS 의 실패는 재학습으로 고친다', () => {
+    // 미탐이 아무리 쌓여도 그림자 정탐 실적이 없으면 추천 없음 — 처방은 재학습 + 응급 재활성화
+    expect(recommendMigration(graduatedPhrase({ truePos: 0, studentMissCount: 5 }))).toBeNull();
   });
 
-  it('**미탐은 트리거가 아니다** — IRIS 의 실패는 재학습으로 고친다 (이동은 적합성으로만)', () => {
-    // 미탐이 아무리 쌓여도 형태가 다양하면 추천 없음 — 처방은 재학습 + 응급 재활성화
-    expect(
-      recommendMigration(
-        graduatedPhrase({ distinctSurfaces: 8, topSurfaceShare: 0.3, studentMissCount: 5 }),
-      ),
-    ).toBeNull();
-  });
-
-  it('미탐이 있어도 형태가 굳어 있으면 졸업 강등 — 두 신호는 독립이다', () => {
+  it('미탐이 있어도 그림자 실적이 서면 졸업 강등 — 두 신호는 독립이다', () => {
     expect(recommendMigration(graduatedPhrase({ studentMissCount: 2 }))?.kind).toBe('UNGRADUATE');
   });
 
-  it('사유가 2단 구조를 말한다 — 형태 안정은 후보 신호, 서술 가능성 확정은 사람', () => {
+  it('사유가 "어떤 형태들을 코드가 서술하는가"를 말한다 — 표면형 예시 + 사람 판정 일치, 확정은 사람', () => {
     const reason = recommendMigration(graduatedPhrase())?.reason ?? '';
-    expect(reason).toContain('굳은 형태');
+    expect(reason).toContain('표면형 4종');
+    expect(reason).toContain('수익 확실 세팅');
+    expect(reason).toContain(`정탐 ${T.ungraduateMinShadowTruePos}`);
     expect(reason).toContain('확정은 사람');
     expect(reason).not.toContain('미탐');
-  });
-
-  it('표면형 미기록 관찰은 하한의 분모에 못 낀다 — 기록 1건이 미기록 2건을 업고 못 넘는다', () => {
-    // 전환기(컬럼 이전 기록 혼재): 관찰 3건이지만 분포를 잰 표본은 1건뿐 —
-    // 1건짜리 분포는 최빈 100%가 자동 성립하므로, 하한은 잰 표본으로 세야 한다
-    expect(
-      recommendMigration(
-        graduatedPhrase({ matched: 3, surfaceSampleCount: 1, distinctSurfaces: 1, topSurfaceShare: 1 }),
-      ),
-    ).toBeNull();
   });
 });

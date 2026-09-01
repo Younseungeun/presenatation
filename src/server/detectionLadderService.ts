@@ -75,9 +75,32 @@ export async function getDetectionLadder(
     graduated.length > 0
       ? await prisma.graduationWatchHit.findMany({
           where: { phraseId: { in: graduated.map((p) => p.id) } },
-          select: { phraseId: true, studentFlagged: true, matchedSurface: true },
+          select: {
+            phraseId: true,
+            studentFlagged: true,
+            matchedSurface: true,
+            complianceReviewId: true,
+          },
         })
       : [];
+  // 그림자 재생의 **사람 판정 대조** — 관찰이 붙은 검수 건의 운영자 판정을 가져와
+  // "그림자가 잡은 것이 맞는 것이었나(정탐)/정상 글이었나(오탐)"를 잰다.
+  // 분류 기준은 perItem(1단계)과 **똑같이** 둔다 — 두 잣대가 갈라지면 사전 시절 성적과
+  // 졸업 후 그림자 성적을 나란히 읽을 수 없다.
+  const watchReviewIds = [...new Set(watchHits.map((h) => h.complianceReviewId))];
+  const watchVerdicts = new Map<string, { tp: boolean; fp: boolean }>();
+  if (watchReviewIds.length > 0) {
+    const rs = await prisma.complianceReview.findMany({
+      where: { id: { in: watchReviewIds } },
+      select: { id: true, operatorVerdict: true, aiFindingsValid: true },
+    });
+    for (const r of rs) {
+      watchVerdicts.set(r.id, {
+        tp: r.operatorVerdict === 'REJECTED' || r.operatorVerdict === 'TAKEDOWN',
+        fp: r.operatorVerdict === 'APPROVED' && r.aiFindingsValid === false,
+      });
+    }
+  }
   const hitAgg = new Map<
     string,
     { surfaces: Map<string, number>; researchers: Set<string>; negation: number }
@@ -126,6 +149,10 @@ export async function getDetectionLadder(
   // 표면형은 **졸업 후 관찰 기록**에서 센다 — 졸업 전 LearnedPhraseHit 의 표면형은
   // 졸업의 근거(형태 다양)였으므로 반대 방향(강등)의 증거로 쓰면 순환이 된다.
   // 강등의 증거는 졸업 후의 실측이어야 한다 (matchedSurface, 2026-08-31).
+  //
+  // 정탐/오탐은 **그림자 값**이다: 이 관찰들은 소견을 안 냈으므로(감시 전용) 운영자가
+  // 이 표현 때문에 판정한 것이 아니라, "그림자가 잡은 그 문서를 사람이 어떻게 판정했나"
+  // 를 사후 대조한 것이다. 이것이 졸업 강등 추천의 트리거가 된다(recommendMigration).
   for (const p of graduated) {
     const mine = watchHits.filter((h) => h.phraseId === p.id);
     const surfaces = new Map<string, number>();
@@ -139,15 +166,16 @@ export async function getDetectionLadder(
       label: p.phrase,
       layer: 'IRIS',
       matched: mine.length, // 관찰 창에서 나타난 횟수 (소견은 안 냈다 — 감시 전용)
-      truePos: 0,
-      falsePos: 0,
+      truePos: mine.filter((h) => watchVerdicts.get(h.complianceReviewId)?.tp).length,
+      falsePos: mine.filter((h) => watchVerdicts.get(h.complianceReviewId)?.fp).length,
       ageDays: Math.floor((now.getTime() - p.createdAt.getTime()) / DAY),
-      // 표면형 미기록(컬럼 생기기 전) 관찰이 섞이면 분포를 알 수 없다 — 기록된 것만으로
-      // 재고, 하한 검사의 분모도 같은 표본(surfaceSampleCount)이어야 한다. 기록 1건이
-      // 미기록 2건을 업고 하한 3을 넘는 것이 이 분리가 막는 결함이다
       distinctSurfaces: surfaces.size,
       topSurfaceShare: surfaceTotal > 0 ? topSurface / surfaceTotal : 0,
-      surfaceSampleCount: surfaceTotal,
+      // 사유에 "어떤 형태들로 나타났는가"를 싣는다 — 빈도 상위 순
+      surfaceExamples: [...surfaces.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([sfc]) => sfc),
       studentMissCount: mine.filter((h) => !h.studentFlagged).length,
     };
     rows.push({ ...stats, recommendation: recommendMigration(stats) });

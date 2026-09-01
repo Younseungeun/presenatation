@@ -420,17 +420,40 @@ async function main() {
     log(`${p.phrase} (${p.active ? '활성' : '비활성'} ${p.confirmedCount}/${p.matchCount})`, !before);
   }
 
-  // ── ④-a 졸업 관찰 + 졸업 강등 추천 표본 (2026-08-31) ────────────────────
+  // ── ④-a 졸업 관찰 + 졸업 강등 추천 표본 (2026-08-31, 그림자 재생 트리거) ──
   //
   // 졸업(IRIS 위임) 직후 7일 관찰 창의 상태들을 한 항목으로 만든다: 사전 탭의
   // "졸업 — IRIS가 맡음" 칩 · 졸업 관찰 박스(미탐 → 응급 재활성화 + 재학습 안내) ·
-  // 그리고 **졸업 후 출현이 굳은 형태로 반복**(같은 표면형 3건 = 관찰 하한)되어
-  // 검출 항목 관리에 "↙ 졸업 강등" 추천이 뜨는 상태. 트리거는 미탐(실패)이 아니라
-  // 형태 안정(적합성)이다 — 미탐 2건은 재학습 신호가 공존하는 모양을 함께 보여준다.
+  // 그리고 검출 항목 관리에 "↙ 졸업 강등" 추천이 뜨는 상태.
+  //
+  // 트리거는 **그림자 재생 증거**다: 관찰이 위반 확정(반려) 건에 붙어 그림자 정탐이
+  // 하한(3)에 닿고 오탐 0. 표면형은 일부러 **세 꼴로 다양하게** 둔다 — "여러 꼴이어도
+  // 전부 엔진이 잡은 것이면 사전 항목 하나가 그 variation 을 서술한다"가 이 추천의
+  // 요지라서다(굳음 트리거 폐기의 이유). 미탐 2건은 재학습 신호가 공존하는 모양.
   {
     const phrase = `${MARK} 확정 수익 구간입니다`;
-    const surface = '확정 수익 구간'; // 관찰 3건이 전부 이 한 꼴 → 1종·최빈 100% (굳음)
+    // 관찰된 variation 세 꼴 — 정상 표기·간격 벌리기·음성 변형 (전부 기존 층이 잡는 형태)
+    const surfaces = ['확정 수익 구간', '확 정 수 익 구간', '확정 수익 구갼'];
     const before = await prisma.learnedPhrase.findFirst({ where: { phrase } });
+    // 그림자 정탐이 되려면 관찰이 **위반 확정(반려) 건**에 붙어야 한다 — ③이 만든
+    // 반려 표본을 물린다 (③이 먼저 돌아 이 자리에서는 반드시 존재한다)
+    const rejectedReview = await prisma.complianceReview.findFirst({
+      where: { operatorVerdict: 'REJECTED', report: { title: { startsWith: MARK } } },
+      select: { id: true },
+    });
+    const makeHits = (phraseId: string) =>
+      rejectedReview
+        ? prisma.graduationWatchHit.createMany({
+            data: surfaces.map((sfc, i) => ({
+              phraseId,
+              complianceReviewId: rejectedReview.id,
+              category: 'PROFIT_GUARANTEE',
+              studentFlagged: i === 2, // 미탐 2건 + 잡은 것 1건
+              matchedSurface: sfc,
+              createdAt: ago((i + 1) * 8 * HOUR),
+            })),
+          })
+        : Promise.resolve(null);
     if (!before) {
       const grad = await prisma.learnedPhrase.create({
         data: {
@@ -447,26 +470,14 @@ async function main() {
           lastMatchedAt: ago(3 * DAY),
         },
       });
-      // 관찰 기록 3건 — 전부 같은 표면형(굳은 형태 = 졸업 강등 트리거), 그중 미탐 2건
-      // (재학습 재료). complianceReviewId 는 실제 검수 건을 물린다
-      const anyReview = await prisma.complianceReview.findFirst({ select: { id: true } });
-      if (anyReview) {
-        await prisma.graduationWatchHit.createMany({
-          data: [
-            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: false, matchedSurface: surface, createdAt: ago(DAY) },
-            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: false, matchedSurface: surface, createdAt: ago(10 * HOUR) },
-            { phraseId: grad.id, complianceReviewId: anyReview.id, category: 'PROFIT_GUARANTEE', studentFlagged: true, matchedSurface: surface, createdAt: ago(2 * HOUR) },
-          ],
-        });
-      }
+      await makeHits(grad.id);
     } else {
-      // 표면형 컬럼이 생기기 전에 만든 관찰 기록의 모양 교정 — [案] 표본 자신에게만
-      await prisma.graduationWatchHit.updateMany({
-        where: { phraseId: before.id, matchedSurface: null },
-        data: { matchedSurface: surface },
-      });
+      // 트리거 재정의 전에 만든 관찰 기록의 모양 교정 — [案] 표본 자신에게만.
+      // updateMany 로는 행마다 다른 표면형을 못 주므로 지우고 다시 만든다
+      await prisma.graduationWatchHit.deleteMany({ where: { phraseId: before.id } });
+      await makeHits(before.id);
     }
-    log(`졸업 관찰 — ${phrase} (같은 꼴 3건 → 졸업 강등 추천 · 미탐 2건 → 재학습 재료)`, !before);
+    log(`졸업 관찰 — ${phrase} (그림자 정탐 3·오탐 0, 표면형 3꼴 → 졸업 강등 추천)`, !before);
   }
 
   // ── ④-b 출처 3종이 한 카드에 모인 보류 (인계 2호 §4) ──────────────────

@@ -36,14 +36,12 @@ export interface DetectionItemStats {
   /** 최빈 표면형 점유율 0~1 (형태 안정성 판별자) — distinctSurfaces 와 같은 출처 */
   topSurfaceShare?: number;
   /**
-   * 표면형 분포를 **실제로 잰 표본 수** — 표면형이 기록된 관찰만 센다.
-   *
-   * matched 와 갈라 둔 이유(2026-08-31 결함 수정): 표면형 컬럼이 생기기 전의 관찰은
-   * 분포를 잴 수 없는데, 하한 검사를 matched(전체 관찰)로 하면 미기록 2건 + 기록 1건이
-   * 하한 3을 통과하고 분포는 1건짜리(자동 100%)로 재진다 — 하한을 둔 이유가 정확히
-   * 그걸 막는 것이었다. 분포 주장과 하한 검사는 **같은 분모**를 써야 한다.
+   * 관찰된 표면형 예시 (빈도 상위 몇 개) — **layer='IRIS'(졸업 표현)만.**
+   * 졸업 강등 추천의 사유에 "이 표현이 어떤 형태들로 나타났는가"를 그대로 싣기 위한
+   * 근거 자료다(2026-08-31 창업자 지적: 추천은 "어떤 variation 을 코드가 서술하는가"를
+   * 말해야 한다). 트리거 조건이 아니라 표시용이다.
    */
-  surfaceSampleCount?: number;
+  surfaceExamples?: string[];
   /**
    * 졸업 관찰에서 IRIS 가 놓친 횟수 — **layer='IRIS'(졸업한 표현)만.**
    * `GraduationWatchHit.studentFlagged=false` 의 집계다.
@@ -66,7 +64,7 @@ export type LadderRecommendationKind =
   | 'PROMOTE_BLOCK' // [축 내 승격] 규칙 WARN → BLOCK (관찰 자격 충족 — 스트레스 시험·승인은 사람)
   | 'GRADUATE_IRIS' // [축 간 졸업] 학습표현 → IRIS (실적 통과 + 형태 다양 = 뜻으로 잡아야)
   | 'DELEGATE_IRIS' // [축 간 졸업 — 문맥 위임] 규칙 → IRIS (오탐 = 형태는 맞는데 문맥을 못 가름)
-  | 'UNGRADUATE'; // [축 간 졸업 강등] IRIS → 사전/규칙 (졸업 후 출현이 굳은 형태 = 코드가 완전히 잡음)
+  | 'UNGRADUATE'; // [축 간 졸업 강등] IRIS → 사전/규칙 (그림자 재생이 variation 전체를 잡고 사람 판정과 일치)
 
 export interface LadderRecommendation {
   kind: LadderRecommendationKind;
@@ -80,8 +78,9 @@ export interface LadderRecommendation {
  *  · 형태 안정(≤3종·최빈≥80%) = "늘 같은 꼴로 온다"의 초안 경계
  *  · BLOCK 관찰(100건·90일) = rule of three 로 오탐률 상한 ~3% (필요조건, 충분조건은 사람)
  *  · 위임 표본 하한 20 = IRIS 가 무엇을 이어받는지조차 실측 못 하는 규칙은 위임감 아님
- *  · 졸업 강등 관찰 하한 3 = 표면형 안정은 분포 주장이라 출현 1~2건으로는 "굳었다"를
- *    말할 수 없다 (1건이면 최빈 100%가 자동으로 성립해 버린다)
+ *  · 졸업 강등 그림자 정탐 하한 3 = 승격 잣대(정탐 실적)와 같은 계열 — 그림자 재생이
+ *    사람 판정과 일치한 위반이 3건은 있어야 "코드가 이 variation 을 서술한다"를
+ *    실적으로 말할 수 있다 (관찰 창 7일 안이라 빡빡한 값 — 운영 실측 후 재보정)
  */
 export const LADDER_THRESHOLDS = {
   phraseMinMatched: 30,
@@ -92,7 +91,7 @@ export const LADDER_THRESHOLDS = {
   blockMinMatched: 100,
   blockMinAgeDays: 90,
   delegateMinMatched: 20,
-  ungraduateMinObserved: 3,
+  ungraduateMinShadowTruePos: 3,
 } as const;
 
 const pct = (v: number) => Math.round(v * 100);
@@ -148,39 +147,44 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
   }
 
   if (s.layer === 'IRIS') {
-    // **졸업 강등 = 졸업의 거울** (2026-08-31 창업자 확정 — 실패 트리거에서 적합성
-    // 트리거로 재정의). 축 간 이동의 트리거는 양방향 모두 "어느 방식이 이 표현에
-    // 구조적으로 우위인가"다: 졸업이 형태 다양(뜻으로 잡아야)이었듯, 졸업 강등은
-    // **졸업 후 출현이 굳은 형태로 반복**되어 형태 매칭이 완전히 잡는다는 실측이다.
-    // 이때 내리는 것은 강등이 아니라 집행력 승급이다 — 코드만이 즉시 거절 권한과
-    // 추론 비용 0·장애 무관을 가지며, BLOCK 까지는 내려온 뒤 축 내 관문을 그대로 탄다.
+    // **졸업 강등 = 졸업의 거울** (2026-08-31 창업자 확정). 축 간 이동의 트리거는
+    // 양방향 모두 "어느 방식이 이 표현에 구조적으로 우위인가"다. 졸업 강등의 요건은
+    // **"이 표현의 variation 전체를 코드로 정확히 서술할 수 있는가"**이고, "형태가
+    // 굳었나"는 그 하위 사례 하나일 뿐이다(같은 날 창업자 지적으로 굳음 트리거 폐기).
+    // 내리는 것은 강등이 아니라 집행력 승급이다 — 코드만이 즉시 거절 권한과 추론 비용
+    // 0·장애 무관을 가지며, BLOCK 까지는 내려온 뒤 축 내 관문을 그대로 탄다.
     //
     // **IRIS 의 미탐은 여기 안 낀다.** 규칙의 실패는 구조적(형태로는 문맥을 못 가른다 —
     // 고칠 수 없음)이라 이동 사유가 되지만, IRIS 의 실패는 학습적(재학습으로 고침)이다.
     // 뚫리는 동안의 보호는 응급 재활성화(X-5, 사람 한 클릭)가 맡는다 — 그건 이동 결정이
     // 아니라 사고 대응이고, 관찰 박스가 그 길을 안내한다.
-    // **형태 안정은 확정 기준이 아니라 후보 탐지기다** (2026-08-31 창업자 확정).
-    // 진짜 요건은 "이 표현의 variation 을 코드로 정확히 서술할 수 있는가"인데, 그건
-    // 코드를 써 보는 사람의 판단이라 데이터에서 계산되는 술어가 아니다 — 기계가 변형
-    // 규칙을 유도하는 것은 회피 탐지가 기각한 접근과 같은 함정이다("해독하지 않는다:
-    // 표는 항상 한 수 뒤"). 그래서 PROMOTE_BLOCK 과 같은 2단이다: 기계는 측정 가능한
-    // 근사(형태 안정)로 후보만 올리고, 서술 가능성의 확정은 질문지의 코드화 사다리
-    // 논의에서 사람이 한다. 형태가 다양해도 variation 이 규칙적이면 사람이 추천 없이
-    // 이동시킬 수 있다 — 추천은 필요조건이 아니다.
     //
-    // 하한 비교의 분모는 **분포를 실제로 잰 표본**(surfaceSampleCount)이다 — 표면형
-    // 미기록 관찰(컬럼 이전)을 matched 로 섞어 세면 기록 1건짜리 분포가 하한을 업혀
-    // 넘는다. 값이 없으면(시험·구버전 호출) matched 로 폴백한다.
-    const sample = s.surfaceSampleCount ?? s.matched;
-    const formStable =
-      (s.distinctSurfaces ?? 99) <= T.formMaxSurfaces &&
-      (s.topSurfaceShare ?? 0) >= T.formMinTopShare;
-    if (sample >= T.ungraduateMinObserved && formStable) {
+    // **트리거 = 그림자 재생 증거.** 졸업 관찰 기록은 애초에 **기존 엔진이 잡은 출현만**
+    // 남는다(recordGraduationWatch 가 applyRules 를 재생해 남기는 기록이라). 그러므로
+    // "표면형이 몇 종인가"는 서술 가능성과 무관하다 — “원금 보장 / 원 금 보 장 /
+    // 원금보쟝”처럼 4종으로 다양해도 전부 엔진이 잡은 것이면 사전 항목 **하나**가 그
+    // variation 전체를 서술하는 것이고, 굳음 조건은 그런 케이스를 거꾸로 탈락시켰다.
+    //
+    // 그래서 승격과 같은 잣대(실적)로 잰다: 그림자가 잡은 출현들의 **사람 판정**이
+    //   · 위반 확정(정탐) ≥ 하한 — 잡은 것이 맞는 것이었다
+    //   · 정상 승인에 걸림(오탐) = 0 — 되살려도 정상 리포트를 잡지 않는다
+    // 일 때만 "이 표현은 이런 형태들로 나타나고, 전부 코드가 서술한다"를 추천한다.
+    // 표면형 종수·예시는 트리거가 아니라 **추천의 근거 표시**다.
+    //
+    // 한계(사람 몫으로 남는 것): 엔진이 못 잡은 variation 은 관찰에 아예 안 남아 이
+    // 증거로는 안 보인다 — 그건 IRIS 소견·신고로 드러나고, 관할 재검토 논의에서 사람이
+    // 본다. IRIS 미탐이 트리거가 아닌 것은 종전과 같다(실패의 처방은 재학습 — 위 주석).
+    if (s.truePos >= T.ungraduateMinShadowTruePos && s.falsePos === 0) {
+      const examples = (s.surfaceExamples ?? [])
+        .slice(0, 3)
+        .map((x) => `“${x}”`)
+        .join(' · ');
+      const more = (s.distinctSurfaces ?? 0) > 3 ? ' 외' : '';
       return {
         kind: 'UNGRADUATE',
         reason:
-          `졸업 후 굳은 형태 출현 ${sample}건(표면형 ${s.distinctSurfaces ?? '—'}종·최빈 ` +
-          `${pct(s.topSurfaceShare ?? 0)}%) — 코드로 잡을 후보: variation 서술 가능성 확정은 사람 (졸업 강등)`,
+          `그림자 재생 — 표면형 ${s.distinctSurfaces ?? 0}종${examples ? `(${examples}${more})` : ''} 전부 ` +
+          `기존 층이 잡았고 사람 판정과 일치(정탐 ${s.truePos}·오탐 0) — variation 이 코드로 서술됨, 확정은 사람 (졸업 강등)`,
       };
     }
     return null;
