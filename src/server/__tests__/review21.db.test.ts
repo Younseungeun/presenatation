@@ -296,6 +296,19 @@ describe('졸업 대비쌍 (21차 Y-3)', () => {
     { text: '과거 수익률이 미래의 성과를 보장하지 않는다는 점을 유의하십시오', expectViolation: false },
   ];
 
+// 졸업 관문 보강 (2026-09-01): 공식화 시도 사유 + 항목 질문지 도장이 필수다.
+// 이 파일의 시험은 회귀셋·관찰을 재는 것이라 관문은 통과시켜 두고, 관문 자체는
+// phraseGraduationGate.db.test 가 잰다
+const GRAD_REASON = '보장 뒤 어미 정규식을 시도했으나 부정문과 다른 낱말 표현이 함께 걸려 문자열로는 못 잡는다';
+async function stampItemPack(client: PrismaClient, phraseId: string) {
+  // 도장 + 샌드박스 실패 기록(정탐 1건 놓침) — 12차 C-4 로 잠금이 사유에서 샌드박스로 바뀌었다
+  const probe = { pattern: 'x', isRegex: false, tpTotal: 3, tpHit: 2, tpMiss: 1, normalTotal: 54, normalHit: 0, at: new Date().toISOString() };
+  await client.learnedPhrase.update({
+    where: { id: phraseId },
+    data: { itemPackAskedAt: new Date(), formalizeProbeJson: JSON.stringify(probe), formalizeProbeAt: new Date() },
+  });
+}
+
   it('낱말만 바꾼 복붙 3문장은 거절된다 — 명목 3, 실질 1은 회귀셋이 아니다', async () => {
     const { op, row } = await seedPhrase('복붙시험표현');
     const copied = [
@@ -305,16 +318,18 @@ describe('졸업 대비쌍 (21차 Y-3)', () => {
       ...distinctCases('x').slice(3),
     ];
     await expect(
-      graduatePhrase(prisma, { phraseId: row.id, cases: copied, operatorUserId: op.id }),
+      graduatePhrase(prisma, { phraseId: row.id, cases: copied, operatorUserId: op.id, reason: GRAD_REASON }),
     ).rejects.toThrow(/닮았습니다/);
   });
 
   it('자연스럽게 다른 6문장은 통과하고, graduatedAt 이 박힌다 (관찰 창의 기준점)', async () => {
     const { op, row } = await seedPhrase('졸업시험표현');
+    await stampItemPack(prisma, row.id);
     await graduatePhrase(prisma, {
       phraseId: row.id,
       cases: distinctCases('이 종목은'),
       operatorUserId: op.id,
+      reason: GRAD_REASON,
     });
     const after = await prisma.learnedPhrase.findUnique({ where: { id: row.id } });
     expect(after!.active).toBe(false);
@@ -323,10 +338,12 @@ describe('졸업 대비쌍 (21차 Y-3)', () => {
 
   it('격리는 2인 승인 없이는 거절되고, 승인이 있으면 게이트에서만 빠진다 — 행은 영구', async () => {
     const { op, row } = await seedPhrase('격리시험표현');
+    await stampItemPack(prisma, row.id);
     await graduatePhrase(prisma, {
       phraseId: row.id,
       cases: distinctCases('저 종목은'),
       operatorUserId: op.id,
+      reason: GRAD_REASON,
     });
     const target = (await prisma.regressionCase.findFirst({
       where: { phraseId: row.id },
@@ -385,10 +402,12 @@ describe('졸업 대비쌍 (21차 Y-3)', () => {
           createdBy: op.id,
         },
       });
+      await stampItemPack(solo, phrase.id);
       await graduatePhrase(solo, {
         phraseId: phrase.id,
         cases: distinctCases('저쪽 종목은'),
         operatorUserId: op.id,
+        reason: GRAD_REASON,
       });
       const target = (await solo.regressionCase.findFirst({ where: { phraseId: phrase.id } }))!;
 
@@ -414,10 +433,12 @@ describe('졸업 대비쌍 (21차 Y-3)', () => {
 
   it('졸업 관찰 — 7일 안에 그 표현이 다시 나타나면 기록되고, 학생 침묵이 함께 남는다', async () => {
     const { op, row } = await seedPhrase('관찰시험표현');
+    await stampItemPack(prisma, row.id);
     await graduatePhrase(prisma, {
       phraseId: row.id,
       cases: distinctCases('그 종목은'),
       operatorUserId: op.id,
+      reason: GRAD_REASON,
     });
     await recordGraduationWatch(
       prisma,

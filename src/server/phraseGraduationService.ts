@@ -8,6 +8,7 @@ import {
   type ScreeningInput,
 } from '@/domain/compliance';
 import { charBigramJaccard } from '@/domain/textSimilarity';
+import { parseProbe, probeFailed } from '@/domain/formalizationProbe';
 import {
   ApprovalError,
   consumeApproval,
@@ -75,6 +76,14 @@ export const GRADUATION_MIN_CASES_PER_SIDE = 3;
  */
 export const GRADUATION_MAX_PAIR_SIMILARITY = 0.4;
 
+/**
+ * @근거 설계 — 졸업 사유("공식화를 어떻게 시도했고 왜 안 됐나")의 최소 길이 (2026-09-01
+ * 창업자 확정). 관문이 "코드로 못 적는가"를 한 번도 묻지 않아 늘 같은 꼴 "원금 보장"도
+ * 졸업이 통과됐다(탐침 실측). 20자는 "정규식 X를 써 봤는데 Y가 걸려서"가 겨우 들어가는
+ * 길이 — 한 낱말로 때우는 것만 막고, 진짜 사유는 어차피 더 길다. 비용이 곧 필터다
+ */
+export const GRADUATION_REASON_MIN = 20;
+
 /** @근거 설계 — 21차 Y-3 검토 확정: 졸업 직후 7일간 그 표현을 감시 전용으로 계속 돈다 */
 export const GRADUATION_WATCH_DAYS = 7;
 
@@ -94,7 +103,13 @@ export interface GraduationCaseInput {
  */
 export async function graduatePhrase(
   prisma: PrismaClient,
-  input: { phraseId: string; cases: GraduationCaseInput[]; operatorUserId: string },
+  input: {
+    phraseId: string;
+    cases: GraduationCaseInput[];
+    operatorUserId: string;
+    /** 공식화 시도 메모 — 선택 (12차 C-4: 잠금은 샌드박스 기록이 맡고, 사유는 메모로 강등) */
+    reason?: string;
+  },
 ): Promise<{ registered: number }> {
   const phrase = await prisma.learnedPhrase.findUnique({ where: { id: input.phraseId } });
   if (!phrase) throw new GraduationError('사전 항목을 찾을 수 없습니다');
@@ -143,6 +158,38 @@ export async function graduatePhrase(
     }
   }
 
+  // ── "코드로 못 적는가"를 묻는 관문 (2026-09-01 창업자 확정) ──────────────────────
+  // 위 검사는 전부 **회귀셋의 품질**(수·길이·라벨·복붙)이라 "넘겨도 IRIS 가 안전하게
+  // 시험받나"만 지킨다. "넘겨야 하나"는 아무도 안 물어, 늘 같은 꼴 "원금 보장"도 졸업이
+  // 통과됐다(탐침 실측). 둘을 요구한다 — 막지 않고 건너뛰기를 비싸게 만드는 쪽으로:
+  //   ① 항목 질문지를 한 번은 뽑았어야 한다 (공식화를 검토했다는 도장 — 클릭 한 번)
+  //   ② 공식화 시도와 실패 이유를 적어야 한다 (한 낱말로 못 때우는 길이)
+  // 형태 굳음·IRIS 동반 검출 0 은 **경고만** 한다(화면) — 사람의 확신에 여지를 남긴다
+  if (!phrase.itemPackAskedAt) {
+    throw new GraduationError(
+      '항목 질문지를 먼저 뽑아 주세요 — 검출 항목 관리 표의 "항목 질문지 ▾"를 한 번 열면 됩니다. ' +
+        '졸업은 "코드로 못 적으니 IRIS 로"라는 결정이라, 공식화를 검토한 흔적이 있어야 합니다.',
+    );
+  }
+  // ② **공식화 샌드박스에서 실패한 기록** (12차 검토 C-4 채택). 20자 사유는 1인 운영에서
+  // "코드로 짤 수 없음" 같은 보일러플레이트가 된다 — 대신 후보 표현/패턴을 실제로 돌린
+  // 숫자를 본다: 정탐을 놓쳤거나(tpMiss) 정상 문장을 잡았으면(normalHit) 공식화 실패 = 졸업.
+  // 둘 다 0 이면 공식화가 됐다는 뜻이라 졸업이 아니라 규칙 승격감이다
+  const probe = parseProbe(phrase.formalizeProbeJson);
+  if (!probe) {
+    throw new GraduationError(
+      '공식화 샌드박스를 먼저 돌려 주세요 — 후보 표현(또는 패턴)을 넣고 "돌려보기"를 누르면 ' +
+        '이 항목이 잡은 문장과 대조군에 대한 정탐/오탐이 나옵니다. 그 기록이 있어야 졸업할 수 있습니다.',
+    );
+  }
+  if (!probeFailed(probe)) {
+    throw new GraduationError(
+      `마지막 샌드박스 시도("${probe.pattern}")가 정탐 ${probe.tpHit}/${probe.tpTotal}을 다 잡고 정상 문장 ${probe.normalTotal}건을 하나도 안 잡았습니다 — ` +
+        '공식화가 됐다는 뜻입니다. 졸업이 아니라 규칙 승격 후보입니다. 못 잡는 꼴이 있다면 그 문장으로 다시 돌려 주세요.',
+    );
+  }
+  const reason = (input.reason ?? '').trim();
+
   await prisma.$transaction([
     prisma.regressionCase.createMany({
       data: input.cases.map((c) => ({
@@ -157,7 +204,7 @@ export async function graduatePhrase(
       where: { id: phrase.id },
       // graduatedAt 이 관찰 창(7일)의 기준점이다 — active=false 만으로는
       // 졸업과 수동 비활성화(오탐 항목)를 못 가른다
-      data: { active: false, graduatedAt: new Date() },
+      data: { active: false, graduatedAt: new Date(), graduationReason: reason || null },
     }),
   ]);
   return { registered: input.cases.length };

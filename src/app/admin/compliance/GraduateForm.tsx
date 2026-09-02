@@ -6,6 +6,7 @@ import { RISK_CATEGORY_LABEL, type RiskCategory } from "@/domain/compliance";
 import { STUDENT_LABELS, isStudentLabel } from "@/domain/studentText";
 import { charBigramJaccard } from "@/domain/textSimilarity";
 import a from "../admin.module.css";
+import { probeFailed, type FormalizationProbeResult } from "@/domain/formalizationProbe";
 
 /**
  * **사전에서 나가는 유일한 문** (20차 X-2: 코드 승격은 금지, 출구는 졸업뿐).
@@ -47,6 +48,13 @@ export function GraduateForm({
   studentMode,
   minPerSide,
   maxPairSimilarity,
+  reasonMin,
+  itemPackAskedAt,
+  formStable,
+  surfaceSummary,
+  studentCoDetected,
+  studentMissed,
+  probe,
   onClose,
 }: {
   phraseId: string;
@@ -58,6 +66,18 @@ export function GraduateForm({
   minPerSide: number;
   /** 서버 상수 그대로 (GRADUATION_MAX_PAIR_SIMILARITY) */
   maxPairSimilarity: number;
+  /** 서버 상수 그대로 (GRADUATION_REASON_MIN) — 공식화 시도 사유의 최소 길이 */
+  reasonMin: number;
+  /** 항목 질문지를 뽑은 시각 — null 이면 졸업이 잠긴다 (2026-09-01 창업자 확정) */
+  itemPackAskedAt: string | null;
+  /** 형태 굳음(사다리의 규칙 승격 조건과 같은 값) — 경고만 */
+  formStable: boolean;
+  surfaceSummary: string;
+  /** IRIS 동반 검출 실적 — 0 이면 경고만 (막지 않는다) */
+  studentCoDetected: number;
+  studentMissed: number;
+  /** 공식화 샌드박스의 마지막 결과 — 실패 기록이 있어야 졸업이 열린다 (12차 C-4) */
+  probe: FormalizationProbeResult | null;
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -68,11 +88,47 @@ export function GraduateForm({
   const [normals, setNormals] = useState<Side[]>(blank(minPerSide));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // 공식화 시도와 실패 이유 (2026-09-01) — 관문이 요구한다. 서버와 같은 길이 하한
+  // 공식화 시도 메모 — 선택 (12차 C-4: 잠금은 샌드박스 기록이 맡는다)
+  const [reason, setReason] = useState("");
+  // 공식화 샌드박스 — 후보 표현/패턴을 항목 문장 + 대조군에 돌려 정탐/오탐을 본다
+  const [lastProbe, setLastProbe] = useState<FormalizationProbeResult | null>(probe);
+  const [pattern, setPattern] = useState(probe?.pattern ?? phrase);
+  const [isRegex, setIsRegex] = useState(probe?.isRegex ?? false);
+  const [probing, setProbing] = useState(false);
+  const [probeError, setProbeError] = useState<string | null>(null);
+
+  async function runProbe() {
+    setProbing(true);
+    setProbeError(null);
+    try {
+      const res = await fetch("/api/admin/compliance/formalize-probe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phraseId, pattern, isRegex }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setProbeError(json.error ?? "돌리지 못했습니다");
+        return;
+      }
+      setLastProbe(json as FormalizationProbeResult);
+    } catch {
+      setProbeError("서버에 닿지 못했습니다");
+    } finally {
+      setProbing(false);
+    }
+  }
 
   const vProblems = sideProblems(violations, true, maxPairSimilarity);
   const nProblems = sideProblems(normals, false, maxPairSimilarity);
+  const noPack = !itemPackAskedAt;
+  const noProbe = !lastProbe;
+  const probeSucceeded = !!lastProbe && !probeFailed(lastProbe);
+  const locked = noPack || noProbe || probeSucceeded;
   const ready =
     !busy &&
+    !locked &&
     vProblems.length === 0 &&
     nProblems.length === 0 &&
     violations.every((s) => s.text.trim()) &&
@@ -87,6 +143,7 @@ export function GraduateForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           phraseId,
+          reason: reason.trim(),
           cases: [
             ...violations.map((s) => ({
               text: s.text.trim(),
@@ -151,6 +208,82 @@ export function GraduateForm({
         </div>
       )}
 
+      {/* ── "코드로 못 적는가"를 묻는 자리 (2026-09-01 창업자 확정) ──
+          잠금 하나(질문지 도장)와 경고 둘(형태 굳음 · IRIS 동반 0). 경고는 막지 않는다 —
+          사람의 확신에 여지를 남기되, 건너뛰는 것이 보이게 한다 */}
+      {noPack && (
+        <div className={`${a.note} ${a.noteNeg}`}>
+          <b>항목 질문지를 먼저 뽑아 주세요.</b> 검출 항목 관리 표(재학습 논의 자료)에서 이 표현의
+          &ldquo;항목 질문지 ▾&rdquo;를 한 번 열면 잠금이 풀립니다. 졸업은 &ldquo;코드로 못 적으니
+          IRIS로&rdquo;라는 결정이라, 공식화를 검토한 흔적이 있어야 합니다.
+        </div>
+      )}
+      {formStable && (
+        <div className={`${a.note} ${a.noteWarn}`}>
+          <b>이 표현은 형태가 굳어 있습니다</b> ({surfaceSummary}) — 사다리의 <b>규칙 승격</b> 조건과
+          같은 값입니다. 늘 같은 꼴로 오는 표현은 IRIS보다 코드가 더 값집니다(즉시 거절로 가는 유일한
+          길). 졸업 전에 공식화를 시도해 보세요.
+        </div>
+      )}
+      {studentCoDetected === 0 && (
+        <div className={`${a.note} ${a.noteWarn}`}>
+          <b>IRIS가 이 표현을 함께 잡은 적이 없습니다</b> (동반 검출 0 · 미동반 {studentMissed}) — 내리면
+          이 variation을 잡는 층이 <b>없어집니다.</b> 자동 추천은 이 상태에서 졸업을 권하지 않습니다.
+          IRIS가 잡을 거라고 확신할 때만 누르세요.
+        </div>
+      )}
+      {/* ── 공식화 샌드박스 (12차 검토 C-4 채택) ──
+          "코드로 못 적는가"를 사람의 말이 아니라 **돌려 본 숫자**로 받는다. 후보 표현/패턴을 이
+          항목이 잡은 문장(정탐·정상)과 대조군 54문장에 돌려 정탐을 놓쳤거나(tpMiss) 정상을
+          잡았으면(normalHit) 공식화 실패 → 졸업이 열린다. 둘 다 0이면 공식화가 된 것이라
+          졸업이 아니라 규칙 승격감이다 — 그때는 잠긴다 */}
+      <div className={a.field}>
+        <div className={a.lbl}>
+          공식화 샌드박스 <small>필수 — 후보 표현(또는 패턴)을 돌려 실패 기록이 있어야 졸업됩니다</small>
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <input
+            className={a.textarea}
+            style={{ flex: "1 1 220px", minHeight: 0, padding: "8px 10px" }}
+            value={pattern}
+            onChange={(e) => setPattern(e.target.value)}
+            placeholder="예: 원금 보장  /  정규식: 원금\s*(보장|보전)"
+            aria-label="공식화 후보 표현"
+          />
+          <label style={{ fontSize: 12, color: "var(--text-faint)", whiteSpace: "nowrap" }}>
+            <input type="checkbox" checked={isRegex} onChange={(e) => setIsRegex(e.target.checked)} /> 정규식(창업자용)
+          </label>
+          <button type="button" className={`${a.btn} ${a.btnLine}`} style={{ flex: "0 0 auto" }} onClick={runProbe} disabled={probing || !pattern.trim()}>
+            {probing ? "돌리는 중…" : "돌려보기"}
+          </button>
+        </div>
+        {probeError && <p className={a.error}>{probeError}</p>}
+        {lastProbe && (
+          <div className={`${a.note} ${probeFailed(lastProbe) ? "" : a.noteWarn}`}>
+            <b>&ldquo;{lastProbe.pattern}&rdquo;</b>
+            {lastProbe.isRegex ? " (정규식)" : ""} — 정탐 {lastProbe.tpHit}/{lastProbe.tpTotal} 잡음
+            {lastProbe.tpMiss > 0 && <> · <b>{lastProbe.tpMiss}건 놓침</b></>} · 정상 문장 {lastProbe.normalTotal}건 중{" "}
+            {lastProbe.normalHit > 0 ? <b>{lastProbe.normalHit}건 오탐</b> : "오탐 0"}.{" "}
+            {probeFailed(lastProbe)
+              ? "공식화 실패 — 코드로 못 잡는 꼴이 있습니다. 졸업할 수 있습니다."
+              : "공식화 성공 — 이 조건이면 코드가 다 잡습니다. 졸업이 아니라 규칙 승격 후보입니다."}
+          </div>
+        )}
+      </div>
+      <div className={a.field}>
+        <div className={a.lbl}>
+          공식화 시도 메모 <small>선택 — 무엇을 시도했고 왜 안 됐나</small>
+        </div>
+        <textarea
+          className={a.textarea}
+          rows={2}
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="예: 어미 변형까지는 잡히는데 '손실 0'·'전액 케어'처럼 다른 낱말로 온 것은 못 잡는다"
+          aria-label="공식화 시도 메모"
+        />
+      </div>
+
       <CaseSide
         title="위반 문장"
         hint="IRIS가 반드시 잡아야 하는 문장입니다. 이 표현이 그대로 들어가지 않아도 됩니다 — 같은 뜻을 다르게 쓴 문장이 오히려 값집니다."
@@ -179,7 +312,13 @@ export function GraduateForm({
       </div>
       {!ready && !busy && (
         <div className={a.gate}>
-          {[...vProblems, ...nProblems][0] ?? "여섯 문장을 모두 채워 주세요"}
+          {noPack
+            ? "항목 질문지를 먼저 뽑아야 졸업할 수 있습니다"
+            : noProbe
+              ? "공식화 샌드박스를 먼저 돌려 주세요 — 실패 기록이 있어야 졸업됩니다"
+              : probeSucceeded
+                ? "마지막 시도가 다 잡았습니다 — 졸업이 아니라 규칙 승격 후보입니다 (못 잡는 꼴이 있으면 그 문장으로 다시 돌리세요)"
+                : ([...vProblems, ...nProblems][0] ?? "여섯 문장을 모두 채워 주세요")}
         </div>
       )}
     </div>

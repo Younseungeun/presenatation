@@ -33,6 +33,9 @@ import type { AccuracySummary } from "@/domain/screeningAccuracy";
 import { getLearnedPhraseStats } from "@/server/learnedPhraseService";
 import { getCustomViolationTypes } from "@/server/violationTypeService";
 import { getDetectionLadder } from "@/server/detectionLadderService";
+import { LADDER_THRESHOLDS } from "@/domain/detectionLadder";
+import { parseProbe } from "@/domain/formalizationProbe";
+import { GRADUATION_REASON_MIN } from "@/server/phraseGraduationService";
 import { formatCardEvidence } from "@/domain/cardEvidence";
 
 // 예측 카드를 근거 문장 짚기용 한 줄로 (2026-08-28) — 본문에 없는 카드 위반(비현실적 예측·
@@ -1098,6 +1101,11 @@ export default async function AdminCompliancePage({
       ladderRecs.graduate += 1;
     else ladderRecs.promote += 1; // PROMOTE_RULE · PROMOTE_BLOCK
   }
+  // 졸업 폼의 경고 재료 — 사다리 행에서 그대로 꺼낸다 (2026-09-01). 사다리 추천과 졸업 폼이
+  // **같은 숫자**를 보게 하려는 것: 형태 굳음은 PROMOTE_RULE 의 조건값, IRIS 동반은 GRADUATE_IRIS 의 실증값
+  const ladderByPhrase = new Map(
+    ladder.filter((r) => r.layer === "PHRASE").map((r) => [r.id.replace(/^learned:/, ""), r] as const),
+  );
   // 문항은 사전 항목에 붙어 있다 — 졸업이 만든 것이라 그 항목 카드에서 닿는 것이 맞다.
   // (관찰 큐는 7일짜리 임시 자리고 문항은 영구라 수명이 안 맞는다 — 회신 4호 §4-b)
   const casesByPhrase = new Map<string, typeof regressionCases>();
@@ -1718,6 +1726,16 @@ export default async function AdminCompliancePage({
                   studentMode={mode}
                   minPerSide={GRADUATION_MIN_CASES_PER_SIDE}
                   maxPairSimilarity={GRADUATION_MAX_PAIR_SIMILARITY}
+                  reasonMin={GRADUATION_REASON_MIN}
+                  itemPackAskedAt={p.itemPackAskedAt ? p.itemPackAskedAt.toISOString() : null}
+                  probe={parseProbe(p.formalizeProbeJson)}
+                  formStable={
+                    (ladderByPhrase.get(p.id)?.distinctSurfaces ?? 99) <= LADDER_THRESHOLDS.formMaxSurfaces &&
+                    (ladderByPhrase.get(p.id)?.topSurfaceShare ?? 0) >= LADDER_THRESHOLDS.formMinTopShare
+                  }
+                  surfaceSummary={`표면형 ${ladderByPhrase.get(p.id)?.distinctSurfaces ?? 0}종 · 최빈 ${Math.round((ladderByPhrase.get(p.id)?.topSurfaceShare ?? 0) * 100)}%`}
+                  studentCoDetected={ladderByPhrase.get(p.id)?.studentCoDetected ?? 0}
+                  studentMissed={ladderByPhrase.get(p.id)?.studentMissed ?? 0}
                 />
               )}
             </div>

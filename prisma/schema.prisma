@@ -1030,6 +1030,19 @@ model LearnedPhrase {
   /// 졸업 시각 (21차 Y-3) — 졸업 직후 7일 관찰 창의 기준점.
   /// active=false 만으로는 "졸업"과 "수동 비활성화(오탐 항목)"를 못 가른다
   graduatedAt      DateTime?
+  /// 졸업 때 운영자가 적은 **공식화 시도와 실패 이유** (2026-09-01 창업자 확정). 졸업 = "코드로
+  /// 못 적으니 IRIS로"인데 관문이 그 시도를 묻지 않아 코드화가 자명한 표현도 졸업됐다(탐침 실측).
+  /// 비용이 곧 필터다 — 쓰다 보면 "어, 되네"가 나온다
+  graduationReason String?
+  /// **항목 질문지를 뽑은 시각** — 졸업 관문이 본다(없으면 졸업 불가). 사건별 질문지의
+  /// teacherAskedAt 과 같은 원리: 묻지 않고 내리는 것을 구조로 막는다
+  itemPackAskedAt  DateTime?
+  /// **공식화 샌드박스의 마지막 결과** (12차 검토 C-4 채택, 2026-09-01) — 후보 표현/패턴을
+  /// 이 항목이 잡은 문장(정탐·정상)과 대조군 54문장에 돌린 정탐/오탐 수(JSON). 졸업 관문은
+  /// "공식화가 실패했다"(정탐을 놓쳤거나 정상 문장을 잡았다)는 기록이 있을 때만 연다 —
+  /// 20자 사유는 보일러플레이트가 되지만 이 숫자는 못 꾸민다
+  formalizeProbeJson String?
+  formalizeProbeAt   DateTime?
   /// 이 표현을 등록할 때 게시 중 리포트를 다시 훑어 나온 목록 (PhraseRescanHit)
   rescanHits       PhraseRescanHit[]
 

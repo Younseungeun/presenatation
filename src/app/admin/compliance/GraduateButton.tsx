@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { RiskCategory } from "@/domain/compliance";
+import type { FormalizationProbeResult } from "@/domain/formalizationProbe";
 import { GraduateForm } from "./GraduateForm";
 import a from "../admin.module.css";
 
@@ -19,6 +20,14 @@ export function GraduateButton(props: {
   studentMode: "live" | "shadow" | "off";
   minPerSide: number;
   maxPairSimilarity: number;
+  /** 아래 여섯은 관문·경고 재료 (2026-09-01) — GraduateForm 주석 참고 */
+  reasonMin: number;
+  itemPackAskedAt: string | null;
+  formStable: boolean;
+  surfaceSummary: string;
+  studentCoDetected: number;
+  studentMissed: number;
+  probe: FormalizationProbeResult | null;
 }) {
   const [open, setOpen] = useState(false);
 

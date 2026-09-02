@@ -14,7 +14,8 @@ import {
   getCategoryOutcomeRates,
 } from '@/server/complianceService';
 import { getKnownInstrumentNames } from '@/server/instrumentNames';
-import { getActiveLearnedPhrases } from '@/server/learnedPhraseService';
+import { getActiveLearnedPhrases, getGraduatedLearnedPhrases } from '@/server/learnedPhraseService';
+import { applyRules } from '@/domain/compliance';
 import { loadSemanticIndex } from '@/server/semanticIndexService';
 import { requireResearcherId, toErrorResponse } from '../../_lib/http';
 
@@ -81,7 +82,20 @@ export async function POST(req: NextRequest) {
     const student = studentMode() === 'live' ? createStudentClientFromEnv() : null;
     const studentDown = student ? !(await student.usable()) : false;
 
-    return NextResponse.json({ findings, categoryRates, studentDown });
+    // **졸업한 표현의 힌트** (12차 검토 C-8 수정 채택, 2026-09-01). 졸업하면 사전에서 꺼져
+    // 작성 중 경고가 영구히 사라진다 — 리서처는 아무 말도 못 듣고 제출했다가 IRIS 보류를
+    // 맞는다. 검토자는 프론트 전용 힌트를 제안했지만 그러면 사전이 브라우저로 샌다.
+    // 대신 **여기(서버의 작성 중 검사)에서만** 졸업 표현을 돌려 HINT 로 알린다 — 게시 관문은
+    // 이 목록을 보지 않으므로 보류 사유가 아니고, 문구도 "될 수 있습니다"까지만 말한다.
+    const graduated = await getGraduatedLearnedPhrases(prisma);
+    const hints =
+      graduated.length === 0
+        ? []
+        : applyRules(input, { phrases: graduated, knownNames })
+            .filter((f) => f.source === 'learned')
+            .map((f) => ({ category: f.category, quote: f.quote }));
+
+    return NextResponse.json({ findings, categoryRates, studentDown, hints });
   } catch (e) {
     if (e instanceof z.ZodError) {
       return NextResponse.json({ error: '요청 형식 오류', issues: e.issues }, { status: 400 });

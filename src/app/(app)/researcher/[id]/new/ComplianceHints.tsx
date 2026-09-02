@@ -56,6 +56,16 @@ interface CheckResult {
    * 리서처는 통과를 예상하고 제출했다가 보류를 맞는다.
    */
   studentDown: boolean;
+  /**
+   * 졸업한 표현의 힌트 (12차 C-8, 2026-09-01) — 게시를 막지도 보류시키지도 않는다. 사전에서
+   * IRIS로 넘어간 표현이라 서버 검사에서만 계산해 알려 주고, 판단은 IRIS가 게시 시점에 한다
+   */
+  hints: Hint[];
+}
+
+interface Hint {
+  category: RiskCategory;
+  quote: string;
 }
 
 export function ComplianceHints({ input }: { input: CheckInput }) {
@@ -84,6 +94,7 @@ export function ComplianceHints({ input }: { input: CheckInput }) {
           findings: data.findings ?? [],
           rates: data.categoryRates ?? {},
           studentDown: data.studentDown === true,
+          hints: data.hints ?? [],
         });
       } catch {
         /* 사전 검사 실패는 조용히 넘긴다 — 제출 시 서버가 다시 검사한다 */
@@ -96,7 +107,37 @@ export function ComplianceHints({ input }: { input: CheckInput }) {
 
   // 지금 입력에 대한 결과가 아직 없으면 아무것도 그리지 않는다
   if (!enough || result?.key !== key) return null;
-  const { findings, rates, studentDown } = result;
+  const { findings, rates, studentDown, hints } = result;
+
+  // **졸업한 표현의 힌트** (12차 C-8) — 노란 힌트 하나. "될 수 있습니다"까지만 말한다:
+  // 이 표현은 이제 IRIS가 문맥으로 보므로 서버는 막지 않고, 리서처가 스스로 고칠 기회만 준다
+  const hintsBlock =
+    hints.length > 0 ? (
+      <div
+        style={{
+          marginTop: 10,
+          padding: "10px 12px",
+          borderRadius: 10,
+          borderLeft: "4px solid var(--warn)",
+          background: "color-mix(in srgb, var(--warn) 4%, var(--bg))",
+        }}
+      >
+        <p style={{ margin: 0, fontWeight: 700, fontSize: 13.5 }}>
+          문맥에 따라 검수 보류 대상이 될 수 있는 표현이 있습니다
+        </p>
+        <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 13 }}>
+          {hints.map((h, i) => (
+            <li key={i} style={{ color: "var(--text-weak)" }}>
+              <strong>{RISK_CATEGORY_LABEL[h.category]}</strong> — “{h.quote}”
+            </li>
+          ))}
+        </ul>
+        <p className={styles.hint} style={{ marginTop: 6, marginBottom: 0 }}>
+          제출을 막지는 않습니다 — 이 표현은 문맥을 보고 판단합니다. 뜻이 분명하도록 고쳐 두면
+          보류를 피할 수 있습니다.
+        </p>
+      </div>
+    ) : null;
 
   // **검사기가 멈춰 있으면 통과를 약속하지 않는다.** 소견이 0건인 것은 참이지만,
   // 그 말이 리서처에게 뜻하는 것("내면 게시된다")이 지금은 거짓이다 — 관문은
@@ -127,11 +168,14 @@ export function ComplianceHints({ input }: { input: CheckInput }) {
 
   if (findings.length === 0) {
     return (
-      downNotice ?? (
-        <p className={styles.hint} style={{ marginTop: 8 }}>
-          ✓ 명백한 금지 표현은 발견되지 않았습니다. 최종 판단은 제출 후 검수에서 이뤄집니다.
-        </p>
-      )
+      <>
+        {downNotice ?? (
+          <p className={styles.hint} style={{ marginTop: 8 }}>
+            ✓ 명백한 금지 표현은 발견되지 않았습니다. 최종 판단은 제출 후 검수에서 이뤄집니다.
+          </p>
+        )}
+        {hintsBlock}
+      </>
     );
   }
 
@@ -190,6 +234,7 @@ export function ComplianceHints({ input }: { input: CheckInput }) {
           })}
         </ul>
       </div>
+      {hintsBlock}
     </>
   );
 }

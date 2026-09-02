@@ -32,6 +32,8 @@ const bodySchema = z.object({
     )
     .min(1)
     .max(40),
+  // 공식화 시도 메모 — 선택 (12차 C-4: 잠금은 샌드박스 기록이 맡는다). 최종 관문은 서비스
+  reason: z.string().max(500).optional(),
 });
 
 export async function POST(req: NextRequest) {

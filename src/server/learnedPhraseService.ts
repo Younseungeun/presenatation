@@ -113,6 +113,31 @@ export async function getActiveLearnedPhrases(prisma: PrismaClient): Promise<Lea
   return phoneticCapOrder(rows).map(toDomain);
 }
 
+/**
+ * **졸업한** 표현 — 작성 중 검사의 HINT 재료 (12차 검토 C-8 수정 채택, 2026-09-01).
+ * 졸업하면 사전에서 꺼져 작성 중 경고가 영구히 사라지는데(작성 화면은 규칙·사전만 돈다),
+ * 리서처는 아무 말도 못 듣고 제출했다가 IRIS 보류를 맞는다. 검토자는 "프론트 전용 힌트"를
+ * 제안했지만 그러면 사전이 브라우저로 샌다 — 대신 **서버의 작성 중 검사에서만** 이 목록을
+ * 돌려 HINT 로 알리고, 게시 관문은 이 목록을 보지 않는다.
+ */
+export async function getGraduatedLearnedPhrases(prisma: PrismaClient): Promise<LearnedPhrase[]> {
+  const rows = await prisma.learnedPhrase.findMany({
+    where: { active: false, graduatedAt: { not: null } },
+    select: {
+      id: true,
+      phrase: true,
+      normalized: true,
+      category: true,
+      note: true,
+      phoneticEligible: true,
+      matchCount: true,
+      createdAt: true,
+      capExempt: true,
+    },
+  });
+  return phoneticCapOrder(rows).map(toDomain);
+}
+
 export interface CreatePhraseInput {
   phrase: string;
   category: RiskCategory;
@@ -153,7 +178,7 @@ let controlCache: string[] | null = null;
 
 /** 대조군 54 — 파일이 없으면 던진다. 호출부의 catch 가 "자격 없음"으로 접는다 (λ=4:
  *  대조 표본 없이 근사 감시를 켜는 쪽이 더 비싸다) */
-function controlSentences(): string[] {
+export function controlSentences(): string[] {
   if (controlCache) return controlCache;
   const raw = readFileSync(join(process.cwd(), 'training', 'holdout', 'control-hand.jsonl'), 'utf-8');
   controlCache = raw
@@ -305,6 +330,10 @@ export async function getLearnedPhraseStats(prisma: PrismaClient) {
       // "졸업한 항목" 자리에 사는 게 맞고(회귀 문항은 영구라 수명이 맞아야 한다),
       // 그 자리를 그리려면 화면이 졸업 여부·시각을 알아야 한다
       graduatedAt: r.graduatedAt,
+      // 항목 질문지를 뽑은 시각 — 졸업 폼이 잠금 여부를 보인다 (2026-09-01)
+      itemPackAskedAt: r.itemPackAskedAt,
+      // 공식화 샌드박스 마지막 결과 — 졸업 폼이 잠금 여부와 숫자를 보인다 (C-4)
+      formalizeProbeJson: r.formalizeProbeJson,
       // 코드 규칙 후보 조건 넷째의 분자 — 0 이면 아직 아무도 안 걸렸거나 기록 도입 전
       distinctResearcherCount: distinctByPhrase.get(r.id) ?? 0,
       // 부정·헷지 문맥 출현 수 (회신 20호 요청 2) — 승격 후보 다섯째 조건의 재료
