@@ -82,6 +82,7 @@ import {
   type TeacherAnswerPending,
 } from "@/server/teacherAnswerQueue";
 import {
+  ACCURACY_WINDOW_DAYS,
   getPendingComplianceReviews,
   getPublishedReportsForOversight,
   getScreeningAccuracy,
@@ -422,12 +423,15 @@ function TeacherRelayPanel({
           flex: 1,
           display: "inline-flex",
           alignItems: "center",
+          // 칩이 네 개까지 붙으면(재학습·승격·졸업·졸업 강등) 한 줄이 모자란다 —
+          // 줄바꿈을 막으면 제목이 세로 한 글자씩으로 쥐어짜인다 (시드 표본으로 실측)
+          flexWrap: "wrap",
           gap: 6,
           textDecoration: "none",
           color: "inherit",
         }}
       >
-        <strong style={{ color: "var(--text)" }}>재학습 논의 자료</strong>{" "}
+        <strong style={{ color: "var(--text)", whiteSpace: "nowrap" }}>재학습 논의 자료</strong>{" "}
         <b style={{ color: "var(--text)" }}>{pending.length}건</b>
         {recent > 0 && <span style={{ color: "var(--text-dim)" }}>(+{recent})</span>}
         {/* **재학습 추천 칩 — 엇갈림이 문턱(50)을 넘을 때만** (2026-08-29 창업자 지시).
@@ -1042,7 +1046,8 @@ function AccuracyPanel({ summary }: { summary: AccuracySummary }) {
   return (
     <div className={a.row}>
       <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-weak)" }}>
-        검수 정확도 90일
+        {/* 창 길이는 서버 상수를 읽는다 — 라벨(90일)과 쿼리가 따로 놀던 잠복 결함의 재발 방지 */}
+        검수 정확도 {ACCURACY_WINDOW_DAYS}일
       </span>
       <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-weak)" }}>
         정탐 <b style={{ color: "#0e8a71" }}>{pct(summary.precision)}</b> · 오탐{" "}

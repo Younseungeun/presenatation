@@ -909,12 +909,23 @@ const LABEL_SELECT = {
 } as const;
 
 /**
- * 검수 정확도 — 운영자 판정이 붙은 건만 집계한다.
+ * @근거 설계 — 화면이 처음부터 "검수 정확도 90일"이라 적어 왔는데 쿼리는 최신 500건을
+ * 무기한으로 긁고 있었다(라벨과 집계가 다른 것을 재는 잠복 결함 — 판정이 500건을
+ * 넘는 순간까지 아무도 모른다). 90은 라벨이 약속해 온 값을 코드로 옮긴 것이고,
+ * 운영 표본이 쌓이면 라벨과 **함께** 재보정한다 (라벨이 이 상수를 읽는다).
+ */
+export const ACCURACY_WINDOW_DAYS = 90;
+
+/**
+ * 검수 정확도 — 운영자 판정이 붙은 건만, **최근 90일 창**으로 집계한다.
  * 이 수치가 축 2(모델 캐스케이드)·축 3(리스크 기반 차등)의 판단 근거가 된다.
  */
-export async function getScreeningAccuracy(prisma: PrismaClient, take = 500) {
+export async function getScreeningAccuracy(prisma: PrismaClient, take = 500, now = new Date()) {
   const rows = await prisma.complianceReview.findMany({
-    where: { operatorVerdict: { not: null } },
+    where: {
+      operatorVerdict: { not: null },
+      createdAt: { gte: new Date(now.getTime() - ACCURACY_WINDOW_DAYS * 86_400_000) },
+    },
     select: LABEL_SELECT,
     orderBy: { createdAt: 'desc' },
     take,
