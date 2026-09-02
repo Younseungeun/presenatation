@@ -738,6 +738,27 @@ export interface VerdictLabel {
   evidence?: string[];
 }
 
+/** 판정 기록의 입력 검증 실패 — 운영자 화면이 그대로 띄울 문장을 담는다 */
+export class ComplianceVerdictError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ComplianceVerdictError';
+  }
+}
+
+/**
+ * 규칙·사전(·옛 AI)이 낸 소견이 하나라도 있는가. 없으면 "IRIS 만 잡았거나 아무도 못 잡은 건"이다.
+ * source 없는 옛 기록은 규칙 소견으로 본다(보수 — 모르면 IRIS 몫으로 세지 않는다).
+ * 깨진 JSON·빈 소견은 false — 아무도 못 잡은 것과 같다.
+ */
+function hasNonStudentFinding(findingsJson: string): boolean {
+  try {
+    return (JSON.parse(findingsJson) as Finding[]).some((f) => f.source !== 'student');
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 리포트의 검수 건에 운영자 판정을 기록하는 쓰기 (호출자의 트랜잭션에 합류).
  *
@@ -775,6 +796,25 @@ export async function operatorVerdictWrites(
       select: { id: true, findingsJson: true },
     }),
   ]);
+
+  // **IRIS 만 잡은 건을 큐에서 반려할 때는 근거 문장이 필수다** (2026-09-01 창업자 확정).
+  // IRIS 소견은 문장을 짚지 못하므로(문서 전체 판정), 이런 건에서 근거 문장을 안 짚으면
+  // "IRIS 유형별 문장 모음"(졸업 강등 본선 재료)이 **영원히 안 쌓인다**. 규칙·사전이 소견을
+  // 낸 건은 소견 자체가 문장을 짚고 있어 종전대로 선택이다.
+  // 범위는 **반려·강제 철회·신고 확인(미탐) 셋 다** (2026-09-01 창업자 확정). 세 화면
+  // (ResolveButton·AbuseGroupResolve) 모두 근거 문장 선택기를 갖고 있고 철회·확인은 이미
+  // 화면에서 필수다 — 서버가 같은 것을 요구해야 화면과 관문이 갈라지지 않는다
+  if (
+    (verdict === 'REJECTED' || verdict === 'TAKEDOWN' || verdict === 'MISSED') &&
+    evidence.length === 0 &&
+    latest &&
+    !hasNonStudentFinding(latest.findingsJson)
+  ) {
+    throw new ComplianceVerdictError(
+      '이 건은 규칙·사전이 잡지 못하고 IRIS 만 잡았거나 아무도 못 잡은 건입니다 — 본문에서 근거 문장을 하나 이상 짚어 주세요. ' +
+        '그 문장이 코드화(사전 등록·규칙) 논의의 유일한 재료가 됩니다.',
+    );
+  }
 
   // 학습 표현의 정확도 라벨 — 이 표현이 걸린 건이 실제 반려로 확정됐는가.
   // 규칙·AI와 같은 잣대를 사전에도 적용해야 오탐 표현이 영원히 남지 않는다.

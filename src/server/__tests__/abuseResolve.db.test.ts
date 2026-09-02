@@ -130,7 +130,7 @@ describe('확인 = 철회·환불·미탐·통지·보상이 한 번에', () => 
         decision: 'CONFIRMED',
         note: '본문에 오픈채팅 유도 문구 확인',
         categories: ['SOLICIT_CONTACT'],
-        // 근거 문장 지목 (2026-08-28) — 미탐 재학습 지역화의 근거
+        // 근거 문장 지목 (2026-08-28) — 미탐 재학습 지역화의 근거. 2026-09-01 부터는 필수다
         evidence: ['오픈채팅방에서 안내드립니다'],
       },
       NOW,
@@ -218,6 +218,8 @@ describe('확인 = 철회·환불·미탐·통지·보상이 한 번에', () => 
         operatorUserId: operatorId,
         decision: 'CONFIRMED',
         note: '본문에 오픈채팅 유도 문구 확인',
+        // 규칙·사전이 못 잡은 건의 확인에는 근거 문장이 필수다 (2026-09-01) — 화면과 같은 계약
+        evidence: ['오픈채팅으로 오시면 자세히 알려드립니다'],
         categories: ['SOLICIT_CONTACT'],
       },
       NOW,
@@ -247,7 +249,7 @@ describe('확인 = 철회·환불·미탐·통지·보상이 한 번에', () => 
 
     const summary = await resolveAbuseReportGroup(
       prisma,
-      { reportId, operatorUserId: operatorId, decision: 'CONFIRMED', note: '확인', categories: ['PROFIT_GUARANTEE'] },
+      { reportId, operatorUserId: operatorId, decision: 'CONFIRMED', note: '확인', categories: ['PROFIT_GUARANTEE'], evidence: ['원금 보장이 확실합니다'] },
       NOW,
     );
     expect(summary.takedown).toBeNull();

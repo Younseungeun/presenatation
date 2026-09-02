@@ -2,6 +2,7 @@ import type { DetectionLadderRow } from "@/server/detectionLadderService";
 import { LADDER_THRESHOLDS, type LadderRecommendationKind } from "@/domain/detectionLadder";
 import { SecHead } from "../Why";
 import a from "../admin.module.css";
+import { ItemPackButton } from "./ItemPackButton";
 
 // 검출 항목 관리 표 — 승격/강등 사다리 (2026-08-28). 재학습 논의 자료 상세 화면 안에 산다:
 // 근거 데이터가 같으므로(운영자 판정) 한 화면에서 사건별(질문지)과 규칙별(이 표)을 함께 본다.
@@ -79,7 +80,15 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
               <tbody>
                 {rows.map((r) => (
                   <tr key={r.id} style={{ borderTop: "1px solid var(--line)" }}>
-                    <td style={{ ...td, maxWidth: 240, wordBreak: "break-word" }}>{r.label}</td>
+                    <td style={{ ...td, maxWidth: 240, wordBreak: "break-word" }}>
+                      {r.label}
+                      {/* 항목별 질문지 — 학습표현·규칙 WARN 만 (BLOCK 은 사람 판정이 안 붙고
+                          IRIS 는 항목 단위가 아니다). 이 항목이 잡은 문장 전부를 모아
+                          variation 공식화를 묻는 재학습 논의 자료 (2026-09-01) */}
+                      {(r.layer === "PHRASE" || r.layer === "RULE_WARN") && (
+                        <ItemPackButton itemId={r.id} />
+                      )}
+                    </td>
                     <td style={td}>{LAYER_LABEL[r.layer]}</td>
                     <td style={tdNum}>{r.matched}</td>
                     <td style={tdNum}>{r.truePos}</td>

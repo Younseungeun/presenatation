@@ -926,6 +926,8 @@ describe('운영자 판정 기록 — 검수 정확도 측정의 원천', () => 
         operatorUserId: OPERATOR,
         reason: '사후 확인 결과 미공개 정보 정황',
         categories: ['PRIVATE_INFO'],
+        // 통과한 건(아무도 못 잡음)의 철회에는 근거 문장이 필수다 (2026-09-01) — 미탐 재료
+        evidence: ['공개 실적 자료를 근거로 상승을 전망합니다.'],
       },
       NOW,
     );

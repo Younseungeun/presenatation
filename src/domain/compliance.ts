@@ -199,6 +199,13 @@ export interface Finding {
    * `제목.length + 요약.length + 2` 만큼 빼야 한다.
    */
   span?: [number, number];
+  /**
+   * **정확한 출현형** — span 으로 잘라 낸 원문 조각 (2026-09-01). quote 는 앞뒤 문맥까지
+   * 담아 "어느 글자 덩어리가 걸렸나"를 셀 수 없다. 항목 질문지의 출현형(어미) 요약은 이
+   * 값으로 센다. 나중에 span 으로 복원하면 안 된다 — 반려 뒤 본문이 바뀌면 같은 위치가
+   * 다른 글자를 가리킨다. **걸리는 순간에 적는다.** 층에 따라 없을 수 있다(선택).
+   */
+  surface?: string;
 }
 
 /**
@@ -910,6 +917,7 @@ export function applyRules(input: ScreeningInput, ctx: RuleContext = {}): Findin
       layer: 'L1_RAW',
       ruleId: rule.id,
       span: [match.index, match.index + match[0].length],
+      surface: text.slice(match.index, match.index + match[0].length),
     });
   }
 
@@ -944,6 +952,7 @@ export function applyRules(input: ScreeningInput, ctx: RuleContext = {}): Findin
       layer: 'L2_SEPARATOR',
       ruleId: rule.id,
       span: [start, endIndex + 1],
+      surface: text.slice(start, endIndex + 1),
     });
   }
 
@@ -977,6 +986,7 @@ export function applyRules(input: ScreeningInput, ctx: RuleContext = {}): Findin
         layer: 'L3_DEEP',
         ruleId: rule.id,
         span: [start, endIndex + 1],
+        surface: text.slice(start, endIndex + 1),
       });
     }
   }
@@ -1009,6 +1019,7 @@ export function applyRules(input: ScreeningInput, ctx: RuleContext = {}): Findin
         layer: 'L4_CONTACT',
         ruleId: 'CONTACT_SHAPE',
         span: [hit.start, hit.end],
+        surface: text.slice(hit.start, hit.end),
       });
       break;
     }
@@ -1051,6 +1062,7 @@ export function applyRules(input: ScreeningInput, ctx: RuleContext = {}): Findin
       layer: 'L5_PHONETIC',
       ruleId: hit.phraseId ? `learned:${hit.phraseId}` : `PHONETIC_${hit.keyword}`,
       span: [hit.start, hit.end],
+      surface: text.slice(hit.start, hit.end),
     });
   }
 

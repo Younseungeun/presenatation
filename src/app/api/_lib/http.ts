@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { PublishValidationError } from '@/domain/publishReport';
 import { CompensationError } from '@/server/compensationService';
-import { ComplianceTakedownError } from '@/server/complianceService';
+import { ComplianceTakedownError, ComplianceVerdictError } from '@/server/complianceService';
 import { passkeyGateBypassed } from '@/server/devGates';
 import { ManualJudgmentError } from '@/server/manualJudgmentService';
 import { GraduationError } from '@/server/phraseGraduationService';
@@ -117,6 +117,10 @@ export function toErrorResponse(e: unknown): NextResponse {
     return NextResponse.json({ error: e.message, code: e.code }, { status: 400 });
   }
   if (e instanceof ComplianceTakedownError) {
+    return NextResponse.json({ error: e.message }, { status: 400 });
+  }
+  // 판정 기록의 입력 검증(예: IRIS 만 잡은 건의 근거 문장 누락) — 운영자가 고쳐 다시 낼 수 있는 400
+  if (e instanceof ComplianceVerdictError) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
   if (e instanceof GraduationError) {
