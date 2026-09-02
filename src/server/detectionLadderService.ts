@@ -36,7 +36,7 @@ export async function getDetectionLadder(
   });
   const perItem = new Map<
     string,
-    { matched: number; truePos: number; falsePos: number; firstSeen: Date }
+    { matched: number; truePos: number; falsePos: number; minorPos: number; firstSeen: Date }
   >();
   // 사전 항목의 **IRIS 동반 검출** 재료 (졸업의 실증 — 2026-08-31): 사전 소견이 걸린
   // 확정 건마다 "같은 건에서 학생도 같은 유형을 냈는가"를 대조해야 한다. 학생이 그림자
@@ -66,11 +66,14 @@ export async function getDetectionLadder(
     // 정탐 = 반려·철회로 확정 / 오탐 = "오탐"으로 명시 승인 (위임의 이유)
     const isTP = r.operatorVerdict === 'REJECTED' || r.operatorVerdict === 'TAKEDOWN';
     const isFP = r.operatorVerdict === 'APPROVED' && r.aiFindingsValid === false;
+    // 경미 = 승인 + "지적은 타당" (C-5) — 오탐이 아니지만 승격 자격의 비율 상한에 들어간다
+    const isMinor = r.operatorVerdict === 'APPROVED' && r.aiFindingsValid === true;
     for (const id of ids) {
-      const cur = perItem.get(id) ?? { matched: 0, truePos: 0, falsePos: 0, firstSeen: r.createdAt };
+      const cur = perItem.get(id) ?? { matched: 0, truePos: 0, falsePos: 0, minorPos: 0, firstSeen: r.createdAt };
       cur.matched++;
       if (isTP) cur.truePos++;
       if (isFP) cur.falsePos++;
+      if (isMinor) cur.minorPos++;
       if (r.createdAt < cur.firstSeen) cur.firstSeen = r.createdAt;
       perItem.set(id, cur);
     }
@@ -175,7 +178,7 @@ export async function getDetectionLadder(
 
   // 학습표현 행
   for (const p of phrases) {
-    const perf = perItem.get(`learned:${p.id}`) ?? { matched: 0, truePos: 0, falsePos: 0 };
+    const perf = perItem.get(`learned:${p.id}`) ?? { matched: 0, truePos: 0, falsePos: 0, minorPos: 0 };
     const agg = hitAgg.get(p.id);
     const surfaces = agg?.surfaces ?? new Map<string, number>();
     const surfaceTotal = [...surfaces.values()].reduce((a, b) => a + b, 0);
@@ -187,6 +190,7 @@ export async function getDetectionLadder(
       matched: perf.matched,
       truePos: perf.truePos,
       falsePos: perf.falsePos,
+      minorPos: perf.minorPos,
       ageDays: Math.floor((now.getTime() - p.createdAt.getTime()) / DAY),
       distinctResearchers: agg?.researchers.size ?? 0,
       negationHits: agg?.negation ?? 0,
@@ -253,6 +257,7 @@ export async function getDetectionLadder(
       matched: perf.matched,
       truePos: perf.truePos,
       falsePos: perf.falsePos,
+      minorPos: perf.minorPos,
       // 규칙은 등록일이 없어 첫 감지 검수일로 관찰 기간을 잰다
       ageDays: Math.floor((now.getTime() - perf.firstSeen.getTime()) / DAY),
     };

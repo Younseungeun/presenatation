@@ -36,6 +36,30 @@ describe('학습표현 → 규칙 WARN / 졸업', () => {
     expect(recommendMigration(phrase())?.kind).toBe('PROMOTE_RULE');
   });
 
+  // 12차 검토 C-5 (2026-09-01) — 옛 조건은 "오탐 0"뿐이라 전부 경미(정탐 0)인 표현도 승격 후보였다
+  it('경미 비율이 상한을 넘으면 승격 후보가 아니다 — 지적만 맞고 게시는 되는 표현을 코드로 굳히지 않는다', () => {
+    // 정탐 20 · 경미 10 → 경미 33% > 20%
+    expect(recommendMigration(phrase({ truePos: 20, minorPos: 10 }))).toBeNull();
+    // 정탐 28 · 경미 2 → 6.7% ≤ 20% → 통과
+    expect(recommendMigration(phrase({ truePos: 28, minorPos: 2 }))?.kind).toBe('PROMOTE_RULE');
+    // 전부 경미(정탐 0) — 옛 구멍의 정확한 모양
+    expect(recommendMigration(phrase({ truePos: 0, minorPos: T.phraseMinMatched }))).toBeNull();
+  });
+
+  // 12차 검토 C-1 반채택 — 동반 1/1 은 우연이라 최소 건수를 요구한다
+  it('IRIS 동반 검출이 최소 건수 미만이면 졸업 추천이 뜨지 않는다 (미동반 0 이어도)', () => {
+    expect(
+      recommendMigration(
+        phrase({ distinctSurfaces: 8, topSurfaceShare: 0.3, studentCoDetected: T.graduateMinCoDetected - 1, studentMissed: 0 }),
+      ),
+    ).toBeNull();
+    expect(
+      recommendMigration(
+        phrase({ distinctSurfaces: 8, topSurfaceShare: 0.3, studentCoDetected: T.graduateMinCoDetected, studentMissed: 0 }),
+      )?.kind,
+    ).toBe('GRADUATE_IRIS');
+  });
+
   it('5조건 + 형태 다양 + IRIS 동반 검출 실증(미동반 0) → 졸업 (중복이라 내려도 안전)', () => {
     // 졸업 판별자는 "형태 다양"이 아니라 동반 검출 실증이다 (2026-08-31 교체)
     expect(

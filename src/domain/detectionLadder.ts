@@ -21,6 +21,13 @@ export interface DetectionItemStats {
   truePos: number;
   /** 오탐 — 걸렸는데 운영자가 "오탐"으로 승인 (위임의 이유이자 IRIS 에게 가르칠 것) */
   falsePos: number;
+  /**
+   * 경미 — 걸렸고 지적은 타당하나 게시 막을 정도는 아니어서 승인 (12차 검토 C-5, 2026-09-01).
+   * 오탐이 아니라 비활성화 사유는 아니지만, **승격 자격에는 비율 상한**을 건다 — 경미가
+   * 대부분인 표현을 코드로 굳히면 성실한 리서처가 계속 보류 큐에 걸린다(λ=4).
+   * 옛 문서의 "정탐 100%"는 사실이 아니었다 — 조건은 `오탐 0`뿐이라 전부 경미(정탐 0)도 통과했다
+   */
+  minorPos?: number;
   /** 항목 나이(일) — 학습표현 등록일 / 규칙은 미측정이면 undefined */
   ageDays?: number;
   /** 서로 다른 리서처 수 (5조건) — 학습표현만 */
@@ -113,7 +120,26 @@ export const LADDER_THRESHOLDS = {
   blockMinAgeDays: 90,
   delegateMinMatched: 20,
   ungraduateMinMissTruePos: 2,
+  /**
+   * 경미 비율 상한 (12차 검토 C-5 채택, 2026-09-01) — 경미/(정탐+경미) 가 이 위면 승격·졸업
+   * 후보에서 뺀다. 20% 는 검토자 제안값 — "다섯 번 걸리면 한 번은 지적만 맞고 게시는 됐다"가
+   * 코드로 굳히기엔 성가신 경계라는 경험칙. 실측 후 재보정
+   */
+  phraseMaxMinorShare: 0.2,
+  /**
+   * 졸업 추천의 IRIS 동반 검출 최소 건수 (12차 검토 C-1 반채택, 2026-09-01) — 동반 1/1 로는
+   * 우연이다. 5건은 "IRIS 가 이 표현을 잡는다"를 패턴이라 부를 최소치(복귀 2건보다 높은 이유:
+   * 내리는 쪽이 보호를 빼는 결정이라 더 보수). 사람 버튼은 잠그지 않고 경고만(창업자 확정)
+   */
+  graduateMinCoDetected: 5,
 } as const;
+
+/** 경미 비율 — 정탐+경미 중 경미. 표본이 없으면 0 (조건을 막지 않는다) */
+export function minorShare(s: Pick<DetectionItemStats, 'truePos' | 'minorPos'>): number {
+  const minor = s.minorPos ?? 0;
+  const denom = s.truePos + minor;
+  return denom === 0 ? 0 : minor / denom;
+}
 
 const pct = (v: number) => Math.round(v * 100);
 
@@ -131,7 +157,9 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
       s.falsePos === 0 &&
       (s.ageDays ?? 0) >= T.phraseMinAgeDays &&
       (s.distinctResearchers ?? 0) >= T.phraseMinResearchers &&
-      (s.negationHits ?? 0) === 0;
+      (s.negationHits ?? 0) === 0 &&
+      // 경미 비율 상한 (C-5) — 전부 경미(정탐 0)인 표현이 승격 후보가 되던 구멍
+      minorShare(s) <= T.phraseMaxMinorShare;
     if (!fiveConditions) return null;
     // 형태가 굳었으면 규칙 승격이 우선이다 — 규칙(→BLOCK)은 IRIS 가 절대 갖지 못하는
     // 즉시 거절로 가는 유일한 길이라, IRIS 가 중복으로 잡고 있더라도 이 길이 더 값지다
@@ -154,7 +182,8 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
     // 없다는 영수증**이 필요하다: 이 항목이 잡은 확정 건들에서 IRIS 도 같은 유형을
     // 냈는가(동반 검출). 미동반이 하나라도 있으면 사전이 하중을 지고 있는 것이고,
     // 실증이 아예 없으면(동반 0·미동반 0) 모르는 것이므로 내리지 않는다.
-    if ((s.studentMissed ?? 1) === 0 && (s.studentCoDetected ?? 0) > 0) {
+    // 동반 1/1 은 우연이다 — 최소 건수(C-1)를 넘어야 "IRIS 가 잡는다"가 패턴이 된다
+    if ((s.studentMissed ?? 1) === 0 && (s.studentCoDetected ?? 0) >= T.graduateMinCoDetected) {
       return {
         kind: 'GRADUATE_IRIS',
         reason:
@@ -177,7 +206,12 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
         : null; // 표본 하한 미달 — 위임 논의도 이르다
     }
     // 오탐 0 — BLOCK 관찰 자격(문·자격·승인 중 관찰 몫만). 스트레스 시험·승인은 사람
-    if (s.matched >= T.blockMinMatched && (s.ageDays ?? 0) >= T.blockMinAgeDays) {
+    if (
+      s.matched >= T.blockMinMatched &&
+      (s.ageDays ?? 0) >= T.blockMinAgeDays &&
+      // 경미가 잦은 규칙은 BLOCK 감이 아니다 (C-5) — 즉시 거절이 "지적만 맞는" 글을 죽인다
+      minorShare(s) <= T.phraseMaxMinorShare
+    ) {
       return {
         kind: 'PROMOTE_BLOCK',
         reason: `오탐 0 · ${s.matched}건/${s.ageDays}일 관찰 충족 — 부정 스트레스 시험·그림자 BLOCK·승인 남음`,
