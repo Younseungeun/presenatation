@@ -47,7 +47,8 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
         미탐-정탐 {LADDER_THRESHOLDS.ungraduateMinMissTruePos}건 등)는 <b>전부 초안</b>이라 운영
         표본이 쌓이면 재보정합니다. 축 간 추천은 양방향 모두 <b>상호 실증</b>입니다 — 졸업은
         &ldquo;IRIS가 이미 잡는다(중복)&rdquo;, 복귀는 &ldquo;IRIS가 놓친 확정 위반을 옛 항목이
-        잡는다(구멍)&rdquo;의 영수증이 있을 때만 뜹니다. IRIS 층 행의 정탐/오탐은 <b>그림자
+        잡는다(구멍)&rdquo;의 영수증이 있을 때만 뜹니다 — 그 영수증의 현재 수가{" "}
+        <b>상호 실증</b> 열입니다. IRIS 층 행의 정탐/오탐은 <b>그림자
         값</b>입니다 — 관찰이 소견을 내지 않았으므로, 그림자가 잡은 문서를 사람이 어떻게
         판정했는지의 사후 대조입니다.
       </SecHead>
@@ -73,6 +74,7 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
                   <th style={thNum}>정탐</th>
                   <th style={thNum}>오탐</th>
                   <th style={th}>형태</th>
+                  <th style={th}>상호 실증</th>
                   <th style={th}>추천 이동</th>
                 </tr>
               </thead>
@@ -87,13 +89,33 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
                       {r.falsePos}
                     </td>
                     <td style={{ ...td, color: "var(--text-faint)" }}>
-                      {r.layer === "PHRASE" && r.distinctSurfaces != null
-                        ? `${r.distinctSurfaces}종·최빈 ${Math.round((r.topSurfaceShare ?? 0) * 100)}%`
-                        : r.layer === "IRIS"
-                          ? // 졸업 관찰 중인 표현 — 형태(졸업 후 표면형)가 강등의 트리거,
-                            // 미탐은 재학습 신호다 (이동 사유 아님 — 2026-08-31 확정)
-                            `${r.distinctSurfaces ?? 0}종·최빈 ${Math.round((r.topSurfaceShare ?? 0) * 100)}% · 미탐 ${r.studentMissCount ?? 0}`
-                          : "—"}
+                      {(r.layer === "PHRASE" || r.layer === "IRIS") && r.distinctSurfaces != null
+                        ? // 형태는 형태만 말한다 — IRIS 행의 미탐은 상호 실증 열로 옮겼다
+                          // (한 칸에 형태·미탐을 겹치면 눈이 매번 다시 해석해야 한다)
+                          `${r.distinctSurfaces}종·최빈 ${Math.round((r.topSurfaceShare ?? 0) * 100)}%`
+                        : "—"}
+                    </td>
+                    <td style={{ ...td, color: "var(--text-faint)", whiteSpace: "nowrap" }}>
+                      {r.layer === "PHRASE" ? (
+                        // 졸업의 실증: 사전이 걸린 확정 건에서 IRIS 도 같은 유형을 냈는가.
+                        // 미동반 > 0 이면 사전이 아직 하중을 지고 있다 — 졸업 추천이 서지 않는다
+                        // 미동반은 위험 신호가 아니다 — 사전이 켜져 있어 아무것도 새지
+                        // 않았고, 다만 졸업이 아직 이르다는 뜻이라 색을 입히지 않는다
+                        <span title="사전 소견이 걸린 확정 건에서 IRIS(라이브 또는 그림자)가 같은 유형을 함께 냈는가 — 졸업(중복 실증)의 재료. 미동반이 있으면 사전이 아직 하중을 진다">
+                          IRIS 동반 {r.studentCoDetected ?? 0}·미동반 {r.studentMissed ?? 0}
+                        </span>
+                      ) : r.layer === "IRIS" ? (
+                        // 복귀의 실증: IRIS 가 놓친 것 중 사람이 위반으로 확정한 부분집합.
+                        // 미탐 총수는 재학습 신호일 뿐 이동 사유가 아니다 (2026-08-31 확정)
+                        <span title="그림자 관찰의 미탐 중 사람이 위반으로 확정한 건(미탐-정탐) — 복귀(구멍 실증)의 트리거. 미탐 총수는 재학습 신호">
+                          미탐 {r.studentMissCount ?? 0}·그중 확정{" "}
+                          <b style={{ color: (r.missTruePos ?? 0) > 0 ? "#bd4242" : undefined }}>
+                            {r.missTruePos ?? 0}
+                          </b>
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td style={td}>
                       {r.recommendation ? (

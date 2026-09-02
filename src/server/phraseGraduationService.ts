@@ -341,12 +341,36 @@ export async function getGraduationWatch(prisma: PrismaClient, now = new Date())
     where: { phraseId: { in: phrases.map((p) => p.id) } },
     orderBy: { createdAt: 'desc' },
   });
+  // 관찰이 붙은 검수 건의 운영자 판정 대조 — 복귀 추천(detectionLadder UNGRADUATE)의
+  // 트리거는 미탐 총수가 아니라 **미탐 ∩ 확정 위반**(missTruePos)이다. 관찰 상자가
+  // 총수만 보여주면 운영자는 사다리 표와 다른 숫자를 두 화면에서 읽게 된다 —
+  // 분류 기준은 detectionLadderService 의 watchVerdicts 와 똑같이 둔다.
+  const reviewIds = [...new Set(hits.map((h) => h.complianceReviewId))];
+  const verdicts = new Map<string, { tp: boolean; fp: boolean }>();
+  if (reviewIds.length > 0) {
+    const rs = await prisma.complianceReview.findMany({
+      where: { id: { in: reviewIds } },
+      select: { id: true, operatorVerdict: true, aiFindingsValid: true },
+    });
+    for (const r of rs) {
+      verdicts.set(r.id, {
+        tp: r.operatorVerdict === 'REJECTED' || r.operatorVerdict === 'TAKEDOWN',
+        fp: r.operatorVerdict === 'APPROVED' && r.aiFindingsValid === false,
+      });
+    }
+  }
   return phrases.map((p) => {
     const mine = hits.filter((h) => h.phraseId === p.id);
     return {
       ...p,
       hitCount: mine.length,
       studentMissCount: mine.filter((h) => !h.studentFlagged).length,
+      // 미탐 중 사람이 위반으로 확정한 건 — 복귀의 실증. 아직 판정 안 된 건은 어느 쪽도 아니다
+      missTruePos: mine.filter(
+        (h) => !h.studentFlagged && verdicts.get(h.complianceReviewId)?.tp,
+      ).length,
+      // 그림자 오탐(관찰이 잡았는데 사람은 "오탐 승인") — 하나라도 있으면 복귀 추천이 죽는다
+      shadowFalsePos: mine.filter((h) => verdicts.get(h.complianceReviewId)?.fp).length,
       lastHitAt: mine[0]?.createdAt ?? null,
     };
   });

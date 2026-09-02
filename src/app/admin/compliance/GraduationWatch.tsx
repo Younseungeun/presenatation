@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { RISK_CATEGORY_LABEL, type RiskCategory } from "@/domain/compliance";
+import { LADDER_THRESHOLDS } from "@/domain/detectionLadder";
 import { GRADUATION_WATCH_DAYS } from "@/server/phraseGraduationService";
 import { PhraseToggle } from "./PhraseToggle";
 import a from "../admin.module.css";
@@ -31,6 +32,10 @@ export interface WatchRow {
   graduatedAt: Date;
   hitCount: number;
   studentMissCount: number;
+  /** 미탐 ∩ 확정 위반 — 복귀 추천(사다리 UNGRADUATE)과 같은 수. 판정 전 건은 미포함 */
+  missTruePos: number;
+  /** 그림자 오탐 — 하나라도 있으면 복귀 추천이 서지 않는다 */
+  shadowFalsePos: number;
   lastHitAt: Date | null;
 }
 
@@ -41,8 +46,13 @@ export function GraduationWatch({ rows, now }: { rows: WatchRow[]; now: Date }) 
     <>
       {rows.map((r) => {
         // **놓친 것이 하나라도 있으면 그것이 이 줄의 제목이다** — 나타난 횟수는
-        // 그 다음이다. 조용한 항목과 뚫린 항목이 같은 얼굴이면 큐를 볼 이유가 없다
+        // 그 다음이다. 조용한 항목과 뚫린 항목이 같은 얼굴이면 큐를 볼 이유가 없다.
+        // 붉은 강조는 미탐 **총수**에 건다 — 판정이 아직 안 붙은 미탐도 재학습·응급
+        // 재활성화(X-5)의 신호라, 확정 위반만 기다리면 경고가 판정 속도에 묶인다
         const leaking = r.studentMissCount > 0;
+        // 복귀 문턱 = 사다리 UNGRADUATE 와 같은 식 (미탐 ∩ 확정 위반 ≥ 하한 · 그림자 오탐 0)
+        const returnReady =
+          r.missTruePos >= LADDER_THRESHOLDS.ungraduateMinMissTruePos && r.shadowFalsePos === 0;
         return (
           <div
             key={r.id}
@@ -53,7 +63,9 @@ export function GraduationWatch({ rows, now }: { rows: WatchRow[]; now: Date }) 
               <div className={a.ttl}>&ldquo;{r.phrase}&rdquo;</div>
               <div style={{ display: "flex", gap: 6 }}>
                 <span className={`${a.chip} ${leaking ? a.chipNeg : ""}`}>
-                  {leaking ? `IRIS가 놓침 ${r.studentMissCount}` : "관찰 중"}
+                  {leaking
+                    ? `IRIS가 놓침 ${r.studentMissCount} · 그중 확정 위반 ${r.missTruePos}`
+                    : "관찰 중"}
                 </span>
                 <span className={a.chip}>{daysLeft(r.graduatedAt, now)}</span>
               </div>
@@ -76,8 +88,23 @@ export function GraduationWatch({ rows, now }: { rows: WatchRow[]; now: Date }) 
               <div className={`${a.note} ${a.noteNeg}`}>
                 이 표현이 <b>{r.hitCount}번 나타났고 그중 {r.studentMissCount}번은 IRIS가
                 잡지 못했습니다.</b> 사전은 꺼져 있으므로 그 {r.studentMissCount}건은{" "}
-                <b>아무도 막지 않았습니다.</b> 되살리면 사전이 다시 잡습니다 — 회귀 시험
-                문항은 그대로 남으므로 IRIS도 계속 시험받습니다.
+                <b>아무도 막지 않았습니다.</b>{" "}
+                {r.missTruePos > 0
+                  ? `그리고 그중 ${r.missTruePos}건은 사람이 위반으로 확정한 문서입니다 — 구멍이 실증됐습니다. `
+                  : "다만 아직 사람이 위반으로 확정한 건은 없습니다 — 그 문서들의 판정이 붙어야 구멍이 실증됩니다. "}
+                되살리면 사전이 다시 잡습니다 — 회귀 시험 문항은 그대로 남으므로 IRIS도
+                계속 시험받습니다.
+                {returnReady && (
+                  <>
+                    {" "}
+                    <b>
+                      복귀 문턱(미탐-정탐 {LADDER_THRESHOLDS.ungraduateMinMissTruePos}건 ·
+                      그림자 오탐 0)에 닿았습니다
+                    </b>{" "}
+                    — 아래 검출 항목 관리 표에도 &ldquo;졸업 강등 (복귀 후보)&rdquo;로 떠
+                    있습니다. 확정은 사람의 일입니다.
+                  </>
+                )}
               </div>
             ) : (
               <div className={a.note}>
