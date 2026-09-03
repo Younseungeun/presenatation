@@ -206,7 +206,7 @@ def model_name(v: str) -> str:
     """도장에 들어갈 이름 — 구분자가 섞이면 그 자리에서 거절한다 (승격 뒤에 발견하면 이미 소견에 박힌 뒤다)."""
     import argparse as _ap
     if not v or any(ch in v for ch in " @/"):
-        raise _ap.ArgumentTypeError(f"모델 이름에 공백·@·/ 를 쓸 수 없습니다: {v!r} (예: IRIS.v6)")
+        raise _ap.ArgumentTypeError(f"모델 이름에 공백·@·/ 를 쓸 수 없습니다: {v!r} (예: ARGOS.v6)")
     return v
 
 
@@ -218,7 +218,7 @@ def main():
     # name = 짧고 안정된 **이름**(도장·화면) / run = 사람이 읽는 **회차 기록**(대장과 같은 문장). 둘을
     # 한 칸에 두면 대장 문장이 소견 도장에 박힌다 (회신 14호). 이름에는 구분자(공백·@·/)가 못 들어온다 —
     # 도장 형식 student:{name}@t{임계값}/L{라벨수} 의 경계가 흐려지기 때문
-    ap.add_argument("--name", required=True, type=model_name, help="모델 이름, 예: IRIS.v6-P1-A (공백·@·/ 금지)")
+    ap.add_argument("--name", required=True, type=model_name, help="모델 이름, 예: ARGOS.v6-P1-A (공백·@·/ 금지)")
     ap.add_argument("--run", default=None, help="회차 기록 — 대장(ledger)의 run 과 같은 문장")
     ap.add_argument("--base", default=DEFAULT_MODEL)
     # 부검 런(31차 사전 등록)은 out/student 를 덮어쓰면 안 된다 — 런마다 자기 폴더
