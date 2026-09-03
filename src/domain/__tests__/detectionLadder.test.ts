@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   LADDER_THRESHOLDS as T,
+  LADDER_THRESHOLDS_COLDSTART,
   recommendMigration,
   type DetectionItemStats,
 } from '../detectionLadder';
@@ -58,6 +59,36 @@ describe('학습표현 → 규칙 WARN / 졸업', () => {
         phrase({ distinctSurfaces: 8, topSurfaceShare: 0.3, studentCoDetected: T.graduateMinCoDetected, studentMissed: 0 }),
       )?.kind,
     ).toBe('GRADUATE_IRIS');
+  });
+
+  // 12차 검토 C-7 — 콜드스타트 프로필: 절대 건수 대신 꼬리 연속 정탐. 나머지 조건은 그대로
+  it('콜드스타트 프로필은 걸림 30 대신 연속 정탐 10 을 본다 — 표준 프로필은 같은 표본을 거절', () => {
+    const few = phrase({ matched: 12, truePos: 12, tailTruePosStreak: 10 });
+    expect(recommendMigration(few)).toBeNull(); // 표준: 걸림 30 미달
+    expect(recommendMigration(few, LADDER_THRESHOLDS_COLDSTART)?.kind).toBe('PROMOTE_RULE');
+    // 연속이 끊겼으면(경미로 리셋) 콜드스타트도 거절 — 요구를 낮추는 것이 아니다
+    expect(recommendMigration(phrase({ matched: 12, truePos: 11, minorPos: 1, tailTruePosStreak: 3 }), LADDER_THRESHOLDS_COLDSTART)).toBeNull();
+    // 리서처 수 하한은 그대로 — 한 사람 10장으로 승격되면 안 된다
+    expect(
+      recommendMigration(phrase({ matched: 12, truePos: 12, tailTruePosStreak: 10, distinctResearchers: 1 }), LADDER_THRESHOLDS_COLDSTART),
+    ).toBeNull();
+  });
+
+  // 12차 검토 C-2 — 규칙도 출현형이 남으니 형태 안정을 BLOCK 자격에 건다. 표본 미달은 "모름"
+  it('규칙 BLOCK 자격: 출현형 표본이 충분한데 형태가 흔들리면 거절, 표본이 모자라면 종전대로', () => {
+    const base = rule({ matched: T.blockMinMatched, truePos: T.blockMinMatched, ageDays: T.blockMinAgeDays });
+    // 표본 충분 + 흔들림(8종·최빈 30%) → BLOCK 감 아님
+    expect(
+      recommendMigration({ ...base, surfaceSamples: T.blockMinSurfaceSamples, distinctSurfaces: 8, topSurfaceShare: 0.3 }),
+    ).toBeNull();
+    // 표본 충분 + 굳음 → 자격
+    expect(
+      recommendMigration({ ...base, surfaceSamples: T.blockMinSurfaceSamples, distinctSurfaces: 2, topSurfaceShare: 0.9 })?.kind,
+    ).toBe('PROMOTE_BLOCK');
+    // 표본 미달(도입 전 기록) → 형태를 모르니 종전대로 자격
+    expect(
+      recommendMigration({ ...base, surfaceSamples: T.blockMinSurfaceSamples - 1, distinctSurfaces: 8, topSurfaceShare: 0.3 })?.kind,
+    ).toBe('PROMOTE_BLOCK');
   });
 
   it('5조건 + 형태 다양 + IRIS 동반 검출 실증(미동반 0) → 졸업 (중복이라 내려도 안전)', () => {

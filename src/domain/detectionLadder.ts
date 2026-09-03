@@ -28,6 +28,17 @@ export interface DetectionItemStats {
    * 옛 문서의 "정탐 100%"는 사실이 아니었다 — 조건은 `오탐 0`뿐이라 전부 경미(정탐 0)도 통과했다
    */
   minorPos?: number;
+  /**
+   * 꼬리 연속 정탐 — 가장 최근 판정부터 거슬러 오탐·경미 없이 이어진 정탐 수 (12차 C-7).
+   * 콜드스타트 프로필은 절대 건수 대신 이 값으로 "무결성"을 본다 — 운영 초기엔 100건을
+   * 채우는 데 몇 달이 걸려 사다리가 안 움직인다
+   */
+  tailTruePosStreak?: number;
+  /**
+   * 출현형이 기록된 소견 수 — **규칙만** (12차 C-2). 2026-09-01 이전 소견엔 출현형이 없어
+   * 표본이 이 값보다 적으면 형태 안정을 "모른다"로 두고 BLOCK 자격 판단에서 뺀다
+   */
+  surfaceSamples?: number;
   /** 항목 나이(일) — 학습표현 등록일 / 규칙은 미측정이면 undefined */
   ageDays?: number;
   /** 서로 다른 리서처 수 (5조건) — 학습표현만 */
@@ -132,7 +143,35 @@ export const LADDER_THRESHOLDS = {
    * 내리는 쪽이 보호를 빼는 결정이라 더 보수). 사람 버튼은 잠그지 않고 경고만(창업자 확정)
    */
   graduateMinCoDetected: 5,
+  /**
+   * 규칙의 형태 안정을 판단할 최소 출현형 표본 (12차 C-2). 출현형 기록은 2026-09-01 부터라
+   * 그 전 소견만 있는 규칙은 표본이 0 — 모르면 BLOCK 자격에서 형태 조건을 빼고 종전대로 본다.
+   * 20 은 표면형 ≤3종·최빈 ≥80% 를 우연이 아니라고 부를 최소치(초안)
+   */
+  blockMinSurfaceSamples: 20,
 } as const;
+
+/**
+ * 문턱 프로필 — 표준(절대 건수) 또는 콜드스타트(연속 정탐). `streak` 가 있으면 물량 조건을
+ * "걸림 ≥N" 대신 "꼬리 연속 정탐 ≥N" 으로 본다. 나머지(오탐 0·경미 상한·리서처 수·부정 0·
+ * 형태)는 두 프로필이 같다 — 무결성을 다른 방식으로 증명할 뿐, 요구를 낮추는 것이 아니다
+ */
+export type LadderThresholds = { [K in keyof typeof LADDER_THRESHOLDS]: number } & {
+  streak?: { phrase: number; block: number };
+};
+
+/**
+ * @근거 설계 콜드스타트 프로필 (12차 검토 C-7 채택, 2026-09-01) — 운영 초기 6개월 한정.
+ * 검토자 제안값: 사전→WARN 연속 정탐 10, WARN→BLOCK 연속 정탐 30 + 30일. 절대 건수는 초기에
+ * 몇 달이 걸려 사다리가 한 번도 안 움직이는데, 연속 정탐은 "표본이 적어도 무결한가"를
+ * 증명한다. **리서처 수 하한(5)은 그대로** — 한 사람 10장으로 승격되면 안 된다.
+ * AppSetting `ladder.coldstart` 로 켜고 끈다(배포 없이).
+ */
+export const LADDER_THRESHOLDS_COLDSTART: LadderThresholds = {
+  ...LADDER_THRESHOLDS,
+  blockMinAgeDays: 30,
+  streak: { phrase: 10, block: 30 },
+};
 
 /** 경미 비율 — 정탐+경미 중 경미. 표본이 없으면 0 (조건을 막지 않는다) */
 export function minorShare(s: Pick<DetectionItemStats, 'truePos' | 'minorPos'>): number {
@@ -141,19 +180,26 @@ export function minorShare(s: Pick<DetectionItemStats, 'truePos' | 'minorPos'>):
   return denom === 0 ? 0 : minor / denom;
 }
 
+/** 물량 조건 — 표준은 절대 건수, 콜드스타트는 꼬리 연속 정탐 (C-7) */
+function volumeOk(s: DetectionItemStats, minMatched: number, minStreak: number | undefined): boolean {
+  return minStreak == null ? s.matched >= minMatched : (s.tailTruePosStreak ?? 0) >= minStreak;
+}
+
 const pct = (v: number) => Math.round(v * 100);
 
 /**
  * 항목 하나의 추천 이동을 낸다 (없으면 null). **추천만** — 실행은 사람.
  * 오탐이 있으면 승격 후보 자격이 자동 소멸한다(Q-D: 상충 정의상 제거).
  */
-export function recommendMigration(s: DetectionItemStats): LadderRecommendation | null {
-  const T = LADDER_THRESHOLDS;
+export function recommendMigration(
+  s: DetectionItemStats,
+  T: LadderThresholds = LADDER_THRESHOLDS,
+): LadderRecommendation | null {
 
   if (s.layer === 'PHRASE') {
     // 5조건 — 졸업 후보와 같은 잣대. 하나라도 못 채우면 아직 아무 출구도 아니다
     const fiveConditions =
-      s.matched >= T.phraseMinMatched &&
+      volumeOk(s, T.phraseMinMatched, T.streak?.phrase) &&
       s.falsePos === 0 &&
       (s.ageDays ?? 0) >= T.phraseMinAgeDays &&
       (s.distinctResearchers ?? 0) >= T.phraseMinResearchers &&
@@ -206,11 +252,19 @@ export function recommendMigration(s: DetectionItemStats): LadderRecommendation 
         : null; // 표본 하한 미달 — 위임 논의도 이르다
     }
     // 오탐 0 — BLOCK 관찰 자격(문·자격·승인 중 관찰 몫만). 스트레스 시험·승인은 사람
+    // 형태 안정 (C-2) — 출현형 표본이 충분할 때만 판단한다. 흔들리는 꼴을 즉시 거절로 올리면
+    // 오탐 위험이 크다(BLOCK 은 되돌릴 사람이 없다). 표본이 모자라면(도입 전 기록) 모르는 것이라
+    // 종전대로 본다 — 모른다고 막지 않고, 모른다고 통과시키지도 않는 게 아니라 **측정된 것만** 쓴다
+    const formKnown = (s.surfaceSamples ?? 0) >= T.blockMinSurfaceSamples;
+    const formStableRule =
+      !formKnown ||
+      ((s.distinctSurfaces ?? 99) <= T.formMaxSurfaces && (s.topSurfaceShare ?? 0) >= T.formMinTopShare);
     if (
-      s.matched >= T.blockMinMatched &&
+      volumeOk(s, T.blockMinMatched, T.streak?.block) &&
       (s.ageDays ?? 0) >= T.blockMinAgeDays &&
       // 경미가 잦은 규칙은 BLOCK 감이 아니다 (C-5) — 즉시 거절이 "지적만 맞는" 글을 죽인다
-      minorShare(s) <= T.phraseMaxMinorShare
+      minorShare(s) <= T.phraseMaxMinorShare &&
+      formStableRule
     ) {
       return {
         kind: 'PROMOTE_BLOCK',

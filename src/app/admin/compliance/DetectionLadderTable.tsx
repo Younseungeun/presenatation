@@ -96,7 +96,8 @@ export function DetectionLadderTable({ rows }: { rows: DetectionLadderRow[] }) {
                       {r.falsePos}
                     </td>
                     <td style={{ ...td, color: "var(--text-faint)" }}>
-                      {r.layer === "PHRASE" && r.distinctSurfaces != null
+                      {/* 규칙도 출현형이 쌓이면 형태를 보인다 (12차 C-2) — 도입 전 기록뿐이면 — */}
+                      {(r.layer === "PHRASE" || r.layer === "RULE_WARN") && r.distinctSurfaces != null
                         ? `${r.distinctSurfaces}종·최빈 ${Math.round((r.topSurfaceShare ?? 0) * 100)}%`
                         : r.layer === "IRIS"
                           ? // 졸업 관찰 중인 표현 — 형태(졸업 후 표면형)가 강등의 트리거,

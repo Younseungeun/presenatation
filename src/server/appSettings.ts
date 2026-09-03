@@ -13,6 +13,12 @@ export const SETTING_KEYS = {
   /** 띠지에 금액(에스크로·환불 누적)을 포함할지 — 규모와 금액은 민감도가 다르다 */
   marketTickerAmounts: 'ui.marketTicker.amounts',
   /**
+   * 검출 사다리 문턱 프로필 — 콜드스타트 (12차 검토 C-7, 2026-09-01). 켜면 승격·BLOCK 자격의
+   * 물량 조건을 절대 건수 대신 **꼬리 연속 정탐**으로 본다. 운영 초기 6개월 한정 — 표본이
+   * 쌓이면 끈다. 배포 없이 바꾸려고 AppSetting 에 둔다
+   */
+  ladderColdstart: 'ladder.coldstart',
+  /**
    * 지금 쓰는 **수동 2차 교사** 표식 (18차 V-4).
    *
    * 대화창의 교사는 버전이 오른다. 이 표식이 없으면 나중에 "이 라벨은 어느 교사가
@@ -38,6 +44,7 @@ export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS];
 export interface UiSettings {
   marketTicker: boolean;
   marketTickerAmounts: boolean;
+  ladderColdstart: boolean;
 }
 
 /** 화면이 쓰는 설정 한 벌 — 조회 한 번으로 끝낸다 */
@@ -50,7 +57,17 @@ export async function getUiSettings(prisma: PrismaClient): Promise<UiSettings> {
   return {
     marketTicker: map.get(SETTING_KEYS.marketTicker) === '1',
     marketTickerAmounts: map.get(SETTING_KEYS.marketTickerAmounts) === '1',
+    ladderColdstart: map.get(SETTING_KEYS.ladderColdstart) === '1',
   };
+}
+
+/** 검출 사다리가 부를 때마다 읽는다 (C-7) — 캐시 없음: 스위치를 내린 순간부터 표준 문턱이어야 한다 */
+export async function getLadderColdstart(prisma: PrismaClient): Promise<boolean> {
+  const row = await prisma.appSetting.findUnique({
+    where: { key: SETTING_KEYS.ladderColdstart },
+    select: { value: true },
+  });
+  return row?.value === '1';
 }
 
 /**

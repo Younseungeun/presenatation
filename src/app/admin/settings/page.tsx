@@ -76,6 +76,18 @@ export default async function AdminSettingsPage() {
         </div>
 
         <div className={a.sec}>
+          검출 사다리 문턱 <small>운영 초기 6개월 — 표본이 쌓이면 끕니다</small>
+        </div>
+        <div className={a.list}>
+          <SettingToggle
+            settingKey={SETTING_KEYS.ladderColdstart}
+            title="콜드스타트 프로필"
+            description="승격·BLOCK 자격의 물량 조건을 절대 건수(30·100건) 대신 꼬리 연속 정탐(10·30건)으로 봅니다. 초기엔 100건을 채우는 데 몇 달이 걸려 사다리가 안 움직입니다. 오탐 0·경미 상한·리서처 수 하한은 그대로입니다 — 요구를 낮추는 게 아니라 무결성을 다른 방식으로 증명합니다."
+            initial={settings.ladderColdstart}
+          />
+        </div>
+
+        <div className={a.sec}>
           지금 켜면 이렇게 보입니다 <small>실제 수치입니다</small>
         </div>
         <div className={a.preview}>
