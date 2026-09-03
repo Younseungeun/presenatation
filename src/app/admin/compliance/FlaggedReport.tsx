@@ -113,7 +113,7 @@ export function isLocated(fields: string[], f: FlaggedFinding): boolean {
  *   통째로 칠한다 — 문제 삼은 워딩이 빠지지 않는 것이 우선이다.
  * · 합친 구간의 색·툴팁은 **가장 무거운 소견**(BLOCK 우선)을 대표로 쓴다.
  * · 같은 인용문이 본문에 여러 번 나오면 **모두** 칠한다. 문제는 그 표현 자체다.
- * · 인용문이 본문에서 안 찾아지면(IRIS 전체 판정·카드 소견) 조각을 만들지 않는다 —
+ * · 인용문이 본문에서 안 찾아지면(ARGOS 전체 판정·카드 소견) 조각을 만들지 않는다 —
  *   그 소견은 아래 "문장을 짚지 못한 소견"으로 따로 뜬다.
  */
 export function segmentText(text: string, findings: FlaggedFinding[]): Segment[] {
@@ -299,7 +299,7 @@ export function FlaggedReport({
         ) : (
           <p className={`${s.body} ${s.empty}`}>본문이 없습니다</p>
         )}
-        {/* 선택한 유형이 본문에서 문장을 못 짚으면(IRIS 전체 판정·카드 소견) 그 사실을 적는다 —
+        {/* 선택한 유형이 본문에서 문장을 못 짚으면(ARGOS 전체 판정·카드 소견) 그 사실을 적는다 —
             빨간 데가 없는 것을 "문제없음"으로 오해하지 않게 */}
         {selected && !selectedHasLocatable && (
           <p className={s.note}>

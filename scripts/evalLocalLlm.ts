@@ -6,7 +6,7 @@ import { STUDENT_LABELS } from '../src/domain/studentText';
 
 // **로컬 소형 LLM 2단 검수 — 오프라인 하네스** (36차 MM-1 사전 등록 실측).
 //
-// llama-server(로컬, GBNF json-schema 강제)에 같은 잣대 4종을 돌려 IRIS P1-A 와
+// llama-server(로컬, GBNF json-schema 강제)에 같은 잣대 4종을 돌려 ARGOS P1-A 와
 // 나란히 놓는다. LLM 은 이 자료를 학습한 적이 없어 전부 zero-shot — 오염 없음.
 //   ① 채점지 86 (문장)  ② 문서 34 (본문-카드 정합)  ③ r6 264 (하드마진 zero-shot 잣대)
 //   ④ 홀드아웃 101 (synth-holdout)

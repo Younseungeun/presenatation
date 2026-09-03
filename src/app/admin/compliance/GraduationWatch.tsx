@@ -8,16 +8,16 @@ import a from "../admin.module.css";
 /**
  * 졸업 관찰 큐 — **졸업 직후 7일이 가장 위험하다.**
  *
- * 졸업하면 사전 보호가 꺼지고 IRIS만 남는다. 뚫린 것을 알아채는 경로가 미탐 신고뿐이면
+ * 졸업하면 사전 보호가 꺼지고 ARGOS만 남는다. 뚫린 것을 알아채는 경로가 미탐 신고뿐이면
  * 운영자가 자기 오판을 자기가 발견해야 한다 — 그래서 서버가 졸업한 표현을 7일간 같은
  * 규칙 엔진으로 계속 돌리되 **소견은 내지 않고** 기록만 남긴다.
  *
  * 그 기록이 지금까지 쌓이기만 하고 볼 화면이 없었다. 이 묶음이 그 자리다.
  *
  * ── 읽는 법 ────────────────────────────────────────────────────
- *   나타남 N · IRIS가 놓침 M
- *   M 이 쌓이면 졸업이 성급했다는 증거다 — 사전은 껐는데 IRIS가 못 잡고 있다.
- *   M = 0 이면 IRIS가 넘겨받은 일을 하고 있다는 뜻이라 조용한 것이 정상이다.
+ *   나타남 N · ARGOS가 놓침 M
+ *   M 이 쌓이면 졸업이 성급했다는 증거다 — 사전은 껐는데 ARGOS가 못 잡고 있다.
+ *   M = 0 이면 ARGOS가 넘겨받은 일을 하고 있다는 뜻이라 조용한 것이 정상이다.
  *
  * ── 자리 (확인서 Q3 → 회신 5호 동의) ───────────────────────────
  * 새 탭을 만들지 않고 운영자 사전 화면 위에 얹는다. 졸업은 사전에서 일어나는 일이고
@@ -64,7 +64,7 @@ export function GraduationWatch({ rows, now }: { rows: WatchRow[]; now: Date }) 
               <div style={{ display: "flex", gap: 6 }}>
                 <span className={`${a.chip} ${leaking ? a.chipNeg : ""}`}>
                   {leaking
-                    ? `IRIS가 놓침 ${r.studentMissCount} · 그중 확정 위반 ${r.missTruePos}`
+                    ? `ARGOS가 놓침 ${r.studentMissCount} · 그중 확정 위반 ${r.missTruePos}`
                     : "관찰 중"}
                 </span>
                 <span className={a.chip}>{daysLeft(r.graduatedAt, now)}</span>
@@ -86,13 +86,13 @@ export function GraduationWatch({ rows, now }: { rows: WatchRow[]; now: Date }) 
 
             {leaking ? (
               <div className={`${a.note} ${a.noteNeg}`}>
-                이 표현이 <b>{r.hitCount}번 나타났고 그중 {r.studentMissCount}번은 IRIS가
+                이 표현이 <b>{r.hitCount}번 나타났고 그중 {r.studentMissCount}번은 ARGOS가
                 잡지 못했습니다.</b> 사전은 꺼져 있으므로 그 {r.studentMissCount}건은{" "}
                 <b>아무도 막지 않았습니다.</b>{" "}
                 {r.missTruePos > 0
                   ? `그리고 그중 ${r.missTruePos}건은 사람이 위반으로 확정한 문서입니다 — 구멍이 실증됐습니다. `
                   : "다만 아직 사람이 위반으로 확정한 건은 없습니다 — 그 문서들의 판정이 붙어야 구멍이 실증됩니다. "}
-                되살리면 사전이 다시 잡습니다 — 회귀 시험 문항은 그대로 남으므로 IRIS도
+                되살리면 사전이 다시 잡습니다 — 회귀 시험 문항은 그대로 남으므로 ARGOS도
                 계속 시험받습니다.
                 {returnReady && (
                   <>
@@ -108,7 +108,7 @@ export function GraduationWatch({ rows, now }: { rows: WatchRow[]; now: Date }) 
               </div>
             ) : (
               <div className={a.note}>
-                넘겨받은 IRIS가 아직 놓친 것이 없습니다. 관찰 창이 끝나면 이 줄은 사라지고,
+                넘겨받은 ARGOS가 아직 놓친 것이 없습니다. 관찰 창이 끝나면 이 줄은 사라지고,
                 이후에는 미탐 신고가 유일한 발견 경로가 됩니다.
               </div>
             )}

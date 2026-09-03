@@ -84,7 +84,7 @@ export function AbuseGroupResolve({
 
   const confirming = decision === "CONFIRMED";
   const rejecting = decision === "REJECTED";
-  // 근거 문장 필수 = IRIS 가 배울 지역화가 필요한 경우 (2026-08-28 창업자 확정):
+  // 근거 문장 필수 = ARGOS 가 배울 지역화가 필요한 경우 (2026-08-28 창업자 확정):
   //   · 강제철회(미탐)      → 필수 (검수가 놓친 것, 무엇을 배울지 짚어야 한다)
   //   · 기각·지적타당(경계) → 필수 (모델이 배울 경계 사례)
   //   · 기각·오신고         → 불요 (모델은 옳게 통과시켰다)
@@ -325,7 +325,7 @@ export function AbuseGroupResolve({
       </div>
 
       {/* 근거 문장 짚기 — 강제철회(미탐)·지적타당(경계)에서 **필수** (2026-08-28).
-          IRIS 가 그 문장 창만 위반으로 배운다. 카드형 위반은 본문에 없어, 예측 카드 값을
+          ARGOS 가 그 문장 창만 위반으로 배운다. 카드형 위반은 본문에 없어, 예측 카드 값을
           다른 글꼴로 실어 그것을 짚게 한다(EvidencePicker cardText). 오신고에는 안 뜬다 */}
       {needsEvidence && (
         <div className={a.field}>

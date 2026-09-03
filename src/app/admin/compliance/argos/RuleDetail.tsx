@@ -2,9 +2,9 @@ import type { CanaryScreen } from "@/server/screeningCanaryRunner";
 import { SCREENING_CANARY, type CanaryCase } from "@/domain/screeningCanary";
 import { SecHead } from "../../Why";
 import a from "../../admin.module.css";
-/* 신호등은 IRIS 칩과 **같은 부품**을 쓴다 — 한 화면에서 "정상"을 두 가지 모양으로
+/* 신호등은 ARGOS 칩과 **같은 부품**을 쓴다 — 한 화면에서 "정상"을 두 가지 모양으로
    그리면 둘이 다른 뜻인 줄 알게 된다 (2026-08-24 창업자 지시) */
-import s from "../irisStatus.module.css";
+import s from "../argosStatus.module.css";
 
 /**
  * **검수 규칙 상세** — 계기판의 `검수 규칙` 줄을 펼친 자리 (2026-08-23 창업자 지시).
@@ -128,11 +128,11 @@ export function RuleDetail({
           const dead = fails.length > 0;
           return (
             <div key={layer} className={a.row} style={{ padding: "7px 0", alignItems: "center" }}>
-              {/* **상태는 글자가 아니라 신호등이다** (2026-08-24 창업자 지시 — IRIS 칩과
+              {/* **상태는 글자가 아니라 신호등이다** (2026-08-24 창업자 지시 — ARGOS 칩과
                   같은 부품). `통과`라는 글자는 읽어야 하고, 읽는 동안 옆 설명과 경쟁한다.
                   여섯 줄을 세로로 훑을 때 필요한 것은 "어디가 빨간가" 하나뿐이다.
                   이상은 점이 아니라 **느낌표**다 — 색만 바꾸면 색각 이상과 흑백에서
-                  사라지므로 형태가 달라야 한다 (irisStatus.module.css 주석) */}
+                  사라지므로 형태가 달라야 한다 (argosStatus.module.css 주석) */}
               {dead ? (
                 <span className={s.alert} title="실패" aria-hidden="true">
                   !

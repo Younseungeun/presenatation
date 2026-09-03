@@ -5,13 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { WhyBody, WhyGroup, WhyToggle } from "../Why";
 import a from "../admin.module.css";
-import s from "./irisStatus.module.css";
+import s from "./argosStatus.module.css";
 import { countdownBand } from "./canaryTimer";
 
-// **IRIS 출근 상태** (인계 3호 · 2026-08-21 밤).
+// **ARGOS 출근 상태** (인계 3호 · 2026-08-21 밤).
 //
 // ── 문구는 비유를 따른다 (창업자 확정 멘탈 모델) ────────────────
-//   IRIS   = 직원 본인
+//   ARGOS   = 직원 본인
 //   사이드카     = 그 직원이 출근해 앉는 창구
 //   usable 검사  = 출근 확인 (자리에 있고 전화를 받는가 + 실제로 문제를 푸는가)
 //   밸브         = 창구가 닫혔을 때의 2시간짜리 임시 통로
@@ -32,17 +32,17 @@ import { countdownBand } from "./canaryTimer";
 interface Board {
   outageSince: string | null;
   /**
-   * IRIS 출근 점검 박동 — 카나리아와 **대칭**이다 (회신 16호). 재지 않고 읽기만 한다:
+   * ARGOS 출근 점검 박동 — 카나리아와 **대칭**이다 (회신 16호). 재지 않고 읽기만 한다:
    * "지금 어떤가"는 화면을 열 때의 `?fresh=1` recheck 가 답하고, 이 값은 **아무도 안 볼
    * 때도 누가 확인하고 있나**를 말한다.
    */
   attendance?: {
-    /** 노트 2권 — IRIS 가 마지막으로 **답한** 시각 */
+    /** 노트 2권 — ARGOS 가 마지막으로 **답한** 시각 */
     lastOkAt: string | null;
     /** 노트 1권 — 타이머가 마지막으로 **물어보러 간** 시각 (결과 무관) */
     lastRanAt: string | null;
     nextAt: string | null;
-    /** IRIS 의 답이 문턱 넘게 없다 — 어느 쪽 고장인지는 말하지 않는다 */
+    /** ARGOS 의 답이 문턱 넘게 없다 — 어느 쪽 고장인지는 말하지 않는다 */
     stale: boolean;
     /** **타이머 자신이** 안 돌았다. 타이머 칸이 읽는 것은 이쪽이다 */
     timerStale: boolean;
@@ -140,9 +140,9 @@ function countdown(until: string | null, now: number): string | null {
 type Tone = "ok" | "warn" | "neutral";
 
 /**
- * **검수 규칙의 한 줄 요약** — IRIS 바로 아래, 같은 위상 (2026-08-23 창업자 지시).
+ * **검수 규칙의 한 줄 요약** — ARGOS 바로 아래, 같은 위상 (2026-08-23 창업자 지시).
  *
- * 검수하는 것이 둘(규칙 엔진 · IRIS)인데 화면에서는 멀리 떨어져 있었다. 한 상자에
+ * 검수하는 것이 둘(규칙 엔진 · ARGOS)인데 화면에서는 멀리 떨어져 있었다. 한 상자에
  * 나란히 놓으면 "지금 검수가 돌고 있나"에 한 눈으로 답이 나온다.
  *
  * ── 빨간불의 기준은 **문제를 풀어서 틀렸을 때만** (창업자 확정) ──
@@ -192,7 +192,7 @@ const TIMER_HINT = (label: string, tone: "ok" | "warn" | "bad") =>
       : "예정 시각을 넘겼습니다 — 이 시간이 지나면 색이 한 단계 오릅니다.";
 
 /**
- * **감시가 돌고 있나** — IRIS 줄과 검수 규칙 줄이 **같은 부품을 쓴다** (회신 16호).
+ * **감시가 돌고 있나** — ARGOS 줄과 검수 규칙 줄이 **같은 부품을 쓴다** (회신 16호).
  *
  * 검수하는 것이 둘이니 지켜보는 장치도 둘이다(출근 점검 · 자동 점검). 둘은 주기도
  * 문턱도 같은 상수를 쓰고 어긋남만 `주기/2` 다 — 그런데 화면을 따로 짜면 언젠가 한쪽만
@@ -287,7 +287,7 @@ function RuleRow({
   /* 이미 틀린 것을 봤으면 늙었다고 흐리지 않는다 — 실패는 확인된 사실이고,
      시간이 지난다고 사라지지 않는다. 흐려도 되는 것은 '통과' 쪽뿐이다 */
   const measurementStale = !broken && nowMs - measuredAt > freshMs;
-  /* 타이머 계산은 `WatchTimer` 안에 있다 — 여기서 한 벌 더 세면 IRIS 쪽과 규칙 쪽이
+  /* 타이머 계산은 `WatchTimer` 안에 있다 — 여기서 한 벌 더 세면 ARGOS 쪽과 규칙 쪽이
      따로 늙어, 같은 스케줄러가 도는데 두 줄이 다른 시간을 말하게 된다 */
   return (
     <div className={s.ruleRow}>
@@ -309,7 +309,7 @@ function RuleRow({
           {ageMin}분 전 측정
         </span>
       )}
-      {/* **IRIS 의 `IRIS.v5 ✓` 와 같은 자리** — 이름 옆에서 "그게 참인가"를 말하는 값.
+      {/* **ARGOS 의 `ARGOS.v5 ✓` 와 같은 자리** — 이름 옆에서 "그게 참인가"를 말하는 값.
           다만 여기서 참인 것은 이름이 아니라 **누가 지켜보고 있나**다.
           점을 물들이지 않는 이유(창업자 확정): 규칙이 멀쩡한 날에도 빨간불이 켜지면
           신호가 죽는다. 그래서 작고 흐리게, 다만 멈췄을 때는 주의색으로 보이게 */}
@@ -351,7 +351,7 @@ export function StudentValvePanel({
   /**
    * **순이익 적자로 자동 격하됐는가** (2026-08-29 창업자 지시). 순이익 상세는 검수
    * 상세로 내려갔고, 계기판에는 정지일 때만 칩 하나로 남긴다 — "지금 규칙 단독으로
-   * 돌고 있다"는 할 일이라 곁눈질로 잡혀야 한다. 상세는 박스를 누르면 나오는 iris 화면.
+   * 돌고 있다"는 할 일이라 곁눈질로 잡혀야 한다. 상세는 박스를 누르면 나오는 argos 화면.
    */
   autoShadowed?: boolean;
   canaryFailures?: { layer: string }[];
@@ -382,7 +382,7 @@ export function StudentValvePanel({
   /**
    * `fresh` 는 **여는 순간에만** 참이다 (2026-08-23 창업자 지시).
    *
-   * 그때는 IRIS 를 캐시 없이 다시 재고(`recheck`), 이후 30초 폴링은 캐시된 답을 받는다.
+   * 그때는 ARGOS 를 캐시 없이 다시 재고(`recheck`), 이후 30초 폴링은 캐시된 답을 받는다.
    * 폴링마다 재면 `/health` 1 + 핑 8 = 9회가 30초마다라(시간당 1,080회) 5분 주기
    * 스케줄러 점검의 열 배가 된다. **화면이 감시 장치보다 무거워지면 안 된다.**
    */
@@ -429,7 +429,7 @@ export function StudentValvePanel({
   if (!board) return null;
 
   const { student, bypass } = board;
-  // 스케줄러가 꺼져 있으면 IRIS·검수 규칙의 점검이 안 돌아 상태를 제대로 확인할 수 없다 —
+  // 스케줄러가 꺼져 있으면 ARGOS·검수 규칙의 점검이 안 돌아 상태를 제대로 확인할 수 없다 —
   // 그때는 초록(정상)으로 두지 않고 회색(확인 불가)으로 둔다 (2026-08-29 사용자 지시).
   const schedulerOff = board.attendance?.schedulerOff ?? board.canary?.schedulerOff ?? false;
   const left = bypass.active ? countdown(bypass.until, now) : null;
@@ -498,10 +498,10 @@ export function StudentValvePanel({
         {accuracy && <div className={s.accuracy}>{accuracy}</div>}
         <div className={a.row}>
           {/* **박스 전체가 상세로 가는 문이다** (창업자 지시). 도장·지문·회차 기록은
-              지운 것이 아니라 `/admin/compliance/iris` 로 옮겼다 — 되짚을 때만 필요한
+              지운 것이 아니라 `/admin/compliance/argos` 로 옮겼다 — 되짚을 때만 필요한
               값이라 매일 보는 화면에서 자리를 차지할 이유가 없다.
               링크의 가짜 요소가 카드를 덮고, 밸브 버튼만 그 위로 올라온다 */}
-          <Link href="/admin/compliance/iris" className={s.head}>
+          <Link href="/admin/compliance/argos" className={s.head}>
             {/* **상태는 글자가 아니라 형태로 말한다.** 배지("근무 중")는 읽어야 하고
                 읽는 동안 다른 글자와 경쟁한다 — 상태는 곁눈질로 잡혀야 하는 값이다.
                 이상은 색만 바꾸지 않고 **모양을 바꾼다**: 색각 이상·흑백 화면에서도
@@ -517,7 +517,7 @@ export function StudentValvePanel({
               />
             )}
             <span className={a.ttl} style={{ display: "inline" }}>
-              IRIS
+              ARGOS
             </span>
             {/* 이름과 대조 결과는 제목 옆에 붙는다 — "지금 누가 근무 중인가"가 한 줄로
                 읽히고, ✓ 는 그 이름이 참인지를 말하므로 이름에서 떨어지면 안 된다 */}
@@ -540,10 +540,10 @@ export function StudentValvePanel({
                 둘이고, 화면에서도 같은 문법으로 말해야 한다 */}
             <WatchTimer
               label="출근 점검"
-              /* **타이머 칸은 타이머만 말한다** (2026-08-23) — 예전에는 `stale`(IRIS 가
-                 답한 시각)을 읽어서, 타이머가 멀쩡히 도는데도 IRIS 가 죽어 있으면
+              /* **타이머 칸은 타이머만 말한다** (2026-08-23) — 예전에는 `stale`(ARGOS 가
+                 답한 시각)을 읽어서, 타이머가 멀쩡히 도는데도 ARGOS 가 죽어 있으면
                  "점검이 멎었다"고 그렸다. 두 고장이 한 칸에 겹쳐 있던 것이고,
-                 IRIS 자신의 상태는 바로 왼쪽 상태 칩이 이미 말한다 */
+                 ARGOS 자신의 상태는 바로 왼쪽 상태 칩이 이미 말한다 */
               stale={board.attendance?.timerStale ?? true}
               schedulerOff={board.attendance?.schedulerOff ?? false}
               nextAt={board.attendance?.nextAt ? new Date(board.attendance.nextAt) : null}
@@ -568,7 +568,7 @@ export function StudentValvePanel({
             {/* **순이익 적자 · 자동 격하** — 정지일 때만 뜨는 칩 (2026-08-29 창업자 지시).
                 상세(순이익 요약·재활성 버튼)는 박스를 누르면 나오는 검수 상세에 있다 */}
             {autoShadowed && (
-              <span className={`${a.chip} ${a.chipNeg}`} title="순이익이 적자로 돌아서 IRIS가 자동 격하됐습니다 — 지금 규칙 단독으로 검수 중. 상세는 박스를 눌러 확인">
+              <span className={`${a.chip} ${a.chipNeg}`} title="순이익이 적자로 돌아서 ARGOS가 자동 격하됐습니다 — 지금 규칙 단독으로 검수 중. 상세는 박스를 눌러 확인">
                 순이익 적자 · 자동 격하
               </span>
             )}
@@ -585,7 +585,7 @@ export function StudentValvePanel({
           </span>
         </div>
 
-        {/* **검수하는 것이 둘이다** — 규칙 엔진과 IRIS. 화면에서 멀리 떨어져 있던 둘을
+        {/* **검수하는 것이 둘이다** — 규칙 엔진과 ARGOS. 화면에서 멀리 떨어져 있던 둘을
             한 상자에 같은 위상으로 놓는다 (창업자 지시). "지금 검수가 돌고 있나"에
             한 눈으로 답이 나와야 하고, 그 답은 두 줄이다 */}
         {/* **박동 값의 출처는 폴링 하나뿐이다** (2026-08-23 창업자 신고 — 두 번 고쳤다).
@@ -668,7 +668,7 @@ export function StudentValvePanel({
         {bypassing && (
           <div className={`${a.note} ${a.noteWarn}`}>
             <b>임시 통로 열림 · {left} 뒤 자동으로 닫힙니다</b> — 지금 올라오는 리포트는
-            IRIS 검사 없이 규칙만 보고 게시됩니다. 닫힌 뒤에도 창구가 그대로면 다시 전부
+            ARGOS 검사 없이 규칙만 보고 게시됩니다. 닫힌 뒤에도 창구가 그대로면 다시 전부
             보류됩니다.
           </div>
         )}
@@ -704,14 +704,14 @@ export function StudentValvePanel({
         {failed && <div className={`${a.note} ${a.noteNeg}`}>{failed}</div>}
 
         {/* **검수하는 것이 둘이니 설명도 둘이다** (2026-08-23 창업자 지시).
-            지금까지 이 도움말은 IRIS 이야기만 했다 — 상자에 줄이 둘인데 한 줄만
+            지금까지 이 도움말은 ARGOS 이야기만 했다 — 상자에 줄이 둘인데 한 줄만
             설명한 셈이다. 두 줄이 **무엇으로 살아 있다고 판단하는지**가 서로 달라서
             (하나는 문제를 풀려 보고, 하나는 정답이 있는 문장을 통과시켜 본다),
             그 차이를 모르면 한쪽 표시를 다른 쪽 잣대로 읽게 된다.
-            순서는 화면과 같다: IRIS 먼저, 검수 규칙 다음, 공통이 마지막 */}
+            순서는 화면과 같다: ARGOS 먼저, 검수 규칙 다음, 공통이 마지막 */}
         <WhyBody className={a.meta}>
           <span>
-            <b>● IRIS</b> — 화면을 열 때 <b>실제로 물어봅니다</b>(상태 + 문제 8개).
+            <b>● ARGOS</b> — 화면을 열 때 <b>실제로 물어봅니다</b>(상태 + 문제 8개).
             못 풀거나 정상 문장을 위반이라 하면 결근이고, 그 이유가 배지로 붙습니다.
           </span>
           <span>

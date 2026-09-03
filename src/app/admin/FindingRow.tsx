@@ -15,13 +15,13 @@ import a from "./admin.module.css";
 //
 //   [규칙 · 코드]   → 개발자가 배포해야 고쳐진다. 운영자는 지금 할 수 있는 게 없다
 //   [규칙 · 사전]   → **운영자가 그 자리에서 끈다.** 클릭 한 번
-//   [IRIS]          → 라벨을 쌓아 재학습해야 고쳐진다. 오늘은 안 고쳐진다
+//   [ARGOS]          → 라벨을 쌓아 재학습해야 고쳐진다. 오늘은 안 고쳐진다
 //
 // 셋을 뭉쳐 그리면 운영자는 매번 "이건 내가 고칠 수 있나"를 되물어야 하고,
 // 되묻는 비용이 크면 결국 아무것도 안 고친다.
 //
 // ── 즉시 거절 권한은 코드 원천뿐이다 ───────────────────────────
-// 사전 항목도 IRIS도 아무리 확신해도 WARN까지다. 화면이 그 비대칭을 흐리면
+// 사전 항목도 ARGOS도 아무리 확신해도 WARN까지다. 화면이 그 비대칭을 흐리면
 // 운영자가 "사전에 넣으면 막을 수 있다"고 오해한다 (인계 2호 §5).
 
 /** 사전이 규칙 엔진의 입력이 된 뒤로 `learned` 도 층을 달고 온다 (회신 Q5) */
@@ -45,7 +45,7 @@ function SourceChip({ f }: { f: Finding }) {
     // 확신은 **필드에서** 읽는다 — reason 문자열을 파싱하면 문구가 바뀔 때 조용히 깨진다.
     // 옛 기록에는 값이 없으므로(선택 필드) 없으면 숫자를 생략한다
     const pct = typeof f.confidence === "number" ? ` · 확신 ${Math.round(f.confidence * 100)}%` : "";
-    return <span className={a.chip}>IRIS{pct}</span>;
+    return <span className={a.chip}>ARGOS{pct}</span>;
   }
 
   if (f.source === "learned") {
@@ -98,7 +98,7 @@ export function FindingRow({ f }: { f: Finding }) {
 
       {/* 인용은 잘라 온 한 줄이라 그것만으로는 판단할 수 없다 —
           같은 문장도 앞에 "권유가 아닙니다"가 붙어 있으면 다른 글이다.
-          **빈 따옴표를 그리지 않는다**: IRIS는 문서 전체를 보고 판정해 문장을 못 짚는데,
+          **빈 따옴표를 그리지 않는다**: ARGOS는 문서 전체를 보고 판정해 문장을 못 짚는데,
           `""` 를 내보내면 운영자에게 고장으로 읽힌다 */}
       {f.quote ? (
         <div className={a.quote}>&ldquo;{f.quote}&rdquo;</div>

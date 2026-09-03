@@ -55,7 +55,7 @@ export interface StudentHealth {
    */
   run?: string;
   /**
-   * 짧고 안정된 **이름** (config.json 의 name, 예: IRIS.v5) — 도장·화면용. `run` 은 회차 기록이라
+   * 짧고 안정된 **이름** (config.json 의 name, 예: ARGOS.v5) — 도장·화면용. `run` 은 회차 기록이라
    * 이름 칸으로 쓰면 대장 문장이 소견에 박힌다 (회신 14호). 공백·@·/ 없음 (train.py 가 거절).
    */
   name?: string;
@@ -205,7 +205,7 @@ function toFindings(raw: unknown, enabled: ReadonlySet<string>): Finding[] {
         // **확신 %를 문장에 싣지 않는다** (Q8(b) · 관리자 앱 2회차 A-1 발견).
         // reason 은 리서처에게 그대로 나가는 문장이라, 숫자를 실으면 리서처가 재제출을
         // 반복하며 임계값을 이진 탐색한다. 숫자는 confidence 로만 — 관리자 화면 전용
-        reason: `${RISK_CATEGORY_LABEL[category]} 정황 (IRIS)`,
+        reason: `${RISK_CATEGORY_LABEL[category]} 정황 (ARGOS)`,
         // 'ai'가 아니라 'student' — 오탐을 고치는 방법이 달라서다 (FindingSource 주석)
         source: 'student',
         // 값은 값의 자리에 (Q7) — 화면이 reason 을 정규식으로 파싱하게 하지 않는다
@@ -466,7 +466,7 @@ class HttpStudentClient implements StudentClient {
    *
    * 그래서 **집행과 선언을 가른다**:
    * · `usable()` = 집행. 첫 실패에서 곧장 false — 못 미더운 모델에게 판정을 맡기느니
-   *   보류가 낫다. 여기서 기다리면 그 5분 동안 IRIS 가 소견을 낸다.
+   *   보류가 낫다. 여기서 기다리면 그 5분 동안 ARGOS 가 소견을 낸다.
    * · `attendanceOk()` = 선언(문자·화면). **두 번 연속** 실패해야 결근이다.
    *   주기가 5분이라 진짜 결근은 늦어도 10분 안에 잡히고, 그 10분이 곧 문턱이다
    *   (`CANARY_STALE_MS` 를 주기 2배로 맞춘 것과 같은 잣대).
@@ -672,7 +672,7 @@ class HttpStudentClient implements StudentClient {
       return (await res.json()) as T;
     } catch (e) {
       // 로그만 남긴다. 그림자 모드에서 사이드카 장애는 사건이 아니라 결측이다
-      console.error('IRIS 사이드카 호출 실패:', (e as Error).message);
+      console.error('ARGOS 사이드카 호출 실패:', (e as Error).message);
       return null;
     }
   }
@@ -726,7 +726,7 @@ class HttpStudentClient implements StudentClient {
       // **"출근했다"는 기억을 지운다** (2026-08-23 창업자 지적).
       //
       // 걸쇠는 성공을 **프로세스 수명 내내** 캐시한다(`usable()` 첫 줄) — 리포트마다
-      // /health 를 부르지 않으려는 설계고, 그 자체는 맞다. 문제는 첫 확인 뒤에 IRIS 가
+      // /health 를 부르지 않으려는 설계고, 그 자체는 맞다. 문제는 첫 확인 뒤에 ARGOS 가
       // 죽었을 때다: 게시는 `studentFailed` 가 잡아 보류로 돌리지만(complianceService),
       // 걸쇠는 계속 참이라 **계기판이 초록으로 "출근 중"을 띄우고 장애 알림도 안 나간다.**
       // 보류 카드만 쌓이고 원인이 화면에 없는 상태 — 고치러 갈 곳을 표시가 가린다.

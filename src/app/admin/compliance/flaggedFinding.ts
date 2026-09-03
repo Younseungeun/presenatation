@@ -15,7 +15,7 @@ export interface FlaggedFinding {
   /** 칩·툴팁에 보일 유형 이름 */
   label: string;
   severity: "BLOCK" | "WARN";
-  /** 툴팁 보조 — 검수는 출처(규칙·코드/IRIS), 신고는 신고자 표시 */
+  /** 툴팁 보조 — 검수는 출처(규칙·코드/ARGOS), 신고는 신고자 표시 */
   sublabel?: string;
   /** 툴팁 근거 */
   note?: string;
@@ -34,7 +34,7 @@ export function fromComplianceFindings(findings: Finding[]): FlaggedFinding[] {
 }
 
 function complianceSource(f: Finding): string {
-  if (f.source === "student") return "IRIS";
+  if (f.source === "student") return "ARGOS";
   if (f.source === "learned") return "규칙·사전";
   if (f.source === "rule") return "규칙·코드";
   return f.source ?? "출처 미기록";

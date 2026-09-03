@@ -164,7 +164,7 @@ function cardScreeningFields(card: CardDraft, now: Date) {
 /**
  * 게시 전 되묻기 프리뷰의 **보류감 누적 상한** (회신 22호 답장 수리 ①).
  * 이 횟수를 넘으면 그 리포트는 프리뷰를 건너뛰고 곧장 기록되는 보류 경로로 강등돼,
- * 무기록 프리뷰를 공짜 IRIS 오라클로 쓰는 이진 탐색이 비싸진다.
+ * 무기록 프리뷰를 공짜 ARGOS 오라클로 쓰는 이진 탐색이 비싸진다.
  * @근거 설계 정직한 리서처는 1~2회면 끝나 UX 손해가 없고 이진 탐색만 비싸지는 선(서버
  *   세션 제안값, 운영 데이터로 재조정 전제). 반복 반려 문턱(3)보다 느슨해 정상 반복을 살린다
  */
@@ -279,7 +279,7 @@ export async function publishReport(
   // 팝업을 띄운다 — "그래도 게시" 를 고르면 UI 가 acknowledgeHold=true 로 다시 부른다.
   // 프리뷰가 리뷰를 남기지 않으므로 취소해도 큐에 유령이 안 생긴다.
   //
-  // **수리 ① (회신 22호 답장) — 무기록·무제한 프리뷰는 공짜 IRIS 오라클이다.** 프리뷰의
+  // **수리 ① (회신 22호 답장) — 무기록·무제한 프리뷰는 공짜 ARGOS 오라클이다.** 프리뷰의
   // 출현/소멸 자체가 신호라, 취소 루프로 흔적 없이 무한 튜닝된다(인용문을 빼도 못 막는다).
   // 보류감 프리뷰마다 카운터만 올리고(리뷰 행 아님, 큐 유령 없음), 상한을 넘으면 그 리포트는
   // 프리뷰를 건너뛰고 곧장 기록되는 보류 경로로 강등된다 — 이진 탐색만 비싸진다.
@@ -536,7 +536,7 @@ export async function approvePendingReport(
   /**
    * 승인 시 운영자가 본문(또는 예측 카드 값)에서 짚은 근거 문장 (2026-08-28 창업자 확정).
    * 본문 소견 승인은 재학습에서 값진 자료라(오탐 = 가중치 조절, 지적 타당 = 졸업 논의)
-   * IRIS 가 무엇을 다시 볼지 지역화한다. 화면이 본문 소견 보류에만 필수로 받는다
+   * ARGOS 가 무엇을 다시 볼지 지역화한다. 화면이 본문 소견 보류에만 필수로 받는다
    */
   evidence: string[] = [],
 ) {
@@ -556,7 +556,7 @@ export async function approvePendingReport(
       // 사유는 findingsValid 를 표시했을 때만(지적 타당·오탐) 뜻이 있다 —
       // '표시하지 않고 승인'(null)에는 기록하지 않는다
       reason: findingsValid !== null ? (approveReason?.trim() || undefined) : undefined,
-      // 근거 문장도 표시했을 때만 (본문 소견 승인) — IRIS 라벨 지역화
+      // 근거 문장도 표시했을 때만 (본문 소견 승인) — ARGOS 라벨 지역화
       evidence: findingsValid !== null && evidence.length ? evidence : undefined,
     })),
     prisma.notification.create({
@@ -592,7 +592,7 @@ export async function rejectPendingReport(
   /** 운영자가 확인한 실제 위반 유형 (선택) — 비우면 검수 소견을 그대로 인정한 것으로 본다.
    *  내장 key 또는 커스텀 유형 라벨(문자열) */
   categories: string[] = [],
-  /** 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3, 선택) — IRIS 라벨 지역화용 */
+  /** 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3, 선택) — ARGOS 라벨 지역화용 */
   evidence: string[] = [],
 ) {
   const trimmed = reason.trim();

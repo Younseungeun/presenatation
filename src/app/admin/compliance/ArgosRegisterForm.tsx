@@ -5,13 +5,13 @@ import { useState } from "react";
 import type { RiskCategory } from "@/domain/compliance";
 import a from "../admin.module.css";
 
-// 졸업 강등 본선의 실행 통로 (Q1, 2026-09-01 창업자 확정) — IRIS 유형별 모음의 각 유형에서
-// 학습 표현을 바로 등록한다. 출처(그 유형의 최근 확정 IRIS 건)는 서버가 물리므로 화면은
+// 졸업 강등 본선의 실행 통로 (Q1, 2026-09-01 창업자 확정) — ARGOS 유형별 모음의 각 유형에서
+// 학습 표현을 바로 등록한다. 출처(그 유형의 최근 확정 ARGOS 건)는 서버가 물리므로 화면은
 // 표현만 받는다 — 출처 없는 등록은 서버가 거부한다.
 //
-// 접어 둔다: 등록은 IRIS→사전 관할을 옮기는 결정이라 훑다가 눌러지는 자리에 있으면 안 된다.
+// 접어 둔다: 등록은 ARGOS→사전 관할을 옮기는 결정이라 훑다가 눌러지는 자리에 있으면 안 된다.
 
-export function IrisRegisterForm({ category }: { category: RiskCategory }) {
+export function ArgosRegisterForm({ category }: { category: RiskCategory }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [phrase, setPhrase] = useState("");
@@ -23,7 +23,7 @@ export function IrisRegisterForm({ category }: { category: RiskCategory }) {
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/admin/compliance/register-from-iris", {
+      const res = await fetch("/api/admin/compliance/register-from-argos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ category, phrase: phrase.trim() }),
@@ -54,7 +54,7 @@ export function IrisRegisterForm({ category }: { category: RiskCategory }) {
   return (
     <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6, maxWidth: 360 }}>
       <p className={a.hint} style={{ margin: 0 }}>
-        이 유형에서 IRIS만 잡던 표현을 사전에 내립니다. 출처(근거가 된 확정 건)는 자동으로 물립니다.
+        이 유형에서 ARGOS만 잡던 표현을 사전에 내립니다. 출처(근거가 된 확정 건)는 자동으로 물립니다.
       </p>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
         <input

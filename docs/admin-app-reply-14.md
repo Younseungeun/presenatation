@@ -8,9 +8,9 @@
 
 | 자리 | 바뀐 것 |
 |---|---|
-| `config.json` | `"name": "IRIS.v5"` (도장·화면) **+** `"run": "r5 (풍문·연락처 대비쌍 160 추가) — 채택·라이브"` (회차 기록, 대장과 같은 문장) |
+| `config.json` | `"name": "ARGOS.v5"` (도장·화면) **+** `"run": "r5 (풍문·연락처 대비쌍 160 추가) — 채택·라이브"` (회차 기록, 대장과 같은 문장) |
 | `train.py` | `--name` **필수** + 가드: 공백·@·/ 가 있으면 argparse 단계에서 거절. `--run` 은 선택(대장 문장) |
-| `quantize_candidate.py` | `name` 만 `-int8` 접미 → `IRIS.v5-int8`. run 은 그대로 |
+| `quantize_candidate.py` | `name` 만 `-int8` 접미 → `ARGOS.v5-int8`. run 은 그대로 |
 | `/health` | `name` 추가(run 도 그대로 실음) |
 | `studentClient` | 도장의 이름 자리는 **name 만** 쓴다. run 은 보지 않는다 |
 | 계기판 GET | `student.name` 추가 |
@@ -18,14 +18,14 @@
 
 실측:
 ```
-train.py --name "IRIS v6"    → error: 모델 이름에 공백·@·/ 를 쓸 수 없습니다
-train.py --name "IRIS.v6@x"  → error: (같은 가드)
-/health   name "IRIS.v5" · run "r5 (풍문·연락처 대비쌍 160 추가) — 채택·라이브" · model_sha a0eaa12a
-도장      student:IRIS.v5@t0.7/L7   (.env 를 WRONG-ENV-TAG 로 둔 채)
+train.py --name "ARGOS v6"    → error: 모델 이름에 공백·@·/ 를 쓸 수 없습니다
+train.py --name "ARGOS.v6@x"  → error: (같은 가드)
+/health   name "ARGOS.v5" · run "r5 (풍문·연락처 대비쌍 160 추가) — 채택·라이브" · model_sha a0eaa12a
+도장      student:ARGOS.v5@t0.7/L7   (.env 를 WRONG-ENV-TAG 로 둔 채)
 ```
 
 **개명이 되돌아가는 문제** — 없어졌습니다. train.py 는 이제 대장 문장을 이름으로 쓰지 않고,
-`--name` 없이는 돌지 않습니다. 다음 모델은 `IRIS.v6` (부검 런은 `IRIS.v6-P1-A` 처럼 런·자료를
+`--name` 없이는 돌지 않습니다. 다음 모델은 `ARGOS.v6` (부검 런은 `ARGOS.v6-P1-A` 처럼 런·자료를
 이름에 박습니다 — 공백 없이).
 
 ## 화면 쪽 조정 — 동의
@@ -36,5 +36,5 @@ train.py --name "IRIS.v6@x"  → error: (같은 가드)
 
 ## 상태
 
-tsc clean · infra+계기판 83/83 · 라이브 r5 `IRIS.v5` 재승격 · 인수인계서·README 갱신.
+tsc clean · infra+계기판 83/83 · 라이브 r5 `ARGOS.v5` 재승격 · 인수인계서·README 갱신.
 막고 있는 것 없습니다. "이름이 두 곳에 있는 상태가 하루를 못 갔다"는 문장을 기록에 남깁니다.

@@ -74,23 +74,23 @@ export async function getStatusBand(prisma: PrismaClient): Promise<StatusTick[]>
     tone: schedulerOk ? 'on' : 'off',
   });
 
-  // **검수가 살아 있는가** — IRIS와 검수 규칙 둘 다 봐야 한다 (2026-08-29 사용자 지시로
+  // **검수가 살아 있는가** — ARGOS와 검수 규칙 둘 다 봐야 한다 (2026-08-29 사용자 지시로
   // 통합. 그전엔 '검수 규칙'만 봤다). 정상 = 둘 다 정상 / 비정상 = 하나라도 문제.
   //
-  // **스케줄러가 꺼져 있으면 '비활성'이다** — 두 상태는 박동으로 확인하는데(IRIS 출근
+  // **스케줄러가 꺼져 있으면 '비활성'이다** — 두 상태는 박동으로 확인하는데(ARGOS 출근
   // 점검·검수 규칙 카나리아) 스케줄러가 안 돌면 그 점검이 안 돈다. 그때 초록/빨강으로
   // 단정하면 거짓말이 된다: 초록은 낡은 성공이고 빨강은 없는 사고다. 회색(비활성)이 맞다.
   //
   // 규칙은 **박동을 읽지 않고 직접 잰다**(정규식 6번, AI 0) — 실패 상태가 24시간 지나야
-  // 낡음으로 드러나면 띠지가 하루 늦게 빨개진다. IRIS는 사이드카 호출이 비싸(핑 9회) 여기선
+  // 낡음으로 드러나면 띠지가 하루 늦게 빨개진다. ARGOS는 사이드카 호출이 비싸(핑 9회) 여기선
   // 출근 박동(readAttendanceBeat.stale)만 읽는다 — "최근에 답했나"면 band엔 충분하다.
   if (beat.stale) {
     ticks.push({ label: '검수', value: '비활성', tone: 'idle' });
   } else {
     const canary = await runCanaryChecks(prisma).catch(() => null);
     const ruleOk = !!canary && canary.failures.length === 0;
-    const irisOk = !attendance.stale;
-    const bad = [!irisOk ? 'IRIS' : null, !ruleOk ? '규칙' : null].filter(Boolean);
+    const argosOk = !attendance.stale;
+    const bad = [!argosOk ? 'ARGOS' : null, !ruleOk ? '규칙' : null].filter(Boolean);
     ticks.push({
       label: '검수',
       value: bad.length === 0 ? '정상' : `비정상(${bad.join('·')})`,

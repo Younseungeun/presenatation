@@ -67,7 +67,7 @@ export function AskTeacher({ reviewId, decided }: { reviewId: string; decided: b
       {!decided ? (
         <p className={a.hint} style={{ marginTop: 8 }}>
           먼저 위에서 <b>승인·반려를 결정</b>하면 열립니다. 이 자료는 판정을 요청하는 것이
-          아니라 <b>사람 판정과 자동 검수(RULE+IRIS) 판정을 나란히 놓고</b> IRIS 재학습·학습
+          아니라 <b>사람 판정과 자동 검수(RULE+ARGOS) 판정을 나란히 놓고</b> ARGOS 재학습·학습
           표현 등록을 논의하기 위한 것이라, 사람 판정이 먼저 있어야 합니다.
         </p>
       ) : (

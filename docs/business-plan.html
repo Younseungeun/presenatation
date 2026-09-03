@@ -394,7 +394,7 @@
   <p class="dek">게시 전에 위법·위험 표현을 거른다. <strong>두 단계</strong>고, 앞은 기계 뒤는 사람이다.</p>
 
   <div class="flow"><pre><b>자동 검수</b> ─┬─ 규칙 엔진 (정규식 · 학습 표현)   <span class="m">← 즉시 거절은 여기만</span>
-              └─ IRIS (자체 증류 분류기)        <span class="m">← 언제나 WARN</span>
+              └─ ARGOS (자체 증류 분류기)        <span class="m">← 언제나 WARN</span>
                      │
 <b>운영자 판정</b> ────┴─ 승인 / 반려</pre></div>
 
@@ -424,8 +424,8 @@
     <div class="stat ok"><span class="k">재설계 후</span><span class="v">92%</span><span class="n">대조군 오탐 0건 유지</span></div>
   </div>
 
-  <h3>IRIS — 자체 증류 모델</h3>
-  <p>KoELECTRA-small 14M을 증류해 만든 분류기. 로컬 사이드카로 돌고 <strong>외부 AI API 호출이 운영 경로에 0회</strong>다. 규칙이 못 잡는 <em>패러프레이즈</em>(같은 뜻 다른 말)를 메운다 — 규칙의 탐지율이 0%인 유일한 칸이고, IRIS 단독 66.7%가 그대로 순증이다.</p>
+  <h3>ARGOS — 자체 증류 모델</h3>
+  <p>KoELECTRA-small 14M을 증류해 만든 분류기. 로컬 사이드카로 돌고 <strong>외부 AI API 호출이 운영 경로에 0회</strong>다. 규칙이 못 잡는 <em>패러프레이즈</em>(같은 뜻 다른 말)를 메운다 — 규칙의 탐지율이 0%인 유일한 칸이고, ARGOS 단독 66.7%가 그대로 순증이다.</p>
   <p>Claude는 <strong>교사</strong>로만 쓴다. 운영자가 질문지를 복사해 붙여 넣고 답을 기록하면 그것이 재학습 라벨이 된다. 자동 호출 경로는 코드가 막는다 — API 키를 넣어도 게시 검수에서는 돌지 않는다.</p>
 
   <h3>운영자 판정이 곧 정답 라벨</h3>
@@ -547,7 +547,7 @@
   <p>운영자가 한 명이면 <strong>조용한 실패</strong>가 가장 위험하다. 그래서 검수가 실제로 도는지를 재는 장치를 따로 뒀다.</p>
   <ul>
     <li><strong>규칙 카나리아</strong> — 정답이 정해진 문항을 <em>운영과 같은 함수</em>에 5분마다 통과시킨다. 층마다 한 칸씩이라 한 층만 죽어도 잡힌다</li>
-    <li><strong>IRIS 출근 점검</strong> — 아무도 리포트를 안 올려도 5분마다 확인한다. 리포트가 없으면 IRIS가 죽어도 알림이 안 나가던 구멍을 막았다</li>
+    <li><strong>ARGOS 출근 점검</strong> — 아무도 리포트를 안 올려도 5분마다 확인한다. 리포트가 없으면 ARGOS가 죽어도 알림이 안 나가던 구멍을 막았다</li>
     <li><strong>운영자 습관화 감지</strong> — 판정 소요 시간이 특정 유형만 유독 짧으면 그 소견은 읽히지 않고 승인되고 있다는 뜻이다</li>
   </ul>
   <div class="note">
@@ -611,7 +611,7 @@
       <tr><td>판정 엔진 · 파이프라인 · 시세 어댑터 4종</td><td><span class="chip done">완료</span></td></tr>
       <tr><td>에스크로 3분기 정산 · 금액 보존 불변식</td><td><span class="chip done">완료</span></td></tr>
       <tr><td>점수 vmax · 규율 래더 · 등급·수수료</td><td><span class="chip done">완료</span></td></tr>
-      <tr><td>검수 파이프라인 (규칙 6층 + IRIS) · 운영자 큐</td><td><span class="chip done">완료</span></td></tr>
+      <tr><td>검수 파이프라인 (규칙 6층 + ARGOS) · 운영자 큐</td><td><span class="chip done">완료</span></td></tr>
       <tr><td>인증 (패스키 · 간편 비밀번호 · 1인 1계정)</td><td><span class="chip done">완료</span></td></tr>
       <tr><td>정산 계좌 · 동결 · 2인 승인 · 출금 한도</td><td><span class="chip done">완료</span></td></tr>
       <tr><td>이용자 화면 · 관리자 화면 · PWA</td><td><span class="chip done">완료</span></td></tr>

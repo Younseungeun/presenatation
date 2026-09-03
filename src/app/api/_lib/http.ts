@@ -119,7 +119,7 @@ export function toErrorResponse(e: unknown): NextResponse {
   if (e instanceof ComplianceTakedownError) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
-  // 판정 기록의 입력 검증(예: IRIS 만 잡은 건의 근거 문장 누락) — 운영자가 고쳐 다시 낼 수 있는 400
+  // 판정 기록의 입력 검증(예: ARGOS 만 잡은 건의 근거 문장 누락) — 운영자가 고쳐 다시 낼 수 있는 400
   if (e instanceof ComplianceVerdictError) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }

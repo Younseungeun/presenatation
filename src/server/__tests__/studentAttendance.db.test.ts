@@ -17,7 +17,7 @@ import {
  * **노트가 두 권이어야 하는 이유** (2026-08-23).
  *
  * `lastOk` 는 **성공했을 때만** 찍힌다. 그래서 그 칸이 비어 있으면 원인이 둘인데
- * 구별이 안 됐다 — ① 타이머가 안 갔다 ② 갔는데 IRIS 가 안 나왔다. 처방은 정반대다:
+ * 구별이 안 됐다 — ① 타이머가 안 갔다 ② 갔는데 ARGOS 가 안 나왔다. 처방은 정반대다:
  * 앞은 스케줄러를 재기동하고 뒤는 사이드카를 봐야 하는데, **알림은 늘 앞쪽이라고
  * 말했다.** 뒤쪽일 때는 엉뚱한 데를 고치라고 시키고 있었던 셈이다.
  *
@@ -30,10 +30,10 @@ let prisma: PrismaClient;
 const T0 = new Date('2026-08-23T00:00:00Z');
 const later = (ms: number) => new Date(T0.getTime() + ms);
 
-/** 늘 답하는 IRIS */
+/** 늘 답하는 ARGOS */
 const upClient = (): StudentClient =>
   ({ recheck: vi.fn(async () => true) }) as unknown as StudentClient;
-/** 부르면 실패하는 IRIS — 타이머는 정상, 사이드카만 죽은 상태 */
+/** 부르면 실패하는 ARGOS — 타이머는 정상, 사이드카만 죽은 상태 */
 const downClient = (): StudentClient =>
   ({ recheck: vi.fn(async () => false) }) as unknown as StudentClient;
 
@@ -98,17 +98,17 @@ describe('두 고장이 갈린다', () => {
   });
 
   /**
-   * ② **타이머는 도는데 IRIS 가 답이 없다 → 여기서는 안 알린다** (2026-08-25 확정).
+   * ② **타이머는 도는데 ARGOS 가 답이 없다 → 여기서는 안 알린다** (2026-08-25 확정).
    *
    * 그 사실을 알리는 문은 이미 있다: `notifyStudentAvailability` 가
-   * `[긴급][검수] IRIS 연결 유실` 을 보낸다. 그쪽은 **두 번 연속 실패**해야 나가는
+   * `[긴급][검수] ARGOS 연결 유실` 을 보낸다. 그쪽은 **두 번 연속 실패**해야 나가는
    * 브레이크(B안)를 달고 있고, 근거도 기록이 아니라 **방금 잰 값**이다.
    *
    * 2026-08-24 에 내가 여기에 같은 일을 하는 분기를 얹었는데 브레이크가 없었다.
    * 스케줄러 재기동 직후 첫 점검이 기동 따라잡기에 밀려 한 번 시간 초과했을 때,
    * B안은 옳게 침묵했는데 **이 분기가 먼저 울렸다.**
    */
-  it('타이머는 도는데 IRIS 가 계속 실패해도 **여기서는 침묵한다**', async () => {
+  it('타이머는 도는데 ARGOS 가 계속 실패해도 **여기서는 침묵한다**', async () => {
     // 문턱을 넘기며 계속 점검한다 — 갈 때마다 1권은 새로 찍히고 2권은 끝내 비어 있다
     const client = downClient();
     for (let t = 0; t <= STUDENT_ATTENDANCE_STALE_MS + 1; t += STUDENT_ATTENDANCE_INTERVAL_MS) {
@@ -133,7 +133,7 @@ describe('두 고장이 갈린다', () => {
  * 낡아 있고, 첫 성공 틱이 돌기 전에 정지 검사가 먼저 지나간다 — 재기동 때마다
  * 반드시 한 번 잘못 울리는 구조였다.
  *
- * 00:23 에 "IRIS 가 응답하지 않습니다 — 사이드카를 보십시오" 가 나갔고 **20초 뒤
+ * 00:23 에 "ARGOS 가 응답하지 않습니다 — 사이드카를 보십시오" 가 나갔고 **20초 뒤
  * 근무 중**이었다. 스케줄러가 22시간 죽어 있었고 재기동 직후 첫 점검이 사이드카
  * 기동보다 2분 빨랐다. B안(두 번 연속 실패해야 결근)이 이 경로를 못 막는 이유는
  * 여기서 보는 것이 **잰 값이 아니라 기록**이기 때문이다.
@@ -141,9 +141,9 @@ describe('두 고장이 갈린다', () => {
 describe('재기동 직후에 울리지 않는다', () => {
   /**
    * `lastOk` 는 DB 에 남는다. 스케줄러가 오래 죽어 있다 살아나면 그 값은 **무조건**
-   * 낡아 있다. 그 낡음은 IRIS 에 대한 증거가 아니라 **아무도 안 물어본 시간**의 기록이다.
+   * 낡아 있다. 그 낡음은 ARGOS 에 대한 증거가 아니라 **아무도 안 물어본 시간**의 기록이다.
    */
-  it('기록이 낡아도 타이머가 돌고 있으면 침묵한다 — 낡음은 IRIS 의 잘못이 아니다', async () => {
+  it('기록이 낡아도 타이머가 돌고 있으면 침묵한다 — 낡음은 ARGOS 의 잘못이 아니다', async () => {
     const now = later(STUDENT_ATTENDANCE_STALE_MS * 10);
     await prisma.appSetting.create({
       data: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: T0.toISOString() },
@@ -153,8 +153,8 @@ describe('재기동 직후에 울리지 않는다', () => {
     });
     expect((await readAttendanceBeat(prisma, now)).stale).toBe(true);
 
-    // IRIS 가 멀쩡하든(upClient) 아니든(downClient) 이 함수는 울리지 않는다 —
-    // IRIS 의 상태를 말하는 것은 notifyStudentAvailability 의 몫이다
+    // ARGOS 가 멀쩡하든(upClient) 아니든(downClient) 이 함수는 울리지 않는다 —
+    // ARGOS 의 상태를 말하는 것은 notifyStudentAvailability 의 몫이다
     expect(await alertIfAttendanceStale(prisma, upClient(), now)).toBe(false);
     expect(await alertIfAttendanceStale(prisma, downClient(), now)).toBe(false);
   });
@@ -180,7 +180,7 @@ describe('재기동 직후에 울리지 않는다', () => {
 });
 
 describe('정상이면 조용하다', () => {
-  it('IRIS 가 답하고 있으면 알리지 않는다', async () => {
+  it('ARGOS 가 답하고 있으면 알리지 않는다', async () => {
     await runStudentAttendance(prisma, upClient(), T0);
     expect(await alertIfAttendanceStale(prisma, upClient(), T0)).toBe(false);
     expect(await prisma.notification.count()).toBe(0);
@@ -197,7 +197,7 @@ describe('정상이면 조용하다', () => {
       data: { key: STUDENT_ATTENDANCE_LASTOK_KEY, value: T0.toISOString() },
     });
     const beat = await readAttendanceBeat(prisma, T0);
-    expect(beat.stale).toBe(false); // IRIS 는 방금 답했다
+    expect(beat.stale).toBe(false); // ARGOS 는 방금 답했다
     expect(beat.timerStale).toBe(true); // 그런데 갔다는 기록이 없다
     // 한 회차만 돌면 저절로 풀린다 — 잘못된 경보가 오래 가지 않는다
     await runStudentAttendance(prisma, upClient(), T0);

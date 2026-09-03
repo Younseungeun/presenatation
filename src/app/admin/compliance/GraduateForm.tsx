@@ -16,7 +16,7 @@ import { probeFailed, type FormalizationProbeResult } from "@/domain/formalizati
  * 비우십시오"* 라고 말한다 — 비울 방법이 없는 채로 경고만 오는 상태였다.
  *
  * ── 왜 6문장을 사람이 직접 쓰게 하는가 ─────────────────────────
- * 졸업은 "이 표현은 이제 IRIS가 맡는다"이고, 그 순간 사전 보호가 꺼진다. IRIS가
+ * 졸업은 "이 표현은 이제 ARGOS가 맡는다"이고, 그 순간 사전 보호가 꺼진다. ARGOS가
  * 재학습하다 그 표현을 잊으면(치명적 망각) 아무도 안 막는 상태가 되므로, 대비쌍이
  * 유일한 방어선이다. 자동 생성은 20차에 기각됐다 — 생성기가 규칙과 같은 논리면
  * **규칙이 이미 잡는 것만 시험**하게 되어 동어반복이다.
@@ -59,7 +59,7 @@ export function GraduateForm({
 }: {
   phraseId: string;
   phrase: string;
-  /** 이 항목의 유형 — 위반 문장의 기본 유형이 된다 (IRIS 라벨 공간 안일 때만) */
+  /** 이 항목의 유형 — 위반 문장의 기본 유형이 된다 (ARGOS 라벨 공간 안일 때만) */
   category: RiskCategory;
   studentMode: "live" | "shadow" | "off";
   /** 서버 상수 그대로 (GRADUATION_MIN_CASES_PER_SIDE) — 화면에 숫자를 박지 않는다 */
@@ -73,7 +73,7 @@ export function GraduateForm({
   /** 형태 굳음(사다리의 규칙 승격 조건과 같은 값) — 경고만 */
   formStable: boolean;
   surfaceSummary: string;
-  /** IRIS 동반 검출 실적 — 0 이면 경고만 (막지 않는다) */
+  /** ARGOS 동반 검출 실적 — 0 이면 경고만 (막지 않는다) */
   studentCoDetected: number;
   studentMissed: number;
   /** 공식화 샌드박스의 마지막 결과 — 실패 기록이 있어야 졸업이 열린다 (12차 C-4) */
@@ -173,28 +173,28 @@ export function GraduateForm({
       <div className={a.lbl}>
         졸업시키기
         <small>
-          &ldquo;{phrase}&rdquo; 를 사전에서 내리고 <b>IRIS에게 넘깁니다</b>
+          &ldquo;{phrase}&rdquo; 를 사전에서 내리고 <b>ARGOS에게 넘깁니다</b>
         </small>
       </div>
 
       <div className={a.note}>
         졸업하면 이 표현은 사전에서 <b>꺼집니다.</b> 대신 아래 6문장이{" "}
         <b>영구 회귀 시험셋</b>이 되어, 앞으로 재학습한 모델은 여기서 하나라도 틀리면{" "}
-        <b>채택되지 않습니다.</b> 이것이 IRIS가 이 표현을 잊는 것을 막는 유일한 방어선입니다.
+        <b>채택되지 않습니다.</b> 이것이 ARGOS가 이 표현을 잊는 것을 막는 유일한 방어선입니다.
       </div>
 
-      {/* **졸업의 대가는 IRIS 상태와 무관하게 하나 더 있다** (동선 점검에서 실측).
-          작성 중 검사는 규칙(코드 + 사전)만 돌고 IRIS는 부르지 않는다 — 디바운스 600ms 로
+      {/* **졸업의 대가는 ARGOS 상태와 무관하게 하나 더 있다** (동선 점검에서 실측).
+          작성 중 검사는 규칙(코드 + 사전)만 돌고 ARGOS는 부르지 않는다 — 디바운스 600ms 로
           사이드카를 수십 번 부를 수 없어서 의도적으로 뺐다(Q10). 그래서 졸업한 표현은
-          **IRIS가 근무 중이어도** 작성 화면에서 영영 침묵한다.
+          **ARGOS가 근무 중이어도** 작성 화면에서 영영 침묵한다.
           그림자 경고는 "당분간"이라고 말하지만 이쪽은 안 돌아온다 — 그 차이를 적지 않으면
-          운영자가 "IRIS가 복귀하면 원래대로"라고 읽는다. 실측: 졸업 직후 같은 문장의
+          운영자가 "ARGOS가 복귀하면 원래대로"라고 읽는다. 실측: 졸업 직후 같은 문장의
           작성 중 소견이 1건 → 0건 */}
       <div className={a.note}>
-        <b>작성 중 경고는 영구히 사라집니다.</b> 작성 화면 검사는 규칙과 사전만 돌고 IRIS는
+        <b>작성 중 경고는 영구히 사라집니다.</b> 작성 화면 검사는 규칙과 사전만 돌고 ARGOS는
         게시 시점에만 봅니다 — 졸업하면 리서처는 <b>이 표현을 쓰는 동안 아무 말도 듣지
         못하고</b>, 제출한 뒤에야 보류를 받습니다. 사전이 원래 없애려던 낭비가 이 표현에
-        한해 돌아옵니다. 그 대가를 치를 만큼 IRIS가 이 표현을 확실히 잡는지 보고 누르세요.
+        한해 돌아옵니다. 그 대가를 치를 만큼 ARGOS가 이 표현을 확실히 잡는지 보고 누르세요.
       </div>
 
       {/* **그림자에서도 졸업을 막지 않는다** (C-3 (나)) — 채택 직전에 대비쌍을 미리 써
@@ -202,34 +202,34 @@ export function GraduateForm({
           누르게 두지 않는다. 괄호가 중요하다: 과장하면 다음 경고를 안 믿는다 */}
       {studentMode !== "live" && (
         <div className={`${a.note} ${a.noteWarn}`}>
-          <b>IRIS가 연수 중입니다.</b> 지금 졸업시키면 이 표현은 당분간 아무도 막지 않습니다
+          <b>ARGOS가 연수 중입니다.</b> 지금 졸업시키면 이 표현은 당분간 아무도 막지 않습니다
           (규칙·코드 패턴에 걸리는 부분은 계속 막힙니다). 대비쌍은 지금 써 두어도 됩니다 —{" "}
           <b>다음 재학습 채택 판정부터</b> 이 문항으로 시험합니다.
         </div>
       )}
 
       {/* ── "코드로 못 적는가"를 묻는 자리 (2026-09-01 창업자 확정) ──
-          잠금 하나(질문지 도장)와 경고 둘(형태 굳음 · IRIS 동반 0). 경고는 막지 않는다 —
+          잠금 하나(질문지 도장)와 경고 둘(형태 굳음 · ARGOS 동반 0). 경고는 막지 않는다 —
           사람의 확신에 여지를 남기되, 건너뛰는 것이 보이게 한다 */}
       {noPack && (
         <div className={`${a.note} ${a.noteNeg}`}>
           <b>항목 질문지를 먼저 뽑아 주세요.</b> 검출 항목 관리 표(재학습 논의 자료)에서 이 표현의
           &ldquo;항목 질문지 ▾&rdquo;를 한 번 열면 잠금이 풀립니다. 졸업은 &ldquo;코드로 못 적으니
-          IRIS로&rdquo;라는 결정이라, 공식화를 검토한 흔적이 있어야 합니다.
+          ARGOS로&rdquo;라는 결정이라, 공식화를 검토한 흔적이 있어야 합니다.
         </div>
       )}
       {formStable && (
         <div className={`${a.note} ${a.noteWarn}`}>
           <b>이 표현은 형태가 굳어 있습니다</b> ({surfaceSummary}) — 사다리의 <b>규칙 승격</b> 조건과
-          같은 값입니다. 늘 같은 꼴로 오는 표현은 IRIS보다 코드가 더 값집니다(즉시 거절로 가는 유일한
+          같은 값입니다. 늘 같은 꼴로 오는 표현은 ARGOS보다 코드가 더 값집니다(즉시 거절로 가는 유일한
           길). 졸업 전에 공식화를 시도해 보세요.
         </div>
       )}
       {studentCoDetected === 0 && (
         <div className={`${a.note} ${a.noteWarn}`}>
-          <b>IRIS가 이 표현을 함께 잡은 적이 없습니다</b> (동반 검출 0 · 미동반 {studentMissed}) — 내리면
+          <b>ARGOS가 이 표현을 함께 잡은 적이 없습니다</b> (동반 검출 0 · 미동반 {studentMissed}) — 내리면
           이 variation을 잡는 층이 <b>없어집니다.</b> 자동 추천은 이 상태에서 졸업을 권하지 않습니다.
-          IRIS가 잡을 거라고 확신할 때만 누르세요.
+          ARGOS가 잡을 거라고 확신할 때만 누르세요.
         </div>
       )}
       {/* ── 공식화 샌드박스 (12차 검토 C-4 채택) ──
@@ -286,7 +286,7 @@ export function GraduateForm({
 
       <CaseSide
         title="위반 문장"
-        hint="IRIS가 반드시 잡아야 하는 문장입니다. 이 표현이 그대로 들어가지 않아도 됩니다 — 같은 뜻을 다르게 쓴 문장이 오히려 값집니다."
+        hint="ARGOS가 반드시 잡아야 하는 문장입니다. 이 표현이 그대로 들어가지 않아도 됩니다 — 같은 뜻을 다르게 쓴 문장이 오히려 값집니다."
         sides={violations}
         setSides={setViolations}
         withCategory
@@ -294,7 +294,7 @@ export function GraduateForm({
       />
       <CaseSide
         title="정상 문장"
-        hint="IRIS가 잡으면 안 되는 문장입니다. 같은 표현이 정상 맥락에 든 문장을 쓰세요 — 이쪽이 오탐을 막습니다."
+        hint="ARGOS가 잡으면 안 되는 문장입니다. 같은 표현이 정상 맥락에 든 문장을 쓰세요 — 이쪽이 오탐을 막습니다."
         sides={normals}
         setSides={setNormals}
         problems={nProblems}
@@ -339,7 +339,7 @@ function sideProblems(sides: Side[], violation: boolean, maxPairSimilarity: numb
     }
   }
   if (violation && filled.some((s) => !s.category)) {
-    out.push("위반 문장에는 유형이 필요합니다 — IRIS가 낼 수 없는 유형이면 그 문항은 영원히 빨간불입니다");
+    out.push("위반 문장에는 유형이 필요합니다 — ARGOS가 낼 수 없는 유형이면 그 문항은 영원히 빨간불입니다");
   }
   // 쌍별 복붙 검사 — 명목 3문장·실질 1문장을 막는다
   for (let i = 0; i < filled.length; i++) {

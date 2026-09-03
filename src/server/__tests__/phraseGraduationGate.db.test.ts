@@ -13,7 +13,7 @@ import type { FormalizationProbeResult } from '@/domain/formalizationProbe';
 //   ① 항목 질문지를 한 번은 뽑았어야 한다 (공식화를 검토했다는 도장)
 //   ② **공식화 샌드박스에서 실패한 기록**이 있어야 한다 (C-4: 20자 사유는 보일러플레이트가 된다)
 //      — 정탐을 놓쳤거나 정상 문장을 잡았으면 실패 = 졸업. 다 잡았으면 규칙 승격감이라 잠긴다
-// 형태 굳음·IRIS 동반 0 은 **경고만**이라 여기서 재지 않는다(화면의 몫).
+// 형태 굳음·ARGOS 동반 0 은 **경고만**이라 여기서 재지 않는다(화면의 몫).
 
 let prisma: PrismaClient;
 beforeAll(() => {

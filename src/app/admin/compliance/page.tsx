@@ -390,7 +390,7 @@ function TeacherRelayPanel({
   recs: { promote: number; graduate: number; ungraduate: number };
   /**
    * **재학습 신호 — 별도 박스에서 이 박스 안 칩으로 합쳤다** (2026-08-29 창업자 지시).
-   * IRIS와 운영자가 엇갈린 건수(하드 네거티브)/문턱. 사다리 추천(항목별 재학습)과
+   * ARGOS와 운영자가 엇갈린 건수(하드 네거티브)/문턱. 사다리 추천(항목별 재학습)과
    * 같은 "재학습 재료" 테마라 한 상자에 둔다. 상세 화면엔 전체 게이지(막대)가 남는다.
    */
   retrain: { count: number; threshold: number; reached: boolean };
@@ -405,8 +405,8 @@ function TeacherRelayPanel({
   ).length;
 
   // 추천 칩 — 추천이 생긴 종류만 (승격/졸업/졸업 강등). 회색이 아니라 색으로 눈에 띄게.
-  // 졸업 칩은 실적 졸업(GRADUATE_IRIS)과 문맥 위임(DELEGATE_IRIS)을 함께 센다 — 둘 다
-  // 축 간 이동(→IRIS)이고, 증거만 다르다 (상세 화면의 사유가 그 구분을 말한다)
+  // 졸업 칩은 실적 졸업(GRADUATE_ARGOS)과 문맥 위임(DELEGATE_ARGOS)을 함께 센다 — 둘 다
+  // 축 간 이동(→ARGOS)이고, 증거만 다르다 (상세 화면의 사유가 그 구분을 말한다)
   const recChips = [
     recs.promote > 0 && { label: `승격 추천 ${recs.promote}`, color: "#0e6f5c" },
     recs.graduate > 0 && { label: `졸업 추천 ${recs.graduate}`, color: "#2a6fb0" },
@@ -453,7 +453,7 @@ function TeacherRelayPanel({
         {retrain.reached && (
           <span
             className={`${a.chip} ${a.chipWarn}`}
-            title={`IRIS와 운영자가 엇갈린 건수가 문턱(${retrain.count}/${retrain.threshold})에 닿았습니다 — 창업자가 진위를 가린 뒤 IRIS를 재학습할 때입니다.`}
+            title={`ARGOS와 운영자가 엇갈린 건수가 문턱(${retrain.count}/${retrain.threshold})에 닿았습니다 — 창업자가 진위를 가린 뒤 ARGOS를 재학습할 때입니다.`}
           >
             재학습 추천
           </span>
@@ -478,7 +478,7 @@ function TeacherRelayPanel({
 }
 
 /** @근거 계약 — 회신 8호 §2-b 4조건 + 회신 20호 부정 문맥 0 = 5조건. 목적지는 회신 21호로
- *  졸업(IRIS 위임)으로 확정 (20차 X-2 유지) */
+ *  졸업(ARGOS 위임)으로 확정 (20차 X-2 유지) */
 const PROMOTION_MIN_MATCHES = 30;
 const PROMOTION_MIN_RESEARCHERS = 5;
 const PROMOTION_MIN_AGE_DAYS = 30;
@@ -486,11 +486,11 @@ const PROMOTION_MIN_AGE_DAYS = 30;
 const HIT_LOG_SINCE = "2026-08-22";
 
 /**
- * **졸업 후보** — 사전 항목을 IRIS(학생)에게 넘길지 심사하는 자리 (회신 21호 확정).
+ * **졸업 후보** — 사전 항목을 ARGOS(학생)에게 넘길지 심사하는 자리 (회신 21호 확정).
  *
  * ── 목적지는 졸업이지 코드 BLOCK 이 아니다 (20차 X-2 유지) ──
  * 사전 항목은 아무리 정확해져도 저절로 세지지 않는다. 실적이 쌓이면 출구 후보가 되는데,
- * **그 출구는 졸업(IRIS 위임)뿐**이다 — 의미를 가진 낱말은 코드로 굳히지 않는다(의미의
+ * **그 출구는 졸업(ARGOS 위임)뿐**이다 — 의미를 가진 낱말은 코드로 굳히지 않는다(의미의
  * 관할은 학생). WARN 도 게시를 막고 사람 앞에 오므로, BLOCK 이 아끼는 것은 "버튼 한 번"이고
  * 거는 것은 "즉시 거절 오탐 = 복구 불가"라 절대 조건 쪽이 이긴다.
  * (같은 5조건은 훗날 재검토 조건 — 보류 큐 7일 연속 하루 30건 초과 — 이 발동할 때에만
@@ -500,10 +500,10 @@ const HIT_LOG_SINCE = "2026-08-22";
  * 특히 **서로 다른 리서처 수**가 이 배지의 값어치다. 그것 없이 "30회 · 100%" 만 보면
  * 한 사람이 같은 문구를 30번 써서 만든 30회가 후보로 뜨는데, 심사가 지키는 상대는
  * "지금 리서처"가 아니라 "아직 안 온 정상 문장"이다. **부정 문맥 0**(회신 20호 요청 2)은
- * IRIS 가 넘겨받아도 헷지·부정 문장을 위반으로 오인하지 않을지의 신호다.
+ * ARGOS 가 넘겨받아도 헷지·부정 문장을 위반으로 오인하지 않을지의 신호다.
  *
- * ── 여섯째: IRIS 동반 검출 실증 (2026-08-31 창업자 확정 — 졸업 요건 교체의 반영) ──
- * 졸업의 트리거가 "형태 다양"에서 **동반 실증**(이 항목이 걸린 확정 건마다 IRIS 도 같은
+ * ── 여섯째: ARGOS 동반 검출 실증 (2026-08-31 창업자 확정 — 졸업 요건 교체의 반영) ──
+ * 졸업의 트리거가 "형태 다양"에서 **동반 실증**(이 항목이 걸린 확정 건마다 ARGOS 도 같은
  * 유형을 냈는가)으로 바뀌었는데, 이 배지가 5조건만 세면 사다리 표(추천 없음)와 사전
  * 탭(졸업 후보 ✓)이 **같은 항목에 다른 답**을 하게 된다 — 실행(graduatePhrase)이 조건을
  * 검증하지 않아 이 배지가 유일한 안내판이므로, 배지가 틀리면 성급한 졸업을 배지가 부추긴다.
@@ -526,7 +526,7 @@ function PromotionCandidate({
     negationHitCount: number;
   };
   now: Date;
-  /** 사다리와 같은 집계의 동반/미동반 — 확정 건에서 IRIS 가 같은 유형을 냈는가 */
+  /** 사다리와 같은 집계의 동반/미동반 — 확정 건에서 ARGOS 가 같은 유형을 냈는가 */
   coDetection: { co: number; missed: number };
 }) {
   const ageDays = Math.floor((now.getTime() - p.createdAt.getTime()) / 86_400_000);
@@ -544,11 +544,11 @@ function PromotionCandidate({
     // 다섯째 조건 (회신 20호 요청 2) — 부정·헷지 문맥 출현 0. BLOCK 승격의 최대 위험이
     // 부정문 오거절이라, 이 표현이 부정 문맥에서 쓰인 실적이 있으면 후보에서 뺀다
     { ok: p.negationHitCount === 0, label: `부정 ${p.negationHitCount}건` },
-    // 여섯째 조건 (2026-08-31) — IRIS 동반 검출 실증. 미동반이 하나라도 있으면 사전이
+    // 여섯째 조건 (2026-08-31) — ARGOS 동반 검출 실증. 미동반이 하나라도 있으면 사전이
     // 하중을 지는 것이고, 실증이 아예 없으면(0/0) 모르는 것 — 어느 쪽도 내리면 안 된다
     {
       ok: coDetection.missed === 0 && coDetection.co > 0,
-      label: `IRIS 동반 ${coDetection.co}·미동반 ${coDetection.missed}`,
+      label: `ARGOS 동반 ${coDetection.co}·미동반 ${coDetection.missed}`,
     },
   ];
   const done = checks.every((c) => c.ok);
@@ -605,14 +605,14 @@ function PromotionCandidate({
  *   검수 성공  검수가 온전했고 소견이 있다 → 그 **소견이 맞는지** 본다
  *
  * ── 겹칠 때는 `검수 실패` 가 이긴다 ────────────────────────────────
- * 소견 0건 + 반려 3회 + `IRIS !` 인 건이 실제로 있다. 그것을 `반려 3회` 로 넣으면
- * **"소견이 0건"이라는 사실이 앞에 서는데, IRIS 가 안 돌았으면 그 0건을 못 믿는다** —
+ * 소견 0건 + 반려 3회 + `ARGOS !` 인 건이 실제로 있다. 그것을 `반려 3회` 로 넣으면
+ * **"소견이 0건"이라는 사실이 앞에 서는데, ARGOS 가 안 돌았으면 그 0건을 못 믿는다** —
  * 깨끗해서 0건인지 안 봐서 0건인지 구별이 안 된다. 그 불확실이 더 무거우므로 위로 올린다.
  */
 type HoldGroup = "fail" | "rejected" | "ok";
 
 const HOLD_GROUP_NOTE: Record<HoldGroup, string> = {
-  fail: "규칙 엔진이나 IRIS 가 판정에 참여하지 못했습니다 — 모델이 못 본 부분을 직접 읽어야 합니다.",
+  fail: "규칙 엔진이나 ARGOS 가 판정에 참여하지 못했습니다 — 모델이 못 본 부분을 직접 읽어야 합니다.",
   rejected: "검수 소견은 없습니다. 반려가 쌓여 자동 게시 경로가 닫힌 건이라, 볼 것은 본문이 아니라 재제출 이력입니다.",
   ok: "검수가 온전히 돌았고 소견이 나와 멈췄습니다. 그 소견이 맞는지 보시면 됩니다.",
 };
@@ -757,8 +757,8 @@ function QueueReasonChip({
   rejectionCount: number;
 }) {
   /* **`검수 실패` 칩은 걷었다** (2026-08-25 창업자 지적 — 겹친다).
-     `UNAVAILABLE` 은 "IRIS 를 부르다 실패해 규칙만 판정했다"는 뜻인데, 그것은
-     `AutoScreenChip` 이 `IRIS !` 로 이미 말한다. 같은 사실을 두 칩이 나눠 말하면
+     `UNAVAILABLE` 은 "ARGOS 를 부르다 실패해 규칙만 판정했다"는 뜻인데, 그것은
+     `AutoScreenChip` 이 `ARGOS !` 로 이미 말한다. 같은 사실을 두 칩이 나눠 말하면
      운영자가 둘을 다른 고장으로 읽는다 — 실제로 한 카드에 나란히 붙어 있었다. */
   if (decision === "BLOCK") {
     return (
@@ -787,7 +787,7 @@ function QueueReasonChip({
  * 훑을 때 걸리지 않았다. 큐에서 **무엇부터 볼지 고르는 순간**에 필요한 정보라
  * 접힌 줄에도 서야 한다.
  *
- * 정상(규칙 + IRIS)에는 아무것도 그리지 않는다 — 잘 돈 것은 사건이 아니다.
+ * 정상(규칙 + ARGOS)에는 아무것도 그리지 않는다 — 잘 돈 것은 사건이 아니다.
  */
 function AutoScreenChip({ reviewer }: { reviewer: string }) {
   const missing = missingScreeners(reviewer);
@@ -795,18 +795,18 @@ function AutoScreenChip({ reviewer }: { reviewer: string }) {
 
   const { aiMissing } = autoScreenParticipation(reviewer);
   const why =
-    missing === "RULE+IRIS"
-      ? "규칙 엔진과 IRIS 가 **둘 다** 판정하지 않았습니다 — 사실상 아무도 안 본 건입니다. 본문을 처음부터 직접 읽어 주세요."
-      : missing === "IRIS"
+    missing === "RULE+ARGOS"
+      ? "규칙 엔진과 ARGOS 가 **둘 다** 판정하지 않았습니다 — 사실상 아무도 안 본 건입니다. 본문을 처음부터 직접 읽어 주세요."
+      : missing === "ARGOS"
         ? aiMissing === "OUTAGE"
-          ? "IRIS 를 부르다 실패해 규칙 엔진만 판정했습니다. 규칙이 못 잡는 패러프레이즈(같은 뜻 다른 말)는 걸러지지 않았습니다."
-          : "IRIS 가 참여하지 않은 채 규칙 엔진만 판정했습니다. 규칙이 못 잡는 패러프레이즈는 걸러지지 않았습니다."
+          ? "ARGOS 를 부르다 실패해 규칙 엔진만 판정했습니다. 규칙이 못 잡는 패러프레이즈(같은 뜻 다른 말)는 걸러지지 않았습니다."
+          : "ARGOS 가 참여하지 않은 채 규칙 엔진만 판정했습니다. 규칙이 못 잡는 패러프레이즈는 걸러지지 않았습니다."
         : "규칙 엔진이 판정하지 않았습니다 — 즉시 거절 권한이 있는 유일한 검사기가 빠진 상태입니다.";
 
   return (
     <span
       /* 둘 다 빠진 건이 가장 무겁다 — 하나만 빠진 것과 색을 나눈다 */
-      className={`${a.chip} ${missing === "RULE+IRIS" ? a.chipNeg : a.chipWarn}`}
+      className={`${a.chip} ${missing === "RULE+ARGOS" ? a.chipNeg : a.chipWarn}`}
       title={why.replace(/\*\*/g, "")}
     >
       {missing} !
@@ -925,7 +925,7 @@ function ReviewCard({
           {TIER_NAME[review.report.researcher.tier as Tier] ?? review.report.researcher.tier}
         </span>
         {/* **검수 참여자·대기 시간은 여기 다시 적지 않는다** (2026-08-26 창업자 지시).
-            위 헤더 칩이 이미 말한다 — `IRIS !`(=규칙만 돌았다)와 `101h 지연`.
+            위 헤더 칩이 이미 말한다 — `ARGOS !`(=규칙만 돌았다)와 `101h 지연`.
             같은 사실을 상세에서 또 적으면 칩을 지운 뜻이 없어진다.
             원시 표식(`rule+student:...`)은 어차피 뿌리지 않는다 — 알아야 하는 건
             "누가 봤나"뿐이고 그건 칩이 답한다 */}
@@ -968,7 +968,7 @@ function ReviewCard({
           안내는 자리를 잃었다. 여기서는 판정만 내린다 (ResolveButton) */}
 
       {/* **본문 + 빨간 소견** — 문제 삼은 워딩을 본문 맥락 안에서 곧장 읽는다.
-          문장을 못 짚은 소견(IRIS 전체 판정·표기 변형)은 그 아래 따로 뜨고,
+          문장을 못 짚은 소견(ARGOS 전체 판정·표기 변형)은 그 아래 따로 뜨고,
           전체 화면 링크(종목·목표가·별점)도 이 안에 있다 */}
       <FlaggedReport
         reportId={review.report.id}
@@ -1052,8 +1052,8 @@ function AccuracyPanel({ summary }: { summary: AccuracySummary }) {
     );
   }
   /* **한 줄이 전부다** (2026-08-23 창업자 지시).
-     이 줄은 IRIS 상자 맨 위에 얹혀 매일 곁눈질로 잡는 자리라, 숫자 셋 말고는 아무것도
-     두지 않는다. 표본·유형별 분해·물음표는 **상세 화면**(/admin/compliance/iris)이
+     이 줄은 ARGOS 상자 맨 위에 얹혀 매일 곁눈질로 잡는 자리라, 숫자 셋 말고는 아무것도
+     두지 않는다. 표본·유형별 분해·물음표는 **상세 화면**(/admin/compliance/argos)이
      건수와 함께 편다 — 상자를 누르면 거기로 가므로 여는 손잡이가 여기 또 있으면
      같은 설명이 두 곳에 생기고, 그러면 하나는 반드시 낡는다. */
   return (
@@ -1124,21 +1124,21 @@ export default async function AdminCompliancePage({
     getRejectAuditQueue(prisma),
   ]);
   // 재학습 박스에 붙일 추천 칩 — 검출 항목 관리의 추천을 축으로 접는다 (2026-08-31 어휘 확정):
-  //   승격(축 내 상향) / 졸업(축 간 → IRIS: 실적 졸업 + 문맥 위임) / 졸업 강등(축 간 ← IRIS).
-  // 예전의 "강등" 칩은 규칙→IRIS 위임이었는데, 그건 하강이 아니라 관할 이전이라 졸업으로 접는다
+  //   승격(축 내 상향) / 졸업(축 간 → ARGOS: 실적 졸업 + 문맥 위임) / 졸업 강등(축 간 ← ARGOS).
+  // 예전의 "강등" 칩은 규칙→ARGOS 위임이었는데, 그건 하강이 아니라 관할 이전이라 졸업으로 접는다
   const ladderRecs = { promote: 0, graduate: 0, ungraduate: 0 };
   for (const r of ladder) {
     if (!r.recommendation) continue;
     if (r.recommendation.kind === "UNGRADUATE") ladderRecs.ungraduate += 1;
-    else if (r.recommendation.kind === "GRADUATE_IRIS" || r.recommendation.kind === "DELEGATE_IRIS")
+    else if (r.recommendation.kind === "GRADUATE_ARGOS" || r.recommendation.kind === "DELEGATE_ARGOS")
       ladderRecs.graduate += 1;
     else ladderRecs.promote += 1; // PROMOTE_RULE · PROMOTE_BLOCK
   }
-  // 졸업 후보 배지의 여섯째 조건(IRIS 동반 실증)이 **사다리와 같은 집계**를 읽게 하는
+  // 졸업 후보 배지의 여섯째 조건(ARGOS 동반 실증)이 **사다리와 같은 집계**를 읽게 하는
   // 다리 — 배지가 따로 세면 두 화면이 같은 항목에 다른 답을 한다 (2026-08-31)
   const ladderByItem = new Map(ladder.map((r) => [r.id, r]));
   // 졸업 폼의 경고 재료 — 사다리 행에서 그대로 꺼낸다 (2026-09-01). 사다리 추천과 졸업 폼이
-  // **같은 숫자**를 보게 하려는 것: 형태 굳음은 PROMOTE_RULE 의 조건값, IRIS 동반은 GRADUATE_IRIS 의 실증값
+  // **같은 숫자**를 보게 하려는 것: 형태 굳음은 PROMOTE_RULE 의 조건값, ARGOS 동반은 GRADUATE_ARGOS 의 실증값
   const ladderByPhrase = new Map(
     ladder.filter((r) => r.layer === "PHRASE").map((r) => [r.id.replace(/^learned:/, ""), r] as const),
   );
@@ -1157,7 +1157,7 @@ export default async function AdminCompliancePage({
   const now = new Date();
   // **`usable()` 은 부르지 않는다** — 그건 사이드카에 실제로 묻는 일이라 목록을 그리는
   // 값싼 경로에 둘 것이 아니고, 출근 상태 카드가 이미 그 답을 갖고 있다. 여기서 알고
-  // 싶은 것은 "IRIS가 판정에 끼는 체제인가" 하나뿐이고 그건 설정값(env) 한 줄이다
+  // 싶은 것은 "ARGOS가 판정에 끼는 체제인가" 하나뿐이고 그건 설정값(env) 한 줄이다
   const mode = studentMode();
   const instrumentHolds = pending.filter((r) => isInstrumentOnlyHold(parseFindings(r.findingsJson)));
   const contentHolds = pending.filter((r) => !isInstrumentOnlyHold(parseFindings(r.findingsJson)));
@@ -1321,7 +1321,7 @@ export default async function AdminCompliancePage({
       {/* **맥박이 성적보다 먼저다** — 정확도는 지난 90일의 결과지만 이 줄은 지금
           이 순간 기계가 도는지를 말한다. 규칙이 죽어 있으면 정확도 숫자는
           어제까지의 이야기일 뿐이다 */}
-      {/* **장애가 규칙 상태보다 먼저다** — 규칙이 전부 초록이어도 IRIS가 죽어 있으면
+      {/* **장애가 규칙 상태보다 먼저다** — 규칙이 전부 초록이어도 ARGOS가 죽어 있으면
           지금 게시가 멈춰 있다. 그 사실이 아래 어느 숫자보다 급하다 */}
       {/* **박동 값(다음 점검·문턱 초과·스케줄러 상태)은 넘기지 않는다** (2026-08-23).
           여기서 넘기면 서버 렌더 시점의 스냅샷이라, 화면을 켜 둔 채 주기가 지나면 늙은
@@ -1341,29 +1341,29 @@ export default async function AdminCompliancePage({
         /* **정지(자동 격하)일 때만 칩** (2026-08-29 창업자 지시) — 순이익 상세는 검수
            상세로 내려갔고, 계기판에는 "지금 규칙 단독으로 돌고 있다"는 할 일만 남긴다 */
         autoShadowed={autoShadowed} />
-      {/* 검수 규칙 띠지(CanaryPanel)는 2026-08-23에 걷었다 — 같은 사실을 위 IRIS 상자의
+      {/* 검수 규칙 띠지(CanaryPanel)는 2026-08-23에 걷었다 — 같은 사실을 위 ARGOS 상자의
           `검수 규칙` 줄이 말한다. 층별 통과 여부를 여섯 칸으로 늘어놓던 자리인데, 전부
           통과일 때는 초록 여섯 개가 아무 말도 하지 않고 화면만 먹었다. 실패했을 때
           어느 층인지는 그 줄이 배지로 이어 붙인다 */}
       <TeacherRelayPanel pending={teacherPending} now={now} recs={ladderRecs} retrain={retrain} />
-      {/* 정확도 카드는 2026-08-23에 IRIS 상자 안(맨 위)으로 올라갔다 — 검수하는 것이
+      {/* 정확도 카드는 2026-08-23에 ARGOS 상자 안(맨 위)으로 올라갔다 — 검수하는 것이
           둘이고 그 둘이 얼마나 맞히는지는 같은 물음의 뒷면이라 한자리에 둔다 */}
 
       {/* **판단 소요 시간은 검수 상세로 내려갔다** (2026-08-24 창업자 지시).
           계기판은 매일 곁눈질하는 화면이고 이 표는 유형별 중앙값이라 **되짚으러 왔을 때**
           읽는 값이다. 정확도 옆에 두려던 원래 뜻("무엇을 틀렸나" 옆에 "읽고 틀렸나")은
           그대로인데, 정확도 상세가 이미 거기 있으므로 옆자리도 같이 옮겼다.
-          → src/app/admin/compliance/iris/page.tsx */}
+          → src/app/admin/compliance/argos/page.tsx */}
 
       {/* **재학습 신호는 재학습 논의 자료 박스 안 칩으로 합쳤다** (2026-08-29 창업자 지시).
           "엇갈림 N/50"은 결국 재학습 재료라, 별도 박스로 세우지 않고 같은 상자에서
           승격/강등 추천 칩과 나란히 둔다. 전체 게이지(막대)는 검수 상세에 남는다 */}
 
-      {/* **IRIS 순이익은 검수 상세로 내려갔다** (2026-08-29 창업자 지시).
+      {/* **ARGOS 순이익은 검수 상세로 내려갔다** (2026-08-29 창업자 지시).
           평소 이 숫자는 0/50 에서 며칠씩 안 움직여 계기판에서 자리만 차지했다. 켜둘
-          값어치를 되짚어보는 값이라 상세(→ iris/StudentRollbackDetail)가 집이고,
+          값어치를 되짚어보는 값이라 상세(→ argos/StudentRollbackDetail)가 집이고,
           계기판에는 **정지(자동 격하)일 때만 칩** 하나로 남긴다 — 그건 할 일이 생긴
-          상태라 곁눈질로 잡혀야 한다. 칩은 위 IRIS 상자(StudentValvePanel)가 그린다 */}
+          상태라 곁눈질로 잡혀야 한다. 칩은 위 ARGOS 상자(StudentValvePanel)가 그린다 */}
 
       {/* 보류 사유별로 화면을 분리한다 — 판단 기준이 다른 건을 한 화면에서 섞어 보지 않게.
           붉은 점(tdot)은 **지금 안 하면 심대한 것이 그 탭에 있다**는 뜻이다 —
@@ -1479,14 +1479,14 @@ export default async function AdminCompliancePage({
                 {contentHolds.length + instrumentHolds.length}
               </span></>}>게시되기 <b>전</b>에 규칙·AI가 막았습니다. 아직 아무도 못 샀습니다 — 판매
               시작이 운영자 결정에 달려 있습니다. 아래 <b>서브탭</b>으로 하나씩 봅니다.</SecHead>
-          {/* **IRIS가 판정에 안 끼는 동안은 목록 머리에서 한 번만 말한다** (3회차 C-4 →
-              회신 3호). 카드마다 붙이면 상시 문구가 반복돼 노이즈가 되고, IRIS가 라이브로
+          {/* **ARGOS가 판정에 안 끼는 동안은 목록 머리에서 한 번만 말한다** (3회차 C-4 →
+              회신 3호). 카드마다 붙이면 상시 문구가 반복돼 노이즈가 되고, ARGOS가 라이브로
               돌아오는 날 전 카드의 문구를 떼야 하는 동기화 부담이 생긴다.
-              카드 단위 표시는 라이브일 때의 `[IRIS · 확신 N%]` 배지 하나로 충분하다.
-              — 이 줄이 없으면 큐 카드만 보는 운영자는 "IRIS가 아무것도 안 잡네"로 읽는다 */}
+              카드 단위 표시는 라이브일 때의 `[ARGOS · 확신 N%]` 배지 하나로 충분하다.
+              — 이 줄이 없으면 큐 카드만 보는 운영자는 "ARGOS가 아무것도 안 잡네"로 읽는다 */}
           {mode !== "live" && contentHolds.length > 0 && (
             <div className={a.note}>
-              <b>IRIS: {mode === "shadow" ? "연수 중(기록만)" : "꺼짐"}</b> — 이 큐의
+              <b>ARGOS: {mode === "shadow" ? "연수 중(기록만)" : "꺼짐"}</b> — 이 큐의
               소견은 규칙 단독입니다.
             </div>
           )}
@@ -1659,17 +1659,17 @@ export default async function AdminCompliancePage({
         <SecHead title={TOOLS[tab as ToolKey].label}>{TOOLS[tab as ToolKey].description}</SecHead>
       )}
 
-      {/* **졸업 직후 7일이 가장 위험하다** — 사전 보호가 꺼지고 IRIS만 남는 창이다.
+      {/* **졸업 직후 7일이 가장 위험하다** — 사전 보호가 꺼지고 ARGOS만 남는 창이다.
           목록 위에 얹는 이유: 졸업시킨 사람이 결과를 보러 갈 곳을 따로 기억하지 않게 */}
       {tab === "phrases" && graduationWatch.length > 0 && (
         <>
           <SecHead title={<>졸업 관찰{" "}
               <span className={`${a.n} ${graduationWatch.some((r) => r.studentMissCount > 0) ? "" : a.nCalm}`}>
                 {graduationWatch.length}
-              </span></>}>사전에서 <b>내린 지 {GRADUATION_WATCH_DAYS}일 안</b>인 표현입니다. 지금은 IRIS만 이
-              표현을 맡고 있어, IRIS가 놓치면 <b>아무도 막지 않습니다.</b> 놓치는 동안의 보호는
+              </span></>}>사전에서 <b>내린 지 {GRADUATION_WATCH_DAYS}일 안</b>인 표현입니다. 지금은 ARGOS만 이
+              표현을 맡고 있어, ARGOS가 놓치면 <b>아무도 막지 않습니다.</b> 놓치는 동안의 보호는
               <b> 되살리기(응급 조치)</b>로 즉시 복구하고, 놓쳤다는 사실 자체는 <b>재학습 재료</b>로
-              보내십시오 — 미탐은 IRIS를 고칠 일이지, 그것만으로 관할을 옮길 일이 아닙니다.</SecHead>
+              보내십시오 — 미탐은 ARGOS를 고칠 일이지, 그것만으로 관할을 옮길 일이 아닙니다.</SecHead>
           {/* `getGraduationWatch` 는 `graduatedAt: { gte: cutoff }` 로 이미 걸렀지만
               프리즈마 타입은 여전히 nullable 이다. 있을 수 없는 행을 위한 빈 화면을
               그리느니 여기서 좁힌다 — 걸러진 행이 생기면 안 보일 뿐 터지지 않는다 */}
@@ -1716,7 +1716,7 @@ export default async function AdminCompliancePage({
                     <span className={`${a.chip} ${a.chipWarn}`}>재검토 권장</span>
                   )}
                   {/* **꺼진 이유가 둘인데 얼굴이 하나였다** (회신 5호 Q3 계약):
-                        졸업   = active false + graduatedAt 있음 — IRIS에게 넘겼다
+                        졸업   = active false + graduatedAt 있음 — ARGOS에게 넘겼다
                         비활성 = active false + graduatedAt 없음 — 오탐이라 꺼 뒀다
                       둘 다 "비활성"으로 그리면 "다시 활성화"가 무슨 뜻인지 갈린다 —
                       한쪽은 되살리기고 다른 쪽은 졸업 취소다.
@@ -1725,7 +1725,7 @@ export default async function AdminCompliancePage({
                   <span
                     className={`${a.chip} ${p.active ? a.chipMint : p.graduatedAt ? a.chipWarn : ""}`}
                   >
-                    {p.active ? "활성" : p.graduatedAt ? "졸업 — IRIS가 맡음" : "비활성"}
+                    {p.active ? "활성" : p.graduatedAt ? "졸업 — ARGOS가 맡음" : "비활성"}
                   </span>
                 </div>
               </div>
@@ -1744,7 +1744,7 @@ export default async function AdminCompliancePage({
                   층 번호(L1~L6)는 쓰지 않는다 — 운영자 어휘가 아니다 */}
               {/* **꺼진 항목은 아무것도 감시하지 않는다.** 어제 이 줄을 넣을 때 활성 여부를
                   안 봐서, 졸업했거나 꺼 둔 항목에도 현재형으로 "감시:" 가 붙어 있었다 —
-                  카드가 바로 위에서 `졸업 — IRIS가 맡음` 이라고 말해 놓고 다음 줄에서
+                  카드가 바로 위에서 `졸업 — ARGOS가 맡음` 이라고 말해 놓고 다음 줄에서
                   자기가 감시한다고 말하는 꼴이었다.
                   꺼진 항목에도 층 정보는 남긴다(되찾을지 판단하는 재료다) — 다만 시제를
                   바꿔 **조건문**으로 적는다 */}
@@ -1778,7 +1778,7 @@ export default async function AdminCompliancePage({
               )}
               <PhraseToggle phraseId={p.id} active={p.active} graduated={!!p.graduatedAt} />
               {/* **졸업한 항목에만** 문항이 붙는다 — 문항은 졸업이 만든 것이고, 되찾아
-                  온 항목에도 그대로 남아 있어야 한다(이중 방어라 계속 IRIS를 시험한다).
+                  온 항목에도 그대로 남아 있어야 한다(이중 방어라 계속 ARGOS를 시험한다).
                   그래서 조건은 graduatedAt 이지 active 가 아니다 */}
               {p.graduatedAt && (
                 <RegressionCases

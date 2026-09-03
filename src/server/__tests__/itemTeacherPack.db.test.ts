@@ -3,10 +3,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb } from './helpers/testDb';
 import {
   buildItemTeacherPack,
-  getIrisCategoryCounts,
-  IRIS_ITEM_PREFIX,
+  getArgosCategoryCounts,
+  ARGOS_ITEM_PREFIX,
   ItemPackError,
-  registerPhraseFromIris,
+  registerPhraseFromArgos,
 } from '../itemTeacherPackService';
 
 // 검출 항목별 질문지의 **수집 경로** (2026-09-01) — 조립기는 순수 시험이 지키고, 여기서는
@@ -131,7 +131,7 @@ describe('buildItemTeacherPack', () => {
     expect(pack.text).toContain('BLOCK 으로 올릴 수 있나');
   });
 
-  it('IRIS 유형별 모음: IRIS 만 잡은/놓친 확정 건의 근거 문장만 — 규칙이 잡은 건·근거 없는 건은 뺀다', async () => {
+  it('ARGOS 유형별 모음: ARGOS 만 잡은/놓친 확정 건의 근거 문장만 — 규칙이 잡은 건·근거 없는 건은 뺀다', async () => {
     const student = (category: string) => ({ category, severity: 'WARN', quote: '', reason: 'r', source: 'student' });
     const mk = async (data: {
       findings: unknown[];
@@ -152,7 +152,7 @@ describe('buildItemTeacherPack', () => {
         },
       });
     };
-    // ① IRIS 만 잡고 반려 + 근거 있음 → 포함 (검출)
+    // ① ARGOS 만 잡고 반려 + 근거 있음 → 포함 (검출)
     await mk({ findings: [student('SOLICIT_CONTACT')], verdict: 'REJECTED', evidence: ['자세한 건 디엠 주세요'] });
     // ② 아무도 못 잡고 통과 후 철회(미탐) + 운영자 지목 유형 → 포함 (미탐)
     await mk({ findings: [], verdict: 'MISSED', evidence: ['노란 앱으로 오세요'], categories: ['SOLICIT_CONTACT'] });
@@ -162,24 +162,24 @@ describe('buildItemTeacherPack', () => {
       verdict: 'REJECTED',
       evidence: ['규칙도 잡은 문장'],
     });
-    // ④ IRIS 만 잡았지만 근거 없음 → 제외 (문장이 없다)
+    // ④ ARGOS 만 잡았지만 근거 없음 → 제외 (문장이 없다)
     await mk({ findings: [student('SOLICIT_CONTACT')], verdict: 'REJECTED' });
-    // ⑤ IRIS 만 잡았는데 승인(오탐) → 제외 (확정 위반이 아니다)
+    // ⑤ ARGOS 만 잡았는데 승인(오탐) → 제외 (확정 위반이 아니다)
     // 질문지 본문에 "정상 문장"이라는 낱말이 원래 있으므로(논의 항목) 겹치지 않는 문장으로
     await mk({ findings: [student('SOLICIT_CONTACT')], verdict: 'APPROVED', evidence: ['승인된 건의 문장 QZX'] });
 
-    const counts = await getIrisCategoryCounts(prisma);
+    const counts = await getArgosCategoryCounts(prisma);
     const sc = counts.find((c) => c.category === 'SOLICIT_CONTACT');
     expect(sc).toEqual({ category: 'SOLICIT_CONTACT', cases: 2, detected: 1, missed: 1, sentences: 2 });
 
-    const pack = await buildItemTeacherPack(prisma, `${IRIS_ITEM_PREFIX}SOLICIT_CONTACT`);
+    const pack = await buildItemTeacherPack(prisma, `${ARGOS_ITEM_PREFIX}SOLICIT_CONTACT`);
     expect(pack.count).toBe(2);
-    expect(pack.text).toContain('[IRIS 검출] “자세한 건 디엠 주세요”');
-    expect(pack.text).toContain('[IRIS 미탐] “노란 앱으로 오세요”');
+    expect(pack.text).toContain('[ARGOS 검출] “자세한 건 디엠 주세요”');
+    expect(pack.text).toContain('[ARGOS 미탐] “노란 앱으로 오세요”');
     expect(pack.text).not.toContain('규칙도 잡은 문장');
     expect(pack.text).not.toContain('승인된 건의 문장 QZX');
     expect(pack.text).toContain('졸업 강등 본선');
-    await expect(buildItemTeacherPack(prisma, `${IRIS_ITEM_PREFIX}NOPE`)).rejects.toBeInstanceOf(ItemPackError);
+    await expect(buildItemTeacherPack(prisma, `${ARGOS_ITEM_PREFIX}NOPE`)).rejects.toBeInstanceOf(ItemPackError);
   });
 
   it('없는 항목·대상 밖 층은 ItemPackError', async () => {
@@ -187,10 +187,10 @@ describe('buildItemTeacherPack', () => {
   });
 });
 
-describe('registerPhraseFromIris — 본선 실행 통로 (Q1)', () => {
+describe('registerPhraseFromArgos — 본선 실행 통로 (Q1)', () => {
   const student = (category: string) => ({ category, severity: 'WARN', quote: '', reason: 'r', source: 'student' });
 
-  it('IRIS 확정 건이 있는 유형은 등록되고, 출처(sourceReportId)가 그 건으로 물린다', async () => {
+  it('ARGOS 확정 건이 있는 유형은 등록되고, 출처(sourceReportId)가 그 건으로 물린다', async () => {
     const r = await seedReport();
     await prisma.complianceReview.create({
       data: {
@@ -202,7 +202,7 @@ describe('registerPhraseFromIris — 본선 실행 통로 (Q1)', () => {
         operatorEvidence: JSON.stringify(['노란 앱으로 오세요']),
       },
     });
-    const created = await registerPhraseFromIris(prisma, {
+    const created = await registerPhraseFromArgos(prisma, {
       category: 'SOLICIT_CONTACT',
       phrase: '노란색 앱으로', // 정규화 4자 이상·2어절 (하한 통과)
       operatorUserId: 'op',
@@ -215,7 +215,7 @@ describe('registerPhraseFromIris — 본선 실행 통로 (Q1)', () => {
 
   it('그 유형에 확정 건이 없으면 거부한다 — 출처 없이 등록할 수 없다 (T9)', async () => {
     await expect(
-      registerPhraseFromIris(prisma, { category: 'RUMOR', phrase: '카더라 소문', operatorUserId: 'op' }),
+      registerPhraseFromArgos(prisma, { category: 'RUMOR', phrase: '카더라 소문', operatorUserId: 'op' }),
     ).rejects.toThrow(/근거가 된 확정 건이 없습니다/);
   });
 
@@ -232,7 +232,7 @@ describe('registerPhraseFromIris — 본선 실행 통로 (Q1)', () => {
       },
     });
     await expect(
-      registerPhraseFromIris(prisma, { category: 'PROFIT_GUARANTEE', phrase: '보장', operatorUserId: 'op' }),
+      registerPhraseFromArgos(prisma, { category: 'PROFIT_GUARANTEE', phrase: '보장', operatorUserId: 'op' }),
     ).rejects.toBeInstanceOf(ItemPackError);
   });
 });

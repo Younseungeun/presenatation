@@ -37,7 +37,7 @@ import { requireOperatorId, toErrorResponse } from '../../_lib/http';
 //  - 반려·철회: categories — 실제 위반 유형 (비우면 검수 소견을 그대로 인정).
 //    내장 key 또는 운영자가 새로 정의한 커스텀 유형 라벨(문자열). 커스텀이면 ViolationType 에 올린다
 const categories = z.array(z.string().trim().min(1).max(40)).max(30).optional();
-// 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3) — IRIS 라벨 지역화용
+// 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3) — ARGOS 라벨 지역화용
 const evidence = z.array(z.string().trim().min(1).max(1000)).max(20).optional();
 // 실시간 학습 표현 (복원 2026-08-28) — 반려·철회 시 고른 내장 유형 아래 등록. 리서처가
 // 작성 중에 그 어구에서 즉시 WARN. 승격 사다리의 빠른 입구

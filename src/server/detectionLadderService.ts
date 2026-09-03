@@ -66,7 +66,7 @@ export async function getDetectionLadder(
       streak: number;
     }
   >();
-  // 사전 항목의 **IRIS 동반 검출** 재료 (졸업의 실증 — 2026-08-31): 사전 소견이 걸린
+  // 사전 항목의 **ARGOS 동반 검출** 재료 (졸업의 실증 — 2026-08-31): 사전 소견이 걸린
   // 확정 건마다 "같은 건에서 학생도 같은 유형을 냈는가"를 대조해야 한다. 학생이 그림자
   // 모드였던 건은 소견이 본 기록에 없어 그림자 표를 나중에 배치로 대조한다.
   const phraseHitRows: Array<{ reviewId: string; phraseRuleId: string; category: string }> = [];
@@ -159,7 +159,7 @@ export async function getDetectionLadder(
   }
 
   // 2) 학습표현 메타 + hit 집계 (형태 안정성·리서처·부정 — 5조건과 판별자)
-  //    + 졸업 관찰 창 안의 졸업 표현 — IRIS 층 행이 되어 졸업 강등 추천의 재료가 된다
+  //    + 졸업 관찰 창 안의 졸업 표현 — ARGOS 층 행이 되어 졸업 강등 추천의 재료가 된다
   const watchCutoff = new Date(now.getTime() - GRADUATION_WATCH_DAYS * DAY);
   const [phrases, hits, graduated] = await Promise.all([
     prisma.learnedPhrase.findMany({
@@ -249,7 +249,7 @@ export async function getDetectionLadder(
     rows.push({ ...stats, recommendation: recommendMigration(stats, thresholds) });
   }
 
-  // 졸업 표현 행 (IRIS 층) — 관찰 창(7일) 안에서만 잰다. 창이 닫히면 감시 기록이 더
+  // 졸업 표현 행 (ARGOS 층) — 관찰 창(7일) 안에서만 잰다. 창이 닫히면 감시 기록이 더
   // 안 쌓여 수가 그대로 얼어붙는데, 그 얼어붙은 수로 언제까지나 추천하면 "한 번 본
   // 분포"가 영구 낙인이 된다. 창 밖의 미탐은 신고 경로(미탐 재활성화)가 잡는다.
   //
@@ -271,11 +271,11 @@ export async function getDetectionLadder(
     const stats: DetectionItemStats = {
       id: `learned:${p.id}`,
       label: p.phrase,
-      layer: 'IRIS',
+      layer: 'ARGOS',
       matched: mine.length, // 관찰 창에서 나타난 횟수 (소견은 안 냈다 — 감시 전용)
       truePos: mine.filter((h) => watchVerdicts.get(h.complianceReviewId)?.tp).length,
       falsePos: mine.filter((h) => watchVerdicts.get(h.complianceReviewId)?.fp).length,
-      // 복귀의 실증 = 그림자 정탐 ∩ IRIS 미탐 — "IRIS 가 놓친 확정 위반을 옛 항목이 잡음"
+      // 복귀의 실증 = 그림자 정탐 ∩ ARGOS 미탐 — "ARGOS 가 놓친 확정 위반을 옛 항목이 잡음"
       missTruePos: mine.filter(
         (h) => !h.studentFlagged && watchVerdicts.get(h.complianceReviewId)?.tp,
       ).length,

@@ -423,8 +423,8 @@ describe('applyRules — 판정 불가 반복', () => {
 // ── 자동 검수에 누가 참여했나 (2026-08-24 창업자 확정 — 번호 폐기) ──────────
 //
 // 옛 이름은 `hadSecondTier`(2차가 돌았나)였고 그 "2차"는 Claude 자리였다. Claude 가
-// 게시 검수에서 빠지고 IRIS 가 규칙과 **같은 층**에서 돌게 되면서, 옛 함수는
-// `rule+student:IRIS...` 에 false 를 돌려줬다 — 화면은 IRIS 가 멀쩡히 판정한 건에
+// 게시 검수에서 빠지고 ARGOS 가 규칙과 **같은 층**에서 돌게 되면서, 옛 함수는
+// `rule+student:ARGOS...` 에 false 를 돌려줬다 — 화면은 ARGOS 가 멀쩡히 판정한 건에
 // "2차 AI 검수가 돌지 않았습니다"를 빨갛게 띄웠다. **번호가 자리를 가리켜서 생긴
 // 사고다**: 층이 빠지자 번호가 어긋났는데 "2차"는 여전히 말이 돼 틀린 줄 몰랐다.
 describe('autoScreenParticipation', () => {
@@ -436,51 +436,51 @@ describe('autoScreenParticipation', () => {
     });
   });
 
-  it('**IRIS 가 붙었으면 AI 가 본 것이다** — 옛 함수가 여기서 거짓말했다', () => {
-    const p = autoScreenParticipation('rule+student:IRIS.v5@t0.7/L7');
+  it('**ARGOS 가 붙었으면 AI 가 본 것이다** — 옛 함수가 여기서 거짓말했다', () => {
+    const p = autoScreenParticipation('rule+student:ARGOS.v5@t0.7/L7');
     expect(p.ai).toBe(true);
     expect(p.aiMissing).toBeNull();
   });
 
   it('부르다 죽었으면 장애 — 꺼진 것과 처방이 다르다', () => {
     // 장애는 사이드카를 보면 되고, 꺼짐은 그 건을 사람이 대신 봐야 한다
-    const p = autoScreenParticipation('rule+student:IRIS.v5@t0.7/L7+student(장애)');
+    const p = autoScreenParticipation('rule+student:ARGOS.v5@t0.7/L7+student(장애)');
     expect(p.ai).toBe(false);
     expect(p.aiMissing).toBe('OUTAGE');
   });
 
   it('규칙은 언제나 참여한다 — 아니면 표식 자체가 깨진 것이다', () => {
-    expect(autoScreenParticipation('rule+student:IRIS.v5@t0.7/L7').rules).toBe(true);
+    expect(autoScreenParticipation('rule+student:ARGOS.v5@t0.7/L7').rules).toBe(true);
   });
 });
 
 // ── 빠진 검사기를 이름으로 부른다 (2026-08-25 창업자 지시) ──────────────────
 //
 // 화면은 이 값을 그대로 칩으로 그린다. **칩이 가리키는 것은 고장 난 쪽**이라,
-// `IRIS !` 는 "IRIS 가 빠졌다"이지 "IRIS 가 잡았다"가 아니다.
+// `ARGOS !` 는 "ARGOS 가 빠졌다"이지 "ARGOS 가 잡았다"가 아니다.
 // 줄 글("자동 검수 규칙만")을 걷은 이유: 큐에서 무엇부터 볼지 고르는 순간에 쓰는
 // 값인데 문장은 읽어야 하고, 곁눈질에 안 걸린다.
 describe('missingScreeners', () => {
   it('둘 다 참여했으면 null — 잘 돈 것은 사건이 아니다', () => {
-    expect(missingScreeners('rule+student:IRIS.v5@t0.7/L7')).toBeNull();
+    expect(missingScreeners('rule+student:ARGOS.v5@t0.7/L7')).toBeNull();
   });
 
-  it('규칙만 돌았으면 IRIS 가 빠진 것', () => {
-    expect(missingScreeners('rule')).toBe('IRIS');
+  it('규칙만 돌았으면 ARGOS 가 빠진 것', () => {
+    expect(missingScreeners('rule')).toBe('ARGOS');
   });
 
-  it('IRIS 를 부르다 죽어도 IRIS 가 빠진 것 — 화면에서는 같은 고장이다', () => {
+  it('ARGOS 를 부르다 죽어도 ARGOS 가 빠진 것 — 화면에서는 같은 고장이다', () => {
     // 장애와 꺼짐은 사유가 다르지만(title 로 갈라 적는다) **빠졌다는 사실은 같다**
-    expect(missingScreeners('rule+student:IRIS.v5@t0.7/L7+student(장애)')).toBe('IRIS');
+    expect(missingScreeners('rule+student:ARGOS.v5@t0.7/L7+student(장애)')).toBe('ARGOS');
   });
 
-  it('IRIS 만 돌았으면 규칙이 빠진 것', () => {
-    expect(missingScreeners('student:IRIS.v5@t0.7/L7')).toBe('RULE');
+  it('ARGOS 만 돌았으면 규칙이 빠진 것', () => {
+    expect(missingScreeners('student:ARGOS.v5@t0.7/L7')).toBe('RULE');
   });
 
   it('**둘 다 빠지면 그 사실을 함께 적는다** — 사실상 아무도 안 본 건이다', () => {
-    expect(missingScreeners('')).toBe('RULE+IRIS');
-    expect(missingScreeners('student(장애)')).toBe('RULE+IRIS');
+    expect(missingScreeners('')).toBe('RULE+ARGOS');
+    expect(missingScreeners('student(장애)')).toBe('RULE+ARGOS');
   });
 });
 

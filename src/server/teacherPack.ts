@@ -79,12 +79,12 @@ export interface TeacherPackDeps {
 export interface LadderHistoryLine {
   /** 항목 표시명 — 사전 표현 원문 또는 코드 규칙 id */
   label: string;
-  /** 지금 있는 층 (학습표현 / 규칙 WARN / 규칙 BLOCK / IRIS=졸업 관찰 중) */
-  layer: 'PHRASE' | 'RULE_WARN' | 'RULE_BLOCK' | 'IRIS';
+  /** 지금 있는 층 (학습표현 / 규칙 WARN / 규칙 BLOCK / ARGOS=졸업 관찰 중) */
+  layer: 'PHRASE' | 'RULE_WARN' | 'RULE_BLOCK' | 'ARGOS';
   matched: number;
   truePos: number;
   falsePos: number;
-  /** 졸업 관찰의 IRIS 미탐 수 — IRIS 층(졸업 표현)만 */
+  /** 졸업 관찰의 ARGOS 미탐 수 — ARGOS 층(졸업 표현)만 */
   studentMissCount?: number;
   /** 검출 항목 관리의 추천 이동 — 있으면 그대로 싣는다 (사유 포함) */
   recommendation?: string | null;
@@ -270,10 +270,10 @@ export function assembleTeacherPack(args: {
   const text = [
     ...contextReset(),
     '',
-    '# 검수 판정 비교 — 사람 vs 자동 검수(RULE+IRIS) · 재학습 논의',
+    '# 검수 판정 비교 — 사람 vs 자동 검수(RULE+ARGOS) · 재학습 논의',
     '',
     '**이 자료는 판정을 요청하는 것이 아닙니다.** 운영자(사람)가 이미 내린 판정과',
-    '자동 검수(규칙 엔진 + IRIS)의 판정을 나란히 놓은 것입니다. 둘이 어떻게, 왜 갈렸는지',
+    '자동 검수(규칙 엔진 + ARGOS)의 판정을 나란히 놓은 것입니다. 둘이 어떻게, 왜 갈렸는지',
     `살펴보고 논의해 주세요. **${caseGuide(args.humanVerdict ?? null).headline}**`,
     '',
     '판정을 다시 내려 달라는 것이 아니라 — 사람 판정은 이미 확정입니다 — **그 판정을',
@@ -422,14 +422,14 @@ function withIntegrityHeader(body: string): string {
  */
 function firstTierBlock(findings: Finding[]): string[] {
   if (findings.length === 0)
-    return ['## 자동 검수(RULE+IRIS) 판정', '', '(소견 없음 — 자동 검수는 위반을 못 찾았다)'];
+    return ['## 자동 검수(RULE+ARGOS) 판정', '', '(소견 없음 — 자동 검수는 위반을 못 찾았다)'];
 
   const line = (f: Finding) =>
     `- [${RISK_CATEGORY_LABEL[f.category] ?? f.category}] "${f.quote}"`;
   const open = findings.filter((f) => answerable(f.category));
   const context = findings.filter((f) => !answerable(f.category));
 
-  const out = ['## 자동 검수(RULE+IRIS) 판정', ''];
+  const out = ['## 자동 검수(RULE+ARGOS) 판정', ''];
   out.push(open.length > 0 ? open.map(line).join('\n') : '(위반 유형 소견 없음 — 자동 검수는 깨끗하다고 봤다)');
 
   if (context.length > 0) {
@@ -459,13 +459,13 @@ function ladderHistoryBlock(history: LadderHistoryLine[]): string[] {
     PHRASE: '학습표현',
     RULE_WARN: '규칙 WARN',
     RULE_BLOCK: '규칙 BLOCK',
-    IRIS: 'IRIS (졸업 관찰 중)',
+    ARGOS: 'ARGOS (졸업 관찰 중)',
   };
   const line = (h: LadderHistoryLine) => {
     const parts = [
       `- **${h.label}** [${layerLabel[h.layer]}] — 걸림 ${h.matched} · 정탐 ${h.truePos} · 오탐 ${h.falsePos}`,
     ];
-    if (h.layer === 'IRIS') parts.push(`  · 졸업 관찰 미탐 ${h.studentMissCount ?? 0}건`);
+    if (h.layer === 'ARGOS') parts.push(`  · 졸업 관찰 미탐 ${h.studentMissCount ?? 0}건`);
     if (h.recommendation) parts.push(`  · 검출 항목 관리 추천: ${h.recommendation}`);
     return parts.join('\n');
   };
@@ -499,7 +499,7 @@ function caseGuide(v: HumanVerdict | null): { headline: string; points: string[]
       '사람이 위반으로 보고 내린 건입니다 — 자동 검수가 다음엔 이걸 잡게 만드는 방법을 논의해 주세요.',
     points: [
       '1. **왜 갈렸나** — 사람은 위반으로 봤는데 자동 검수는 어디서 놓쳤나 (본문의 어느 표현/문맥)',
-      '2. **IRIS 재학습** — 비슷한 표현을 앞으로 맞히려면 학생 모델이 어떤 특징을 잡아야 하나',
+      '2. **ARGOS 재학습** — 비슷한 표현을 앞으로 맞히려면 학생 모델이 어떤 특징을 잡아야 하나',
       // 3~4번은 별개 선택지가 아니라 **한 사다리의 눈금**이다 (2026-08-31 창업자 확정 어휘).
       // 갈림의 기준은 "이 표현의 문맥 조건을 코드로 얼마나 완결되게 적을 수 있는가" —
       // 위로 갈수록(등록→WARN→BLOCK) 완결성 요구가 높아지고, BLOCK 은 오탐 0 이 측정돼야 한다
@@ -511,11 +511,11 @@ function caseGuide(v: HumanVerdict | null): { headline: string; points: string[]
       '     적을 수 있을 때. 형태가 굳어 있어야(늘 같은 꼴) 패턴이 성립합니다',
       '   · **코드 규칙 BLOCK** (완결성 최대, 코드로만) — 즉시 거절이라 되돌릴 사람이 없으므로',
       '     평가셋에서 **오탐 0 이 측정**돼야 합니다. 넓으면 정상 리포트가 사람 확인 없이 죽습니다',
-      '4. **관할 재검토 — 형태 매칭인가, 의미 추론(IRIS)인가** — 위 사다리와 별개의 축이고,',
+      '4. **관할 재검토 — 형태 매칭인가, 의미 추론(ARGOS)인가** — 위 사다리와 별개의 축이고,',
       '   양방향 기준이 같습니다: **어느 방식이 이 표현에 구조적으로 우위인가.**',
-      '   · **졸업(→IRIS)** — 같은 뜻이 늘 다른 꼴로 오면(패러프레이즈) 사다리 어느 눈금도',
+      '   · **졸업(→ARGOS)** — 같은 뜻이 늘 다른 꼴로 오면(패러프레이즈) 사다리 어느 눈금도',
       '     못 잡습니다. 뜻으로 잡아야 하는 표현입니다',
-      '   · **졸업 강등(IRIS→코드)의 본선이 바로 이 논의입니다** — IRIS 가 잡고 있(거나',
+      '   · **졸업 강등(ARGOS→코드)의 본선이 바로 이 논의입니다** — ARGOS 가 잡고 있(거나',
       '     놓치고 있)는 표현이 코드로도 잡을 수 있는 것이라면(코드가 대개 더 효율적입니다 —',
       '     즉시 거절 권한·추론 비용 0·장애 무관), 내리려면 **코드화가 먼저 설계**되어야',
       '     합니다: 이 건과 과거 사례에서 관찰된 variation 들을 놓고 **"어떤 표현·문맥',
@@ -524,11 +524,11 @@ function caseGuide(v: HumanVerdict | null): { headline: string; points: string[]
       '     장치입니다. 실행은 학습 표현 등록 또는 코드 규칙 작성이고, 어느 눈금까지',
       '     올릴지는 위 코드화 사다리 그대로입니다',
       '   · (자동 근거가 있는 유일한 지름길) **졸업했던 사전 항목의 복귀** — 그 항목은 이미',
-      '     코드화돼 있어 실적을 잴 수 있습니다. 복귀의 실증은 **"IRIS 가 놓친 확정 위반을',
-      '     옛 항목이 잡았다"**입니다 — 잡는 것만으로는 부족합니다(IRIS 도 잡고 있으면',
+      '     코드화돼 있어 실적을 잴 수 있습니다. 복귀의 실증은 **"ARGOS 가 놓친 확정 위반을',
+      '     옛 항목이 잡았다"**입니다 — 잡는 것만으로는 부족합니다(ARGOS 도 잡고 있으면',
       '     중복이라 되살릴 이유가 없습니다). 못 잡는 variation 이 남는지는 여기서 사람이',
       '     봅니다(엔진이 못 잡은 출현은 관찰에 안 남아 숫자에 안 보입니다)',
-      '   ⚠ **IRIS 가 놓쳤다는 사실 자체는 이동 사유가 아닙니다** — IRIS 의 실패는 재학습으로',
+      '   ⚠ **ARGOS 가 놓쳤다는 사실 자체는 이동 사유가 아닙니다** — ARGOS 의 실패는 재학습으로',
       '   고치는 것이고(위 2번), 뚫리는 동안의 보호는 응급 재활성화가 맡습니다. 다만 놓친',
       '   표현이 코드화 가능하다면 위 본선 논의(코드화 설계)가 함께 처방이 됩니다',
     ],
@@ -570,7 +570,7 @@ function caseGuide(v: HumanVerdict | null): { headline: string; points: string[]
       points: [
         '1. **왜 경미한가** — 지적 자체는 맞는데 게시를 막을 정도는 아니라고 본 근거 (승인 사유 참고)',
         '2. **심각도 조정** — 이 문맥이라면 자동 검수도 BLOCK 이 아니라 통과/약하게 봐야 하나.',
-        '   IRIS 가 이런 문맥을 과하게 잡지 않도록 배워야 할 점',
+        '   ARGOS 가 이런 문맥을 과하게 잡지 않도록 배워야 할 점',
         '3. 규칙이 이 문맥을 못 가려 잡은 것이면, 어떤 조건을 더하면 경미 케이스를 비껴갈지',
       ],
     };
@@ -582,7 +582,7 @@ function caseGuide(v: HumanVerdict | null): { headline: string; points: string[]
       points: [
         '1. **왜 오탐인가** — 이 지적이 왜 부적절한지 (오탐 사유 참고). 정상 표현이 걸린 자리',
         '2. **규칙 점검** — 규칙(코드)이 잡은 것이면, 어떤 문맥 조건을 더해야 이 정상 표현을 비껴갈지',
-        '3. **IRIS 재학습** — IRIS 가 잡은 것이면, 이 정상 표현을 **오탐하지 않게**(하드 네거티브)',
+        '3. **ARGOS 재학습** — ARGOS 가 잡은 것이면, 이 정상 표현을 **오탐하지 않게**(하드 네거티브)',
         '   배우게 할 점',
       ],
     };
@@ -607,7 +607,7 @@ function discussionFormat(packId: string, verdict: HumanVerdict | null): string[
     '',
     ...caseGuide(verdict).points,
     '',
-    '## 결론 요약 (마지막에 이 형식으로 — IRIS 재학습 라벨로 씁니다)',
+    '## 결론 요약 (마지막에 이 형식으로 — ARGOS 재학습 라벨로 씁니다)',
     '',
     'JSONL 한 줄. 위반 유형이 없다고 보면 `labels`는 빈 배열입니다.',
     '```',

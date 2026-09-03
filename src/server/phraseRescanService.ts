@@ -58,8 +58,8 @@ export interface RescanPreview {
  * **등록을 누르기 전에 답한다.** 아무것도 저장하지 않는다.
  *
  * 규칙 재검수는 실측 건당 5ms 라(게시물 1,000건에 약 5초) 등록 버튼 앞에 두어도 된다.
- * IRIS 는 사이드카 호출이라 건당 0.4~1초로 훨씬 비싸지만, 학습 표현은 **규칙 엔진의
- * 입력**이므로 여기서 IRIS 를 부를 이유가 없다.
+ * ARGOS 는 사이드카 호출이라 건당 0.4~1초로 훨씬 비싸지만, 학습 표현은 **규칙 엔진의
+ * 입력**이므로 여기서 ARGOS 를 부를 이유가 없다.
  */
 export async function previewPhraseRescan(
   prisma: PrismaClient,

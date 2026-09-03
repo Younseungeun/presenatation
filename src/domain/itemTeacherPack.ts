@@ -7,7 +7,7 @@
 // 이 파일은 그 조립만 한다(순수). 데이터 수집은 server/itemTeacherPackService.
 //
 // 범위는 **학습표현 + 규칙 WARN** (창업자 확정). BLOCK 은 즉시거절이라 사람 판정이 안 붙고,
-// IRIS 단독 검출은 ruleId 가 없어 항목 단위로 모이지 않는다 — 둘 다 이 자료의 대상이 아니다.
+// ARGOS 단독 검출은 ruleId 가 없어 항목 단위로 모이지 않는다 — 둘 다 이 자료의 대상이 아니다.
 //
 // **답은 파싱하지 않는다.** 사건별 질문지의 답(parseTeacherAnswer)은 재학습 라벨이 되지만,
 // 이 질문지의 답은 코드 조건의 초안이라 사람이 읽고 코드로 옮긴다. 형식 계약이 없다.
@@ -16,11 +16,11 @@ import type { RiskCategory } from './compliance';
 import { RISK_CATEGORY_LABEL } from './compliance';
 
 /**
- * PHRASE·RULE_WARN = 검출 항목 하나. IRIS_CATEGORY = **IRIS 만 잡았거나 놓친 확정 건을 유형별로
+ * PHRASE·RULE_WARN = 검출 항목 하나. ARGOS_CATEGORY = **ARGOS 만 잡았거나 놓친 확정 건을 유형별로
  * 모은 것** (2026-09-01, 졸업 강등 본선의 "계속 보다 보니 공식화 가능"을 지탱하는 자리).
- * IRIS 소견은 문장을 짚지 못하므로(문서 전체 판정) 재료는 운영자가 반려 때 짚은 근거 문장뿐이다.
+ * ARGOS 소견은 문장을 짚지 못하므로(문서 전체 판정) 재료는 운영자가 반려 때 짚은 근거 문장뿐이다.
  */
-export type ItemPackLayer = 'PHRASE' | 'RULE_WARN' | 'IRIS_CATEGORY';
+export type ItemPackLayer = 'PHRASE' | 'RULE_WARN' | 'ARGOS_CATEGORY';
 
 /** 걸린 문장 한 줄의 사람 판정 — detectionLadderService 의 정탐/오탐 분류와 **같은 잣대** */
 export type ItemVerdict = 'TP' | 'FP' | 'MINOR' | 'PENDING';
@@ -49,9 +49,9 @@ export interface ItemPackStats {
   topSurfaceShare?: number;
   /** 검출 항목 관리의 추천 (사유 포함) — 있으면 그대로 싣는다 */
   recommendation?: string | null;
-  /** IRIS_CATEGORY 만: 확정 건 중 IRIS 가 잡은 수 / 놓친(통과 후 철회) 수 */
-  irisDetected?: number;
-  irisMissed?: number;
+  /** ARGOS_CATEGORY 만: 확정 건 중 ARGOS 가 잡은 수 / 놓친(통과 후 철회) 수 */
+  argosDetected?: number;
+  argosMissed?: number;
 }
 
 export interface ItemPackArgs {
@@ -83,7 +83,7 @@ const VERDICT_ORDER: ItemVerdict[] = ['TP', 'FP', 'MINOR', 'PENDING'];
 const LAYER_TITLE: Record<ItemPackLayer, string> = {
   PHRASE: '학습표현 (운영자 사전)',
   RULE_WARN: '코드 규칙 WARN',
-  IRIS_CATEGORY: 'IRIS 만 잡았거나 놓친 확정 건 (유형별 모음)',
+  ARGOS_CATEGORY: 'ARGOS 만 잡았거나 놓친 확정 건 (유형별 모음)',
 };
 
 /** 사람 판정을 사건별 질문지·사다리와 같은 4갈래로 접는다 */
@@ -166,9 +166,9 @@ export function assembleItemTeacherPack(args: ItemPackArgs): { title: string; te
           `- 서로 다른 리서처 ${stats.distinctResearchers ?? 0}명 · 부정 문맥 출현 ${stats.negationHits ?? 0}건 · ` +
             `표면형 ${stats.distinctSurfaces ?? 0}종(최빈 ${Math.round((stats.topSurfaceShare ?? 0) * 100)}%)`,
         ]
-      : args.layer === 'IRIS_CATEGORY'
+      : args.layer === 'ARGOS_CATEGORY'
         ? [
-            `- IRIS 가 잡은 확정 건 ${stats.irisDetected ?? 0} · IRIS 가 놓친 확정 건(통과 후 철회) ${stats.irisMissed ?? 0}`,
+            `- ARGOS 가 잡은 확정 건 ${stats.argosDetected ?? 0} · ARGOS 가 놓친 확정 건(통과 후 철회) ${stats.argosMissed ?? 0}`,
             '- 이 유형에서 규칙·사전이 낸 소견은 없었습니다 — 아래 문장은 전부 **의미 추론만** 잡았거나 아무도 못 잡은 것입니다',
           ]
         : []),
@@ -205,16 +205,16 @@ export function assembleItemTeacherPack(args: ItemPackArgs): { title: string; te
     '   맞는 낱말은 빼고, 너무 넓어 정상 산문에 걸리는 조건은 안 됩니다. 가능하면 정규식 초안까지.',
     '2. **정상 문장 비껴가기** — 오탐·경미·부정 문맥 건을 놓고, 정상 표현을 제외하는 문맥',
     '   조건이 무엇인지 적어 주세요. 오탐이 하나라도 있으면 그 문장이 왜 걸렸는지가 조건의 구멍입니다.',
-    ...(args.layer === 'IRIS_CATEGORY'
+    ...(args.layer === 'ARGOS_CATEGORY'
       ? [
-          '3. **졸업 강등 본선 — 코드로 내릴 수 있나** — 이 문장들은 지금 **의미 추론(IRIS)만이**',
+          '3. **졸업 강등 본선 — 코드로 내릴 수 있나** — 이 문장들은 지금 **의미 추론(ARGOS)만이**',
           '   잡거나, 그마저 놓친 것입니다. 코드가 대개 더 효율적입니다(즉시 거절 권한·추론 비용 0·',
           '   장애 무관). 위 1번 조건이 성립하면 **내릴 수 있는 것**이고, 실행은 둘 중 하나입니다:',
           '   · **학습 표현 등록** — 문자열 하나로 잡히면 (재사용 가능한 짧은 꼴로)',
           '   · **코드 규칙 WARN** — "어떤 문맥에서만"이 필요하면',
-          '   같은 뜻이 늘 다른 꼴로 와서(패러프레이즈) 1번 조건이 안 서면 **IRIS 에 남깁니다** — 그때',
-          '   IRIS 가 놓친 건은 이동이 아니라 **재학습**으로 고칩니다.',
-          '4. **놓친 건의 처방** — "IRIS 가 놓친 확정 건"에 든 문장은 코드화가 되면 코드가, 안 되면',
+          '   같은 뜻이 늘 다른 꼴로 와서(패러프레이즈) 1번 조건이 안 서면 **ARGOS 에 남깁니다** — 그때',
+          '   ARGOS 가 놓친 건은 이동이 아니라 **재학습**으로 고칩니다.',
+          '4. **놓친 건의 처방** — "ARGOS 가 놓친 확정 건"에 든 문장은 코드화가 되면 코드가, 안 되면',
           '   재학습이 맡습니다. 둘은 배타가 아닙니다 — 코드로 내리더라도 그 문장은 재학습 라벨에도 남깁니다.',
         ]
       : args.layer === 'PHRASE'
@@ -223,16 +223,16 @@ export function assembleItemTeacherPack(args: ItemPackArgs): { title: string; te
           '   있는 완결성**입니다. 형태가 굳어 있어(늘 같은 꼴) 위 1번 조건이 성립하면 코드 규칙',
           '   WARN 후보입니다. 학습표현은 문자열 하나라 “어떤 문맥에서만”을 담을 수 없습니다 —',
           '   그 문맥을 코드로 적을 수 있을 때 승격이 뜻이 있습니다.',
-          '4. **관할 재검토 — 형태 매칭인가, 의미 추론(IRIS)인가** — 같은 뜻이 늘 **다른 꼴**로',
+          '4. **관할 재검토 — 형태 매칭인가, 의미 추론(ARGOS)인가** — 같은 뜻이 늘 **다른 꼴**로',
           '   와서(패러프레이즈) 위 1번 조건이 성립하지 않으면, 사다리 어느 눈금도 못 잡습니다.',
-          '   그때는 뜻으로 잡아야 하는 표현이라 **IRIS 졸업** 후보입니다. “공식화가 안 된다”는',
-          '   판단은 여기서 사람이 내립니다 — 자동 추천은 “IRIS 가 이미 잡는다(중복)”만 봅니다.',
+          '   그때는 뜻으로 잡아야 하는 표현이라 **ARGOS 졸업** 후보입니다. “공식화가 안 된다”는',
+          '   판단은 여기서 사람이 내립니다 — 자동 추천은 “ARGOS 가 이미 잡는다(중복)”만 봅니다.',
         ]
       : [
           '3. **코드화 사다리 — BLOCK 으로 올릴 수 있나** — BLOCK 은 즉시 거절이라 되돌릴 사람이',
           '   없습니다. 위 2번의 정상 비껴가기 조건이 **오탐 0** 으로 측정돼야(평가셋·관찰) 자격이',
           '   생깁니다. 오탐이 남아 있으면 조건 재편이 먼저입니다.',
-          '4. **관할 재검토 — 문맥을 코드로 못 가르면 IRIS 위임(졸업)** — 형태는 맞는데 오탐이',
+          '4. **관할 재검토 — 문맥을 코드로 못 가르면 ARGOS 위임(졸업)** — 형태는 맞는데 오탐이',
           '   반복되고 위 2번 조건이 코드로 안 적히면, 그 문맥 판단은 의미 추론의 몫입니다.',
           '   실패가 아니라 방식 교체입니다.',
         ]),

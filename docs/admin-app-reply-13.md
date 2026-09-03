@@ -12,13 +12,13 @@
 | `sidecar/app.py` `/health` | `"run": config.run` 추가 (`tokenizer_match` 와 같은 성격) |
 | `studentClient.ts` | `StudentHealth.run` + **reviewerId 가 getter** — /health 를 한 번 받은 뒤부터 이름 자리에 `.env` 태그 대신 `run` 을 쓴다 |
 | 계기판 GET | `student.run` 추가 |
-| 보관본 | `archive/a0eaa12a29da0762/config.json` 에 `run: "IRIS.v5"` 보충 → `student:promote` 재실행(같은 지문) |
+| 보관본 | `archive/a0eaa12a29da0762/config.json` 에 `run: "ARGOS.v5"` 보충 → `student:promote` 재실행(같은 지문) |
 
 실측:
 ```
-/health      run "IRIS.v5" · model_sha a0eaa12a29da0762 · tokenizer_match true
+/health      run "ARGOS.v5" · model_sha a0eaa12a29da0762 · tokenizer_match true
 reviewerId   호출 전(.env 를 일부러 WRONG-ENV-TAG 로): student:WRONG-ENV-TAG@t0.7/L7
-             usable() 뒤:                               student:IRIS.v5@t0.7/L7
+             usable() 뒤:                               student:ARGOS.v5@t0.7/L7
 ```
 즉 어제의 사고(.env 옛 이름 + 지문은 맞음)를 재현해도 **소견에 박히는 이름은 파일 쪽**입니다.
 실집행 경로는 usable() 이 /health 를 먼저 부르므로 소견은 항상 "호출 뒤" 값입니다. 화면은
@@ -31,9 +31,9 @@ reviewerId   호출 전(.env 를 일부러 WRONG-ENV-TAG 로): student:WRONG-ENV
 ## §3. 접두어 — `student:` 유지 [확인]
 
 **유지합니다.** 접두어는 네임스페이스(로컬 모델 `student:` / API 모델 `claude:` / 규칙 `rule`)라
-"무엇으로 판정했나"의 종류를 말하고, 이름(`IRIS.v5`)은 그 종류 안의 개체를 말합니다. IRIS 는
+"무엇으로 판정했나"의 종류를 말하고, 이름(`ARGOS.v5`)은 그 종류 안의 개체를 말합니다. ARGOS 는
 화면 이름이고 `student:` 는 기계와 맺은 약속이라, 등급명(무표기·시니어)과 enum 키(BRONZE~)를
-분리한 규칙과 같은 자리입니다. `student:IRIS.v5@…` 가 섞여 보이는 것은 맞지만, 그 섞임이
+분리한 규칙과 같은 자리입니다. `student:ARGOS.v5@…` 가 섞여 보이는 것은 맞지만, 그 섞임이
 정확히 "종류 : 개체"라 의미가 있습니다. 바꿀 타이밍(운영 라벨 0건)은 맞으나 바꿀 이유가 없습니다.
 
 ## §4. 화면 조정 — 동의
@@ -45,5 +45,5 @@ reviewerId   호출 전(.env 를 일부러 WRONG-ENV-TAG 로): student:WRONG-ENV
 
 ## 상태
 
-tsc clean · infra+valve 83/83 · 라이브 r5 `IRIS.v5` 재승격 · 인수인계서 §2·§4-1 갱신.
+tsc clean · infra+valve 83/83 · 라이브 r5 `ARGOS.v5` 재승격 · 인수인계서 §2·§4-1 갱신.
 막고 있는 것 없습니다.

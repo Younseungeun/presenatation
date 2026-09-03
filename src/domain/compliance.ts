@@ -93,7 +93,7 @@ export const OPERATOR_VIOLATION_CATEGORIES: readonly RiskCategory[] = [
 /**
  * 위반이 **본문이 아니라 예측 카드**에 있는 유형 (2026-08-28). 근거 문장 짚기가
  * 본문에서 문장을 찾을 수 없으므로, 카드 값(종목·방향·목표·기간)을 본문 뷰에 다른
- * 글꼴로 실어 그것을 짚게 한다. IRIS 입력에는 카드가 통째로 들어간다.
+ * 글꼴로 실어 그것을 짚게 한다. ARGOS 입력에는 카드가 통째로 들어간다.
  */
 export const CARD_BASED_CATEGORIES: ReadonlySet<RiskCategory> = new Set([
   'UNREALISTIC_TARGET',
@@ -1236,10 +1236,10 @@ export function decide(findings: Finding[]): Exclude<ComplianceDecision, 'UNAVAI
  *
  * ── 왜 이름이 바뀌었나 ────────────────────────────────────────────
  * 예전에는 `hadSecondTier`(2차가 돌았나)였고, 그 "2차"는 Claude 자리였다. 그런데
- * **Claude 는 게시 검수에 참여하지 않고**(claudeScreener.ts 의 관문), IRIS 는
+ * **Claude 는 게시 검수에 참여하지 않고**(claudeScreener.ts 의 관문), ARGOS 는
  * 규칙 엔진과 **같은 층**에서 돈다(collectAutoScreenFindings 가 둘을 함께 모은다).
- * 그래서 옛 함수는 `rule+student:IRIS...` 에 대해 **false** 를 돌려줬고, 화면은
- * IRIS 가 멀쩡히 판정한 건에까지 "2차 AI 검수가 돌지 않았습니다"를 빨갛게 띄웠다.
+ * 그래서 옛 함수는 `rule+student:ARGOS...` 에 대해 **false** 를 돌려줬고, 화면은
+ * ARGOS 가 멀쩡히 판정한 건에까지 "2차 AI 검수가 돌지 않았습니다"를 빨갛게 띄웠다.
  *
  * 번호가 자리를 가리키기 때문에 생긴 사고다 — 층이 하나 빠지자 모든 번호가 한 칸씩
  * 어긋났는데 "2차"라는 말은 여전히 말이 돼서 **틀렸다는 사실이 드러나지 않았다.**
@@ -1247,13 +1247,13 @@ export function decide(findings: Finding[]): Exclude<ComplianceDecision, 'UNAVAI
  *
  * ── 표식 읽는 법 ──────────────────────────────────────────────────
  *   rule                              규칙만 — AI 가 안 봤다
- *   rule+student:IRIS.v5@t0.7/L7      규칙 + IRIS (정상)
- *   rule+student:…+student(장애)       IRIS 를 부르다 죽었다 → 보류
+ *   rule+student:ARGOS.v5@t0.7/L7      규칙 + ARGOS (정상)
+ *   rule+student:…+student(장애)       ARGOS 를 부르다 죽었다 → 보류
  */
 export interface AutoScreenParticipation {
   /** 규칙 엔진은 언제나 돈다 — 거짓이면 표식 자체가 깨진 것이다 */
   rules: boolean;
-  /** IRIS 가 소견을 낼 수 있는 상태로 참여했는가 */
+  /** ARGOS 가 소견을 낼 수 있는 상태로 참여했는가 */
   ai: boolean;
   /** 참여하지 못했다면 왜 — `OUTAGE`(부르다 죽음) · `OFF`(애초에 없었음) */
   aiMissing: 'OUTAGE' | 'OFF' | null;
@@ -1273,24 +1273,24 @@ export function autoScreenParticipation(reviewer: string): AutoScreenParticipati
 /**
  * **빠진 검사기를 이름으로 부른다** (2026-08-25 창업자 지시).
  *
- * 자동 검수 참여자는 규칙 엔진과 IRIS 둘이고, 문제 상황은 셋뿐이다.
+ * 자동 검수 참여자는 규칙 엔진과 ARGOS 둘이고, 문제 상황은 셋뿐이다.
  * 화면은 이 값을 그대로 칩으로 그린다 — **칩이 가리키는 것은 고장 난 쪽**이다:
  *
- *   'RULE'      규칙이 빠졌다 (IRIS 만 돌았다)
- *   'IRIS'      IRIS 가 빠졌다 (규칙만 돌았다)
- *   'RULE+IRIS' 둘 다 빠졌다 — 아무것도 안 본 채 큐에 온 것이라 가장 무겁다
+ *   'RULE'      규칙이 빠졌다 (ARGOS 만 돌았다)
+ *   'ARGOS'      ARGOS 가 빠졌다 (규칙만 돌았다)
+ *   'RULE+ARGOS' 둘 다 빠졌다 — 아무것도 안 본 채 큐에 온 것이라 가장 무겁다
  *   null        둘 다 참여했다 = 정상. 아무것도 그리지 않는다
  *
  * 줄 글("자동 검수 규칙만")로 적던 것을 걷은 이유: 큐에서 **무엇부터 볼지 고르는
  * 순간**에 쓰는 값이라 곁눈질에 걸려야 하는데, 문장은 읽어야 한다.
  */
-export type MissingScreener = 'RULE' | 'IRIS' | 'RULE+IRIS';
+export type MissingScreener = 'RULE' | 'ARGOS' | 'RULE+ARGOS';
 
 export function missingScreeners(reviewer: string): MissingScreener | null {
   const { rules, ai } = autoScreenParticipation(reviewer);
   if (rules && ai) return null;
-  if (!rules && !ai) return 'RULE+IRIS';
-  return rules ? 'IRIS' : 'RULE';
+  if (!rules && !ai) return 'RULE+ARGOS';
+  return rules ? 'ARGOS' : 'RULE';
 }
 
 /**

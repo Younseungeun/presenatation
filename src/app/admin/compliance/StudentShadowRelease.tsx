@@ -4,10 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import a from "../admin.module.css";
 
-// IRIS 자동 격하를 **사람이 푼다** (10차 검토 I-6).
+// ARGOS 자동 격하를 **사람이 푼다** (10차 검토 I-6).
 //
 // 거는 것은 시스템이고 푸는 것은 사람이다. 자동 복구를 두지 않는 이유는 원칙이 아니라
-// 관측의 성질이다 — IRIS를 끄면 IRIS의 성적을 만들 재료가 끊기므로, 끈 상태에서 잰
+// 관측의 성질이다 — ARGOS를 끄면 ARGOS의 성적을 만들 재료가 끊기므로, 끈 상태에서 잰
 // 값은 "좋아졌다"가 아니라 "모른다"인데 순이익 함수는 그 둘을 같은 얼굴로 돌려준다.
 // 매번 다시 재서 켜고 끄면 껐다 켰다가 영원히 반복된다.
 //
@@ -22,9 +22,9 @@ export function StudentShadowRelease() {
   async function release() {
     if (
       !confirm(
-        "IRIS을 다시 켭니다.\n\n" +
+        "ARGOS을 다시 켭니다.\n\n" +
           "재학습하고 npm run eval:student 로 채택선을 다시 통과시켰습니까?\n" +
-          "격하된 동안에는 IRIS의 성적을 잴 재료가 없어, 지금 지표가 좋아 보이는 것은 " +
+          "격하된 동안에는 ARGOS의 성적을 잴 재료가 없어, 지금 지표가 좋아 보이는 것은 " +
           "좋아졌다는 뜻이 아니라 모른다는 뜻입니다.",
       )
     )
@@ -53,7 +53,7 @@ export function StudentShadowRelease() {
     <>
       <div className={a.btnrow}>
         <button type="button" className={`${a.btn} ${a.btnLine}`} onClick={release} disabled={busy}>
-          {busy ? "처리 중…" : "자동 격하 해제 — IRIS 다시 켜기"}
+          {busy ? "처리 중…" : "자동 격하 해제 — ARGOS 다시 켜기"}
         </button>
       </div>
       {blocked && (

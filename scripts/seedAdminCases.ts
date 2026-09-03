@@ -426,12 +426,12 @@ async function main() {
 
   // ── ④-a 졸업 관찰 + 졸업 강등 추천 표본 (2026-08-31, 그림자 재생 트리거) ──
   //
-  // 졸업(IRIS 위임) 직후 7일 관찰 창의 상태들을 한 항목으로 만든다: 사전 탭의
-  // "졸업 — IRIS가 맡음" 칩 · 졸업 관찰 박스(미탐 → 응급 재활성화 + 재학습 안내) ·
+  // 졸업(ARGOS 위임) 직후 7일 관찰 창의 상태들을 한 항목으로 만든다: 사전 탭의
+  // "졸업 — ARGOS가 맡음" 칩 · 졸업 관찰 박스(미탐 → 응급 재활성화 + 재학습 안내) ·
   // 그리고 검출 항목 관리에 "↙ 졸업 강등" 추천이 뜨는 상태.
   //
-  // 트리거는 **상호 실증(구멍)**이다: IRIS 가 놓친(studentFlagged=false) 확정 위반
-  // (반려 건)을 옛 항목이 잡은 것이 하한(2)에 닿고, 그림자 오탐 0. IRIS 도 잡은 관찰
+  // 트리거는 **상호 실증(구멍)**이다: ARGOS 가 놓친(studentFlagged=false) 확정 위반
+  // (반려 건)을 옛 항목이 잡은 것이 하한(2)에 닿고, 그림자 오탐 0. ARGOS 도 잡은 관찰
   // 1건을 섞어 "미탐만 센다"는 성질이 화면에서 보이게 한다. 표면형은 세 꼴로 다양하게 —
   // 여러 꼴이어도 전부 옛 항목이 잡은 variation 이라는 근거 표시.
   {
@@ -468,7 +468,7 @@ async function main() {
           confirmedCount: 31,
           active: false, // 졸업 = active false + graduatedAt 있음 (비활성과 다른 얼굴)
           graduatedAt: ago(2 * DAY),
-          note: `${MARK} 졸업 관찰 표본 — 5조건 통과 후 IRIS에 위임`,
+          note: `${MARK} 졸업 관찰 표본 — 5조건 통과 후 ARGOS에 위임`,
           createdBy: operator.id,
           createdAt: ago(40 * DAY),
           lastMatchedAt: ago(3 * DAY),
@@ -481,7 +481,7 @@ async function main() {
       await prisma.graduationWatchHit.deleteMany({ where: { phraseId: before.id } });
       await makeHits(before.id);
     }
-    log(`졸업 관찰 — ${phrase} (IRIS 미탐-정탐 2·그림자 오탐 0 → 복귀 추천)`, !before);
+    log(`졸업 관찰 — ${phrase} (ARGOS 미탐-정탐 2·그림자 오탐 0 → 복귀 추천)`, !before);
   }
 
   // ── ④-c 검출 항목 관리 — 추천 3종 표본 (2026-09-02) ─────────────────
@@ -534,7 +534,7 @@ async function main() {
         }),
       });
 
-    // (1) ↗ 졸업(중복 실증) — 5조건 통과 + 형태 다양(승격 불가) + IRIS 동반 30/미동반 0
+    // (1) ↗ 졸업(중복 실증) — 5조건 통과 + 형태 다양(승격 불가) + ARGOS 동반 30/미동반 0
     {
       const phraseText = `${MARK} 프리미엄 리딩방 초대`;
       const before = await prisma.learnedPhrase.findFirst({ where: { phrase: phraseText } });
@@ -547,7 +547,7 @@ async function main() {
             matchCount: 30,
             confirmedCount: 30, // 정탐 100% — 5조건
             active: true,
-            note: `${MARK} 졸업 추천 표본 — IRIS 동반 검출 실증`,
+            note: `${MARK} 졸업 추천 표본 — ARGOS 동반 검출 실증`,
             createdBy: operator.id,
             createdAt: ago(100 * DAY), // 경과 30일 조건
             lastMatchedAt: ago(95 * DAY),
@@ -586,7 +586,7 @@ async function main() {
               confidence: 0.86,
             },
           ] as Finding[]),
-          { reviewer: 'rule+student:IRIS.v5@t0.7/L7' },
+          { reviewer: 'rule+student:ARGOS.v5@t0.7/L7' },
         );
         // hit 30건 — 리서처 5명(5조건) × 표면형 5꼴(형태 다양 → 규칙 승격이 아니라 졸업 쪽)
         const researchers = [r1, r2, r3, r4, r5].map((u) => u.researcherProfile!.id);
@@ -832,9 +832,9 @@ async function main() {
 
   // ── ⑥-b 이용자 신고 — 처리 대기(PENDING) 샘플 ─────────────────────────
   // "이용자가 잡은 것"의 예시가 없어 신고 검토 화면이 비어 있었다 (2026-08-27 창업자 지시).
-  // **모델이 놓친 위반**을 사람이 잡은 상황을 만든다: 게시 검수(RULE+IRIS)는 통과했는데
+  // **모델이 놓친 위반**을 사람이 잡은 상황을 만든다: 게시 검수(RULE+ARGOS)는 통과했는데
   // (검수 소견 0건) 본문에 개별 상담 유도가 **완곡하게** 들어 있어 규칙이 못 잡은 케이스.
-  // 이 위에서 강제 철회를 누르면 교사 질문지(학습 표현 등록·IRIS 재학습)가 열린다.
+  // 이 위에서 강제 철회를 누르면 교사 질문지(학습 표현 등록·ARGOS 재학습)가 열린다.
   console.log('이용자 신고 대기');
   {
     const title = `${MARK} 조용한 성장주 리레이팅 (신고 대기)`;
@@ -874,13 +874,13 @@ async function main() {
         },
       }));
     // 게시 검수는 통과했다는 기록 — 소견 0건(모델이 못 잡았다). 강제 철회 질문지가
-    // "RULE+IRIS 판정"으로 이 빈 소견을 싣고, 사람 판정과 대조한다
+    // "RULE+ARGOS 판정"으로 이 빈 소견을 싣고, 사람 판정과 대조한다
     const hadReview = await prisma.complianceReview.findFirst({ where: { reportId: rep.id } });
     if (!hadReview) {
       await prisma.complianceReview.create({
         data: {
           reportId: rep.id,
-          reviewer: 'rule+student:IRIS.v5@t0.7/L7',
+          reviewer: 'rule+student:ARGOS.v5@t0.7/L7',
           decision: 'PASS',
           findingsJson: '[]',
           needsOperatorReview: false,

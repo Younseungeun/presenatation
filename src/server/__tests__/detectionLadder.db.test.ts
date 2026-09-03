@@ -137,7 +137,7 @@ describe('사전 행의 동반 검출 집계 — 졸업(중복 실증)의 재료
   });
 });
 
-describe('IRIS 행(졸업 관찰)의 판정 조인 — 복귀(구멍 실증)의 트리거', () => {
+describe('ARGOS 행(졸업 관찰)의 판정 조인 — 복귀(구멍 실증)의 트리거', () => {
   async function watchHit(
     phraseId: string,
     complianceReviewId: string,
@@ -165,12 +165,12 @@ describe('IRIS 행(졸업 관찰)의 판정 조인 — 복귀(구멍 실증)의 
     await watchHit(g.id, r1.id); // 미탐 + 확정 → missTruePos
     await watchHit(g.id, r2.id); // 미탐 + 확정 → missTruePos
     await watchHit(g.id, r3.id); // 미탐인데 판정 없음 → missTruePos 제외 (미탐 총수에만)
-    await watchHit(g.id, r1.id, { studentFlagged: true }); // IRIS 도 잡음 → 미탐 아님
+    await watchHit(g.id, r1.id, { studentFlagged: true }); // ARGOS 도 잡음 → 미탐 아님
     // ⚠ 같은 phraseId+review 라도 category 가 같으면 recordGraduationWatch 는 한 행만
     // 남기지만, 여기서는 조인 산수를 재려고 행을 직접 심는다 (배선 시험의 특권)
 
     const row = await ladderRow(`learned:${g.id}`);
-    expect(row?.layer).toBe('IRIS');
+    expect(row?.layer).toBe('ARGOS');
     expect(row?.studentMissCount).toBe(3); // 미탐 총수 — 판정 없는 건 포함 (재학습 신호)
     expect(row?.missTruePos).toBe(2); // 확정 위반만 — 복귀 트리거
     expect(row?.falsePos).toBe(0);
@@ -206,7 +206,7 @@ describe('IRIS 행(졸업 관찰)의 판정 조인 — 복귀(구멍 실증)의 
     expect(mine?.shadowFalsePos).toBe(1);
   });
 
-  it('관찰 창(7일) 밖의 졸업 표현은 IRIS 행으로 뜨지 않는다 — 얼어붙은 수로 영구 낙인 금지', async () => {
+  it('관찰 창(7일) 밖의 졸업 표현은 ARGOS 행으로 뜨지 않는다 — 얼어붙은 수로 영구 낙인 금지', async () => {
     const g = await makePhrase('창 밖 표현', {
       active: false,
       graduatedAt: new Date(NOW.getTime() - 8 * DAY),

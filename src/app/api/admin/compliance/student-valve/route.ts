@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
 
     // **화면을 열 때는 새로 잰다** (2026-08-23 창업자 지시 — 검수 규칙과 같은 규칙).
     //
-    // 카나리아는 화면이 열릴 때마다 그 자리에서 다시 돈다. IRIS 만 캐시된 답을 보여 주면
+    // 카나리아는 화면이 열릴 때마다 그 자리에서 다시 돈다. ARGOS 만 캐시된 답을 보여 주면
     // 두 줄이 나란히 있는데 **한쪽만 어제 값**이다. 실제로 2026-08-22 에 지문이 갈렸을 때
     // 화면이 "출근"을 띄우고 있었던 것이 이 캐시 때문이다.
     //
@@ -109,7 +109,7 @@ export async function GET(req: NextRequest) {
     // 이 자리가 다시 위험해진다.
     const [canaryBeat, attendanceBeat, schedulerBeat] = await Promise.all([
       readCanaryBeat(prisma),
-      // IRIS 출근 점검 박동 — 카나리아와 대칭 (회신 16호). 재지 않고 읽기만: "지금 어떤가"는 usable/recheck 가 답한다
+      // ARGOS 출근 점검 박동 — 카나리아와 대칭 (회신 16호). 재지 않고 읽기만: "지금 어떤가"는 usable/recheck 가 답한다
       readAttendanceBeat(prisma),
       readHeartbeat(prisma),
     ]);
@@ -119,7 +119,7 @@ export async function GET(req: NextRequest) {
        탭을 열어 두면 `26분 전 측정` + 회색 점이 뜨는데, 정작 스케줄러는 멀쩡히 돌고
        옆의 `자동 점검 ✓` 는 초록이다 — **한 줄이 서로 모순되게 보인다.**
        고장이 아니라 화면이 자기 측정의 나이를 말한 것인데, 읽는 사람에게는 구별되지 않는다.
-       IRIS 를 폴링에서 다시 안 재는 이유(사이드카 9회 호출)는 여기 해당하지 않는다 —
+       ARGOS 를 폴링에서 다시 안 재는 이유(사이드카 9회 호출)는 여기 해당하지 않는다 —
        규칙은 정규식이고 종목명은 캐시라, 실측 게시물 28건에 137ms 짜리 일이다. */
     const canaryScreen = await getCanaryScreen(prisma).catch(() => null);
 
@@ -134,8 +134,8 @@ export async function GET(req: NextRequest) {
         ran: canaryScreen?.ran ?? 0,
       },
       // student.attendance.{lastOkAt,lastRanAt,nextAt,stale,timerStale} — 화면은 검수 규칙 줄과
-      // 같은 타이머를 IRIS 줄에 그린다. **타이머 칸이 읽는 것은 `timerStale`** 이다:
-      // 그 칸이 답하는 질문은 "IRIS 가 답했나"가 아니라 "물어보러 갔나"이고, IRIS 자신의
+      // 같은 타이머를 ARGOS 줄에 그린다. **타이머 칸이 읽는 것은 `timerStale`** 이다:
+      // 그 칸이 답하는 질문은 "ARGOS 가 답했나"가 아니라 "물어보러 갔나"이고, ARGOS 자신의
       // 상태는 바로 옆 상태 칩(근무 중·확인 중·결근)이 이미 말한다
       attendance: { ...attendanceBeat, schedulerOff: schedulerBeat.stale },
       student: {
@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
         // 고칠 것이 몇 개인지가 **고치러 가기 전에** 보여야 한다
         unavailableReasons: reasons,
         /* **검수 기록에 실제로 박히는 표식** — 화면이 이어 붙이지 않고 서버가 조립한다.
-           자동 검수 참여자는 **규칙 엔진 + IRIS** 둘뿐이라 base 는 언제나 `rule` 이다.
+           자동 검수 참여자는 **규칙 엔진 + ARGOS** 둘뿐이라 base 는 언제나 `rule` 이다.
            예전에는 `ANTHROPIC_API_KEY` 가 있으면 여기에 `claude:` 조각을 끼워 미리
            보여 줬는데, Claude 는 게시 검수에 참여하지 않으므로(2026-08-24 창업자 확정)
            **실제로 박히는 표식과 어긋나는 예고**였다 */

@@ -51,14 +51,14 @@ interface CheckResult {
   /**
    * 검사기 일부가 지금 답하지 못한다 (관리자 앱 Q10 · 2026-08-21).
    *
-   * **이 값이 없으면 이 화면은 거짓말을 한다.** IRIS가 멈춰 있으면 게시 관문은
+   * **이 값이 없으면 이 화면은 거짓말을 한다.** ARGOS가 멈춰 있으면 게시 관문은
    * 소견이 없어도 보류시키는데, 화면은 &ldquo;금지 표현이 없습니다&rdquo;라고 말한다 —
    * 리서처는 통과를 예상하고 제출했다가 보류를 맞는다.
    */
   studentDown: boolean;
   /**
    * 졸업한 표현의 힌트 (12차 C-8, 2026-09-01) — 게시를 막지도 보류시키지도 않는다. 사전에서
-   * IRIS로 넘어간 표현이라 서버 검사에서만 계산해 알려 주고, 판단은 IRIS가 게시 시점에 한다
+   * ARGOS로 넘어간 표현이라 서버 검사에서만 계산해 알려 주고, 판단은 ARGOS가 게시 시점에 한다
    */
   hints: Hint[];
 }
@@ -110,7 +110,7 @@ export function ComplianceHints({ input }: { input: CheckInput }) {
   const { findings, rates, studentDown, hints } = result;
 
   // **졸업한 표현의 힌트** (12차 C-8) — 노란 힌트 하나. "될 수 있습니다"까지만 말한다:
-  // 이 표현은 이제 IRIS가 문맥으로 보므로 서버는 막지 않고, 리서처가 스스로 고칠 기회만 준다
+  // 이 표현은 이제 ARGOS가 문맥으로 보므로 서버는 막지 않고, 리서처가 스스로 고칠 기회만 준다
   const hintsBlock =
     hints.length > 0 ? (
       <div
@@ -210,7 +210,7 @@ export function ComplianceHints({ input }: { input: CheckInput }) {
                 {" — "}
                 {f.reason}
                 <br />
-                {/* 인용문이 없는 소견이 있다 — IRIS은 문장이 아니라 **문서 전체**를 보고
+                {/* 인용문이 없는 소견이 있다 — ARGOS은 문장이 아니라 **문서 전체**를 보고
                   판정하므로 어느 문장인지 짚어주지 못한다. 빈 따옴표를 그리면 고장으로
                   읽히고, 아무 말도 안 하면 리서처가 무엇을 고쳐야 할지 모른다. */}
                 <span style={{ color: "var(--text-faint)" }}>

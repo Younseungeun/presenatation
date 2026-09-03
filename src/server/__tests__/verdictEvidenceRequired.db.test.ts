@@ -3,8 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestDb } from './helpers/testDb';
 import { ComplianceVerdictError, operatorVerdictWrites } from '../complianceService';
 
-// **IRIS 만 잡았거나 아무도 못 잡은 건을 위반으로 확정할 때는 근거 문장이 필수다** (2026-09-01).
-// IRIS 소견은 문장을 짚지 못하므로, 여기서 안 짚으면 "IRIS 유형별 문장 모음"(졸업 강등 본선
+// **ARGOS 만 잡았거나 아무도 못 잡은 건을 위반으로 확정할 때는 근거 문장이 필수다** (2026-09-01).
+// ARGOS 소견은 문장을 짚지 못하므로, 여기서 안 짚으면 "ARGOS 유형별 문장 모음"(졸업 강등 본선
 // 재료)이 영원히 안 쌓인다. 규칙·사전이 소견을 낸 건은 소견이 문장을 짚고 있어 종전대로 선택.
 
 let prisma: PrismaClient;
@@ -40,7 +40,7 @@ const rule = { category: 'SOLICIT_CONTACT', severity: 'WARN', quote: 'q', reason
 const now = new Date();
 
 describe('근거 문장 필수 관문', () => {
-  it('IRIS 만 잡은 건을 근거 없이 반려하면 거절한다 — 짚으면 통과', async () => {
+  it('ARGOS 만 잡은 건을 근거 없이 반려하면 거절한다 — 짚으면 통과', async () => {
     const reportId = await seedReview([student]);
     await expect(operatorVerdictWrites(prisma, reportId, 'REJECTED', 'op', now, {})).rejects.toBeInstanceOf(
       ComplianceVerdictError,

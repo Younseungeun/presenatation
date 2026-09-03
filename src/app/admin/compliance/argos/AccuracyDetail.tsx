@@ -218,11 +218,11 @@ export function AccuracyDetail({ summary }: { summary: AccuracySummary }) {
               .filter((s) => s.falsePositive > 0)
               .map(
                 (s) =>
-                  `${s.key === "rule" ? "규칙" : s.key === "ai" ? "AI" : s.key === "student" ? "IRIS" : s.key === "learned" ? "학습 표현" : "미상"} ${s.falsePositive}건`,
+                  `${s.key === "rule" ? "규칙" : s.key === "ai" ? "AI" : s.key === "student" ? "ARGOS" : s.key === "learned" ? "학습 표현" : "미상"} ${s.falsePositive}건`,
               )
               .join(" · ")}
             . <b>고칠 곳이 다릅니다</b> — 규칙 오탐은 정규식을, AI 오탐은 프롬프트를,
-            IRIS 오탐은 재학습 자료를 봐야 합니다.
+            ARGOS 오탐은 재학습 자료를 봐야 합니다.
           </div>
         )}
       </div>

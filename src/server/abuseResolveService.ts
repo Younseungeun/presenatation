@@ -51,7 +51,7 @@ export interface ResolveAbuseGroupInput {
   categories?: string[];
   /**
    * 근거 문장 지목 (2026-08-28 창업자 지시 — 필수는 UI 가 강제).
-   * 강제 철회(미탐)·지적 타당(경계)의 재학습 자료 근거가 된다 — IRIS 가 그 문장 창만
+   * 강제 철회(미탐)·지적 타당(경계)의 재학습 자료 근거가 된다 — ARGOS 가 그 문장 창만
    * 위반으로 배운다. 순수 오신고에는 오지 않는다(재학습 자료가 아니므로)
    */
   evidence?: string[];

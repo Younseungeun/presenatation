@@ -243,8 +243,8 @@ export async function notifyStudentAvailability(
     // 다시 구현하면 형식·타임아웃·중복 억제가 두 벌이 된다(opsAlertFeed의 판단).
     await notifyOperators(prisma, {
       title: change.to
-        ? '[검수] IRIS 복구 — 게시가 정상으로 돌아갑니다'
-        : '[긴급][검수] IRIS 연결 유실 — 지금부터 게시가 전부 보류됩니다',
+        ? '[검수] ARGOS 복구 — 게시가 정상으로 돌아갑니다'
+        : '[긴급][검수] ARGOS 연결 유실 — 지금부터 게시가 전부 보류됩니다',
       body: change.to
         ? `학생 모델이 다시 붙었습니다 (${change.detail}).`
         : `${change.detail}\n` +
@@ -275,7 +275,7 @@ export async function notifyStudentAvailability(
  * 기록의 `reviewer` 는 "이 리포트를 누가 봤나"라 **참여한 검사기를 이어 붙인** 값이다:
  *
  *   rule                                 규칙만 (AI 키 없음 · 학생 꺼짐)
- *   rule+student:IRIS.v5@t0.7/L7         규칙 + IRIS
+ *   rule+student:ARGOS.v5@t0.7/L7         규칙 + ARGOS
  *   rule+claude:…+student:…              셋 다
  *
  * 운영 상세 화면도 같은 문자열을 보여 줘야 하는데, 거기서 `rule+` 를 손으로 이어 붙이면
@@ -734,7 +734,7 @@ export interface VerdictLabel {
   /** 승인 시: 지적 자체는 타당했는가 (경미해서 승인한 경우 true) */
   /** 11차 K-1 — 세 갈래. `null`(무응답)과 `false`(명시적 오탐 신고)를 갈라 둔다 */
   findingsValid?: boolean | null;
-  /** 반려·철회 때 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3) — IRIS 라벨 지역화용 */
+  /** 반려·철회 때 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3) — ARGOS 라벨 지역화용 */
   evidence?: string[];
 }
 
@@ -747,8 +747,8 @@ export class ComplianceVerdictError extends Error {
 }
 
 /**
- * 규칙·사전(·옛 AI)이 낸 소견이 하나라도 있는가. 없으면 "IRIS 만 잡았거나 아무도 못 잡은 건"이다.
- * source 없는 옛 기록은 규칙 소견으로 본다(보수 — 모르면 IRIS 몫으로 세지 않는다).
+ * 규칙·사전(·옛 AI)이 낸 소견이 하나라도 있는가. 없으면 "ARGOS 만 잡았거나 아무도 못 잡은 건"이다.
+ * source 없는 옛 기록은 규칙 소견으로 본다(보수 — 모르면 ARGOS 몫으로 세지 않는다).
  * 깨진 JSON·빈 소견은 false — 아무도 못 잡은 것과 같다.
  */
 function hasNonStudentFinding(findingsJson: string): boolean {
@@ -797,9 +797,9 @@ export async function operatorVerdictWrites(
     }),
   ]);
 
-  // **IRIS 만 잡은 건을 큐에서 반려할 때는 근거 문장이 필수다** (2026-09-01 창업자 확정).
-  // IRIS 소견은 문장을 짚지 못하므로(문서 전체 판정), 이런 건에서 근거 문장을 안 짚으면
-  // "IRIS 유형별 문장 모음"(졸업 강등 본선 재료)이 **영원히 안 쌓인다**. 규칙·사전이 소견을
+  // **ARGOS 만 잡은 건을 큐에서 반려할 때는 근거 문장이 필수다** (2026-09-01 창업자 확정).
+  // ARGOS 소견은 문장을 짚지 못하므로(문서 전체 판정), 이런 건에서 근거 문장을 안 짚으면
+  // "ARGOS 유형별 문장 모음"(졸업 강등 본선 재료)이 **영원히 안 쌓인다**. 규칙·사전이 소견을
   // 낸 건은 소견 자체가 문장을 짚고 있어 종전대로 선택이다.
   // 범위는 **반려·강제 철회·신고 확인(미탐) 셋 다** (2026-09-01 창업자 확정). 세 화면
   // (ResolveButton·AbuseGroupResolve) 모두 근거 문장 선택기를 갖고 있고 철회·확인은 이미
@@ -811,7 +811,7 @@ export async function operatorVerdictWrites(
     !hasNonStudentFinding(latest.findingsJson)
   ) {
     throw new ComplianceVerdictError(
-      '이 건은 규칙·사전이 잡지 못하고 IRIS 만 잡았거나 아무도 못 잡은 건입니다 — 본문에서 근거 문장을 하나 이상 짚어 주세요. ' +
+      '이 건은 규칙·사전이 잡지 못하고 ARGOS 만 잡았거나 아무도 못 잡은 건입니다 — 본문에서 근거 문장을 하나 이상 짚어 주세요. ' +
         '그 문장이 코드화(사전 등록·규칙) 논의의 유일한 재료가 됩니다.',
     );
   }
@@ -1015,7 +1015,7 @@ export async function runAutoShadowCheck(prisma: PrismaClient, now = new Date())
     // **밖으로 쏜다.** 자동 격하야말로 조용히 일어나면 안 되는 사건이다 — 검수가
     // 약해진 채로 며칠이 지나도 앱은 아무 증상을 보이지 않는다 (10차 I-1과 같은 이유).
     await notifyOperators(prisma, {
-      title: '[검수] IRIS 자동 격하 — 지금 규칙 단독으로 검수 중입니다',
+      title: '[검수] ARGOS 자동 격하 — 지금 규칙 단독으로 검수 중입니다',
       body:
         `${status.summary}\n` +
         '운영자 판정 기준 순이익이 적자로 돌아서 학생 소견을 자동으로 껐습니다.\n' +
@@ -1152,7 +1152,7 @@ export interface TakedownInput {
   /** 실제 위반 유형 (선택) — 통과된 건을 철회했다면 검수가 못 잡은 유형이 된다.
    *  내장 key 또는 커스텀 유형 라벨(문자열) */
   categories?: string[];
-  /** 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3, 선택) — IRIS 라벨 지역화용 */
+  /** 운영자가 본문에서 짚은 근거 문장 (회신 20호 요청 3, 선택) — ARGOS 라벨 지역화용 */
   evidence?: string[];
   /**
    * 리서처에게 자동 철회 통지를 보낼지 (기본 true).

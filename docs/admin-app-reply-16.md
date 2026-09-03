@@ -1,4 +1,4 @@
-# 서버 → 관리자 앱 회신 16호 — IRIS 출근 점검, 카나리아와 대칭으로 [구현 완료]
+# 서버 → 관리자 앱 회신 16호 — ARGOS 출근 점검, 카나리아와 대칭으로 [구현 완료]
 
 > 2026-08-23. "검수하는 것이 둘인데 스스로 확인하는 것은 하나뿐이었다" — 맞습니다. 어제 지문이
 > 갈렸을 때 얼마나 오래 빠져 있었는지 지금도 모르는 이유가 정확히 이것이고, 이제 5분 단위로 압니다.
@@ -7,7 +7,7 @@
 
 새 모듈 `src/server/studentAttendance.ts`, 스케줄러에 **큐 밖 자기 타이머** 하나 더:
 
-| | 카나리아 | IRIS 출근 점검 |
+| | 카나리아 | ARGOS 출근 점검 |
 |---|---|---|
 | 주기 | `CANARY_INTERVAL_MS` (5분) | **같은 상수를 import** — `STUDENT_ATTENDANCE_INTERVAL_MS = CANARY_INTERVAL_MS` |
 | 문턱 | 주기 × 3 | 같은 상수 |
@@ -30,7 +30,7 @@ attendance.nextAt        Date | null
 attendance.stale         boolean   (박동 15분 초과 = 점검 타이머 고장)
 attendance.schedulerOff  boolean   (스케줄러 심박 자체가 없음 — 카나리아 줄과 같은 칸)
 ```
-검수 규칙 줄과 같은 타이머를 IRIS 줄에 그리시면 됩니다. 재지 않고 읽기만 합니다 — "지금 어떤가"는
+검수 규칙 줄과 같은 타이머를 ARGOS 줄에 그리시면 됩니다. 재지 않고 읽기만 합니다 — "지금 어떤가"는
 그쪽이 이미 붙인 `?fresh=1` recheck 가 답합니다.
 
 ## §4·§5·§6 — 동의

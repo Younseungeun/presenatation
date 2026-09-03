@@ -83,12 +83,12 @@ describe('질문지 조립', () => {
     expect(text.startsWith('> **판정을 요청하는 자료가 아닙니다.**')).toBe(true);
   });
 
-  it('논의 항목은 층에 따라 다르다 — 학습표현은 WARN 승격·IRIS 졸업, 규칙은 BLOCK·IRIS 위임', () => {
+  it('논의 항목은 층에 따라 다르다 — 학습표현은 WARN 승격·ARGOS 졸업, 규칙은 BLOCK·ARGOS 위임', () => {
     const phrase = assembleItemTeacherPack({
       itemId: 'learned:p1', label: 'x', layer: 'PHRASE', stats, evidence: [line({})],
     }).text;
     expect(phrase).toContain('규칙 WARN 으로 올릴 수 있나');
-    expect(phrase).toContain('IRIS 졸업');
+    expect(phrase).toContain('ARGOS 졸업');
     expect(phrase).not.toContain('BLOCK 으로 올릴 수 있나');
 
     const rule = assembleItemTeacherPack({
@@ -96,27 +96,27 @@ describe('질문지 조립', () => {
       reason: '수익을 보장하는 표현', stats, evidence: [line({ surface: null, layer: 'L2_SEPARATOR' })],
     }).text;
     expect(rule).toContain('BLOCK 으로 올릴 수 있나');
-    expect(rule).toContain('IRIS 위임(졸업)');
+    expect(rule).toContain('ARGOS 위임(졸업)');
     expect(rule).toContain('규칙 사유문: 수익을 보장하는 표현');
     expect(rule).toContain('[L2_SEPARATOR]');
     expect(rule).not.toContain('규칙 WARN 으로 올릴 수 있나');
   });
 
-  it('IRIS 유형별 모음은 졸업 강등 본선 논의를 묻고, 검출/미탐 수를 싣는다', () => {
+  it('ARGOS 유형별 모음은 졸업 강등 본선 논의를 묻고, 검출/미탐 수를 싣는다', () => {
     const text = assembleItemTeacherPack({
-      itemId: 'iris:SOLICIT_CONTACT',
+      itemId: 'argos:SOLICIT_CONTACT',
       label: '외부 채널 유도',
-      layer: 'IRIS_CATEGORY',
+      layer: 'ARGOS_CATEGORY',
       category: 'SOLICIT_CONTACT',
-      stats: { matched: 3, truePos: 3, falsePos: 0, irisDetected: 2, irisMissed: 1 },
+      stats: { matched: 3, truePos: 3, falsePos: 0, argosDetected: 2, argosMissed: 1 },
       evidence: [
-        line({ surface: null, layer: 'IRIS 검출', sentence: '자세한 건 디엠 주시면 알려드려요' }),
-        line({ surface: null, layer: 'IRIS 미탐', sentence: '노란 앱으로 오세요' }),
+        line({ surface: null, layer: 'ARGOS 검출', sentence: '자세한 건 디엠 주시면 알려드려요' }),
+        line({ surface: null, layer: 'ARGOS 미탐', sentence: '노란 앱으로 오세요' }),
       ],
     }).text;
-    expect(text).toContain('IRIS 가 잡은 확정 건 2 · IRIS 가 놓친 확정 건(통과 후 철회) 1');
+    expect(text).toContain('ARGOS 가 잡은 확정 건 2 · ARGOS 가 놓친 확정 건(통과 후 철회) 1');
     expect(text).toContain('졸업 강등 본선 — 코드로 내릴 수 있나');
-    expect(text).toContain('[IRIS 미탐] “노란 앱으로 오세요”');
+    expect(text).toContain('[ARGOS 미탐] “노란 앱으로 오세요”');
     // 항목 질문지의 사다리 문항은 여기 없다 — 이건 항목이 아니라 유형 모음이다
     expect(text).not.toContain('규칙 WARN 으로 올릴 수 있나');
     expect(text).not.toContain('BLOCK 으로 올릴 수 있나');

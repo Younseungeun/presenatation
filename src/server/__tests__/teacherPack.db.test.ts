@@ -173,14 +173,14 @@ describe('재학습 논의 자료 — 사람 판정을 나란히 싣는다', () 
     const id = await seedReview();
     const pack = await buildTeacherPack(prisma, id, deps);
     expect(pack!.text).toContain('판정을 요청하는 것이 아닙니다');
-    // IRIS 재학습 + 코드화 사다리(등록→WARN→BLOCK) + 관할 재검토(졸업/졸업 강등)를
+    // ARGOS 재학습 + 코드화 사다리(등록→WARN→BLOCK) + 관할 재검토(졸업/졸업 강등)를
     // 논의 대상으로 건다 (2026-08-31 어휘 확정)
-    expect(pack!.text).toContain('IRIS 재학습');
+    expect(pack!.text).toContain('ARGOS 재학습');
     expect(pack!.text).toContain('코드화 사다리');
     expect(pack!.text).toContain('코드 규칙 BLOCK');
     // BLOCK 은 코드로만 — 사전 항목을 켜는 것이 아니라는 경계가 반드시 있어야 한다
     expect(pack!.text).toContain('코드로만');
-    // 축 간 이동(졸업 강등)도 논의 대상이다 — IRIS 가 맡던 것을 놓쳤을 때의 갈래
+    // 축 간 이동(졸업 강등)도 논의 대상이다 — ARGOS 가 맡던 것을 놓쳤을 때의 갈래
     expect(pack!.text).toContain('졸업 강등');
   });
 
@@ -199,7 +199,7 @@ describe('재학습 논의 자료 — 사람 판정을 나란히 싣는다', () 
     expect(pack!.text).toContain('반려');
     expect(pack!.text).toContain('수익 보장 표현이 반복됨');
     // 자동 검수 판정도 나란히 — 비교의 반대쪽
-    expect(pack!.text).toContain('자동 검수(RULE+IRIS) 판정');
+    expect(pack!.text).toContain('자동 검수(RULE+ARGOS) 판정');
   });
 
   it('아직 판정 전이면 그 사실을 명시한다 — 비교의 절반이 비어 있다', async () => {

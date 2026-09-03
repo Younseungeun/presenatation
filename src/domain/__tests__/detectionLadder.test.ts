@@ -48,7 +48,7 @@ describe('학습표현 → 규칙 WARN / 졸업', () => {
   });
 
   // 12차 검토 C-1 반채택 — 동반 1/1 은 우연이라 최소 건수를 요구한다
-  it('IRIS 동반 검출이 최소 건수 미만이면 졸업 추천이 뜨지 않는다 (미동반 0 이어도)', () => {
+  it('ARGOS 동반 검출이 최소 건수 미만이면 졸업 추천이 뜨지 않는다 (미동반 0 이어도)', () => {
     expect(
       recommendMigration(
         phrase({ distinctSurfaces: 8, topSurfaceShare: 0.3, studentCoDetected: T.graduateMinCoDetected - 1, studentMissed: 0 }),
@@ -58,7 +58,7 @@ describe('학습표현 → 규칙 WARN / 졸업', () => {
       recommendMigration(
         phrase({ distinctSurfaces: 8, topSurfaceShare: 0.3, studentCoDetected: T.graduateMinCoDetected, studentMissed: 0 }),
       )?.kind,
-    ).toBe('GRADUATE_IRIS');
+    ).toBe('GRADUATE_ARGOS');
   });
 
   // 12차 검토 C-7 — 콜드스타트 프로필: 절대 건수 대신 꼬리 연속 정탐. 나머지 조건은 그대로
@@ -91,13 +91,13 @@ describe('학습표현 → 규칙 WARN / 졸업', () => {
     ).toBe('PROMOTE_BLOCK');
   });
 
-  it('5조건 + 형태 다양 + IRIS 동반 검출 실증(미동반 0) → 졸업 (중복이라 내려도 안전)', () => {
+  it('5조건 + 형태 다양 + ARGOS 동반 검출 실증(미동반 0) → 졸업 (중복이라 내려도 안전)', () => {
     // 졸업 판별자는 "형태 다양"이 아니라 동반 검출 실증이다 (2026-08-31 교체)
     expect(
       recommendMigration(
         phrase({ distinctSurfaces: 8, topSurfaceShare: 0.3, studentCoDetected: 30, studentMissed: 0 }),
       )?.kind,
-    ).toBe('GRADUATE_IRIS');
+    ).toBe('GRADUATE_ARGOS');
   });
 
   it('**형태 다양만으로는 졸업 안 됨** — 다양한 표면형은 전부 사전이 잡은 것이라 오히려 잘 작동한다는 증거', () => {
@@ -108,7 +108,7 @@ describe('학습표현 → 규칙 WARN / 졸업', () => {
     ).toBeNull();
   });
 
-  it('IRIS 미동반이 하나라도 있으면 졸업 안 됨 — 사전이 하중을 지고 있다', () => {
+  it('ARGOS 미동반이 하나라도 있으면 졸업 안 됨 — 사전이 하중을 지고 있다', () => {
     expect(
       recommendMigration(
         phrase({ distinctSurfaces: 8, topSurfaceShare: 0.3, studentCoDetected: 29, studentMissed: 1 }),
@@ -140,7 +140,7 @@ describe('학습표현 → 규칙 WARN / 졸업', () => {
   });
 });
 
-describe('규칙 WARN → BLOCK / IRIS 위임(졸업)', () => {
+describe('규칙 WARN → BLOCK / ARGOS 위임(졸업)', () => {
   it('오탐 0 + 관찰(100건·90일) 충족 → BLOCK 승격 자격', () => {
     expect(
       recommendMigration(rule({ matched: T.blockMinMatched, truePos: T.blockMinMatched, ageDays: T.blockMinAgeDays }))
@@ -154,10 +154,10 @@ describe('규칙 WARN → BLOCK / IRIS 위임(졸업)', () => {
     ).toBeNull();
   });
 
-  it('오탐 > 0 + 표본 충분 → IRIS 위임 (문맥 못 가름 = 졸업 계열, 하강이 아니다)', () => {
+  it('오탐 > 0 + 표본 충분 → ARGOS 위임 (문맥 못 가름 = 졸업 계열, 하강이 아니다)', () => {
     expect(
       recommendMigration(rule({ matched: T.delegateMinMatched, truePos: T.delegateMinMatched - 3, falsePos: 3 }))?.kind,
-    ).toBe('DELEGATE_IRIS');
+    ).toBe('DELEGATE_ARGOS');
   });
 
   it('오탐 > 0인데 표본 하한 미달 → 추천 없음 (위임 논의도 이르다)', () => {
@@ -169,14 +169,14 @@ describe('규칙 WARN → BLOCK / IRIS 위임(졸업)', () => {
   });
 });
 
-describe('IRIS → 사전 (복귀 — 졸업 강등의 자동 지름길)', () => {
+describe('ARGOS → 사전 (복귀 — 졸업 강등의 자동 지름길)', () => {
   // 졸업 관찰 중인 표현. 복귀의 실증은 두 사실의 교집합이다: 옛 항목이 잡았고(그림자
-  // 정탐) IRIS 는 놓쳤다(미탐). 기본값 = 미탐-정탐이 하한(2)에 닿고 그림자 오탐 0
+  // 정탐) ARGOS 는 놓쳤다(미탐). 기본값 = 미탐-정탐이 하한(2)에 닿고 그림자 오탐 0
   function graduatedPhrase(over: Partial<DetectionItemStats> = {}): DetectionItemStats {
     return {
       id: 'learned:g1',
       label: '수익 확실 세팅',
-      layer: 'IRIS',
+      layer: 'ARGOS',
       matched: 4,
       truePos: 3,
       falsePos: 0,
@@ -189,14 +189,14 @@ describe('IRIS → 사전 (복귀 — 졸업 강등의 자동 지름길)', () =>
     };
   }
 
-  it('IRIS 가 놓친 확정 위반 ≥2 를 옛 항목이 잡음 · 그림자 오탐 0 → 복귀 추천', () => {
+  it('ARGOS 가 놓친 확정 위반 ≥2 를 옛 항목이 잡음 · 그림자 오탐 0 → 복귀 추천', () => {
     expect(recommendMigration(graduatedPhrase())?.kind).toBe('UNGRADUATE');
   });
 
-  it('**IRIS 도 다 잡고 있으면(미탐-정탐 0) 추천 없음** — 중복이라 되살릴 이유가 없다', () => {
-    // 옛 항목이 아무리 잘 잡아도(정탐 3) IRIS 가 같은 건들을 전부 잡았다면 복귀는
+  it('**ARGOS 도 다 잡고 있으면(미탐-정탐 0) 추천 없음** — 중복이라 되살릴 이유가 없다', () => {
+    // 옛 항목이 아무리 잘 잡아도(정탐 3) ARGOS 가 같은 건들을 전부 잡았다면 복귀는
     // 보호를 더하지 않는다 — 그건 졸업이 옳았다는 증거다 (2026-08-31 창업자 지적:
-    // 복귀 = "규칙으로는 잘 잡는데 IRIS 로 못 잡는 경우")
+    // 복귀 = "규칙으로는 잘 잡는데 ARGOS 로 못 잡는 경우")
     expect(
       recommendMigration(graduatedPhrase({ missTruePos: 0, studentMissCount: 0 })),
     ).toBeNull();
@@ -220,9 +220,9 @@ describe('IRIS → 사전 (복귀 — 졸업 강등의 자동 지름길)', () =>
     ).toBeNull();
   });
 
-  it('사유가 구멍의 실증과 범위를 말한다 — IRIS 미탐 + 옛 항목이 잡음, 본선은 논의의 몫', () => {
+  it('사유가 구멍의 실증과 범위를 말한다 — ARGOS 미탐 + 옛 항목이 잡음, 본선은 논의의 몫', () => {
     const reason = recommendMigration(graduatedPhrase())?.reason ?? '';
-    expect(reason).toContain('IRIS 가 놓친 확정 위반');
+    expect(reason).toContain('ARGOS 가 놓친 확정 위반');
     expect(reason).toContain(`${T.ungraduateMinMissTruePos}건`);
     expect(reason).toContain('수익 확실 세팅');
     expect(reason).toContain('복귀');

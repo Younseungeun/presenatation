@@ -2,7 +2,7 @@ import { prisma } from "@/server/db";
 import { getSessionUserId } from "@/server/session";
 import { getTeacherPackDetails } from "@/server/teacherAnswerQueue";
 import { getDetectionLadder } from "@/server/detectionLadderService";
-import { getIrisCategoryCounts, IRIS_ITEM_PREFIX } from "@/server/itemTeacherPackService";
+import { getArgosCategoryCounts, ARGOS_ITEM_PREFIX } from "@/server/itemTeacherPackService";
 import { RISK_CATEGORY_LABEL } from "@/domain/compliance";
 import { fmtDayMonth as fmtDate } from "@/lib/format";
 import { AdminHead } from "../../AdminHead";
@@ -11,7 +11,7 @@ import { SecHead } from "../../Why";
 import { DetectionLadderTable } from "../DetectionLadderTable";
 import { TeacherBatchCopy } from "../TeacherBatchCopy";
 import { ItemPackButton } from "../ItemPackButton";
-import { IrisRegisterForm } from "../IrisRegisterForm";
+import { ArgosRegisterForm } from "../ArgosRegisterForm";
 
 export const dynamic = "force-dynamic";
 
@@ -42,10 +42,10 @@ export default async function TeacherPackDetailPage() {
     );
   }
 
-  const [packs, ladder, irisCounts] = await Promise.all([
+  const [packs, ladder, argosCounts] = await Promise.all([
     getTeacherPackDetails(prisma),
     getDetectionLadder(prisma),
-    getIrisCategoryCounts(prisma),
+    getArgosCategoryCounts(prisma),
   ]);
 
   return (
@@ -119,20 +119,20 @@ export default async function TeacherPackDetailPage() {
 
         <DetectionLadderTable rows={ladder} />
 
-        {/* IRIS 유형별 문장 모음 (2026-09-01) — 졸업 강등 **본선**("계속 보다 보니 공식화 가능")을
-            지탱하는 자리. IRIS 소견은 문장을 짚지 못하므로 재료는 운영자가 반려 때 짚은 근거
+        {/* ARGOS 유형별 문장 모음 (2026-09-01) — 졸업 강등 **본선**("계속 보다 보니 공식화 가능")을
+            지탱하는 자리. ARGOS 소견은 문장을 짚지 못하므로 재료는 운영자가 반려 때 짚은 근거
             문장뿐이다. 규칙·사전이 낸 소견이 있던 건은 여기 없다(그건 항목 질문지의 몫) */}
         <section style={{ marginTop: 22 }}>
-          <SecHead title="IRIS 유형별 문장 모음 — 졸업 강등 본선 재료">
-            규칙·사전은 못 잡고 <b>IRIS만 잡았거나 그마저 놓친</b> 확정 위반의 근거 문장을
+          <SecHead title="ARGOS 유형별 문장 모음 — 졸업 강등 본선 재료">
+            규칙·사전은 못 잡고 <b>ARGOS만 잡았거나 그마저 놓친</b> 확정 위반의 근거 문장을
             유형별로 모읍니다. 계속 보다가 &ldquo;이건 코드로 적을 수 있겠다&rdquo; 싶으면 질문지를
             뽑아 공식화를 논의하세요 — 그 답이 사전 등록 또는 규칙이 됩니다. 재료는 반려 때
-            <b> 짚은 근거 문장</b>이라, IRIS만 잡은 건은 짚지 않으면 반려가 안 됩니다.
+            <b> 짚은 근거 문장</b>이라, ARGOS만 잡은 건은 짚지 않으면 반려가 안 됩니다.
           </SecHead>
-          {irisCounts.length === 0 ? (
+          {argosCounts.length === 0 ? (
             <div className={a.empty}>
               <span className={a.dot} />
-              아직 모인 문장이 없습니다 — IRIS만 잡은 건을 반려하며 근거 문장을 짚으면 쌓입니다
+              아직 모인 문장이 없습니다 — ARGOS만 잡은 건을 반려하며 근거 문장을 짚으면 쌓입니다
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
@@ -141,19 +141,19 @@ export default async function TeacherPackDetailPage() {
                   <tr style={{ textAlign: "left", color: "var(--text-dim)" }}>
                     <th style={{ padding: "8px 10px", fontWeight: 600 }}>유형</th>
                     <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "right" }}>확정 건</th>
-                    <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "right" }}>IRIS 검출</th>
-                    <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "right" }}>IRIS 미탐</th>
+                    <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "right" }}>ARGOS 검출</th>
+                    <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "right" }}>ARGOS 미탐</th>
                     <th style={{ padding: "8px 10px", fontWeight: 600, textAlign: "right" }}>문장</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {irisCounts.map((c) => (
+                  {argosCounts.map((c) => (
                     <tr key={c.category} style={{ borderTop: "1px solid var(--line)" }}>
                       <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
                         {RISK_CATEGORY_LABEL[c.category]}
-                        <ItemPackButton itemId={`${IRIS_ITEM_PREFIX}${c.category}`} />
+                        <ItemPackButton itemId={`${ARGOS_ITEM_PREFIX}${c.category}`} />
                         {/* 본선 실행 통로 (Q1) — 질문지를 보고 "코드로 내리자" 정했으면 여기서 등록 */}
-                        <IrisRegisterForm category={c.category} />
+                        <ArgosRegisterForm category={c.category} />
                       </td>
                       <td style={{ padding: "8px 10px", textAlign: "right", verticalAlign: "top", fontVariantNumeric: "tabular-nums" }}>{c.cases}</td>
                       <td style={{ padding: "8px 10px", textAlign: "right", verticalAlign: "top", fontVariantNumeric: "tabular-nums" }}>{c.detected}</td>

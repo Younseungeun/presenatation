@@ -118,7 +118,7 @@ export function ResolveButton({
   // **본문(모델) 소견이 있는 보류인가** (2026-08-28 창업자 확정 Q2).
   // 검수가 짚은 유형 중 운영자 라벨용(내용·카드) 유형이 하나라도 있으면 "본문 소견 보류"다.
   // 위험 종목·판정불가 반복 같은 시스템 신호만 있는 보류는 모델의 텍스트 판단이 아니므로,
-  // 승인해도 오탐/지적타당 라벨을 강제하지 않는다(그걸 오탐으로 세면 IRIS 정확도가 거짓으로 나빠진다)
+  // 승인해도 오탐/지적타당 라벨을 강제하지 않는다(그걸 오탐으로 세면 ARGOS 정확도가 거짓으로 나빠진다)
   const contentHold = flaggedCategories.some((c) => OPERATOR_VIOLATION_CATEGORIES.includes(c));
 
   // **사람이 한 행동만 센다.** 검수 소견은 처음부터 들어 있으므로(flaggedCategories)
@@ -147,7 +147,7 @@ export function ResolveButton({
   /**
    * **열람 → 판정까지 걸린 시간** (26차 CC-1 반증 조건 — 피로도 함정 감지).
    *
-   * 라이브 IRIS를 유지하는 대가는 오탐 흡수인데, 오탐 승인과 정상 승인이 화면에서
+   * 라이브 ARGOS를 유지하는 대가는 오탐 흡수인데, 오탐 승인과 정상 승인이 화면에서
    * **같은 클릭**이라 결과만으로는 구별되지 않는다. 갈라 주는 유일한 신호가 시간이다:
    * 특정 유형의 판단이 다른 유형의 절반 밑으로 떨어지면 그 소견은 읽히지 않고 있다.
    *
@@ -200,7 +200,7 @@ export function ResolveButton({
 
   const negLabel = takedown ? "확인 · 강제 철회" : "반려";
   // 반려·철회 요건 (2026-08-28): 유형 ≥1 필수 · 사유 필수(→리서처 문자).
-  // 근거 문장은 **철회(미탐)만 필수**, 반려(정탐)는 선택 — IRIS 가 이미 옳게 잡았으므로.
+  // 근거 문장은 **철회(미탐)만 필수**, 반려(정탐)는 선택 — ARGOS 가 이미 옳게 잡았으므로.
   const negMissing = !effectiveCategories.length
     ? `실제 위반 유형을 하나 이상 골라야 ${takedown ? "철회" : "반려"}할 수 있습니다`
     : !reason.trim()
@@ -335,7 +335,7 @@ export function ResolveButton({
             </label>
             <p className={a.hint}>
               오탐이 쌓이면 모델이 스스로 검수에서 내려갑니다. 두 경우 모두{" "}
-              <b>근거 문장을 짚어야</b> — IRIS 가 무엇을 다시 배울지 지역화됩니다.
+              <b>근거 문장을 짚어야</b> — ARGOS 가 무엇을 다시 배울지 지역화됩니다.
             </p>
             {pending && findingsValid !== null && (
               <div className={a.field} style={{ marginTop: 8 }}>
@@ -372,7 +372,7 @@ export function ResolveButton({
             <small>
               {takedown || (approving && contentHold)
                 ? "필수 — 본문(또는 예측 카드 값)에서 근거를 짚어 주세요"
-                : "선택 — 짚으면 IRIS 가 그 문장 창만 배웁니다"}
+                : "선택 — 짚으면 ARGOS 가 그 문장 창만 배웁니다"}
             </small>
           </div>
           <EvidencePicker

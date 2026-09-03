@@ -165,7 +165,7 @@ describe('확인 = 철회·환불·미탐·통지·보상이 한 번에', () => 
     });
     expect(review?.operatorVerdict).toBe('TAKEDOWN');
     expect(review?.operatorCategories).toContain('SOLICIT_CONTACT');
-    // 근거 문장이 operatorEvidence 에 저장돼 IRIS 재학습 지역화의 근거가 된다 (2026-08-28)
+    // 근거 문장이 operatorEvidence 에 저장돼 ARGOS 재학습 지역화의 근거가 된다 (2026-08-28)
     expect(review?.operatorEvidence).toContain('오픈채팅방에서 안내드립니다');
 
     // ④ **자동 통지는 한 통도 나가지 않는다** (2026-08-20 사용자 확정).

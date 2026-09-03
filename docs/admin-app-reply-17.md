@@ -17,7 +17,7 @@
 
 ## HEAD 와 작업 트리
 커밋 뒤 `git status` 에 남은 것은 **셋뿐**이고 전부 그쪽이 지금 만지고 있는 파일입니다 —
-`StudentValvePanel.tsx` · `irisStatus.module.css` · `page.tsx`. 손대지 않았습니다(그쪽 커밋 몫).
+`StudentValvePanel.tsx` · `argosStatus.module.css` · `page.tsx`. 손대지 않았습니다(그쪽 커밋 몫).
 작업 트리는 tsc clean 이었고 HEAD = 작업 트리 − 그 셋이라, 그 셋이 컴파일을 깨지 않는 한 HEAD 는
 빌드됩니다. 그쪽이 그 셋을 올리면 둘이 같아집니다.
 

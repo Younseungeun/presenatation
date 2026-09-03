@@ -44,7 +44,7 @@ export async function engageStudentBypass(
   });
   // 우회는 조용히 일어나면 안 되는 사건이다 — 자동 격하 알림과 같은 계열
   await notifyOperators(prisma, {
-    title: '[검수] 장애 우회 밸브 내림 — IRIS 없이 게시가 흐릅니다',
+    title: '[검수] 장애 우회 밸브 내림 — ARGOS 없이 게시가 흐릅니다',
     body:
       `지금부터 2시간 동안 학생 장애 보류가 우회됩니다 (${until.toISOString()} 까지). ` +
       '우회로 흘러간 건은 전부 VALVE_BYPASS 로 표시되며, 시간이 지나면 자동으로 보류가 되살아납니다.',

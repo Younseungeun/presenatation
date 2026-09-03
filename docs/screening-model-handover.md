@@ -55,7 +55,7 @@
 | `STUDENT_SIDECAR_URL` | `http://127.0.0.1:8765` | 없으면 학생 OFF (규칙 엔진만) |
 | `STUDENT_MODE` | `live` / `shadow` / `off` | shadow = 판단하되 기록만, 게시 영향 없음. **출시는 live** |
 | `STUDENT_THRESHOLD` | **`0.7`** | 단일 임계값(3차 F-1). 출시 시작값이 0.7 이고 §7 의 "한 달"은 출시일부터 센다 — 0.5→0.7 로 "이미 한 번 올린 것"이 아니다 |
-| `STUDENT_MODEL_TAG` | `IRIS.v5` | **폴백일 뿐** — reviewerId 의 이름 자리는 사이드카 `/health` 의 `name`(config.json)이 우선이고, 이 값은 첫 /health 전에만 쓰인다 (회신 13·14호). 모델 이름은 `train.py --name`(필수, 공백·@·/ 금지)으로 파일에 박고, `--run` 은 대장 문장(회차 기록). 화면 표시명은 IRIS, 식별자 접두어 `student:` 는 유지 |
+| `STUDENT_MODEL_TAG` | `ARGOS.v5` | **폴백일 뿐** — reviewerId 의 이름 자리는 사이드카 `/health` 의 `name`(config.json)이 우선이고, 이 값은 첫 /health 전에만 쓰인다 (회신 13·14호). 모델 이름은 `train.py --name`(필수, 공백·@·/ 금지)으로 파일에 박고, `--run` 은 대장 문장(회차 기록). 화면 표시명은 ARGOS, 식별자 접두어 `student:` 는 유지 |
 | `STUDENT_ENABLED_LABELS` | 비우면 기본(졸업 라벨) | 라벨 켜고 끄기 — 졸업 절차 없이 추가 금지 |
 | `STUDENT_ARTIFACT_DIR` | (사이드카 쪽) 비움 | 후보 평가 때만 지정. 라이브는 `out/deployed` 고정 |
 
@@ -92,7 +92,7 @@ student.usable             boolean   (지문 대조 + 핑 8문항)
 student.modelSha           적재 지문
 student.promoted           { sha, at } | null
 student.promotionMatches   true | false | null   ← false 는 경고가 아니라 **사고**
-student.name               string | null          ← config.json 의 name — 짧은 모델 이름(IRIS.v5). 도장·화면의 이름 자리 (회신 14호)
+student.name               string | null          ← config.json 의 name — 짧은 모델 이름(ARGOS.v5). 도장·화면의 이름 자리 (회신 14호)
 student.run                string | null          ← config.json 의 run — 회차 기록(대장 문장). 사람이 읽는 용도, 도장에 쓰지 않음
 ```
 `POST { action: 'engage' | 'release' }` = 운영자 수동 우회(학생 끄기/되살리기).
@@ -184,7 +184,7 @@ npm run student:promote -- <onnx_sha>
 7. 작성 중 검사에 학생을 넣지 않는다 (Q10)
 8. `_prisma_migrations` 를 손으로 적지 않는다 — 적어야 했다면 `sqlite_master` 로 표 실재를 확인하고 기록을 남긴다
 9. 약점 문서를 리서처 화면에 노출하지 않는다
-10. 관리자 화면을 새로 만들 때 `admin/layout.tsx` 를 관문으로 믿지 않는다 — 그 레이아웃은 "운영자인데 패스키 0개"만 막고 비로그인·일반 이용자는 그대로 그린다. **페이지마다** `getSessionUserId` + 역할 검사 + `notFound()` 네 줄을 직접 넣는다 (회신 18호 ⑥: /admin/compliance/iris 가 비로그인 200 이었다)
+10. 관리자 화면을 새로 만들 때 `admin/layout.tsx` 를 관문으로 믿지 않는다 — 그 레이아웃은 "운영자인데 패스키 0개"만 막고 비로그인·일반 이용자는 그대로 그린다. **페이지마다** `getSessionUserId` + 역할 검사 + `notFound()` 네 줄을 직접 넣는다 (회신 18호 ⑥: /admin/compliance/argos 가 비로그인 200 이었다)
 11. 스케줄러를 재기동할 때 `npm` 만 죽이지 않는다 — npm → tsx → node 3단이라 알맹이가 살아남아 두 벌이 돈다(회신 18호 ⑤, 같은 문자 두 번). 명령줄로 `scheduler` 를 매칭해 자식까지 정리한다
 
 ---

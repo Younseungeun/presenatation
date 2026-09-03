@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { WhyBody, WhyGroup, WhyToggle } from "../../Why";
 import a from "../../admin.module.css";
-import s from "../irisStatus.module.css";
+import s from "../argosStatus.module.css";
 
 /**
- * **IRIS 상세 — 계기판이 접어 둔 것을 펴는 자리** (2026-08-23 창업자 지시).
+ * **ARGOS 상세 — 계기판이 접어 둔 것을 펴는 자리** (2026-08-23 창업자 지시).
  *
- * 계기판(`StudentValvePanel`)은 매일 보는 화면이라 `IRIS.v5 ✓` 두 조각만 남겼다.
+ * 계기판(`StudentValvePanel`)은 매일 보는 화면이라 `ARGOS.v5 ✓` 두 조각만 남겼다.
  * 나머지는 지운 것이 아니라 여기로 옮겼다 — 되짚을 때 오는 자리다.
  *
  * ── 값을 다시 계산하지 않는다 ───────────────────────────────────
@@ -71,7 +71,7 @@ function Row({
   );
 }
 
-export function IrisDetail() {
+export function ArgosDetail() {
   const [board, setBoard] = useState<Board | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -116,7 +116,7 @@ export function IrisDetail() {
           이미 값과 함께 말하고 있어, 접힌 문단은 같은 말을 한 번 더 하는 자리였다 */}
       <div className={a.sech}>
         <div className={a.sechTitle}>
-          IRIS
+          ARGOS
           <span className={a.rowTags} style={{ marginLeft: 8 }}>
             {/* **세 번째 상태가 있다** (2026-08-23 창업자 확정 B안) — 한 번 어긋났지만
                 아직 결근은 아닌 자리. 근무 중이라고 하면 화면이 거짓말이고 결근이라고
@@ -200,7 +200,7 @@ export function IrisDetail() {
               <code>student:</code> — 로컬 검사기라는 뜻. 외부 AI 는 <code>claude:</code>
             </span>
             <span>
-              <code>IRIS.v5</code> — 모델 파일이 들고 온 이름(<code>config.json</code>)
+              <code>ARGOS.v5</code> — 모델 파일이 들고 온 이름(<code>config.json</code>)
             </span>
             <span>
               <code>@t0.7</code> — 임계값. <b>모델이 아니라 설정</b>이라 이 값만 바꿔도

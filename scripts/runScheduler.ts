@@ -934,7 +934,7 @@ const STALE_MIN = Math.round(CANARY_STALE_MS / 60_000);
  * 두 정지 알림은 DB 에 남은 `lastOk`(마지막 성공 시각)를 읽는다. 그런데 그 값은
  * **프로세스가 죽어 있던 시간까지 포함해** 낡아 있다 — 스케줄러가 하루 쉬면 재기동
  * 직후의 `lastOk` 는 무조건 하루 전이다. 그 상태에서 곧바로 물으면 답은 언제나
- * "멎었다"이고, 그건 IRIS 나 카나리아에 대한 사실이 아니라 **아무도 안 물어본 시간**의
+ * "멎었다"이고, 그건 ARGOS 나 카나리아에 대한 사실이 아니라 **아무도 안 물어본 시간**의
  * 기록이다.
  *
  * 부팅 순서가 그것을 더 확실하게 만들고 있었다:
@@ -966,15 +966,15 @@ function beat(): void {
   void alertIfCanaryStale(prisma).then((stale) => {
     if (stale && !stopping) console.log(`  ⚠ 규칙 카나리아 박동이 ${STALE_MIN}분 넘게 멎어 있습니다`);
   });
-  // IRIS 출근 점검의 박동도 같은 자리에서 본다 (회신 16호) — 점검이 "결근"이라고 말하는 것과
+  // ARGOS 출근 점검의 박동도 같은 자리에서 본다 (회신 16호) — 점검이 "결근"이라고 말하는 것과
   // 점검이 아예 안 도는 것은 다른 고장이고, 후자는 점검 자신이 말할 수 없다
   void alertIfAttendanceStale(prisma, studentClient).then((stale) => {
-    if (stale && !stopping) console.log(`  ⚠ IRIS 출근 점검 박동이 ${STALE_MIN}분 넘게 멎어 있습니다`);
+    if (stale && !stopping) console.log(`  ⚠ ARGOS 출근 점검 박동이 ${STALE_MIN}분 넘게 멎어 있습니다`);
   });
 }
 
 /**
- * IRIS 출근 점검 — 규칙 카나리아와 대칭인 **큐 밖 자기 타이머** (회신 16호). 학생이 꺼져
+ * ARGOS 출근 점검 — 규칙 카나리아와 대칭인 **큐 밖 자기 타이머** (회신 16호). 학생이 꺼져
  * 있으면(STUDENT_SIDECAR_URL 없음) 클라이언트가 null 이라 아무 일도 안 한다.
  * 클라이언트는 프로세스에 하나다 — consumeAvailabilityChange() 의 전이 기억이 인스턴스에
  * 살아서, 매번 새로 만들면 "붙었다→끊겼다"를 한 번도 보지 못한다.
@@ -986,11 +986,11 @@ function attendanceTick(): void {
     .then((r) => {
       if (!r) return;
       console.log(
-        `  IRIS 출근 점검: ${r.ok ? '근무 중' : '결근'}` +
+        `  ARGOS 출근 점검: ${r.ok ? '근무 중' : '결근'}` +
           (r.notified === 'sent' ? ' (전이 — 알림 나감)' : ''),
       );
     })
-    .catch((e) => console.error('IRIS 출근 점검 실패:', e));
+    .catch((e) => console.error('ARGOS 출근 점검 실패:', e));
 }
 
 /**
@@ -1070,7 +1070,7 @@ const beatTimer = setInterval(beat, BEAT_INTERVAL_MS);
 beat();
 // 카나리아도 큐와 별개의 타이머다 (회신 15호 §1). 기동 1회는 catchUpOnBoot 가 친다
 const canaryTimer = setInterval(canaryTick, CANARY_INTERVAL_MS);
-// IRIS 출근 점검은 카나리아와 **주기의 절반만큼 어긋나게** 시작한다 (회신 16호 §1-1) —
+// ARGOS 출근 점검은 카나리아와 **주기의 절반만큼 어긋나게** 시작한다 (회신 16호 §1-1) —
 // 기동 때 그만큼 늦게 첫 회를 치고 이후 같은 주기. 벽시계 나머지가 아니라 재기동해도 간격이 남는다
 let attendanceTimer: NodeJS.Timeout | null = null;
 /* **예약했다는 사실을 찍는다** — 첫 점검이 2분 30초 뒤라, 그 사이 `lastRan` 은 직전

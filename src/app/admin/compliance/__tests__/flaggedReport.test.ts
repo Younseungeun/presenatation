@@ -44,7 +44,7 @@ describe("segmentText — 문제 삼은 워딩만 조각낸다", () => {
     expect(segs).toEqual([{ text: "평범한 분석입니다", finding: null }]);
   });
 
-  it("빈 인용문(IRIS 전체 판정)은 무시한다 — 칠할 자리가 없다", () => {
+  it("빈 인용문(ARGOS 전체 판정)은 무시한다 — 칠할 자리가 없다", () => {
     const segs = segmentText("본문", [f("")]);
     expect(segs).toEqual([{ text: "본문", finding: null }]);
   });
@@ -91,7 +91,7 @@ describe("isLocated — 소견이 본문에서 위치를 잡히는가", () => {
   it("없으면 false — '문장을 짚지 못한 소견'으로 간다", () => {
     expect(isLocated(fields, f("상승 233% / 90일"))).toBe(false);
   });
-  it("빈 인용문(IRIS 전체 판정)은 false", () => {
+  it("빈 인용문(ARGOS 전체 판정)은 false", () => {
     expect(isLocated(fields, f(""))).toBe(false);
   });
 });
