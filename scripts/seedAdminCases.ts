@@ -132,6 +132,10 @@ async function main() {
   const r1 = await ensureUser('res1', `${MARK}정량리서치랩`, true);
   const r2 = await ensureUser('res2', `${MARK}매크로노트`, true);
   const r3 = await ensureUser('res3', `${MARK}칩워처`, true);
+  // 사다리 졸업 표본(④-c)의 5조건에 "리서처 5명"이 있어 둘을 더 둔다 — 3명뿐이면
+  // 그 조건이 시드 데이터로는 영원히 안 켜져 화면에서 확인할 수 없다
+  const r4 = await ensureUser('res4', `${MARK}리스크캘큘러스`, true);
+  const r5 = await ensureUser('res5', `${MARK}턴어라운드헌터`, true);
   const buyer1 = await ensureUser('buy1', `${MARK}구매자하나`, false);
   const buyer2 = await ensureUser('buy2', `${MARK}구매자둘`, false);
   const buyer3 = await ensureUser('buy3', `${MARK}구매자셋`, false);
@@ -478,6 +482,213 @@ async function main() {
       await makeHits(before.id);
     }
     log(`졸업 관찰 — ${phrase} (IRIS 미탐-정탐 2·그림자 오탐 0 → 복귀 추천)`, !before);
+  }
+
+  // ── ④-c 검출 항목 관리 — 추천 3종 표본 (2026-09-02) ─────────────────
+  //
+  // ④-a 가 만든 복귀(↙) 표본에 더해, 나머지 추천 세 가지를 문턱 바로 위의 수치로
+  // 만든다: ↗ 졸업(중복 실증) · ↗ 문맥 위임(오탐) · ▲ BLOCK 승격 자격. 이게 없으면
+  // 사다리 표의 추천 네 종 중 셋이 한 번도 그려진 적 없는 채로 디자인이 끝난다.
+  //
+  // 두 가지 장치:
+  // · **리포트 1장 : 검수 N건** — 재제출이 검수를 다시 만들므로 한 리포트에 검수가
+  //   여럿인 것은 운영과 같은 모양이다. 문턱(30·20·100)만큼 리포트를 만들면 다른
+  //   화면(리포트 목록·리서처 통계)이 표본으로 도배된다
+  // · **정확도 창(90일) 밖으로 백데이트** — 이 검수들은 전부 판정이 붙어 있어, 최근에
+  //   두면 정확도 패널의 크래프트된 4라벨 구성(오탐이 보이는 상태)을 정탐 150건이
+  //   삼켜 버린다. 사다리는 창 없이 전체를 읽으므로 옛날 것이어도 집계된다
+  console.log('검출 항목 관리 — 추천 표본');
+  {
+    // 판정 붙은 검수 N건을 한 리포트에 몰아 만든다 (95~125일 전으로 흩뿌림).
+    // **reviewer 에 student: 를 함부로 적으면 안 된다** — 재학습 계기판
+    // (countHardNegatives)이 그 표식을 보고 라이브 소견에서 학생 판단을 읽는데,
+    // 학생 소견 없는 반려 건에 그 표식이 붙으면 전부 STUDENT_MISS 엇갈림으로 세져
+    // "재학습 추천" 칩이 시드만으로 켜진다 (실측으로 확인). 학생 소견을 실은
+    // 졸업 표본만 student: 를 단다
+    const bulkReviews = (
+      reportId: string,
+      count: number,
+      findingsJson: string,
+      opts: { fpIndex?: number; reviewer?: string } = {},
+    ) =>
+      prisma.complianceReview.createMany({
+        data: Array.from({ length: count }, (_, i) => {
+          const at = ago(95 * DAY + i * 7 * HOUR);
+          const fp = opts.fpIndex === i;
+          return {
+            reportId,
+            decision: 'WARN',
+            reviewer: opts.reviewer ?? 'rule',
+            findingsJson,
+            needsOperatorReview: false,
+            createdAt: at,
+            operatorReviewedAt: at,
+            operatorReviewedBy: operator.id,
+            operatorVerdict: fp ? 'APPROVED' : 'REJECTED',
+            aiFindingsValid: fp ? false : true,
+            operatorReason: `${MARK} 사다리 표본 라벨`,
+            // 몰아서 물었다는 시나리오 — 비워 두면 "교사 질의 누락률" 계기판이
+            // 이 표본 무더기를 실제 운영 습관으로 오독한다
+            teacherAskedAt: at,
+          };
+        }),
+      });
+
+    // (1) ↗ 졸업(중복 실증) — 5조건 통과 + 형태 다양(승격 불가) + IRIS 동반 30/미동반 0
+    {
+      const phraseText = `${MARK} 프리미엄 리딩방 초대`;
+      const before = await prisma.learnedPhrase.findFirst({ where: { phrase: phraseText } });
+      if (!before) {
+        const grad = await prisma.learnedPhrase.create({
+          data: {
+            phrase: phraseText,
+            normalized: phraseText.replace(/\s+/g, ''),
+            category: 'SOLICIT_CONTACT',
+            matchCount: 30,
+            confirmedCount: 30, // 정탐 100% — 5조건
+            active: true,
+            note: `${MARK} 졸업 추천 표본 — IRIS 동반 검출 실증`,
+            createdBy: operator.id,
+            createdAt: ago(100 * DAY), // 경과 30일 조건
+            lastMatchedAt: ago(95 * DAY),
+          },
+        });
+        const rep = await makeReport({
+          key: 'ladder-grad',
+          researcherId: r1.researcherProfile!.id,
+          title: `${MARK} 사다리 표본 — 졸업(중복 실증)`,
+          status: 'DRAFT',
+          deadline: ahead(30 * DAY),
+        });
+        // 검수 30건 — 사전 소견과 **학생 소견이 같은 유형으로 나란히** 실린다(라이브 동반).
+        // 이 30건이 전부 반려 확정이라 "내려도 잃는 것 없음"의 영수증이 30장이 된다.
+        // 학생 소견이 실려 있으므로 student: 표식이 정직하다(반려와 일치 → 엇갈림 0)
+        await bulkReviews(
+          rep.id,
+          30,
+          findings([
+            {
+              category: 'SOLICIT_CONTACT',
+              severity: 'WARN',
+              quote: '프리미엄 리딩방 초대',
+              reason: '운영자가 등록한 표현입니다.',
+              source: 'learned',
+              layer: 'L1_RAW',
+              ruleId: `learned:${grad.id}`,
+              phraseId: grad.id,
+            },
+            {
+              category: 'SOLICIT_CONTACT',
+              severity: 'WARN',
+              quote: '',
+              reason: '외부 채널 유도로 읽힙니다.',
+              source: 'student',
+              confidence: 0.86,
+            },
+          ] as Finding[]),
+          { reviewer: 'rule+student:IRIS.v5@t0.7/L7' },
+        );
+        // hit 30건 — 리서처 5명(5조건) × 표면형 5꼴(형태 다양 → 규칙 승격이 아니라 졸업 쪽)
+        const researchers = [r1, r2, r3, r4, r5].map((u) => u.researcherProfile!.id);
+        const surfaces = [
+          '프리미엄 리딩방 초대',
+          '프리미엄 리딩방으로 초대',
+          '프리미엄 리딩방에 초대합니다',
+          '프리미엄 리-딩-방 초대',
+          '프리미엄 리딩방 초대권',
+        ];
+        await prisma.learnedPhraseHit.createMany({
+          data: Array.from({ length: 30 }, (_, i) => ({
+            phraseId: grad.id,
+            reportId: rep.id,
+            researcherId: researchers[i % 5],
+            matchedSurface: surfaces[i % 5],
+            matchedSentence: `… ${surfaces[i % 5]} 드립니다 …`,
+            negation: null, // 부정 문맥 0 — 5조건
+            verdict: 'REJECTED',
+            createdAt: ago(95 * DAY + i * 7 * HOUR),
+          })),
+        });
+      }
+      log('↗ 졸업 추천 — 프리미엄 리딩방 초대 (동반 30·미동반 0)', !before);
+    }
+
+    // (2) ↗ 문맥 위임 — 규칙 RISK_INDUCEMENT, 표본 20건에 오탐 1건 (문맥 못 가름)
+    {
+      const title = `${MARK} 사다리 표본 — 문맥 위임(오탐)`;
+      const before = await prisma.report.findFirst({ where: { title } });
+      const rep = await makeReport({
+        key: 'ladder-delegate',
+        researcherId: r2.researcherProfile!.id,
+        title,
+        status: 'DRAFT',
+        deadline: ahead(30 * DAY),
+      });
+      if (!before) {
+        await bulkReviews(
+          rep.id,
+          20,
+          findings([
+            {
+              category: 'RISK_INDUCEMENT',
+              severity: 'WARN',
+              quote: '비중을 크게 실을 구간입니다',
+              reason: '위험 투자 조장으로 읽힐 수 있습니다.',
+              source: 'rule',
+              layer: 'L1_RAW',
+              ruleId: 'RISK_INDUCEMENT',
+            },
+          ] as Finding[]),
+          { fpIndex: 7 }, // 8번째 건이 "오탐 승인" — 형태는 맞는데 문맥을 못 가른 실측
+        );
+      } else {
+        // student: 표식 교정 전에 심은 행 — 학생 소견 없는 행에 표식이 남으면
+        // 재학습 계기판이 STUDENT_MISS 로 오독한다 ([案] 표본 자신의 모양 교정)
+        await prisma.complianceReview.updateMany({
+          where: { reportId: rep.id },
+          data: { reviewer: 'rule' },
+        });
+      }
+      log('↗ 문맥 위임 추천 — RISK_INDUCEMENT (20건 중 오탐 1)', !before);
+    }
+
+    // (3) ▲ BLOCK 승격 자격 — 규칙 PROFIT_EUPHEMISM(WARN), 오탐 0 · 100건 · 90일 관찰.
+    // **WARN 규칙이어야 한다** — 처음에 PROFIT_PROMISE 로 심었다가 그 규칙이 이미
+    // BLOCK 이라 추천이 영영 안 뜨는 것을 실측으로 확인했다(BLOCK 은 축 내 최상단).
+    // 완곡한 수익 보장(PROFIT_EUPHEMISM)이 뜻으로도 맞는 자리다: 완곡어 규칙이 오탐
+    // 없이 100건을 버텼다면 즉시 거절로 올릴 자격을 논의할 때다
+    {
+      const title = `${MARK} 사다리 표본 — BLOCK 승격 자격`;
+      const before = await prisma.report.findFirst({ where: { title } });
+      const blockFindings = findings([
+        {
+          category: 'PROFIT_GUARANTEE',
+          severity: 'WARN',
+          quote: '리스크 제로 구간입니다',
+          reason: '완곡한 수익 보장으로 읽힙니다.',
+          source: 'rule',
+          layer: 'L1_RAW',
+          ruleId: 'PROFIT_EUPHEMISM',
+        },
+      ] as Finding[]);
+      const rep = await makeReport({
+        key: 'ladder-block',
+        researcherId: r3.researcherProfile!.id,
+        title,
+        status: 'DRAFT',
+        deadline: ahead(30 * DAY),
+      });
+      if (!before) {
+        await bulkReviews(rep.id, 100, blockFindings);
+      } else {
+        // 규칙·표식 교정 전에 심은 행의 모양 교정 — [案] 표본 자신에게만 (③의 else 와 같은 규칙)
+        await prisma.complianceReview.updateMany({
+          where: { reportId: rep.id },
+          data: { findingsJson: blockFindings, reviewer: 'rule' },
+        });
+      }
+      log('▲ BLOCK 승격 자격 — PROFIT_EUPHEMISM (오탐 0 · 100건 · 90일)', !before);
+    }
   }
 
   // ── ④-b 출처 3종이 한 카드에 모인 보류 (인계 2호 §4) ──────────────────

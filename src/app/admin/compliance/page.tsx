@@ -85,6 +85,7 @@ import {
   type TeacherAnswerPending,
 } from "@/server/teacherAnswerQueue";
 import {
+  ACCURACY_WINDOW_DAYS,
   getPendingComplianceReviews,
   getPublishedReportsForOversight,
   getScreeningAccuracy,
@@ -433,12 +434,15 @@ function TeacherRelayPanel({
           flex: 1,
           display: "inline-flex",
           alignItems: "center",
+          // 칩이 네 개까지 붙으면(재학습·승격·졸업·졸업 강등) 한 줄이 모자란다 —
+          // 줄바꿈을 막으면 제목이 세로 한 글자씩으로 쥐어짜인다 (시드 표본으로 실측)
+          flexWrap: "wrap",
           gap: 6,
           textDecoration: "none",
           color: "inherit",
         }}
       >
-        <strong style={{ color: "var(--text)" }}>재학습 논의 자료</strong>{" "}
+        <strong style={{ color: "var(--text)", whiteSpace: "nowrap" }}>재학습 논의 자료</strong>{" "}
         <b style={{ color: "var(--text)" }}>{pending.length}건</b>
         {recent > 0 && <span style={{ color: "var(--text-dim)" }}>(+{recent})</span>}
         {/* **재학습 추천 칩 — 엇갈림이 문턱(50)을 넘을 때만** (2026-08-29 창업자 지시).
@@ -490,19 +494,27 @@ const HIT_LOG_SINCE = "2026-08-22";
  * (같은 5조건은 훗날 재검토 조건 — 보류 큐 7일 연속 하루 30건 초과 — 이 발동할 때에만
  *  BLOCK 코드 이식을 외부 검토 안건으로 올리는 문턱으로도 쓴다. 회신 21호)
  *
- * ── 다섯 조건을 모두 그린다 (하나만 빠져도 배지가 거짓말이 된다) ──
+ * ── 여섯 조건을 모두 그린다 (하나만 빠져도 배지가 거짓말이 된다) ──
  * 특히 **서로 다른 리서처 수**가 이 배지의 값어치다. 그것 없이 "30회 · 100%" 만 보면
  * 한 사람이 같은 문구를 30번 써서 만든 30회가 후보로 뜨는데, 심사가 지키는 상대는
  * "지금 리서처"가 아니라 "아직 안 온 정상 문장"이다. **부정 문맥 0**(회신 20호 요청 2)은
  * IRIS 가 넘겨받아도 헷지·부정 문장을 위반으로 오인하지 않을지의 신호다.
  *
+ * ── 여섯째: IRIS 동반 검출 실증 (2026-08-31 창업자 확정 — 졸업 요건 교체의 반영) ──
+ * 졸업의 트리거가 "형태 다양"에서 **동반 실증**(이 항목이 걸린 확정 건마다 IRIS 도 같은
+ * 유형을 냈는가)으로 바뀌었는데, 이 배지가 5조건만 세면 사다리 표(추천 없음)와 사전
+ * 탭(졸업 후보 ✓)이 **같은 항목에 다른 답**을 하게 된다 — 실행(graduatePhrase)이 조건을
+ * 검증하지 않아 이 배지가 유일한 안내판이므로, 배지가 틀리면 성급한 졸업을 배지가 부추긴다.
+ * 숫자는 사다리와 같은 집계(getDetectionLadder)에서 온다 — 두 화면이 갈라질 수 없다.
+ *
  * ── 못 채운 조건을 감추지 않는다 ──
- * 채운 것만 보여주면 "거의 다 됐다"로 읽힌다. 다섯을 다 늘어놓고 못 채운 것을 흐리게
+ * 채운 것만 보여주면 "거의 다 됐다"로 읽힌다. 여섯을 다 늘어놓고 못 채운 것을 흐리게
  * 그린다 — 무엇이 남았는지가 이 줄의 정보다.
  */
 function PromotionCandidate({
   p,
   now,
+  coDetection,
 }: {
   p: {
     matchCount: number;
@@ -512,6 +524,8 @@ function PromotionCandidate({
     negationHitCount: number;
   };
   now: Date;
+  /** 사다리와 같은 집계의 동반/미동반 — 확정 건에서 IRIS 가 같은 유형을 냈는가 */
+  coDetection: { co: number; missed: number };
 }) {
   const ageDays = Math.floor((now.getTime() - p.createdAt.getTime()) / 86_400_000);
   const checks = [
@@ -528,6 +542,12 @@ function PromotionCandidate({
     // 다섯째 조건 (회신 20호 요청 2) — 부정·헷지 문맥 출현 0. BLOCK 승격의 최대 위험이
     // 부정문 오거절이라, 이 표현이 부정 문맥에서 쓰인 실적이 있으면 후보에서 뺀다
     { ok: p.negationHitCount === 0, label: `부정 ${p.negationHitCount}건` },
+    // 여섯째 조건 (2026-08-31) — IRIS 동반 검출 실증. 미동반이 하나라도 있으면 사전이
+    // 하중을 지는 것이고, 실증이 아예 없으면(0/0) 모르는 것 — 어느 쪽도 내리면 안 된다
+    {
+      ok: coDetection.missed === 0 && coDetection.co > 0,
+      label: `IRIS 동반 ${coDetection.co}·미동반 ${coDetection.missed}`,
+    },
   ];
   const done = checks.every((c) => c.ok);
 
@@ -1037,7 +1057,8 @@ function AccuracyPanel({ summary }: { summary: AccuracySummary }) {
   return (
     <div className={a.row}>
       <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-weak)" }}>
-        검수 정확도 90일
+        {/* 창 길이는 서버 상수를 읽는다 — 라벨(90일)과 쿼리가 따로 놀던 잠복 결함의 재발 방지 */}
+        검수 정확도 {ACCURACY_WINDOW_DAYS}일
       </span>
       <span style={{ fontSize: 12.5, fontWeight: 700, color: "var(--text-weak)" }}>
         정탐 <b style={{ color: "#0e8a71" }}>{pct(summary.precision)}</b> · 오탐{" "}
@@ -1109,6 +1130,9 @@ export default async function AdminCompliancePage({
       ladderRecs.graduate += 1;
     else ladderRecs.promote += 1; // PROMOTE_RULE · PROMOTE_BLOCK
   }
+  // 졸업 후보 배지의 여섯째 조건(IRIS 동반 실증)이 **사다리와 같은 집계**를 읽게 하는
+  // 다리 — 배지가 따로 세면 두 화면이 같은 항목에 다른 답을 한다 (2026-08-31)
+  const ladderByItem = new Map(ladder.map((r) => [r.id, r]));
   // 졸업 폼의 경고 재료 — 사다리 행에서 그대로 꺼낸다 (2026-09-01). 사다리 추천과 졸업 폼이
   // **같은 숫자**를 보게 하려는 것: 형태 굳음은 PROMOTE_RULE 의 조건값, IRIS 동반은 GRADUATE_IRIS 의 실증값
   const ladderByPhrase = new Map(
@@ -1711,7 +1735,16 @@ export default async function AdminCompliancePage({
                 {!p.phoneticEligible && <span>근사 표기 제외 — 등록 시 충돌</span>}
                 {p.capExempt && <span>밀어내기 면제</span>}
               </div>
-              {p.active && <PromotionCandidate p={p} now={now} />}
+              {p.active && (
+                <PromotionCandidate
+                  p={p}
+                  now={now}
+                  coDetection={{
+                    co: ladderByItem.get(`learned:${p.id}`)?.studentCoDetected ?? 0,
+                    missed: ladderByItem.get(`learned:${p.id}`)?.studentMissed ?? 0,
+                  }}
+                />
+              )}
               {/* 승격·졸업 심사의 재료 — 걸린 문장·출현형·부정·판정 (회신 20호 요청 2) */}
               <PhraseEvidence phraseId={p.id} count={p.matchCount} />
               {p.note && <p className={a.hint}>{p.note}</p>}
