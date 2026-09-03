@@ -11,6 +11,7 @@ import { SecHead } from "../../Why";
 import { DetectionLadderTable } from "../DetectionLadderTable";
 import { TeacherBatchCopy } from "../TeacherBatchCopy";
 import { ItemPackButton } from "../ItemPackButton";
+import { IrisRegisterForm } from "../IrisRegisterForm";
 
 export const dynamic = "force-dynamic";
 
@@ -151,6 +152,8 @@ export default async function TeacherPackDetailPage() {
                       <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
                         {RISK_CATEGORY_LABEL[c.category]}
                         <ItemPackButton itemId={`${IRIS_ITEM_PREFIX}${c.category}`} />
+                        {/* 본선 실행 통로 (Q1) — 질문지를 보고 "코드로 내리자" 정했으면 여기서 등록 */}
+                        <IrisRegisterForm category={c.category} />
                       </td>
                       <td style={{ padding: "8px 10px", textAlign: "right", verticalAlign: "top", fontVariantNumeric: "tabular-nums" }}>{c.cases}</td>
                       <td style={{ padding: "8px 10px", textAlign: "right", verticalAlign: "top", fontVariantNumeric: "tabular-nums" }}>{c.detected}</td>

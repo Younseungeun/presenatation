@@ -7,6 +7,8 @@ import {
   type ItemPackLayer,
 } from '@/domain/itemTeacherPack';
 import { getDetectionLadder } from './detectionLadderService';
+import { createLearnedPhrase } from './learnedPhraseService';
+import { validatePhrase } from '@/domain/learnedPhrases';
 
 // 검출 항목별 질문지의 **수집** (2026-09-01). 조립은 domain/itemTeacherPack(순수).
 //
@@ -43,6 +45,8 @@ interface IrisCase {
   /** IRIS 가 잡았나(학생 소견 있음) / 놓쳤나(통과 후 철회) */
   detected: boolean;
   evidence: string[];
+  /** 이 근거가 나온 확정 건 — 본선 등록(IRIS→사전)의 출처(sourceReportId)로 물린다 (Q1) */
+  reportId: string;
   createdAt: Date;
 }
 
@@ -55,7 +59,7 @@ async function collectIrisCases(prisma: PrismaClient): Promise<IrisCase[]> {
   const rows = await prisma.complianceReview.findMany({
     where: { operatorVerdict: { in: [...CONFIRMED_VERDICTS] }, operatorEvidence: { not: null } },
     orderBy: { createdAt: 'desc' },
-    select: { findingsJson: true, operatorCategories: true, operatorEvidence: true, operatorVerdict: true, createdAt: true },
+    select: { reportId: true, findingsJson: true, operatorCategories: true, operatorEvidence: true, operatorVerdict: true, createdAt: true },
   });
   const out: IrisCase[] = [];
   for (const r of rows) {
@@ -75,7 +79,7 @@ async function collectIrisCases(prisma: PrismaClient): Promise<IrisCase[]> {
     const raw = opCats.length ? opCats : student.map((f) => f.category);
     const categories = [...new Set(raw)].filter((c): c is RiskCategory => (RISK_CATEGORIES as readonly string[]).includes(c));
     if (categories.length === 0) continue;
-    out.push({ categories, detected: student.length > 0, evidence, createdAt: r.createdAt });
+    out.push({ categories, detected: student.length > 0, evidence, reportId: r.reportId, createdAt: r.createdAt });
   }
   return out;
 }
@@ -102,6 +106,45 @@ export async function getIrisCategoryCounts(prisma: PrismaClient): Promise<IrisC
     }
   }
   return [...agg.values()].sort((a, b) => b.cases - a.cases);
+}
+
+/**
+ * **졸업 강등 본선의 실행 통로** (Q1, 2026-09-01 창업자 확정) — IRIS 유형별 모음을 보고
+ * "이 variation 들을 학습 표현으로 내리자"고 정한 것을 여기서 등록한다.
+ *
+ * 사전 등록은 **출처가 있어야 한다**(반려·철회 건에 붙여서만) — 그 원칙을 지키려고,
+ * 임의 등록이 아니라 **그 유형의 가장 최근 확정 IRIS 건 reportId 를 자동으로 물린다.**
+ * 그 유형에 확정 건이 하나도 없으면(= 근거 없음) 등록을 거부한다.
+ *
+ * 검증(2어절·4자·중복)·5층 자격·재검수는 createLearnedPhrase 가 그대로 한다 — 반려 흐름의
+ * 등록과 **같은 함수**라 두 경로가 갈라지지 않는다.
+ */
+export async function registerPhraseFromIris(
+  prisma: PrismaClient,
+  input: { category: string; phrase: string; operatorUserId: string; note?: string | null },
+) {
+  if (!(RISK_CATEGORIES as readonly string[]).includes(input.category)) {
+    throw new ItemPackError('알 수 없는 유형입니다');
+  }
+  const phrase = input.phrase.trim();
+  const issues = validatePhrase(phrase);
+  if (issues.length > 0) throw new ItemPackError(issues.join(' / '));
+
+  // 출처 = 그 유형의 가장 최근 확정 IRIS 건 (collectIrisCases 는 createdAt desc)
+  const source = (await collectIrisCases(prisma)).find((c) => c.categories.includes(input.category as RiskCategory));
+  if (!source) {
+    throw new ItemPackError(
+      '이 유형에는 근거가 된 확정 건이 없습니다 — 출처 없이 사전에 등록할 수 없습니다. ' +
+        'IRIS 만 잡은 건을 반려하며 근거 문장을 짚으면 여기서 등록할 수 있습니다.',
+    );
+  }
+  return createLearnedPhrase(prisma, {
+    phrase,
+    category: input.category as RiskCategory,
+    note: input.note ?? null,
+    createdBy: input.operatorUserId,
+    sourceReportId: source.reportId,
+  });
 }
 
 async function buildIrisCategoryPack(prisma: PrismaClient, category: string) {

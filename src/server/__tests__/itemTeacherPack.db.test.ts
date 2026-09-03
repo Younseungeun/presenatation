@@ -6,6 +6,7 @@ import {
   getIrisCategoryCounts,
   IRIS_ITEM_PREFIX,
   ItemPackError,
+  registerPhraseFromIris,
 } from '../itemTeacherPackService';
 
 // 검출 항목별 질문지의 **수집 경로** (2026-09-01) — 조립기는 순수 시험이 지키고, 여기서는
@@ -183,5 +184,55 @@ describe('buildItemTeacherPack', () => {
 
   it('없는 항목·대상 밖 층은 ItemPackError', async () => {
     await expect(buildItemTeacherPack(prisma, 'learned:nope')).rejects.toBeInstanceOf(ItemPackError);
+  });
+});
+
+describe('registerPhraseFromIris — 본선 실행 통로 (Q1)', () => {
+  const student = (category: string) => ({ category, severity: 'WARN', quote: '', reason: 'r', source: 'student' });
+
+  it('IRIS 확정 건이 있는 유형은 등록되고, 출처(sourceReportId)가 그 건으로 물린다', async () => {
+    const r = await seedReport();
+    await prisma.complianceReview.create({
+      data: {
+        reportId: r.report.id,
+        decision: 'WARN',
+        reviewer: 'rule',
+        findingsJson: JSON.stringify([student('SOLICIT_CONTACT')]),
+        operatorVerdict: 'REJECTED',
+        operatorEvidence: JSON.stringify(['노란 앱으로 오세요']),
+      },
+    });
+    const created = await registerPhraseFromIris(prisma, {
+      category: 'SOLICIT_CONTACT',
+      phrase: '노란색 앱으로', // 정규화 4자 이상·2어절 (하한 통과)
+      operatorUserId: 'op',
+    });
+    const row = await prisma.learnedPhrase.findUnique({ where: { id: created.id } });
+    expect(row?.active).toBe(true);
+    expect(row?.category).toBe('SOLICIT_CONTACT');
+    expect(row?.sourceReportId).toBe(r.report.id); // 출처가 근거 건으로 물렸다
+  });
+
+  it('그 유형에 확정 건이 없으면 거부한다 — 출처 없이 등록할 수 없다 (T9)', async () => {
+    await expect(
+      registerPhraseFromIris(prisma, { category: 'RUMOR', phrase: '카더라 소문', operatorUserId: 'op' }),
+    ).rejects.toThrow(/근거가 된 확정 건이 없습니다/);
+  });
+
+  it('2어절 미만 표현은 검증에서 거부한다 (같은 함수·같은 규칙)', async () => {
+    const r = await seedReport();
+    await prisma.complianceReview.create({
+      data: {
+        reportId: r.report.id,
+        decision: 'WARN',
+        reviewer: 'rule',
+        findingsJson: JSON.stringify([student('PROFIT_GUARANTEE')]),
+        operatorVerdict: 'TAKEDOWN',
+        operatorEvidence: JSON.stringify(['원금을 보장합니다']),
+      },
+    });
+    await expect(
+      registerPhraseFromIris(prisma, { category: 'PROFIT_GUARANTEE', phrase: '보장', operatorUserId: 'op' }),
+    ).rejects.toBeInstanceOf(ItemPackError);
   });
 });
