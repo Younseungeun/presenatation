@@ -33,6 +33,8 @@ import type { AccuracySummary } from "@/domain/screeningAccuracy";
 import { getLearnedPhraseStats } from "@/server/learnedPhraseService";
 import { getCustomViolationTypes } from "@/server/violationTypeService";
 import { getDetectionLadder } from "@/server/detectionLadderService";
+import { getRejectAuditQueue } from "@/server/rejectAuditService";
+import { RejectAuditList } from "./RejectAuditList";
 import { LADDER_THRESHOLDS } from "@/domain/detectionLadder";
 import { parseProbe } from "@/domain/formalizationProbe";
 import { GRADUATION_REASON_MIN } from "@/server/phraseGraduationService";
@@ -1101,6 +1103,7 @@ export default async function AdminCompliancePage({
     rescanQueue,
     customTypes,
     ladder,
+    rejectAudit,
   ] = await Promise.all([
     getPendingComplianceReviews(prisma),
     getPublishedReportsForOversight(prisma),
@@ -1118,6 +1121,7 @@ export default async function AdminCompliancePage({
     getRescanQueue(prisma),
     getCustomViolationTypes(prisma),
     getDetectionLadder(prisma),
+    getRejectAuditQueue(prisma),
   ]);
   // 재학습 박스에 붙일 추천 칩 — 검출 항목 관리의 추천을 축으로 접는다 (2026-08-31 어휘 확정):
   //   승격(축 내 상향) / 졸업(축 간 → IRIS: 실적 졸업 + 문맥 위임) / 졸업 강등(축 간 ← IRIS).
@@ -1386,6 +1390,24 @@ export default async function AdminCompliancePage({
       {/* 정렬은 **본문 탭에만** 있다 (시안) — 종목·시세는 상한까지 남은 날이 순서를
           정하므로 사람이 고를 축이 없다 */}
       {tab === "body" && <SortBar tab={tab} sort={sort} />}
+
+      {tab === "body" && (
+        <>
+          {/* ── 거절 훑기 (B1, 2026-09-01) ─────────────────────────────────
+              즉시 거절(규칙 BLOCK)은 큐에 안 와 사람 판정이 안 붙는다 — 그래서 BLOCK 규칙은
+              오탐 증거 채널이 0이었고 사다리에 영영 안 나타났다. 판정 없는 거절 기록을
+              규칙별 최근 5건 표본(+이의 건 전부)으로 띄워 정탐/오탐만 찍는다.
+              **자동 강등은 없다** — 오탐이면 즉시 재학습, 내리는 판단은 창업자 수동. */}
+          <SecHead title={<>거절 훑기{" "}
+              <span className={`${a.n} ${rejectAudit.length === 0 ? a.nCalm : ""}`}>{rejectAudit.length}</span></>}>
+            즉시 거절(규칙 BLOCK)은 큐에 오지 않아 사람 판정이 안 붙습니다 — BLOCK 규칙의 오탐은
+            여기서만 잡힙니다. 규칙별 최근 5건 표본과 <b>리서처 이의</b>(맨 앞, 노란 띠)에
+            <b> 정탐/오탐</b>만 찍으세요. 오탐이어도 규칙은 자동으로 내려가지 않습니다 — 즉시
+            재학습 재료가 되고, 내리는 판단은 따로 합니다.
+          </SecHead>
+          <RejectAuditList items={rejectAudit} />
+        </>
+      )}
 
       {tab === "sale" && (
         <>

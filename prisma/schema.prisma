@@ -916,6 +916,11 @@ model ComplianceReview {
   /// 떨어지면 운영자가 "아 또 이거네"로 안 읽고 승인하는 피로도 함정이다.
   /// 오탐과 정상 승인이 같은 클릭으로 끝나는 화면에서, 이 시간이 유일한 감별 신호다.
   decisionElapsedMs   Int?
+  /// **거절 이의** (B1, 2026-09-01). 즉시 거절(BLOCK)은 큐에 안 와 사람 판정이 안 붙는다 —
+  /// 리서처가 "이 인용문은 위반이 아니다"를 소명하면 운영자 거절 훑기 큐 맨 앞에 선다.
+  /// 거절 1건에 이의 1회(이 칸이 그 자체). 상한·소명 하한은 domain/rejectAppeal
+  appealStatement     String?
+  appealAt            DateTime?
   createdAt           DateTime  @default(now())
   /// 그림자 모드 판정 (처리에 관여하지 않는다 — ShadowComplianceReview 주석 참고)
   shadowReviews       ShadowComplianceReview[]

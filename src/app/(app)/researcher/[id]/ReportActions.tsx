@@ -11,6 +11,8 @@ import styles from "../researcher.module.css";
 //   · 판매 마감 → **판매만** 중단. 카드는 살아서 시한에 판정되고 환불 조건도 그대로
 // 촉매가 지나 논지가 소비됐을 때 필요한 것은 후자다. 앞의 것을 누르면 판정 기회가
 // 사라지므로, 버튼 색과 확인 문구로 둘의 무게 차이를 드러낸다.
+import { RejectAppealForm } from "./new/RejectAppealForm";
+
 export function ReportActions({
   reportId,
   status,
@@ -115,6 +117,9 @@ export function ReportActions({
         </button>
       )}
       {error && <span className={styles.hint} style={{ color: "#c62828" }}>{error}</span>}
+      {/* 즉시 거절(규칙 BLOCK)이면 그 자리에서 이의를 낼 수 있다 (B1) — 거절 문구는 "[위반 · 유형]"으로
+          시작한다(findingMessages). 보류·저장 실패 같은 다른 오류에는 안 뜬다 */}
+      {error && error.startsWith("[위반") && <RejectAppealForm reportId={reportId} />}
 
       {hold && (
         <div
