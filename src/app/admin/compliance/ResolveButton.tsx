@@ -378,6 +378,8 @@ export function ResolveButton({
           <EvidencePicker
             content={content}
             cardText={cardText}
+            reportId={reportId}
+            categories={effectiveCategories}
             value={evidence}
             onChange={setEvidence}
             required={takedown || (approving && contentHold)}

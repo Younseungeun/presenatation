@@ -335,6 +335,7 @@ export function AbuseGroupResolve({
           <EvidencePicker
             content={content ?? null}
             cardText={cardText ?? null}
+            reportId={reportId}
             value={evidence}
             onChange={setEvidence}
             required
