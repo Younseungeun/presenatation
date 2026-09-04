@@ -125,9 +125,11 @@ export default async function TeacherPackDetailPage() {
         <section style={{ marginTop: 22 }}>
           <SecHead title="ARGOS 유형별 문장 모음 — 졸업 강등 본선 재료">
             규칙·사전은 못 잡고 <b>ARGOS만 잡았거나 그마저 놓친</b> 확정 위반의 근거 문장을
-            유형별로 모읍니다. 계속 보다가 &ldquo;이건 코드로 적을 수 있겠다&rdquo; 싶으면 질문지를
-            뽑아 공식화를 논의하세요 — 그 답이 사전 등록 또는 규칙이 됩니다. 재료는 반려 때
-            <b> 짚은 근거 문장</b>이라, ARGOS만 잡은 건은 짚지 않으면 반려가 안 됩니다.
+            유형별로 모읍니다. <b>ARGOS 미탐(코드가 받쳐줄 확정 위반)이 많은 유형이 위</b>로 옵니다
+            — 위에서부터 보며 &ldquo;이건 코드로 적을 수 있겠다&rdquo; 싶으면 질문지를 뽑아 공식화를
+            논의하세요. 순서는 <b>어디부터 볼지</b>를 줄 뿐이고, 코드화가 되는지는 공식화 샌드박스가
+            판별합니다. 재료는 반려 때 <b>짚은 근거 문장</b>이라, ARGOS만 잡은 건은 짚지 않으면
+            반려가 안 됩니다.
           </SecHead>
           {argosCounts.length === 0 ? (
             <div className={a.empty}>
@@ -147,10 +149,16 @@ export default async function TeacherPackDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {argosCounts.map((c) => (
+                  {argosCounts.map((c, i) => (
                     <tr key={c.category} style={{ borderTop: "1px solid var(--line)" }}>
                       <td style={{ padding: "8px 10px", verticalAlign: "top" }}>
                         {RISK_CATEGORY_LABEL[c.category]}
+                        {/* "여기부터 보라" (13차 검토 A·Q6-1) — ARGOS 미탐이 있고 그중 맨 위 유형에만.
+                            문턱 컷이 아니라 상대 순위 강조라 근거 없는 상수를 안 만든다.
+                            "코드화 후보"라는 말은 쓰지 않는다 — 거짓 확신을 만든다(Q6-1) */}
+                        {i === 0 && c.missed > 0 && (
+                          <span className={`${a.chip} ${a.chipWarn}`} style={{ marginLeft: 6 }}>여기부터</span>
+                        )}
                         <ItemPackButton itemId={`${ARGOS_ITEM_PREFIX}${c.category}`} />
                         {/* 본선 실행 통로 (Q1) — 질문지를 보고 "코드로 내리자" 정했으면 여기서 등록 */}
                         <ArgosRegisterForm category={c.category} />

@@ -182,6 +182,37 @@ describe('buildItemTeacherPack', () => {
     await expect(buildItemTeacherPack(prisma, `${ARGOS_ITEM_PREFIX}NOPE`)).rejects.toBeInstanceOf(ItemPackError);
   });
 
+  it('유형 정렬은 ARGOS 미탐 많은 순 — 본선의 신호는 "코드가 받쳐줄 확정 위반"이다 (13차 검토 A)', async () => {
+    const student = (category: string) => ({ category, severity: 'WARN', quote: '', reason: 'r', source: 'student' });
+    const mk = async (category: string, verdict: string, detected: boolean) => {
+      const r = await seedReport();
+      await prisma.complianceReview.create({
+        data: {
+          reportId: r.report.id,
+          decision: 'WARN',
+          reviewer: 'rule',
+          findingsJson: JSON.stringify(detected ? [student(category)] : []),
+          operatorVerdict: verdict,
+          operatorEvidence: JSON.stringify([`${category} 근거 ${Math.random()}`]),
+          operatorCategories: detected ? null : JSON.stringify([category]),
+        },
+      });
+    };
+    // RISK_INDUCEMENT: 미탐 2 (ARGOS 도 놓침) · UNSUPPORTED_CLAIM: 미탐 1 + 검출 3 (건수는 더 많지만 미탐 적음)
+    // (다른 시험이 RUMOR·PROFIT_GUARANTEE 를 "빈 유형"으로 쓰므로 이 시험은 겹치지 않는 유형을 쓴다)
+    await mk('RISK_INDUCEMENT', 'MISSED', false);
+    await mk('RISK_INDUCEMENT', 'MISSED', false);
+    for (let i = 0; i < 3; i++) await mk('UNSUPPORTED_CLAIM', 'REJECTED', true);
+    await mk('UNSUPPORTED_CLAIM', 'MISSED', false);
+
+    const counts = await getArgosCategoryCounts(prisma);
+    // 미탐 많은 RISK_INDUCEMENT(2)가 확정 건 많은 UNSUPPORTED_CLAIM(4건)보다 위 — 정렬 키는 미탐
+    const top = counts.filter((c) => c.category === 'RISK_INDUCEMENT' || c.category === 'UNSUPPORTED_CLAIM');
+    expect(top[0].category).toBe('RISK_INDUCEMENT');
+    expect(top[0].missed).toBe(2);
+    expect(counts.find((c) => c.category === 'UNSUPPORTED_CLAIM')?.missed).toBe(1);
+  });
+
   it('없는 항목·대상 밖 층은 ItemPackError', async () => {
     await expect(buildItemTeacherPack(prisma, 'learned:nope')).rejects.toBeInstanceOf(ItemPackError);
   });

@@ -105,7 +105,10 @@ export async function getArgosCategoryCounts(prisma: PrismaClient): Promise<Argo
       agg.set(cat, cur);
     }
   }
-  return [...agg.values()].sort((a, b) => b.cases - a.cases);
+  // **ARGOS 미탐(코드가 받쳐줄 확정 위반) 많은 순** (13차 검토 A, 2026-09-03) — 본선의 신호는
+  // "ARGOS 가 놓친 확정 위반"이다. 문턱 컷은 두지 않는다(검토 Q4: 콜드스타트에선 근거 없는
+  // 상수가 결정권을 갖는다) — 정렬로만 "어느 유형부터 볼지"를 준다. missed 동수면 확정 건 순
+  return [...agg.values()].sort((a, b) => b.missed - a.missed || b.cases - a.cases);
 }
 
 /**
